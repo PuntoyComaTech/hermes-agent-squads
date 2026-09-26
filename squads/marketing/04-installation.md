@@ -85,6 +85,19 @@ STEP 5 · Profiles. For each bot in 03-bots.md §1:
     and image_gen enabled. Disable the blocked ones explicitly in each profile and then **verify
     with `hermes -p <bot> tools list`** — the `tools enable/disable` verb is per profile, and a
     bot that keeps `terminal` silently breaks the isolation rule 1 of `AGENTS.md`.
+  - **If the Kanban dispatcher is enabled, the workers need a resolvable `hermes` on PATH.**
+    The dispatcher launches every worker as `sys.executable -m hermes_cli.main` (it honors
+    `$HERMES_BIN` when set), so after any `hermes pm repair` the interpreter it inherits may
+    no longer have `hermes_cli` importable: each task dies in ~60 s with
+    `ModuleNotFoundError: No module named 'hermes_cli'` and retries until `failure_limit`,
+    while the dispatcher log looks normal. Set `HERMES_BIN` to the launcher that does work
+    (check `hermes pm doctor` for a healthy one, typically
+    `~/.hermes/installs/<id>/environments/<id>/venv/bin/hermes`) in the **gateway's**
+    environment, because the dispatcher runs in the gateway process, not in the bot's profile.
+    On macOS with `hermes gateway install` the variable belongs in the LaunchAgent plist's
+    `EnvironmentVariables`; a later `hermes gateway install` regenerates that plist, so re-add
+    it after each reinstall. Verify by creating one real task and confirming the worker
+    starts, not just that the task flips to `running`.
   - If the model of a bot with vision (creative, producer or reviewer) can't see images,
     configure auxiliary.vision in that profile.
   - Producer: image_gen.provider and image_gen.model according to image_ai (nothing if it is
@@ -115,8 +128,12 @@ STEP 7 · Orchestrator and channel.
      orchestration-marketing. If the version allows it, enable its desktop_ui toolset in Desktop
      sessions, so it can open the Studio next to the chat.
   b) If topic_per_brand: in Telegram, guide the user to enable Threaded Mode in BotFather and
-     add the General topic in dm_topics (03-bots.md §5.2). Restart the gateway and check that the
-     topic appears. In Discord, ask them to create one channel per brand.
+     add the General topic in dm_topics (03-bots.md §5.2). Restart the gateway and check that
+     the topic appears. In Discord, work through the four grants in 03-bots.md §5.2 in order and
+     confirm each one, because a partial setup connects the gateway and still never reads a
+     message. Restart the gateway after the token is written and grep the gateway log for
+     `discord connected`; then send one real message through the bot and read its reply, which
+     is the only test that exercises all four grants at once.
   c) Add the row to orchestrator/registry.md and the line in "Active squads" in
      user/profile.md.
 
@@ -135,6 +152,11 @@ the strategist's ONBOARDING task with the body and the idempotency-key from the 
 the chain with hermes kanban list --tenant <slug> until deliver.py (run it by hand) sends the
 diagnosis to its topic. Ask the user to answer the questions from their app and to approve
 context, brand, DESIGN.md and settings: the orchestrator must set active: true.
+**A task that shows `running` is not proof that the worker works.** The dispatcher flips the
+state before the process is proven healthy, so confirm with `hermes kanban runs <task-id>`
+that the run has progressed past its first minute and that the brand folder is gaining files.
+If the task returns to `blocked` or `ready` after ~60 s with no output, read the run's error:
+it is the `hermes_cli` import failure of step 5, not a bad prompt.
 
 STEP 10 · End-to-end test. Ask the user to type in the brand's topic "make a <most useful type for
 them> about <something real>". Follow the chain until the proposal reaches them: check that the
