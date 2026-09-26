@@ -19,6 +19,33 @@ Secrets only from {{M}}/.env (ignored by git): crons don't inherit Hermes' keys.
 data contracts are in 02-architecture.md (attached).
 ```
 
+### Traps that have already cost a real installation
+
+These are not hypothetical. Each one was hit while building this squad and each one fails
+quietly or misleadingly:
+
+1. **`mjml` is npm, not Python.** `pip install mjml` installs an unrelated third-party
+   reimplementation that does not compile MJML markup. Use `npm i -D mjml` and `npx mjml`.
+2. **Weekday keys are English, always.** `datetime.weekday()` is 0=Monday, and YAML
+   `notify_window.days` may be written as `lun`, `mon` or `Monday`. Normalize to
+   `["mon","tue","wed","thu","fri","sat","sun"]` before comparing, or the window never matches
+   and **no message is ever delivered** — with no error anywhere.
+3. **PyYAML turns ISO dates into `datetime` objects.** Any `card.md` header parsed with
+   `yaml.safe_load` gives you `datetime` for `publish_at` and `updated`, and
+   `json.dumps()` then raises `TypeError: Object of type datetime is not JSON serializable`.
+   Convert to `str`/`isoformat()` at the parse boundary, and pass `default=str` as a backstop.
+4. **Cron `--script` only resolves inside `$HERMES_HOME/scripts/`.** That is
+   `~/.hermes/profiles/<profile>/scripts/` for a named profile, and it does not exist on a fresh
+   profile. Create the directory first; Hermes rejects any path that escapes it.
+5. **The gateway hosts the Kanban dispatcher.** No gateway means no task ever starts, and the
+   symptom looks like a broken squad. Diagnose it in step 1 of the base installation.
+6. **A shared lock is reentrant only by token.** `render_video.py` calls `contact_sheet.py`, and
+   the child must not block on the parent. Export `HEAVY_LOCK_TOKEN` when acquiring and compare it
+   on re-entry, instead of blindly waiting.
+7. **A batch delivery has three distinct gates**: the notify window, the batch being complete,
+   and `batch_wait_hours` since the first piece arrived. Test all three explicitly; a test that
+   only exercises the happy path proves nothing.
+
 ## Level 1
 
 ### `heavy_lock.py` (shared)
