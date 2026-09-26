@@ -144,6 +144,33 @@ At Level 1, the user (or their web team) uploads it with the instructions that c
 
 The user replies by chat and the orchestrator acts (§4). Nobody writes to the user during the intermediate steps: neither the specialists nor the orchestrator when a finished task wakes it up.
 
+### 3.1.1 When a bot's input is incomplete
+
+The chain is linear and each task body has to carry everything the next bot needs. Treating that
+as guaranteed produces a game of telephone: a bot missing one datum blocks, the orchestrator
+translates, goes back with what it said, and the meaning degrades at every hop. No system — not
+even a human team — receives 100% of what it needs, so the plan's answer is a **fast path**,
+in this order:
+
+1. **Resolve it with what it already has.** The brand's files, the brief, and `piece-contract` are
+   the source of truth. A reasonable assumption is taken, used, and recorded in the piece's
+   History.
+2. **Ask the bot that produced the input directly**: `kanban_comment` on its own task with what's
+   missing, where it noticed it, and what it assumed, then `kanban_create` a reply task directed
+   at that bot with the question already resolved as far as it could. It keeps producing in the
+   meantime. This exchange does not reach the user: it is internal to the chain, and it only
+   escalates when someone is blocked or a public piece is affected.
+3. **Block only for a human decision**: price, a legal claim, spend, a fact only the user or the
+   client has, or a critical regulated-sector incident. One concrete line, not a paragraph.
+
+**This is not a group chat.** Hermes lets a worker comment on any task but not mutate one that
+isn't its own — the worker is bound to its `HERMES_KANBAN_TASK`, as protection against prompt
+injection — so the exchange is *comment + new task*, never editing a sibling's card. A worker
+keeps its context clean and asks for **one datum**, not an opinion. The isolation that keeps the
+reviewer independent (it reads the finished piece, not the draft that produced it) is the same
+mechanism that makes this safe. The audit trail is better than a conversation's: the comment stays
+on the card and the answer stays as a task with its own history.
+
 ### 3.2 Available flows
 
 | Flow | Trigger | Chain | What reaches the user |

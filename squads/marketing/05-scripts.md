@@ -45,6 +45,21 @@ quietly or misleadingly:
 7. **A batch delivery has three distinct gates**: the notify window, the batch being complete,
    and `batch_wait_hours` since the first piece arrived. Test all three explicitly; a test that
    only exercises the happy path proves nothing.
+8. **The Kanban worker inherits the gateway's Python, not yours.** The dispatcher spawns every
+   task as `sys.executable -m hermes_cli.main`, honoring `$HERMES_BIN` if set. After a
+   `hermes pm repair` that interpreter can lose `hermes_cli`, and every task dies in ~60 s with
+   `ModuleNotFoundError: No module named 'hermes_cli'` — while the card reads `running` and the
+   dispatcher log looks healthy. Set `HERMES_BIN` to a launcher that works **in the gateway's
+   environment** (the dispatcher is a gateway thread, not a profile), and re-add it to the
+   macOS LaunchAgent plist after any `hermes gateway install`, which regenerates it. Confirm with
+   a real task, not with a card's state.
+9. **`urllib` gets HTTP 403 from Discord where curl gets 200.** Discord's edge rejects the
+   default `Python-urllib` User-Agent with error code 1010, so channel and member calls fail with
+   a message that looks like a permissions problem. For Discord API calls, shell out to curl
+   (or set an explicit User-Agent) before concluding that a token or a role is wrong.
+10. **`DISCORD_HOME_CHANNEL` is a bare ID, not a `platform:id` pair.** Hermes parses it as an
+   integer, so writing `discord:1234567890` fails with `invalid literal for int()`. Telegram
+   takes the `telegram:<chat>:<topic>` form; Discord takes only the channel ID.
 
 ## Level 1
 

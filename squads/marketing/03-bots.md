@@ -467,6 +467,28 @@ If `topic_per_brand` is true:
 
   Hermes creates the topic and saves its `thread_id` in that file. `deliver.py` only reads it, to send with `--to telegram:<chat_id>:<thread_id>`.
 - **Discord:** one channel per brand, for example `#cafe-luna`. `deliver.py` sends with `--to discord:#cafe-luna`.
+  Hermes talks to Discord as a **bot token**, never a webhook: it has no webhook support, and a
+  webhook can't administer the server or create channels. The setup is four separate grants, and
+  the first three all look like "it works" while the bot stays mute, so verify each one:
+  1. **Bot token**, not the public key, and not the Application ID. The public key is only for
+     verifying interaction signatures and Hermes never asks for it. `GET /users/@me` with the
+     token returning 200 is the check.
+  2. **The bot in the server**, with a role that already has View Channel and Send Messages.
+     Inheriting them from `@everyone` is enough for reading and replying.
+  3. **`Manage Channels`** on that role, only if the installer is to create the brand channels
+     itself. Without it `POST /guilds/<id>/channels` fails with a bare 403, and the plan's "ask
+     the user to create one channel per brand" is the alternative: the user creates them by hand
+     and grants the bot access.
+  4. **Both privileged gateway intents** in the Developer Portal (Application → Bot →
+     Privileged Gateway Intents): `Message Content Intent` to read messages, and
+     `Server Members Intent` to resolve the user's ID through `GET /guilds/<id>/members`.
+     Server-side permissions do not enable these: without them the gateway refuses to start
+     with `PrivilegedIntentsRequired` and the members endpoint returns 403. The user must
+     toggle both and save; no OAuth link can do it.
+  If `DISCORD_ALLOWED_USERS` can't be resolved through the API, ask the user to copy their own
+  ID (right-click the profile → Copy User ID) instead of leaving the bot open to everyone.
+  The channel's permissions bitfield is not a substitute for the intents, and a successful
+  `GET /guilds/<id>/channels` only proves the first two, never the intents.
 - **WhatsApp and others:** a single chat, with the brand name at the start of each message.
 
 **Who edits the configuration.** Only the installer AI, during installation (topics for the initial brands) and in the "add the topic for a brand" maintenance task (`04-installation.md`). No script edits the Hermes configuration or restarts the gateway. While a brand has no topic, its messages go to the main chat with its name.
