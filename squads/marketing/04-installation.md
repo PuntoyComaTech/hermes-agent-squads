@@ -71,6 +71,15 @@ adapted to this plan; follow the format of the bundled skill hermes-agent-skill-
 you want to test them, use skill-creator from anthropics/skills in your own profile. The
 piece-contract skill must contain everything its row lists. Write orchestration-marketing with
 the text from 03-bots.md §4.1, plus its references/onboarding.md.
+**`references/onboarding.md` is not bundled in this repository**: §4.1 only names it, and the
+installation cannot be completed without it, because that file is what turns Part 5 of
+01-personalization.md into the questions the orchestrator actually asks. Write it from Part 5
+(required, recommended, and only-if-applicable) before step 7: the 10 required questions as a
+numbered list with the question to put to the user and where the answer is written, the
+recommended ones marked as such, and the procedure for asking them in rounds of at most 5
+after the diagnosis arrives, writing each answer into `context.md` or `brand.md` and showing
+the change. Two rules it must state: ask only what the strategist could not research, and never
+ask what a brand file or the plan already answers.
 
 STEP 5 · Profiles. For each bot in 03-bots.md §1:
   hermes profile create <bot> --no-skills --description "<description>"
@@ -174,6 +183,13 @@ Verify and note in install-notes.md:
   - that [[as_document]] keeps Telegram from recompressing the covers;
   - whether adding a topic to dm_topics with the gateway running creates it without a restart;
   - that Playwright and HyperFrames used the system browser.
+  - that the orchestrator's `orchestration-marketing` skill is actually loaded in the
+    orchestrator profile (`hermes -p orchestrator skills list`), and that
+    `skills/orchestration/references/onboarding.md` exists: without it the orchestrator
+    receives a diagnosis with unanswered questions and no procedure to ask them, which looks
+    exactly like a bot that stopped working;
+  - that a question the user can only answer (a price, a goal) reaches them as a question and
+    not as a blocked task with no explanation.
 If everything works, resume the crons (hermes cron resume).
 
 At the end, in plain language: what is now working, when each brand's first week will arrive,
