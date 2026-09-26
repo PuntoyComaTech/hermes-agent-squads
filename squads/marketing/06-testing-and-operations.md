@@ -33,7 +33,7 @@ Use one of the user's real brands, plus a test brand that is deleted at the end.
 
 | # | I | Test | Input | Expected result |
 | --- | --- | --- | --- | --- |
-| M | | Invented claim | Manually add "the best coffee in town" with no proof and relaunch the reviewer | Truthfulness critical issue: it never arrives as APPROVED. It is fixed once; if it persists, it is escalated with the exact question |
+| M | | Invented claim | Manually add "the best coffee in town" with no proof point and relaunch the reviewer | Truthfulness critical issue: it never arrives as APPROVED. It is fixed once; if it persists, it is escalated with the exact question |
 | N | | Persistent technical error | Force an impossible size | The producer tries 3 times and blocks, explaining what fails; it doesn't go to the reviewer |
 | O | I | Change | "change 2: shorter and with a real photo" | "✏️ v2 of 2" arrives with the change; v1 stays intact and the Studio shows both |
 | P | | Change to a document | "change the plan: more focus on Instagram" | The strategist creates v2 of the plan; it goes through the reviewer and arrives |
