@@ -64,6 +64,16 @@ In this plan, `{{M}}` = `{{ROOT}}/projects/marketing`.
 | Piece | `<slug>-<YYYYMMDD>-<type>-<nn>`, with the creation date | `cafe-luna-20261001-carousel-01` |
 | Batch | `<slug>-W<YYYY>-<week>` · `<slug>-<campaign>` · `<slug>-onboarding` · the piece ID if it goes alone | `cafe-luna-W2026-41` |
 
+**Pieces are dated, not revisioned by the author.** A Kanban worker that retries, or a chain that
+runs twice, produces the *same* piece ID: the date is the creation date, not the attempt number.
+That is what makes the idempotency-key work, so **never append a suffix** to make something
+unique. If you genuinely need a second, different piece for the same day and type, bump `nn` (the
+last component), which is why it is the "first free number in `pieces/`".
+
+**A piece type is written once and reused.** Do not create two types that mean the same thing
+(`plan` and `proposal`, for example). Every type in §2 has an established shape: what it contains,
+where it is reviewed, and whether it reaches the user. A new name means a new contract.
+
 **How the user replies.**
 
 - **Pieces in a batch:** with numbers (1, 2, 3…).

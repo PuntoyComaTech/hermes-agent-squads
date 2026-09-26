@@ -425,6 +425,10 @@ this brand. Every request or reply here is about Café Luna, unless {{name}} nam
 ### 5.1 Crons
 
 The scripts are **copied** (not linked, because of Windows) into `$HERMES_HOME/scripts/` of the profile that runs them.
+`$HERMES_HOME` is that profile's own home, so this is `~/.hermes/profiles/<profile>/scripts/` for a named
+profile and `~/.hermes/scripts/` for `default`. The directory may not exist yet on a fresh profile: create it
+first. Hermes re-validates on every run that the script resolves **inside** it and refuses paths that escape
+it, so a script left anywhere else fails with a clear error.
 
 | Automation | Type | Profile | Schedule | What it does |
 | --- | --- | --- | --- | --- |

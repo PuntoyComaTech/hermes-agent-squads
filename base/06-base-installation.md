@@ -29,6 +29,26 @@ Telegram. Don't continue until the user approves the profile.
 STEP 1 · Diagnosis. hermes --version, hermes doctor, hermes profile list,
 hermes gateway status, hermes kanban stats. Summarize what is broken before continuing.
 
+**If `hermes gateway status` is not running, fix that before anything else.** The dispatcher that
+runs Kanban lives in the gateway, so without it no task ever starts and the whole squad looks
+broken for a reason that has nothing to do with the squad. `hermes doctor` reporting
+"Repair or reinstall the Hermes launcher through the installation owner" is the known cause
+(the installed workspace is missing `pm/uv.lock`, so the launcher refuses to run). Recovery:
+
+```
+hermes pm doctor            # what the installer is missing
+hermes pm repair            # rebuild the recorded dependency environment
+hermes gateway restart      # then: hermes gateway status
+```
+
+If `pm/uv.lock` is missing from the installed workspace, `hermes pm repair` alone still fails
+(it cannot hash a lockfile that is not there). Copy it from the local checkout of the same
+commit — `~/.hermes/hermes-agent/pm/uv.lock` — and only then run `pm repair`. Verify the digest
+matches before trusting it. Report this to the user: it is a broken install, not a squad problem.
+
+**If the gateway is running, continue.** Note the log path (`~/.hermes/logs/gateway.log`) so the
+user can check the dispatcher later.
+
 STEP 2 · Folder. Create ~/Hermes with the tree from 02-architecture.md §3 (no squads):
 git init, .gitignore, AGENTS.md with section 2 of 01-principles.md, user/profile.md,
 user/contact.yaml, orchestrator/registry.md with the empty table, orchestrator/metrics.md,

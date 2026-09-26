@@ -37,10 +37,13 @@ STEP 2 · Computer tools (according to services and render_mode):
   b) Node 22 LTS or later.
   c) System FFmpeg and FFprobe (brew, winget or apt).
   d) In ~/Hermes/projects/marketing/: a Python 3.11+ .venv with PyYAML, Pillow,
-     playwright, requests and pytest (and mjml if services includes email). Playwright uses the
-     system browser (channel "chrome", or executablePath if it is Chromium) and downloads its own
-     only if there is no other. With npm, in the same folder and with a pinned version:
-     @google/design.md and impeccable (check_piece.py uses them).
+     playwright, requests and pytest. Playwright uses the system browser (channel "chrome", or
+     executablePath if it is Chromium) and downloads its own only if there is no other. With npm,
+     in the same folder and with a pinned version: @google/design.md, impeccable (check_piece.py
+     uses them) and **mjml** (only if services includes email).
+     **mjml is an npm package, not a Python one.** The PyPI project named `mjml` is an unrelated
+     third-party reimplementation and does not compile MJML markup. Install it with npm
+     (`npm i -D mjml@<current version>`) and compile with `npx mjml`; do not add it to the venv.
   e) If services includes video: HyperFrames with a pinned version in the same folder
      (npm i -D hyperframes@<current stable version>). Then: npx hyperframes telemetry disable;
      npx hyperframes doctor (it must see the browser, FFmpeg and at least 2 GB free for its cache);
@@ -77,6 +80,11 @@ STEP 5 · Profiles. For each bot in 03-bots.md §1:
   - Toolsets from the table (including skills) and agent.disabled_toolsets with the blocked ones.
   - terminal.cwd, skills.external_dirs (its role folder and common), memory disabled,
     security.website_blocklist, the LLM provider's API key.
+  - **A new profile inherits the source profile's toolset state.** `hermes profile create` without
+    `--clone` still seeds toolsets, so every bot starts with terminal, web, browser, code_execution
+    and image_gen enabled. Disable the blocked ones explicitly in each profile and then **verify
+    with `hermes -p <bot> tools list`** — the `tools enable/disable` verb is per profile, and a
+    bot that keeps `terminal` silently breaks the isolation rule 1 of `AGENTS.md`.
   - If the model of a bot with vision (creative, producer or reviewer) can't see images,
     configure auxiliary.vision in that profile.
   - Producer: image_gen.provider and image_gen.model according to image_ai (nothing if it is
@@ -112,10 +120,13 @@ STEP 7 · Orchestrator and channel.
   c) Add the row to orchestrator/registry.md and the line in "Active squads" in
      user/profile.md.
 
-STEP 8 · Automations (03-bots.md §5.1). Copy each script into $HERMES_HOME/scripts/ of the profile
-that runs it (copy, don't link) and create the crons: plan_week.py (every hour), deliver.py (every
-15m), monthly_report.py (every day at 08:00) if monthly_report is true, and the weekly summary if
-weekly_summary is true. Leave them paused until step 10. Show hermes cron list.
+STEP 8 · Automations (03-bots.md §5.1). Create `$HERMES_HOME/scripts/` for each profile that
+runs one (it does not exist on a fresh profile, and Hermes refuses a script outside it). Copy
+each script into it (copy, don't link) and create the crons: plan_week.py (every hour),
+deliver.py (every 15m), monthly_report.py (every day at 08:00) if monthly_report is true, and the
+weekly summary if weekly_summary is true. Leave them paused until step 10. Show hermes cron list,
+then `hermes cron doctor` — it reports the jobs that are silently not firing, including a missing
+script directory.
 
 STEP 9 · Onboarding the first brand (from initial_brands). Do what the orchestrator would do
 (03-bots.md §4.1, "Onboarding a brand"): a minimal settings.yaml and, if there are topics, its
