@@ -1,0 +1,67 @@
+key: jobs
+name: Job search
+source: official            # official (plans/squads) | own (~/Hermes/squads)
+plan_version: 2              # bump when the squad's contracts change
+level: 1
+multi_project: false
+projects_dir: null
+orchestration_skills: skills/orchestration   # relative to projects/jobs/; holds only orchestration-jobs
+bots:                        # model / reasoning_effort: null in the plan; the user's choice at install (base/07-builder.md §5)
+  - profile: jobs-scout
+    does: "Searches for openings, saves their text and applies the hard filter"
+    modes: [SEARCH, URL]
+    toolsets: [web, browser, file]
+    disabled_toolsets: [terminal, code_execution, delegation]
+    skills_dirs: [skills]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+  - profile: jobs-analyst
+    does: "Analyzes the opening, researches the company and decides PURSUE, WATCH or REJECT"
+    modes: [ANALYZE, CONSULT]
+    toolsets: [web, file, delegation]
+    disabled_toolsets: [browser, terminal, code_execution]
+    skills_dirs: [skills]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+  - profile: jobs-writer
+    does: "Writes the CV, cover letter and answers from verified achievements; renders PDF and DOCX"
+    modes: [NEW, CORRECTION, CHANGE, INTERVIEW, CONSULT]
+    toolsets: [file, terminal]
+    disabled_toolsets: [web, browser, code_execution]
+    skills_dirs: [skills]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+  - profile: jobs-reviewer
+    does: "Reviews each application with 5 independent subagents and approves or asks for corrections"
+    modes: []                # the body carries the round: 1, 2 or C<n>
+    toolsets: [file, delegation]
+    disabled_toolsets: [web, browser, terminal, code_execution]
+    skills_dirs: [skills]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+  - profile: jobs-applier    # only if auto_apply is try
+    does: "With confirmation, fills in and submits simple application forms, or prepares a manual kit"
+    modes: []
+    toolsets: [browser, file]
+    disabled_toolsets: [web, terminal, code_execution, delegation]
+    skills_dirs: [skills]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+consult:                     # allowed direct consultations (base/02-architecture.md §5.1)
+  - {from: jobs-writer, to: jobs-analyst, about: "analysis or evidence: a requirement and the achievements that support it"}
+  - {from: jobs-applier, to: jobs-writer, about: "the answer to a form question drawn from the application"}
+  - {from: jobs-reviewer, to: jobs-analyst, about: "fit-analysis facts only"}
+crons:
+  - {name: start-search, profile: jobs-scout, script: start_search.sh, schedule: "0 8,15 * * *", no_agent: true}   # from search_times
+  - {name: deliver, profile: orchestrator, script: deliver.py, schedule: "every 15m", no_agent: true}
+  - {name: weekly-summary, profile: orchestrator, script: null, schedule: "0 9 * * 1", no_agent: false}          # only if weekly_summary
+asks:                        # registry column "Ask it things like..."
+  - "<job link>"
+  - "apply"
+  - "change: <what>"
+  - "no"
+  - "I applied · they called me · rejected"
+  - "prepare me for the interview with <company>"
+  - "how's my search going?"
+  - "search now"
+  - "pause the search · resume"

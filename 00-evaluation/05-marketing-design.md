@@ -1,33 +1,13 @@
 # Marketing agency: how many bots, who leads, and with which tools
 
-2026-09-25 · Squad: marketing agency
+2026-09-25 · Squad: marketing agency · Outcomes: D-012 to D-023 in `02-decisions.md`
 
-> Pros-and-cons review of the squad's debatable decisions. The outcomes are recorded in `02-decisions.md` (D-012 to D-023).
-> Criterion: it must work for anyone on any computer (Mac, Windows or Linux). We choose the best on the market that can be installed locally and is lightweight, so the machine does not freeze when a flow uses several tools at once.
-> Hermes facts are verified against its official documentation (September 2026). Third-party figures come from their official sites or from 2026 comparisons. Memory figures marked "(est.)" are estimates and get measured during installation.
+> Criterion: it works for anyone on Mac, Windows or Linux. We pick the best tool that installs locally and is lightweight, so the machine does not freeze when a flow uses several tools at once.
+> Hermes facts come from its official documentation (September 2026); third-party figures from their official sites or 2026 comparisons. Memory figures marked "(est.)" are estimates, measured during installation.
 
-## What was requested
+## Requirements
 
-An in-house marketing agency that covers:
-
-- motion and video;
-- plans and guides;
-- social media and copywriting;
-- data analysis;
-- creatives;
-- market and trend research;
-- landing pages;
-- design;
-- email.
-
-Also:
-
-- Each delivery is a **proposal that gets refined** with the user.
-- The user talks to a **director** who delegates.
-- **Several projects run at once**, each with its own plans and pieces.
-- There is a **visual place** on the computer where everything can be seen, neatly organized.
-
-And one condition: **more complex is not necessarily better.**
+An in-house agency covering motion and video, plans and guides, social media and copywriting, data analysis, creatives, market and trend research, landing pages, design and email. Each delivery is a **proposal refined** with the user. The user talks to a **director** who delegates. **Several projects run at once**. A **visual place** on the computer shows everything. Condition: **more complex is not necessarily better.**
 
 ---
 
@@ -53,7 +33,7 @@ Twelve roles were requested. According to the base (`01-principles.md` §1.3), a
 
 **When to split** (base criteria, §7):
 
-- Split `marketing-developer` off from the producer if web work grows: integrations with a CMS or frequent deployments.
+- Full websites belong to the web squad (D-030); the producer keeps campaign landing pages.
 - Split `marketing-analyst` off from the strategist if there is a lot of connected data.
 
 ---
@@ -81,7 +61,7 @@ Twelve roles were requested. According to the base (`01-principles.md` §1.3), a
 | --- | --- | --- |
 | **A · One folder per brand and a Kanban `tenant`** | Isolation by folder: each task carries its brand's workspace. A label on the board: the visual Kanban filters by tenant. The same bots serve all brands. It is the pattern Hermes documents: "one specialist fleet can serve multiple businesses" | Soft isolation: it depends on rules and paths |
 | **B · One Kanban board per brand** | Hard isolation | Every command and every script must specify the board, and a board has to be created at each onboarding |
-| **C · One squad per brand** | — | Duplicates the bots for every brand. Rejected |
+| **C · One squad per brand** | None | Duplicates the bots for every brand. Rejected |
 
 **Recommendation: A**, plus one topic or channel per brand in the messaging app.
 
@@ -158,7 +138,7 @@ Also, the Kanban board that comes with Hermes (in Desktop and in `hermes dashboa
 - **Subtitles:** whisper.cpp `base` or `small`, 0.4 to 0.85 GB of RAM.
 - **Rejected:** Edge-TTS (no commercial license), MusicGen (non-commercial weights), Udio (does not allow downloads) and trending songs on business accounts.
 
-**About the model:** Claude Opus 5.5 came out on September 22, 2026. Its release notes highlight graphics quality, and the community already pairs it with HyperFrames. That is why it is the example for `production_model` (§5); any model that is strong at code works, and quality is validated with `check`, `snapshot` and the reviewer.
+**About the model:** Claude Opus 5.5 (September 2026) is the example for `production_model` (§5) because its release notes highlight graphics quality and the community pairs it with HyperFrames. Any model strong at code works; quality is validated with `check`, `snapshot` and the reviewer.
 
 ---
 

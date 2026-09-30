@@ -1,7 +1,7 @@
 # Scripts: job search
 
-> Script specifications. **The installer AI itself** (Hermes, with `terminal` and `file`) writes them in step 5 of the installation: the user does not need any other tool. They also work as prompts for any coding AI.
-> Level 1 needs four: `start_search.sh`, `deliver.py`, `render_cv.py` and `check_links.py`. API ingest is Level 2.
+> Script specifications. The builder writes them in STEP 6 of the installation; they also work as prompts for any coding AI.
+> Level 1: `start_search.sh`, `deliver.py`, `render_cv.py` and `check_links.py`. API ingest is Level 2.
 
 ## Common preamble
 
@@ -43,14 +43,16 @@ profile. Steps:
    run
      hermes -p orchestrator send --to <channel> "<message> MEDIA:<cv path>"
    If the send works, move the JSON to outbox/sent/ and update status.json →
-   DELIVERED. If it fails, leave it for next time and print the error.
+   delivered. If it fails, leave it for next time and print the error.
 3. Blocked tasks: hermes kanban list --status blocked --json; for each task from a
    jobs-* profile not notified before (save the ids in outbox/.blocked_notified), send
    one line: "⚠️ <JOB or task> needs your answer: <reason>. Reply to me here."
 4. Regenerate tracking.csv from openings/*/ (opening.md, status.json, analysis.json,
-   submission.json) with the header from 02-architecture.md.
+   submission.json) with the header from 02-architecture.md. The status column copies
+   status.json as is (lowercase_snake_case, e.g. manual_application); filter and decision
+   keep their UPPERCASE verdicts.
 It prints nothing except errors. No LLM. Tests with sample folders and a simulated send
-command.
+command, including one that checks every status written is lowercase_snake_case.
 ```
 
 ### `render_cv.py`
@@ -112,14 +114,14 @@ opening, writes openings/<ID>/opening.md with filter: PENDING; prints one line
 limits with backoff.
 ```
 
-Operation at Level 2 (the installer sets it up when the decision to move up is made):
+Operation at Level 2 (the builder sets it up and adds the crons to `squad.yaml`):
 
 - `--no-agent` cron in the `jobs-scout` profile, one job per ingest script, every 2-4 h (scripts linked in its `$HERMES_HOME/scripts/`).
-- The scout's scheduled search (Level 1) now starts with the `opening.md` files that have `filter: PENDING`, and only then searches the web: more coverage with less spend.
+- The scout's SEARCH starts with the `opening.md` files that have `filter: PENDING`, and only then searches the web: more coverage with less spend.
 
 ## Sources: how to choose them for each user
 
-The personalizing AI proposes sources based on country and occupation, and the user confirms. Order of preference:
+The builder proposes sources by country and occupation during personalization; the user confirms. Order of preference:
 
 1. **Public API** of the job board, or of the target companies' ATS (Greenhouse, Lever, Ashby, Workable and similar ones publish listings per company).
 2. **Public page** without login, read by the scout.

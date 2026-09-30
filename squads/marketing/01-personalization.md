@@ -1,19 +1,19 @@
 # Personalization: marketing agency
 
-> There are two personalization moments:
-> - **Agency profile**: in STEP 1 of the installation, only once. It says how the agency works for this user. It produces `marketing-profile.yaml` in `{{ROOT}}/projects/marketing/`.
-> - **Onboarding of each brand**: every time the user onboards a project, during the installation or later, by chat with the orchestrator. It produces the brand's files in `brands/<slug>/`.
+> Two moments:
+> - **Agency profile**: once, in installation step 1 (the builder). Produces `{{ROOT}}/projects/marketing/marketing-profile.yaml`.
+> - **Brand onboarding**: each time the user onboards a project, at installation or later by chat with the orchestrator. Produces the brand's files in `brands/<slug>/`.
 >
-> **Do not repeat** what is already in `user/profile.md` (name, country, timezone, languages, channel, schedule, tone, autonomy, main model): read it and use it.
+> Never ask what `user/profile.md` already has (name, country, timezone, languages, channel, schedule, tone, autonomy, main model): read it.
 
 ## Part 1 · How to run the interview (instructions for the AI)
 
-1. Read `user/profile.md` and your memory. Start with two questions: **who the agency will work for** and **which brands the user wants to onboard** (name and website or social profiles). With the website and social profiles, the rest of the brand is researched, not asked.
-2. Build a draft with what you infer and show it. Mark anything unconfirmed with `(?)`.
+1. Read `user/profile.md` and your memory. Start with two questions: **who the agency will work for** and **which brands to onboard** (name and website or social profiles). The rest of each brand is researched from those, not asked.
+2. Show a draft with what you infer; mark anything unconfirmed with `(?)`.
 3. Ask for what is missing: required fields first, at most 5 at a time, with options when there are any.
-4. If an answer is vague ("increase sales", "something modern"), ask for the concrete data the system needs ("How many sales per month do you have today, and how many do you want in 90 days?").
-5. Do not set default values silently. If the user does not know, propose a value, explain its effect in one line and ask for confirmation.
-6. Adapt your language to `marketing_experience`: with a beginner, no jargon; explain each term in one line.
+4. Turn vague answers ("increase sales", "something modern") into concrete data ("How many sales per month today, and how many in 90 days?").
+5. No silent defaults: if the user does not know, propose a value, explain its effect in one line and ask for confirmation.
+6. Match `marketing_experience`: with a beginner, no jargon; explain each term in one line.
 7. Show the complete final YAML and ask for an "ok".
 
 ## Part 2 · Agency profile
@@ -30,7 +30,7 @@
 | `planning` | What day and time should I plan the following week? (each brand can have its own, or "none") | Time of the weekly automation; the batch arrives a few hours later |
 | `review_minutes_per_week` | How many minutes per week can you spend reviewing proposals? | Used to suggest the quota and the length of messages |
 | `weekly_quota_per_brand` | How many pieces per week and per brand, at most? (each brand can have its own) | Pace and spending limit. Suggestion: 3-5 for a small brand |
-| `ai_budget_usd_month` | How much can you spend per month on AI-generated images, video or voice? With 0 it still works: design with code, free stock photos or your own, and a free voice | Which providers are configured, and the monthly cap the producer tracks in `ai-spend.csv` |
+| `ai_budget_usd_month` | How much can you spend per month on AI-generated images, video or voice? With 0 it still works: design with code, free stock photos or your own, and a free voice | Which providers are configured (image, premium voice, Level 2 AI video), and the monthly cap the producer tracks in `ai-spend.csv` |
 | `notify_window` | On which days and at what times can the agency message you? (suggestion: the schedule in your profile) | Window in which `deliver.py` sends; outside it, messages are held |
 
 ### Technical (the AI detects them; ask only for what it cannot see)
@@ -38,12 +38,12 @@
 | Field | How it is decided | Effect |
 | --- | --- | --- |
 | `machine` | OS, RAM and free disk space (the AI reads them) | `render_mode`: `light` with 8 GB or less (one render at a time, 30 fps video up to 60 s); `normal` with more |
-| `production_model` | Propose the model with the best results in design and motion with code that the user has access to (in September 2026, for example, Claude Opus 5.5). If they have no access to a better one, `main_model` is fine | The producer's model (D-016) |
-| `image_ai` | Based on `ai_budget_usd_month`, **a single model** (Hermes does not let the bot change it per piece). **0**: no image AI; own photos or free stock photos, and illustrations in SVG or HTML. **Low**: a fast, cheap one, for example FLUX.2 [klein] or Nano Banana 2 Lite. **Medium or high**: the best all-rounder, Nano Banana 2 (it edits and accepts up to 14 references); if quality matters more than cost, Nano Banana Pro. If the brand lives on vector illustrations, Recraft V4.1. Always among those offered by the provider configured in Hermes | The producer's `image_gen.provider` and `image_gen.model` |
+| `production_model` | The best model for design and motion with code available on the user's connection (September 2026 example: Claude Opus 5.5); otherwise `main_model` | The producer's recommended model when the builder asks models per bot (`04-installation.md` step 1b); the choice is stored in `squad.yaml` `bots[]` |
+| `image_ai` | From `ai_budget_usd_month`, **a single model** (the bot cannot change it per piece). **0**: no image AI; own or free stock photos, illustrations in SVG or HTML. **Low**: fast and cheap, e.g. FLUX.2 [klein] or Nano Banana 2 Lite. **Medium or high**: Nano Banana 2 (edits, up to 14 references); Nano Banana Pro if quality matters more than cost. Brands built on vector illustration: Recraft V4.1. Always among the provider's models configured in Hermes | The producer's `image_gen.provider` and `image_gen.model` |
 | `stock_photos` | Free keys for Pexels, Pixabay or Unsplash (recommended with a budget of 0: at least Pexels) | `stock_photos.py` uses them to search for photos and videos with a commercial license |
-| `voice` | Free: Kokoro, local, openly licensed, with voices in several languages, including English and Spanish (HyperFrames integrates it). Premium: ElevenLabs or Gemini TTS, with a key. **Do not use Edge-TTS in public pieces**, because it has no commercial license | Voice-over for videos |
-| `music` | No music. A free library (Pixabay Music, Mixkit) or the brand's own licensed music, in each brand's `identity/music/` folder. ElevenLabs Music, which has a commercial license (Level 2). Never trending songs on business accounts | Whether videos have music, and where it comes from |
-| `topic_per_brand` | If the channel is Telegram or Discord: one topic or channel per brand? (recommended with 2 or more brands) | The installer AI creates the topic for each initial brand; later ones are added through the maintenance section of `04-installation.md`. Until it has a topic, a brand uses the main chat with its name |
+| `voice` | Free: Kokoro (local, openly licensed, many languages including English and Spanish; integrated in HyperFrames). Premium: ElevenLabs or Gemini TTS, with a key. **Never Edge-TTS in public pieces**: no commercial license | Voice-over for videos |
+| `music` | None; a free library (Pixabay Music, Mixkit) or the brand's own licensed music in its `identity/music/`; ElevenLabs Music, commercially licensed (Level 2). Never trending songs on business accounts | Whether videos have music, and its source |
+| `topic_per_brand` | With Telegram or Discord: one topic or channel per brand? (recommended with 2 or more brands) | The builder creates the topic for each initial brand and later ones on request (`04-installation.md`, Maintenance). Until then, a brand uses the main chat with its name |
 
 ### Optional
 
@@ -69,16 +69,14 @@
 
 ## Part 3 · What each answer changes
 
+Beyond the "why it matters" and "effect" columns above:
+
 | Field | Effect on the system |
 | --- | --- |
 | `works_for` = clients | Each brand is created with `approver: client`. Proposals come with a text ready to forward to the client, and one brand's data never appears in another brand's messages |
 | `marketing_experience` | **Beginner**: the director explains without jargon and justifies each proposal in one line. **Professional**: shorter messages, with assumptions and metrics |
 | `services` | Which third-party skills each bot gets (`03-bots.md` §3), which piece types the calendar proposes, and whether HyperFrames and FFmpeg are installed |
 | `approval_mode` | **Batch**: `deliver.py` groups by week or campaign. **Piece**: it sends each one when it is ready |
-| `planning` | Time at which `plan_week.py` creates the weekly task for each brand |
-| `review_minutes_per_week` and `weekly_quota_per_brand` | Limit of pieces per week in each calendar |
-| `ai_budget_usd_month` | Image provider and model, premium voice and, at Level 2, AI video; monthly cap the producer tracks |
-| `notify_window` and `quiet_until` | When `deliver.py` may write |
 | `render_mode` | Render options and the limit of simultaneous tasks in Kanban |
 | `topic_per_brand` | One topic or channel per brand, and `destination` in `settings.yaml` |
 | `current_tools` | Extra delivery formats (for example, a PDF that Canva can import) and Level 2 connectors |
@@ -103,7 +101,7 @@ quiet_until: null
 
 technical:
   render_mode: light              # light | normal
-  production_model: "{{main_model}}"
+  production_model: "{{main_model}}"   # recommendation for the producer; the chosen model lives in squad.yaml
   image_ai: none                  # none | <provider>/<model>
   voice: kokoro                   # kokoro (local, free) | elevenlabs | gemini | <another with a commercial license>
   music: library                  # none | library | ai
@@ -132,20 +130,12 @@ level: 1
 
 ### Procedure
 
-1. **Sources.** The user gives the name and whatever exists: website, social profiles, Google Maps, documents (brand manual, presentations, an already written product context). If they send files through the chat, their path is noted.
-2. **Auto-draft.** The strategist (ONBOARDING mode) researches the public sources: website, social profiles, reviews and competitors. It writes:
-   - the drafts of `context.md` and `brand.md`;
-   - an empty `preferences.md`;
-   - `settings.proposed.yaml`, with channels, frequencies and key dates;
-   - `identity/observed.md`, with colors, typefaces and assets from the brand's website;
-   - the diagnosis piece, with the missing questions.
-3. **Visual identity.**
-   - If the brand has a logo, colors and typefaces, the producer downloads the listed assets, organizes them in `identity/` and writes `DESIGN.md`.
-   - If it does not, the producer proposes a basic identity: palette, typefaces, image style and templates.
-   - A new logo only if the user asks for it.
-4. **Questions.** When the diagnosis arrives, the director (orchestrator) asks only for what is missing: the required items below, at most 5 at a time.
-5. **Approval.** The user approves `context.md`, `brand.md`, `DESIGN.md` and the proposed settings. They are the source of truth: every piece is judged against them. Until that "ok", the brand stays at `active: false`: it is not planned and does not take requests.
-6. **Topic or channel.** If the user has topics or channels per brand, the director creates the brand's skill and tells the user how to request the topic. The installer AI adds the topic (maintenance section of `04-installation.md`).
+1. **Sources.** The user gives the name and whatever exists: website, social profiles, Google Maps, documents (brand manual, presentations, a written product context). Paths of files sent through the chat are noted.
+2. **Auto-draft.** The strategist (ONBOARDING) researches public sources (website, social profiles, reviews, competitors) and writes drafts of `context.md` and `brand.md`, an empty `preferences.md`, `settings.proposed.yaml` (channels, frequencies, key dates), `identity/observed.md` (colors, typefaces, assets from the website) and the diagnosis piece with the missing questions.
+3. **Visual identity.** With an existing logo, colors and typefaces, the producer downloads the listed assets into `identity/` and writes `DESIGN.md`. Without them, it proposes a basic identity: palette, typefaces, image style, templates. A new logo only on request.
+4. **Questions.** When the diagnosis arrives, the director (orchestrator) asks only what is missing from the required items below, at most 5 at a time.
+5. **Approval.** The user approves `context.md`, `brand.md`, `DESIGN.md` and the proposed settings: the source of truth every piece is judged against. Until that "ok", the brand stays `active: false`: not planned, no requests.
+6. **Topic or channel.** With topics or channels per brand, the director creates the brand's skill and asks the builder to add the topic (`03-bots.md` §4.1).
 
 ### Required (10)
 
@@ -295,13 +285,11 @@ updated: <YYYY-MM-DD>
 
 ### `DESIGN.md`
 
-Visual identity in Google's open `DESIGN.md` format (alpha version, July 2026). It has a YAML header with tokens (colors, typography, radii, spacing, and components with references such as `{colors.primary}`) and sections in a fixed order: Overview, Colors, Typography, Layout, Elevation, Shapes, Components, Do's and Don'ts.
+Visual identity in Google's open `DESIGN.md` format (alpha, July 2026): a YAML header with tokens (colors, typography, radii, spacing, components with references such as `{colors.primary}`) and sections in fixed order: Overview, Colors, Typography, Layout, Elevation, Shapes, Components, Do's and Don'ts.
 
-- The installer AI and the producer follow the current version of the specification with the `design-md` skill.
-- It is validated with `npx -y @google/design.md lint DESIGN.md`, which checks contrast, among other things.
-- It is exported to CSS variables with `export`.
-
-It is used by the piece templates, HyperFrames, landing pages and documents.
+- The builder and the producer follow the current specification with the `design-md` skill.
+- Validated with `npx -y @google/design.md lint DESIGN.md` (contrast, among other checks); exported to CSS variables with `export`.
+- Used by piece templates, HyperFrames, landing pages and documents.
 
 ### `preferences.md`
 
@@ -358,26 +346,18 @@ key_dates:
 
 ### Full example: neighborhood café, no budget
 
-**Lucía**, owner of "Café Luna", a specialty coffee shop in Guadalajara (Mexico):
-
-- She is new to marketing. She posts on Instagram when she can and wants to try TikTok.
-- She has a list of 300 customers who left their email.
-- She reviews on her phone and can spend 30 minutes per week.
-- She does not want to spend on AI.
-- Her channel is Telegram.
-- Her computer is an 8 GB laptop.
-- She has no access to a better model than her main one.
+**Lucía**, owner of "Café Luna", a specialty coffee shop in Guadalajara (Mexico): new to marketing, posts on Instagram when she can and wants to try TikTok; 300 customer emails; reviews on her phone, 30 minutes per week; no AI spend; Telegram; an 8 GB laptop; no model better than her main one.
 
 `marketing-profile.yaml`: the one in Part 4, as is. `brands/cafe-luna/settings.yaml`: the one in Part 6.
 
 What it produces in the system:
 
-- Planning runs on Thursdays at 10:00, and the batch of 4 proposals arrives the same afternoon, in the "☕ Café Luna" topic.
-- Carousels are designed with HTML over her photos (she sends 20 photos of the café at onboarding). No image is generated with AI.
-- The weekly reel is made with HyperFrames: low-memory mode, 30 fps, a free local voice in the brand's language (Kokoro) and subtitles. When the brand grows, it can move to a premium voice.
-- The weekly email arrives as HTML and plain text, ready to paste into her provider.
-- On the last day of each month, she gets a reminder to export her Instagram stats to the brand's folder; the report arrives on the 1st.
-- Everything is explained to her without jargon, with one line on why each piece works.
+- Planning on Thursdays at 10:00; the batch of 4 proposals arrives the same afternoon in the "☕ Café Luna" topic.
+- Carousels in HTML over her photos (20 café photos sent at onboarding). No AI images.
+- The weekly reel with HyperFrames: low-memory mode, 30 fps, Kokoro local voice in the brand's language, subtitles. A premium voice later, if the brand grows.
+- The weekly email as HTML and plain text, ready to paste into her provider.
+- On the last day of each month, a reminder to export her Instagram stats to the brand's folder; the report on the 1st.
+- No jargon, one line on why each piece works.
 
 ### Other cases (what changes)
 

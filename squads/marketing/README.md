@@ -1,11 +1,11 @@
 # Squad: Marketing agency
 
-> One-page summary of the squad. The user reads it to decide whether to install it, and the installer AI uses it as a starting point. Requires the base to be installed.
-> It works for anyone who does marketing: a business owner, a freelancer, an agency with clients, a marketing team or a creator. Everything specific to each user and each brand comes from [`01-personalization.md`](01-personalization.md).
+> One-page summary: the user reads it to decide whether to install the squad; the builder starts from it. Requires the base.
+> For anyone who does marketing: a business owner, a freelancer, an agency with clients, a marketing team or a creator. Everything specific to each user and brand comes from [`01-personalization.md`](01-personalization.md).
 
 ## Purpose
 
-A marketing agency that works on its own for **several projects at once** and delivers **ready-to-approve proposals** to the user: social media pieces, ads, videos, emails, landing pages, plans and reports, in each brand's voice and identity.
+A marketing agency that works on its own for **several projects at once** and delivers **ready-to-approve proposals**: social media pieces, ads, videos, emails, campaign landing pages, plans and reports, in each brand's voice and identity. Full websites belong to the web squad.
 
 The user approves, requests changes or discards from their messaging app. Nothing is published or sent without their "yes".
 
@@ -35,7 +35,7 @@ Reply: "approve all" · "approve 1 and 3" · "change 2: …" · "no to 4"
 | `pause Café Luna` · `resume` | Stops or restarts that brand's automatic work (planning and report); on-demand requests continue |
 | `quiet until Monday` | The agency keeps working, but does not write until that date |
 
-On the computer, the **Studio** shows each brand with its proposals, versions, calendar and status. The Hermes Kanban shows what is in production.
+On the computer, the **Studio** shows each brand's proposals, versions, calendar and status; the Hermes Kanban shows what is in production.
 
 ## What the agency does
 
@@ -64,8 +64,8 @@ On the computer, the **Studio** shows each brand with its proposals, versions, c
 
 | Level | What it adds | When to move up |
 | --- | --- | --- |
-| **1 · Automatic agency** | Project onboarding, plan, automatic weekly planning with trends, pieces of every type, review, proposals over messaging with versions, preferences learned per brand, Studio, monthly report with exported data, publishing reminders | — |
-| **2 · Connected** | Scheduling posts and creating email drafts in cloud services (always with confirmation), deploying landing pages, read-only data connectors, Studio with buttons (Hermes plugin), AI video | When posting by hand takes up too much time, or the user wants data without exporting it |
+| **1 · Automatic agency** | Project onboarding, plan, automatic weekly planning with trends, pieces of every type, review, proposals over messaging with versions, preferences learned per brand, Studio, monthly report with exported data, publishing reminders | - |
+| **2 · Connected** | Scheduling posts and creating email drafts in cloud services (always with confirmation), deploying landing pages to Cloudflare, read-only data connectors, Studio with buttons (Hermes plugin), AI video | When posting by hand takes up too much time, or the user wants data without exporting it |
 | **3 · Optimization** | Metric-driven loops (ad fatigue, keyword drops, landing page regressions, creative retro), tests with stopping rules, a dedicated director if there are many brands | With 8 or more weeks of connected data |
 
 ## Bots
@@ -78,16 +78,15 @@ On the computer, the **Studio** shows each brand with its proposals, versions, c
 | `marketing-producer` | Designs, renders images and video, builds landing pages and emails, lays out documents | The only one with a terminal; it can use a stronger model for design with code |
 | `marketing-reviewer` | Reviews everything with 5 independent lenses before it reaches the user | Independence: whoever made a piece never reviews it |
 
-Models:
+Specialists missing a datum consult its owner directly (`02-architecture.md` §3.1.1), without going through the orchestrator.
 
-- All of them use the user's `main_model`.
-- The producer uses `production_model`: the best model for design and motion with code that the user has access to, or the same main model.
+Models: the builder asks, per bot, which model and reasoning effort to use. Recommended: `main_model` for all, and for the producer `production_model` (the best model for design and motion with code available to the user).
 
-Why 4 bots and not 12, and why the orchestrator is the director: [`00-evaluation/05-marketing-design.md`](../../00-evaluation/05-marketing-design.md).
+Why 4 bots and why the orchestrator is the director: [`00-evaluation/05-marketing-design.md`](../../00-evaluation/05-marketing-design.md).
 
 ## What the computer needs
 
-- **Installed by the installer AI:** Node 22 or later, Python 3.11 or later, FFmpeg and a headless Chromium (Playwright).
+- **Installed by the builder:** Node 22 or later, Python 3.11 or later, FFmpeg and a headless Chromium (Playwright).
 - **No Docker or servers:** the only always-on service is the Hermes gateway.
 - **With 8 GB of RAM** it works with some adjustments: one render at a time.
 - **Optional keys:** AI image and video, premium voice, and Level 2 services.
@@ -99,7 +98,8 @@ Why 4 bots and not 12, and why the orchestrator is the director: [`00-evaluation
 | [`01-personalization.md`](01-personalization.md) | Agency profile, onboarding of each brand, brand files and examples |
 | [`02-architecture.md`](02-architecture.md) | Folders, piece types, flows, proposal lifecycle, data contracts, Studio and squad rules |
 | [`03-bots.md`](03-bots.md) | Each bot's SOUL, own and third-party skills, orchestration skill and automations |
-| [`04-installation.md`](04-installation.md) | Instructions for Hermes to install Level 1 |
+| [`04-installation.md`](04-installation.md) | Builder instructions to install Level 1, and maintenance |
 | [`05-scripts.md`](05-scripts.md) | Scripts: planning, delivery, Studio, rendering, checks, metrics; Level 2 |
 | [`06-testing-and-operations.md`](06-testing-and-operations.md) | Acceptance tests, daily operation, metrics and when to move up a level |
-| [`reference/`](reference/README.md) | Third-party marketing skills (with their scripts and licenses) that the installer AI uses as a source to write the squad's own skills |
+| [`squad.yaml`](squad.yaml) | Manifest: bots, modes, toolsets, consultation pairs, crons |
+| [`reference/`](reference/README.md) | Third-party marketing skills (with scripts and licenses) the builder uses as sources for the squad's own skills |
