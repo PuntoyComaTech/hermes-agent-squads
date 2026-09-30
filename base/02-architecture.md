@@ -1,117 +1,130 @@
 # Ecosystem base architecture
 
-> Base prompt. Describes the components shared by all squads: the orchestrator, the `~/Hermes` folder, the messaging channels, how rules and skills are shared, and how work runs on its own.
-> Hermes facts verified against the official documentation (`NousResearch/hermes-agent`, `website/docs`, September 2026). If something doesn't match during installation, the documentation wins.
+> Base prompt. The components shared by all squads: the two base bots, the `~/Hermes` folder, messaging channels, how rules and skills are shared, and how work runs on its own.
+> Hermes facts verified against the official documentation (`NousResearch/hermes-agent`, `website/docs`, September 2026). If something does not match during installation, the documentation wins.
 
 ## 1. Components
 
 ```text
-   User ◄──── Telegram / Discord / WhatsApp / … ────► orchestrator (Base section)
-                                                          │  talks to the user,
-                                                          │  launches flows on request,
-                                                          │  handles changes and confirmations
+   User ◄── Telegram / Discord / … ──► orchestrator (Base)   talks to the user, launches flows,
+     │                                     │                 handles confirmations and deliveries
+     └──── own bot / Desktop chat ────► builder (Base)        creates and installs squads,
+                                                              changes configuration, applies updates
         cron ──► Kanban task ──► specialist ──► specialist ──► … ──► outbox/ready/
-                                 (each one creates the task for the next)  │
-                                                                           ▼
-                                                              delivery script ──► message to the user
+                                 (each one creates the next one's task)  │
+                                                                         ▼
+                                                            delivery script ──► message to the user
 ```
 
 | Component | What it is in Hermes | How many |
 | --- | --- | --- |
-| **Orchestrator** | A profile (Bot) connected to the user's messaging channel | 1 for the whole ecosystem |
-| **Squad** | Profiles with the same prefix, in a Hermes Desktop *Section*, plus a folder in `~/Hermes/projects/` and an orchestration skill | 1 per domain |
+| **Orchestrator** | A profile connected to the user's messaging channel: the voice of the squads (`04-orchestrator.md`) | 1 |
+| **Builder** | A profile with its own channel bot: creates and installs squads, makes every configuration change, applies updates (`07-builder.md`) | 1 |
+| **Squad** | Profiles with the same prefix, a Hermes Desktop *Section*, a folder in `~/Hermes/projects/<key>/` with its `squad.yaml`, and an orchestration skill | 1 per domain |
 | **Specialist** | A profile with its own SOUL, model and toolsets | 2 to 5 per squad |
-| **Skill** | A reusable procedure in `SKILL.md` | As many as needed |
-| **Script** | A deterministic program, run by a bot or by a `--no-agent` cron | As many as needed |
+| **Skill** | A reusable procedure in `SKILL.md` | As needed |
+| **Script** | A deterministic program, run by a bot or by a `--no-agent` cron | As needed |
 
-### About Hermes Desktop folders (Sections)
-
-*Sections* are **visual-only** folders: they organize the sidebar; they don't share configuration or change routing. One **Base** section is used for the `orchestrator`, and one per squad (**Job search**, etc.). What really ties a squad together is its name prefix, its data folder and its `AGENTS.md`.
+Hermes Desktop *Sections* are visual-only folders: they organize the sidebar and do not share configuration or change routing. The **Base** section holds `orchestrator` and `builder`; each squad has its own (**Job search**, etc.). A squad is tied together by its name prefix, its data folder and its `AGENTS.md`. The user creates Sections; the builder tells them which.
 
 ## 2. Names
 
-- Profiles: `<squad>-<role>`, lowercase and without accents. E.g.: `jobs-analyst`. The orchestrator is called `orchestrator`.
-- Each profile is created with a one-line `--description` that says what it does and what it delivers.
+- Profiles: `<key>-<role>`, lowercase, no accents (`jobs-analyst`). The base bots are `orchestrator` and `builder`.
+- Each profile is created with a one-line `--description`: what it does and what it delivers.
 
 ## 3. The `~/Hermes` folder
 
-`~` is the user's home folder on any system (`/Users/<user>` on Mac, `C:\Users\<user>` on Windows, `/home/<user>` on Linux). Everything visible in the ecosystem lives there. In the plans it is written as `{{ROOT}}`, and by default it is `~/Hermes`.
-
-The root of the disk (`/` or `C:\`) is not used: it requires administrator permissions and is left out of backups. On WSL2, `~/Hermes` goes on the Linux side, not in `/mnt/c` (the documentation warns that it is 10 to 100 times slower).
+`~` is the user's home folder (`/Users/<user>` on Mac, `C:\Users\<user>` on Windows, `/home/<user>` on Linux). Everything visible in the ecosystem lives there. Plans write it as `{{ROOT}}`, by default `~/Hermes`. The disk root (`/`, `C:\`) is not used: it needs administrator permissions and is left out of backups. On WSL2, `~/Hermes` goes on the Linux side, not in `/mnt/c` (10 to 100 times slower per the documentation).
 
 ```text
 ~/Hermes/                     # local git repo
-├── plans/                    # copy of this plans repository (instructions)
-├── AGENTS.md                 # base rules for all bots (section 2 of 01-principles.md)
+├── plans/                    # clone of this repo; read-only; updated with git pull by the builder
+├── squads/<key>/             # squads the user creates with the builder (same format as plans/squads/<key>/)
+├── AGENTS.md                 # base rules for all bots (01-principles.md §2)
 ├── user/
 │   ├── profile.md            # who they are and what they prefer (03-user-profile.md)
-│   └── contact.yaml          # contact details and form data (sensitive)
+│   └── contact.yaml          # contact and form data (sensitive)
 ├── orchestrator/
-│   ├── registry.md           # installed squads, bots, flows, level
+│   ├── registry.md           # generated by scripts/registry.py from projects/*/squad.yaml
 │   └── metrics.md
-├── skills/                   # skills shared by all (if any)
-├── scripts/                  # shared scripts (e.g. heavy_lock.py, §5)
+├── builder/
+│   ├── installed.yaml        # installed state and applied migrations (08-updates.md)
+│   ├── changelog.md          # every change the builder made
+│   ├── upstream-notes.md     # defects and improvements to propose upstream (07-builder.md §4)
+│   └── skills/               # the builder's skills
+├── skills/                   # shared skills (the orchestrator reads it)
+├── scripts/                  # shared scripts: heavy_lock.py (§5.3), registry.py (§3.1)
+├── .cache/hermes-docs/       # shallow clone of NousResearch/hermes-agent docs (the builder reads it)
 └── projects/
-    └── <squad>/              # e.g. jobs/
+    └── <key>/                # working data of every installed squad, official or the user's own
+        ├── squad.yaml        # filled-in manifest of the squad
         ├── AGENTS.md         # squad rules
-        ├── <squad>-profile.yaml
-        ├── skills/           # includes orchestration-<squad>
+        ├── <key>-profile.yaml
+        ├── skills/           # the specialists' skills
+        │   └── orchestration/ # orchestration-<key> (the only folder the orchestrator reads)
         ├── scripts/
         ├── outbox/           # ready/ (to deliver) and sent/
         └── ...
 ```
 
-Hermes's internal folder is a different one, and it is hidden: `~/.hermes/` on Mac, Linux and WSL2; `%LOCALAPPDATA%\hermes\` on Windows. It holds each bot's configuration and the Kanban board. The user doesn't touch it.
+Hermes's internal folder is separate and hidden: `~/.hermes/` on Mac, Linux and WSL2; `%LOCALAPPDATA%\hermes\` on Windows. It holds each profile's configuration and the Kanban board. The user does not touch it.
 
-`.gitignore` for `~/Hermes`: `user/contact.yaml`, `.env`, `*.db`, `.venv/`, `plans/`.
+`.gitignore` for `~/Hermes`: `user/contact.yaml`, `.env`, `*.db`, `.venv/`, `plans/`, `.cache/`.
 
-### How rules reach each bot
+### 3.1 Squad manifest and registry
 
-- `SOUL.md` is per profile: the bot's identity and prohibitions.
-- `AGENTS.md` files are merged from the root of the git repo down to the working directory. A bot working in `~/Hermes/projects/jobs/...` reads **`~/Hermes/AGENTS.md` + `~/Hermes/projects/jobs/AGENTS.md`**.
-- Each profile has `terminal.cwd` pointing to its folder (`{{ROOT}}` for the orchestrator, `{{ROOT}}/projects/<squad>` for the specialists).
-- Every Kanban task carries `--workspace dir:<absolute path>` inside `{{ROOT}}`. Without it, the worker uses a temporary directory and doesn't see `AGENTS.md` or the earlier files.
+Every squad has a manifest `squad.yaml` (schema in `05-squad-template.md`). At install time the builder writes the filled-in copy to `{{ROOT}}/projects/<key>/squad.yaml`. `{{ROOT}}/scripts/registry.py` reads every `projects/*/squad.yaml`, regenerates `orchestrator/registry.md`, and prints the orchestrator's `skills.external_dirs` list. The script never edits Hermes config: the builder applies the list with `hermes -p orchestrator config set`.
 
-### How skills are shared
+### 3.2 How rules reach each bot
+
+- `SOUL.md` is per profile: identity and prohibitions.
+- `AGENTS.md` files are merged from the git repo root down to the working directory. A bot working in `~/Hermes/projects/jobs/...` reads `~/Hermes/AGENTS.md` + `~/Hermes/projects/jobs/AGENTS.md`.
+- `terminal.cwd`: `{{ROOT}}` for the base bots, `{{ROOT}}/projects/<key>` for specialists.
+- Every Kanban task carries `--workspace dir:<absolute path>` inside `{{ROOT}}`. Without it, the worker gets a temporary directory and does not see `AGENTS.md` or earlier files.
+
+### 3.3 How skills are shared
 
 `skills.external_dirs` in each profile's `config.yaml`:
 
-- Specialists: `[{{ROOT}}/projects/<squad>/skills]`.
-- Orchestrator: `{{ROOT}}/skills` + the `skills/` folder of **each** installed squad. Installing a squad teaches the orchestrator its flows without touching its SOUL.
-- If a squad splits its skills into folders by role (for example, the marketing agency, D-022), each specialist lists its role folder and the common one, and the orchestrator lists only that squad's `skills/orchestration/`. Do not assume that `external_dirs` reads subfolders.
+- Specialists: the folders listed in their `bots[].skills_dirs` of `squad.yaml`, relative to `projects/<key>/` (for example `[skills]`, or `[skills/<role>, skills/common]` when a squad splits skills by role).
+- Orchestrator: `{{ROOT}}/skills` + each installed squad's `orchestration_skills` folder (`skills/orchestration`), as printed by `registry.py`. That folder holds only orchestrator skills, so the orchestrator never loads the specialists' skills. Installing a squad teaches the orchestrator its flows without touching its SOUL.
+- Builder: `{{ROOT}}/builder/skills`.
+- Do not assume `external_dirs` reads subfolders: list each folder.
 
 ## 4. Messaging channels
 
-The orchestrator is the one who talks to the user. Its bot token goes in **its own** `.env` (`~/.hermes/profiles/orchestrator/.env`), not in the `default` profile: that way the gateway routes that channel to the orchestrator.
+Each base bot has its own channel identity. The orchestrator's token goes in `~/.hermes/profiles/orchestrator/.env`; the builder's in `~/.hermes/profiles/builder/.env` (a second Telegram bot from @BotFather, or a second Discord application). Never in the `default` profile. The default gateway multiplexes profiles by default (`gateway.multiplex_profiles`, `user-guide/multi-profile-gateways.md`): one gateway serves every profile, and each token routes to its profile. No second gateway service. Two profiles must not share a bot token.
 
 | Channel | Difficulty | What you need | Proactive messages and PDF | Recommendation |
 | --- | --- | --- | --- | --- |
-| **Telegram** | Easy | Create a bot with @BotFather (or the "Create with QR" button in Hermes Desktop), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Yes. Buttons in questions | **Recommended** |
-| **Discord** | Medium | Create an application and a bot, enable the *Message Content* and *Server Members* intents, invite it with the *Attach Files* permission, `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` | Yes. Buttons in questions | Good if the user already uses Discord |
-| **WhatsApp (Baileys bridge)** | Easy | Node 18+, `hermes whatsapp` and scanning a QR code | Yes, but it is unofficial: **risk of the number being banned**; the documentation recommends a dedicated number and avoiding unsolicited messages | Only with a dedicated number and accepting the risk |
-| **WhatsApp Business (Cloud API)** | Hard | Meta Business account, permanent token, public HTTPS webhook | Outside the 24 h window it requires approved templates, which Hermes does not support yet | **Not suitable** for automatic notifications |
-| Others (Slack, Signal, Email, Matrix, Teams…) | Varies | See `website/docs/user-guide/messaging/` | Depends on the channel | If the user already uses them |
+| **Telegram** | Easy | A bot from @BotFather (or "Create with QR" in Hermes Desktop), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` | Yes. Buttons in questions | **Recommended** |
+| **Discord** | Medium | An application and a bot, *Message Content* and *Server Members* intents, invited with *Attach Files*, `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USERS` | Yes. Buttons in questions | If the user already uses Discord |
+| **WhatsApp (Baileys bridge)** | Easy | Node 18+, `hermes whatsapp`, scan a QR code | Yes, but unofficial: **risk of the number being banned**; the documentation recommends a dedicated number and no unsolicited messages | Only with a dedicated number, accepting the risk |
+| **WhatsApp Business (Cloud API)** | Hard | Meta Business account, permanent token, public HTTPS webhook | Outside the 24 h window it requires approved templates, which Hermes does not support | **Not suitable** for automatic notifications |
+| Others (Slack, Signal, Email, Matrix, Teams...) | Varies | `website/docs/user-guide/messaging/` | Depends on the channel | If the user already uses them |
 
 Common details:
 
 - Files are sent by writing `MEDIA:/path/file.pdf` in the message; they arrive as a native attachment.
-- For the orchestrator to be able to create tasks from the chat: `hermes -p orchestrator tools enable kanban --platform <channel>`.
-- Questions with options: the `clarify` tool shows buttons on Telegram and Discord and a poll on WhatsApp (Baileys); it waits up to 1 hour by default.
-- "Home" channel for notifications: `/sethome` in the chat, or `TELEGRAM_HOME_CHANNEL` / `DISCORD_HOME_CHANNEL`.
+- For a base bot to create tasks from the chat: `hermes -p <profile> tools enable kanban --platform <channel>`.
+- Questions with options: `clarify` shows buttons on Telegram and Discord and a poll on WhatsApp (Baileys); it waits up to 1 hour by default.
+- Home channel for notifications: `/sethome` in the chat, or `TELEGRAM_HOME_CHANNEL` / `DISCORD_HOME_CHANNEL`.
+- The builder is also reachable from its Hermes Desktop chat.
 
 ## 5. How work runs on its own
 
 | Mechanism | What for |
 | --- | --- |
 | **`--no-agent` cron** | Run a script without an LLM: start the daily search, deliver results, ingest via API. The script lives in the profile's `$HERMES_HOME/scripts/`; empty output = no notification; error = alert |
-| **Agent cron** | A periodic task with an LLM (weekly summary). Its response is delivered to the `deliver` target (`telegram`, `discord`, `whatsapp`, `origin`…) |
-| **Kanban** | Pass work between bots. There is a single board, and the *dispatcher* lives in the **gateway** (it checks every 60 s). `parents=[...]` holds a task until its parents finish |
-| **Handoff chain** | When each specialist finishes, it uses `kanban_create` to create the next one's task (workers have that tool without any configuration). It only creates it if its result justifies it: that way there are no useless branches and no coordinator spending tokens between stages |
-| **`delegate_task`** | Anonymous subagents with a clean context **from the same bot** (it cannot call another profile). For parallel reviews and research with a separate context |
+| **Agent cron** | A periodic task with an LLM (weekly summary). Its response goes to the `deliver` target (`telegram`, `discord`, `whatsapp`, `origin`...) |
+| **Kanban** | Pass work between bots. One board; the *dispatcher* lives in the **gateway** (checks every 60 s). `parents=[...]` holds a task until its parents finish |
+| **Handoff chain** | When a specialist finishes, it creates the next one's task with `kanban_create` (workers have it without configuration), only if its result justifies it: no useless branches, no coordinator spending tokens between stages |
+| **Direct consultation** | A specialist missing a datum asks the bot that owns it with a support card (§5.1) |
+| **`delegate_task`** | Anonymous subagents with a clean context **from the same bot** (it cannot call another profile). For parallel reviews and research |
 | **`hermes send`** | Send a message (with `MEDIA:`) from a script, without an LLM: `hermes -p orchestrator send --to <channel> "text MEDIA:/path"` |
-| **Kanban subscriptions** | A task created by the orchestrator from the chat notifies that chat when it finishes or gets blocked; child tasks inherit the subscription |
+| **Kanban subscriptions** | A task a base bot creates from the chat notifies that chat when it finishes or blocks; child tasks inherit the subscription |
 
-The handoff chain goes against Hermes's general recommendation ("workers don't hand out work; the orchestrator does"). It is chosen on purpose: the chain is linear and fixed, and this way it works the same when a cron triggers it with nobody in the chat. See `00-evaluation/02-decisions.md` (D-007).
+The handoff chain goes against Hermes's general recommendation ("workers don't hand out work; the orchestrator does") on purpose: the chain is linear and fixed, and works the same when a cron triggers it with nobody in the chat (`00-evaluation/02-decisions.md`, D-007).
 
 Kanban configuration (`default` profile, which owns the gateway):
 
@@ -127,35 +140,49 @@ kanban:
 
 Handoff rules:
 
-1. **Workers don't see sibling tasks.** Each task's body includes everything: identifier, exact input and output paths, language, decisions made.
-2. Each task carries an `--idempotency-key` derived from its identifier and stage, so a retry doesn't duplicate work.
-3. The last specialist doesn't write to the user: it leaves a file in `outbox/ready/`. A delivery script (`--no-agent` cron every 10-15 min) sends it over the channel and moves it to `outbox/sent/`. Zero tokens and a single exit point.
-4. The same script sends a notice if there are blocked tasks waiting for the user.
+1. **Workers do not see sibling tasks.** Each task body carries everything: identifier, exact input and output paths, language, decisions made.
+2. Each task carries an `--idempotency-key` derived from its identifier and stage, so a retry does not duplicate work.
+3. The last specialist does not write to the user: it leaves a file in `outbox/ready/`. A delivery script (`--no-agent` cron every 10-15 min) sends it and moves it to `outbox/sent/`. Zero tokens, one exit point.
+4. The same script reports blocked tasks waiting for the user.
 
-### Keeping the computer on
+### 5.1 Direct consultation between specialists
 
-Cron and Kanban only run while the computer is awake and the gateway is running (`hermes gateway install` sets it up as a service). If the computer sleeps, everything pauses and resumes when it wakes up. On Mac laptops, a closed lid puts the computer to sleep even with `caffeinate`.
+A specialist whose input lacks a datum never relays through the orchestrator. Bots follow the compact procedure in `{{ROOT}}/AGENTS.md` (`01-principles.md` §2.3); this section is the design. Mechanism verified in `user-guide/features/kanban.md`. Each squad lists its allowed pairs in `consult` of `squad.yaml` and copies them into its `AGENTS.md`.
 
-### Heavy jobs
+1. **Resolve with what you have**: task body, project files, contracts. If the datum is low impact, assume, record the assumption where the squad records history, and continue.
+2. **Otherwise consult the bot that owns the datum**, only if the pair is listed in `consult` of the squad's `squad.yaml`:
+   - `kanban_create` a support card: assignee = that bot, same tenant and workspace as the asking card, title `CONSULT · <ID> · <question in 6 words>`, idempotency key `<ID>-consult-<from>-<to>-<n>`, body: ID, one question (one datum), where you noticed it, what you assumed, paths to read, expected answer format.
+   - `kanban_link(parent_id=<support card>, child_id=<your own card>)`, then `kanban_block` with `kind=dependency`. A worker may link its own running card right before a dependency block.
+   - Your card resumes automatically when the support card completes; the answer arrives in its `## Parent task results` section.
+   - Never make the support card a child of your card: neither card would ever run.
+3. **The answering bot (CONSULT mode)** answers only from its own outputs and project files, completes with the answer in the `summary`, does not redo work, and never opens a consultation itself (depth 1). If it cannot answer, it blocks with `kind=needs_input` and a one-line question for the user (the delivery script reports it).
+4. **Limits**: at most 2 consultations per task, one datum each. Block for the user only for human decisions (price, legal claims, spend, facts only the user has).
+5. `kanban_comment` wakes nobody: never use a comment alone as a question.
 
-Rendering video, opening a headless Chrome, capturing pages, generating voice locally or transcribing use a lot of memory. So the computer doesn't freeze:
+### 5.2 Keeping the computer on
 
-- Every script in any squad that does any of this takes the **lock** `{{ROOT}}/.heavy-lock`, so only one runs at a time even if different bots or squads ask for it. It is handled by the shared `{{ROOT}}/scripts/heavy_lock.py`. The first squad that needs it creates it; its specification is in `squads/marketing/05-scripts.md`.
-- There is a single copy of each binary: the system's Chrome, one FFmpeg and one Node.
-- Premium image, video and voice AI runs through an API: it uses no local memory.
+Cron and Kanban run only while the computer is awake and the gateway is running (`hermes gateway install` sets it up as a service). If the computer sleeps, everything pauses and resumes on wake. On Mac laptops, a closed lid sleeps the computer even with `caffeinate`.
+
+### 5.3 Heavy jobs
+
+Rendering video, headless Chrome, page captures, local voice generation, transcription and builds use a lot of memory. So the computer does not freeze:
+
+- Every such script in any squad takes the **lock** `{{ROOT}}/.heavy-lock` through the shared `{{ROOT}}/scripts/heavy_lock.py`, so only one runs at a time across bots and squads. The first squad that needs it creates it; its specification is in `squads/marketing/05-scripts.md`.
+- One copy of each binary: the system's Chrome, one FFmpeg, one Node.
+- Premium image, video and voice AI runs through an API: no local memory.
 - With 8 GB of RAM: `max_in_progress: 2`.
 
 ## 6. Memory
 
 - Hermes memory (`MEMORY.md`, `USER.md`) is **per profile** and small.
-- Only the **orchestrator** has memory enabled: a summary of the user and where their profile is.
-- The shared source of truth is the files in `~/Hermes/user/` and each squad's profiles.
-- Optional: the **Honcho** provider shares a model of the user across profiles. It is not needed to get started.
+- Only the **orchestrator** and the **builder** have memory enabled: a summary of the user, where their profile is, and (builder) what is installed.
+- The shared source of truth is the files in `~/Hermes/user/`, each squad's profiles and `builder/installed.yaml`.
+- Optional: the **Honcho** provider shares a model of the user across profiles. Not needed to start.
 
 ## 7. Criteria for splitting or merging bots
 
 - **Promote a skill or subagent to its own bot** if its quality is repeatedly weak and it needs another model, if it needs permissions the current bot must not have, or if the context fills up.
-- **Merge two bots** if they always run together, read the same things and neither needs independence from the other.
+- **Merge two bots** if they always run together, read the same things, and neither needs independence from the other.
 - **Turn a bot into a script** if its output is always the same for the same input.
 
-Every structural change is recorded in `00-evaluation/02-decisions.md` in the plans repository.
+Every structural change is recorded in `00-evaluation/02-decisions.md`.

@@ -1,13 +1,14 @@
 # Architecture: job search
 
-> Squad plan. Folders, data contracts, filter rules and the squad's `AGENTS.md`.
-> The `{{...}}` variables come from `user/profile.md` and `jobs/jobs-profile.yaml`.
+> Squad plan. Folders, chain, data contracts, filter rules, direct consultation and the squad's `AGENTS.md`.
+> The `{{...}}` variables come from `user/profile.md` and `projects/jobs/jobs-profile.yaml`.
 
 ## 1. Folder `{{ROOT}}/projects/jobs/`
 
 ```text
 {{ROOT}}/projects/jobs/
 ├── AGENTS.md                      # squad rules (§6)
+├── squad.yaml                     # filled-in manifest (read by registry.py)
 ├── jobs-profile.yaml              # what the user is looking for
 ├── achievements.yaml              # what they can prove (source of truth)
 ├── application-data.yaml          # answers for forms (sensitive, in .gitignore)
@@ -16,7 +17,8 @@
 │   ├── cv-ats/                    # one column, no icons, selectable text
 │   └── cv-custom/                 # optional: the user's own design
 ├── scripts/                       # start_search.sh, deliver.py, render_cv.py, check_links.py
-├── skills/                        # orchestration-jobs and the specialists' skills
+├── skills/                        # the specialists' skills (one folder per skill)
+│   └── orchestration/             # orchestration-jobs only (the orchestrator reads this folder)
 ├── companies/<company>.md         # company profiles, reusable for 30 days
 ├── searches/YYYY-MM-DD-HH.md      # result of each search
 ├── openings/
@@ -50,10 +52,10 @@ writer ── application/ (CV, PDF, DOCX…) ─────────┤ alw
 reviewer ── review-N.json ──┬─ APPROVED ──► outbox/ready/<ID>.json
                             ├─ FIX, round 1 ──► creates the writer's task with corrections
                             │                   (the writer creates the reviewer's task again, round 2)
-                            └─ not approved in round 2 ──► status NOT_APPROVED (goes to the weekly summary)
+                            └─ not approved in round 2 ──► status not_approved (goes to the weekly summary)
 
 cron every 15 min ── deliver.py ──► message to the user: link + attached CV
-                                    (only within their schedule; also reports blocked tasks)
+                                    (only within the user's schedule; also reports blocked tasks)
 ```
 
 What the user receives for each approved opening:
@@ -66,7 +68,7 @@ Reply: "apply" · "change: <what>" · "no"
 JOB-20260925-acme-data-analyst
 ```
 
-If there are warnings (for example "interview probably in English"), one line is added. Nothing else: no analysis, no intermediate steps.
+Warnings (for example "interview probably in English") add one line. Nothing else: no analysis, no intermediate steps.
 
 ### User replies
 
@@ -77,7 +79,7 @@ If there are warnings (for example "interview probably in English"), one line is
                                               └─ needs an account, CAPTCHA, email, LinkedIn…
                                                                    → "Apply here yourself" + ready answers
 "change: <what>" → orchestrator ──► writer (CHANGE mode) ──► reviewer ──► new CV the same way
-"no"             → status SKIPPED (the reason, if given, improves the searches)
+"no"             → status skipped (the reason, if given, improves the searches)
 "I applied", "they called me", "rejected" → status updated
 "prepare me for the interview with X" → writer (INTERVIEW mode) ──► interview.md
 ```
@@ -101,7 +103,7 @@ If there are warnings (for example "interview probably in English"), one line is
 
 ## 4. Filter rules (scout)
 
-They are applied in this order. The first rule that discards, discards.
+Applied in this order; the first rule that discards, discards.
 
 1. **Scam or closed opening**: asks for payments or bank details, no identifiable company, 404 or "position closed" → `DISCARD`, with a label.
 2. **Language**: normalize what the opening requires using the table below. If it exceeds `max_required_language` → `DISCARD`. If the opening is in that language and does not state a level → `FLAG` with the warning "interview probably in <language>".
@@ -177,7 +179,7 @@ Table with one row per opening found: `id | company | role | work mode | require
 | File | Content |
 | --- | --- |
 | `strategy.md` | Headline, main narrative, order of experiences and skills, keywords to cover, chosen evidence pieces and why, CV language |
-| `cv_content.json` | `{language, header{name, headline, links[]}, summary, experience[{title, company, dates, bullets[{text, achievements[]}]}], projects[], skills[], education[], languages[{language, level}]}` — **each bullet cites its achievements** |
+| `cv_content.json` | `{language, header{name, headline, links[]}, summary, experience[{title, company, dates, bullets[{text, achievements[]}]}], projects[], skills[], education[], languages[{language, level}]}`. **Each bullet cites its achievements** |
 | `cover_letter.md`, `answers.md`, `recruiter_message.md` | Depending on `deliverables`. Each paragraph ends with `<!-- achievements: ACH-... -->` |
 | `cv_ats.pdf`, `cv_custom.pdf`, `cv.docx`, `cv_ats.txt`, `render_report.json` | Output of `render_cv.py` |
 | `links.json` | Output of `check_links.py` |
@@ -203,11 +205,11 @@ Table with one row per opening found: `id | company | role | work mode | require
 ### `openings/<ID>/status.json` (whoever acts on the opening)
 
 ```json
-{"id": "JOB-...", "status": "ANALYZED",
- "history": [{"date": "2026-09-25T08:14", "status": "FOUND", "by": "jobs-scout", "note": ""}]}
+{"id": "JOB-...", "status": "analyzed",
+ "history": [{"date": "2026-09-25T08:14", "status": "found", "by": "jobs-scout", "note": ""}]}
 ```
 
-Statuses: `FOUND`, `DISCARDED`, `ANALYZED`, `IN_PREPARATION`, `IN_REVIEW`, `NOT_APPROVED`, `READY`, `DELIVERED`, `APPLYING`, `APPLIED`, `MANUAL_APPLICATION`, `SKIPPED`, `SCREENING`, `INTERVIEW`, `OFFER`, `REJECTED`, `CLOSED`.
+Statuses (`lowercase_snake_case`): `found`, `discarded`, `analyzed`, `in_preparation`, `in_review`, `not_approved`, `ready`, `delivered`, `applying`, `applied`, `manual_application`, `skipped`, `screening`, `interview`, `offer`, `rejected`, `closed`. Verdicts and results stay `UPPERCASE`: `filter` (PASS, FLAG, DISCARD), `fit.decision` (PURSUE, WATCH, REJECT), review `verdict` (APPROVED, FIX, HUMAN_REVIEW) and `submission.json` `result` (SUBMITTED, NEEDS_DATA, NOT_POSSIBLE).
 Only one bot works on an opening at a time (the chain is linear), so there are no simultaneous writes.
 
 ### `outbox/ready/<ID>.json` (reviewer)
@@ -222,14 +224,14 @@ Only one bot works on an opening at a time (the chain is linear), so there are n
 ```json
 {"id": "JOB-...", "result": "SUBMITTED | NEEDS_DATA | NOT_POSSIBLE",
  "method": "no_login_form | requires_account | email | linkedin | captcha | other",
- "filled_fields": [{"field": "", "source": "contact.yaml | application-data.yaml | answers.md | cv"}],
+ "filled_fields": [{"field": "", "source": "contact.yaml | application-data.yaml | answers.md | cv | consult:<card id>"}],
  "pending_questions": [], "screenshots": ["/path/before.png", "/path/confirmation.png"],
  "reason": "", "manual_kit": "application/kit.md"}
 ```
 
 ### `companies/<company>.md` (the analyst's subagent)
 
-Profile with date, summary, product, sector, brand tone, team signals, news and sources. It is reused if it is less than 30 days old.
+Profile with date, summary, product, sector, brand tone, team signals, news and sources. Reused while less than 30 days old.
 
 ### `tracking.csv` (regenerated by `deliver.py`; nobody edits it)
 
@@ -239,10 +241,10 @@ id,date,company,role,url,source,filter,score,decision,status,applied_at,apply_me
 
 ## 6. `{{ROOT}}/projects/jobs/AGENTS.md`
 
-It is added to the base `AGENTS.md`. Text to copy as is, with the variables substituted. The `{{#confidential_search}}…{{/confidential_search}}` block is included only if that field is `true`:
+Merged after the base `AGENTS.md`. Copy as is, with the variables substituted. Include the `{{#confidential_search}}...{{/confidential_search}}` block only if that field is `true`:
 
 ```markdown
-# Job search — squad rules
+# Job search: squad rules
 
 1. Every claim about {{name}} (experience, numbers, dates, tools, education,
    languages) must exist in achievements.yaml with verified: true and be cited by id. No
@@ -275,4 +277,24 @@ It is added to the base `AGENTS.md`. Text to copy as is, with the variables subs
     documents.{{/confidential_search}}
 11. If the previous stage's file is missing or invalid, do not rebuild it: block and
     explain.
+12. Direct consultation (base AGENTS.md rule) only for these pairs:
+    jobs-writer → jobs-analyst: analysis or evidence questions (a requirement, the
+    achievements that support it).
+    jobs-applier → jobs-writer: the answer to a form question drawn from the application.
+    jobs-reviewer → jobs-analyst: fit-analysis facts only, never about the documents
+    under review.
+    Record an assumption in the history note of status.json. Facts only {{name}} has
+    (salary, authorization, availability) are never consulted: block with needs_input.
 ```
+
+## 7. Direct consultation
+
+A specialist missing one datum owned by another bot asks it directly with a support card and a dependency block, without going through the orchestrator. Protocol, card format, limits and deadlock rule: `base/02-architecture.md` §5.1. Allowed pairs (also in `squad.yaml` → `consult`):
+
+| From | To | About | Answer comes from |
+| --- | --- | --- | --- |
+| `jobs-writer` | `jobs-analyst` | Analysis or evidence: why a requirement is must-have, which achievements support it | `analysis.json`, `companies/<company>.md`, `opening.md` |
+| `jobs-applier` | `jobs-writer` | The answer to a form question not covered by `answers.md` | `application/`, `achievements.yaml` (verified only, cited by id) |
+| `jobs-reviewer` | `jobs-analyst` | Fit-analysis facts only (must-have vs nice-to-have, hard gaps) | `analysis.json` |
+
+The answering bot runs in CONSULT mode (`03-bots.md` §2). The reviewer never consults the writer: independence. The applier records a consulted answer in `submission.json` with source `consult:<card id>`. If the applier is not installed, its pair is dropped from `squad.yaml`.

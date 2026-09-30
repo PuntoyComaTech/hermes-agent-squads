@@ -1,7 +1,7 @@
 # Scripts: marketing agency
 
-> Script specifications. **The installer AI itself** (Hermes, with `terminal` and `file`) writes them in step 6 of the installation, on the user's computer; they also work as prompts for any coding AI.
-> Level 1: `heavy_lock.py`, `hf.py`, `render_html.py`, `render_video.py`, `contact_sheet.py`, `check_piece.py`, `stock_photos.py`, `download_assets.py`, `render_document.py`, `deliver.py`, `studio.py`, `metrics.py`, `plan_week.py` and `monthly_report.py`. Level 2 adds publishing, email drafts, deployment, data connectors and the Studio with buttons.
+> Script specifications. The builder writes them in installation step 6; they also work as prompts for any coding AI.
+> Level 1: `heavy_lock.py`, `hf.py`, `render_html.py`, `render_video.py`, `contact_sheet.py`, `check_piece.py`, `stock_photos.py`, `download_assets.py`, `render_document.py`, `deliver.py`, `studio.py`, `metrics.py`, `plan_week.py`, `monthly_report.py`. Level 2 adds publishing, email drafts, landing deployment, data connectors and the Studio with buttons.
 
 ## Common preamble
 
@@ -21,45 +21,46 @@ data contracts are in 02-architecture.md (attached).
 
 ### Traps that have already cost a real installation
 
-These are not hypothetical. Each one was hit while building this squad and each one fails
-quietly or misleadingly:
+Each one fails quietly or misleadingly:
 
-1. **`mjml` is npm, not Python.** `pip install mjml` installs an unrelated third-party
-   reimplementation that does not compile MJML markup. Use `npm i -D mjml` and `npx mjml`.
-2. **Weekday keys are English, always.** `datetime.weekday()` is 0=Monday, and YAML
-   `notify_window.days` may be written as `lun`, `mon` or `Monday`. Normalize to
+1. **`mjml` is npm, not Python.** The PyPI `mjml` is an unrelated reimplementation that does not
+   compile MJML markup. Use `npm i -D mjml@<version>` and `npx mjml`; keep it out of the venv.
+2. **Weekday keys are English, always.** `datetime.weekday()` is 0=Monday, and
+   `notify_window.days` may be written `lun`, `mon` or `Monday`. Normalize to
    `["mon","tue","wed","thu","fri","sat","sun"]` before comparing, or the window never matches
-   and **no message is ever delivered** — with no error anywhere.
-3. **PyYAML turns ISO dates into `datetime` objects.** Any `card.md` header parsed with
-   `yaml.safe_load` gives you `datetime` for `publish_at` and `updated`, and
-   `json.dumps()` then raises `TypeError: Object of type datetime is not JSON serializable`.
-   Convert to `str`/`isoformat()` at the parse boundary, and pass `default=str` as a backstop.
-4. **Cron `--script` only resolves inside `$HERMES_HOME/scripts/`.** That is
-   `~/.hermes/profiles/<profile>/scripts/` for a named profile, and it does not exist on a fresh
-   profile. Create the directory first; Hermes rejects any path that escapes it.
-5. **The gateway hosts the Kanban dispatcher.** No gateway means no task ever starts, and the
-   symptom looks like a broken squad. Diagnose it in step 1 of the base installation.
-6. **A shared lock is reentrant only by token.** `render_video.py` calls `contact_sheet.py`, and
-   the child must not block on the parent. Export `HEAVY_LOCK_TOKEN` when acquiring and compare it
-   on re-entry, instead of blindly waiting.
-7. **A batch delivery has three distinct gates**: the notify window, the batch being complete,
-   and `batch_wait_hours` since the first piece arrived. Test all three explicitly; a test that
-   only exercises the happy path proves nothing.
-8. **The Kanban worker inherits the gateway's Python, not yours.** The dispatcher spawns every
-   task as `sys.executable -m hermes_cli.main`, honoring `$HERMES_BIN` if set. After a
-   `hermes pm repair` that interpreter can lose `hermes_cli`, and every task dies in ~60 s with
-   `ModuleNotFoundError: No module named 'hermes_cli'` — while the card reads `running` and the
-   dispatcher log looks healthy. Set `HERMES_BIN` to a launcher that works **in the gateway's
-   environment** (the dispatcher is a gateway thread, not a profile), and re-add it to the
-   macOS LaunchAgent plist after any `hermes gateway install`, which regenerates it. Confirm with
-   a real task, not with a card's state.
+   and no message is ever delivered, with no error anywhere.
+3. **PyYAML turns ISO dates into `datetime`.** A `card.md` header parsed with `yaml.safe_load`
+   yields `datetime` for `publish_at` and `updated`, and `json.dumps()` raises
+   `TypeError: Object of type datetime is not JSON serializable`. Convert with `isoformat()` at
+   the parse boundary and pass `default=str` as a backstop.
+4. **Cron `--script` only resolves inside `$HERMES_HOME/scripts/`**: `~/.hermes/profiles/<profile>/scripts/`
+   for a named profile, `~/.hermes/scripts/` for `default`. It does not exist on a fresh
+   profile: create it first. Hermes re-validates on every run and refuses paths that escape it.
+5. **The gateway hosts the Kanban dispatcher.** No gateway, no task ever starts, and it looks
+   like a broken squad. Diagnose it as in base installation step 1.
+6. **The shared lock is reentrant only by token.** `render_video.py` calls `contact_sheet.py`,
+   and the child must not block on the parent: export `HEAVY_LOCK_TOKEN` when acquiring and
+   compare it on re-entry.
+7. **Batch delivery has three gates**: the notify window, the batch being complete, and
+   `batch_wait_hours` since the first piece. Test all three explicitly, not only the happy path.
+8. **The Kanban worker inherits the gateway's Python.** The dispatcher spawns each task as
+   `sys.executable -m hermes_cli.main`, honoring `$HERMES_BIN` if set. After a `hermes pm repair`
+   that interpreter can lose `hermes_cli`: each task dies in about 60 s with
+   `ModuleNotFoundError: No module named 'hermes_cli'` and retries until `failure_limit`, while
+   the card reads `running` and the dispatcher log looks healthy. Set `HERMES_BIN` to a working
+   launcher (`hermes pm doctor` shows one, typically
+   `~/.hermes/installs/<id>/environments/<id>/venv/bin/hermes`) in the gateway's environment,
+   not the bot's profile. On macOS with `hermes gateway install` it goes in the LaunchAgent
+   plist's `EnvironmentVariables`; re-add it after every `hermes gateway install`, which
+   regenerates the plist. Confirm with a real task (`hermes kanban runs <task-id>`), not a
+   card's state: a task back in `blocked` or `ready` after about 60 s with no output is this
+   failure, not a bad prompt.
 9. **`urllib` gets HTTP 403 from Discord where curl gets 200.** Discord's edge rejects the
-   default `Python-urllib` User-Agent with error code 1010, so channel and member calls fail with
-   a message that looks like a permissions problem. For Discord API calls, shell out to curl
-   (or set an explicit User-Agent) before concluding that a token or a role is wrong.
-10. **`DISCORD_HOME_CHANNEL` is a bare ID, not a `platform:id` pair.** Hermes parses it as an
-   integer, so writing `discord:1234567890` fails with `invalid literal for int()`. Telegram
-   takes the `telegram:<chat>:<topic>` form; Discord takes only the channel ID.
+   default `Python-urllib` User-Agent (error 1010), which looks like a permissions problem. For
+   Discord API calls, use curl or set an explicit User-Agent before blaming a token or role.
+10. **`DISCORD_HOME_CHANNEL` is a bare ID.** Hermes parses it as an integer, so
+    `discord:1234567890` fails with `invalid literal for int()`. Telegram takes
+    `telegram:<chat>:<topic>`; Discord only the channel ID.
 
 ## Level 1
 
@@ -355,13 +356,20 @@ explicit confirmation written in outbox/schedule/.
 ### `deploy_landing.py`
 
 ```markdown
-Create {{M}}/scripts/deploy_landing.py. Two steps, each with its own confirmation:
-1. Preview: it uploads v<N>/landing/ to a preview URL from the chosen provider (Cloudflare
-   Pages, or Workers with static assets) and sends it to the user.
-2. Production: with explicit confirmation, it publishes on the brand's subdomain (for example,
-   promo.brand.com, with a CNAME that the user sets up) and verifies that it returns 200.
-It records in v<N>/deploy.json the URL, the date and how to roll back. It never touches the
-brand's main website; for WordPress, Webflow or Shopify, the package in v<N>/cms/ is delivered.
+Create {{M}}/scripts/deploy_landing.py. It deploys v<N>/landing/ to Cloudflare as static
+assets with the cf CLI (npm i -g cf; auth CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in
+{{M}}/.env, a token with minimal scopes the user creates). cf for everything: project, deploy,
+DNS, domain, rollback; find each exact command with `cf cli search "<task>"`. Wrangler only for
+what cf lacks (individual secrets, live log tail), and only after cf cli search finds nothing. If
+the folder has a Wrangler config, run cf migrate --dry-run, then cf migrate, before any cf
+deploy. Two steps, each with its own confirmation:
+1. Preview: deploy to a preview URL and send it to the user.
+2. Production: with explicit confirmation, publish on the brand's subdomain (e.g.
+   promo.brand.com: a DNS record with cf if the zone is on the user's Cloudflare account,
+   otherwise a CNAME the user sets up) and verify it returns 200.
+It records in v<N>/deploy.json the URL, the date and how to roll back (cf rollback or the
+previous version). It never touches the brand's main website; for WordPress, Webflow or
+Shopify, the package in v<N>/cms/ is delivered.
 ```
 
 ### Data connectors (read-only)

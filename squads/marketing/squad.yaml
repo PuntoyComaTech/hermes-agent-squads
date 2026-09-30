@@ -1,0 +1,59 @@
+key: marketing
+name: Marketing agency
+source: official            # official (plans/squads) | own (~/Hermes/squads)
+plan_version: 1              # bump when the squad's contracts change
+level: 1
+multi_project: true
+projects_dir: brands         # projects/marketing/brands/<slug>/
+orchestration_skills: skills/orchestration   # relative to projects/marketing/
+bots:                        # model / reasoning_effort: null in the plan; the user's choice at install (base/07-builder.md §5)
+  - profile: marketing-strategist
+    does: "Researches, plans, builds calendars and briefs, analyzes data"
+    modes: [ONBOARDING, PLAN, CALENDAR, CAMPAIGN, REPORT, IDEAS, RESEARCH, GUIDE, COUNCIL, CHANGE, CONSULT]
+    toolsets: [web, browser, file, skills, delegation]
+    disabled_toolsets: [terminal, code_execution, image_gen, video_gen, tts]
+    skills_dirs: [skills/strategist, skills/common]
+    model: null              # recommended: main_model
+    reasoning_effort: null   # recommended: medium
+  - profile: marketing-creative
+    does: "Concepts and all the copy; scripts and art direction"
+    modes: [PIECE, CHANGE, CONCEPTS, CONSULT]
+    toolsets: [file, skills, vision, delegation]
+    disabled_toolsets: [web, browser, terminal, code_execution, image_gen, video_gen]
+    skills_dirs: [skills/creative, skills/common]
+    model: null              # recommended: main_model
+    reasoning_effort: null   # recommended: medium
+  - profile: marketing-producer
+    does: "Designs, renders images and video, builds landing pages and emails, lays out documents"
+    modes: [PIECE, CHANGE, IDENTITY, SKETCHES, DOCUMENT]
+    toolsets: [terminal, file, skills, vision, image_gen]   # + video_gen at Level 2
+    disabled_toolsets: [web, browser, code_execution]
+    skills_dirs: [skills/producer, skills/common]
+    model: null              # recommended: production_model
+    reasoning_effort: null   # recommended: high
+  - profile: marketing-reviewer
+    does: "Reviews every piece with 5 independent lenses before it reaches the user"
+    modes: [REVIEW]
+    toolsets: [file, skills, vision, delegation]
+    disabled_toolsets: [web, browser, terminal, code_execution, image_gen]
+    skills_dirs: [skills/reviewer, skills/common]
+    model: null              # recommended: main_model
+    reasoning_effort: null   # recommended: medium
+consult:                     # allowed direct consultations (base/02-architecture.md §5.1)
+  - {from: marketing-producer, to: marketing-creative, about: "intent of the copy or concept"}
+  - {from: marketing-creative, to: marketing-strategist, about: "brief or strategy"}
+  - {from: marketing-producer, to: marketing-strategist, about: "brand or identity facts"}
+  - {from: marketing-reviewer, to: marketing-strategist, about: "intent of the brief only"}
+crons:
+  - {name: plan-week, profile: marketing-strategist, script: plan_week.py, schedule: "every 1h", no_agent: true}
+  - {name: deliver, profile: orchestrator, script: deliver.py, schedule: "every 15m", no_agent: true}
+  - {name: monthly-report, profile: marketing-strategist, script: monthly_report.py, schedule: "0 8 * * *", no_agent: true}   # if monthly_report: true
+  - {name: weekly-summary, profile: orchestrator, script: null, schedule: "0 9 * * 1", no_agent: false}   # if weekly_summary: true; prompt in 03-bots.md §5.1
+  # Level 2: {name: publish, profile: orchestrator, script: publish.py, schedule: "every 15m", no_agent: true}
+asks:                        # registry column "Ask it things like..."
+  - "new project: <name> <website or social profiles>"
+  - "make a reel for Thursday's launch"
+  - "campaign for <date or launch>"
+  - "marketing plan · how are we doing? · ideas"
+  - "approve all · change 2: … · no to 4"
+  - "pause <brand> · quiet until Monday"

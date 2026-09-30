@@ -1,0 +1,69 @@
+key: web
+name: Web development agency
+source: official            # official (plans/squads) | own (~/Hermes/squads)
+plan_version: 1              # bump when the squad's contracts change
+level: 1
+multi_project: true
+projects_dir: sites          # projects/web/sites/<slug>/
+orchestration_skills: skills/orchestration   # relative to projects/web/
+bots:                        # model / reasoning_effort: null in the plan; the user's choice at install (base/07-builder.md §5)
+  - profile: web-architect
+    does: "Turns the idea into a plain-language spec with stack, milestones and acceptance criteria; triages changes"
+    modes: [SPEC, TRIAGE, CONSULT]
+    toolsets: [web, browser, file, skills, delegation, vision]
+    disabled_toolsets: [terminal, code_execution, image_gen, video_gen, tts]
+    skills_dirs: [skills/architect, skills/common]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+  - profile: web-developer
+    does: "Builds each milestone in the site's repo on a branch, with tests, and commits locally"
+    modes: [BUILD, CONSULT]
+    toolsets: [terminal, file, skills, vision]
+    disabled_toolsets: [web, browser, code_execution, delegation, image_gen, video_gen, tts]
+    skills_dirs: [skills/developer, skills/common]
+    model: null              # recommended: Claude Sonnet 5.5
+    reasoning_effort: null   # recommended: high
+  - profile: web-advisor
+    does: "Read-only second opinion for the developer and the architect on hard technical choices; answers CONSULT cards only"
+    modes: [CONSULT]
+    toolsets: [file, skills]
+    disabled_toolsets: [terminal, web, browser, code_execution, delegation, vision, image_gen, video_gen, tts]
+    skills_dirs: [skills/advisor, skills/common]
+    model: null              # recommended: Claude Opus 5.5
+    reasoning_effort: null   # recommended: medium
+  - profile: web-reviewer
+    does: "Reviews each preview with 5 independent lenses and approves, fixes or escalates"
+    modes: [REVIEW]
+    toolsets: [browser, vision, file, skills, delegation, terminal]   # terminal only for check_site.py
+    disabled_toolsets: [web, code_execution, image_gen, video_gen, tts]
+    skills_dirs: [skills/reviewer, skills/common]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+  - profile: web-deployer
+    does: "Owns GitHub and the hosting provider: repos, PRs, preview and production deploys, DNS, domains, secrets, rollback"
+    modes: [REPO, PREVIEW, PRODUCTION, DOMAIN, ROLLBACK, CONSULT]
+    toolsets: [terminal, file, skills]
+    disabled_toolsets: [web, browser, code_execution, delegation, vision, image_gen, video_gen, tts]
+    skills_dirs: [skills/deployer, skills/common]
+    model: null              # recommended: main_model
+    reasoning_effort: null
+consult:                     # allowed direct consultations (base/02-architecture.md §5.1)
+  - {from: web-developer, to: web-architect, about: "spec scope or an acceptance criterion"}
+  - {from: web-deployer, to: web-developer, about: "a build that fails on the provider but passes locally"}
+  - {from: web-developer, to: web-deployer, about: "exact names of env vars, secrets and bindings"}
+  - {from: web-reviewer, to: web-architect, about: "what an acceptance criterion means"}
+  - {from: web-developer, to: web-advisor, about: "data model or auth approach, an error that failed twice, an irreversible data migration, a finding the reviewer repeats"}
+  - {from: web-architect, to: web-advisor, about: "an architecture choice (data model, auth, stack fit)"}
+crons:
+  - {name: deliver, profile: orchestrator, script: deliver.py, schedule: "every 15m", no_agent: true}
+  - {name: weekly-summary, profile: orchestrator, script: null, schedule: "0 9 * * 1", no_agent: false}   # only if weekly_summary
+asks:                        # registry column "Ask it things like..."
+  - "new site: <idea>"
+  - "ok"
+  - "publish"
+  - "change: <what>"
+  - "bug: <what> + screenshot"
+  - "connect my domain"
+  - "rollback"
+  - "status"
+  - "pause <site> · resume"

@@ -1,10 +1,10 @@
 # Personalization: job search
 
-> Runs in STEP 1 of the installation and every time the user changes their goal.
-> Produces three files: `jobs-profile.yaml` (what they are looking for), `achievements.yaml` (what they can prove) and `application-data.yaml` (what to answer in forms), in `{{ROOT}}/projects/jobs/`.
-> **Do not repeat** what is already in `user/profile.md` (name, country, time zone, languages, channel, autonomy): read it and use it.
+> The builder runs it in STEP 1 of the installation and whenever the user changes their goal.
+> Produces, in `{{ROOT}}/projects/jobs/`: `jobs-profile.yaml` (what they look for), `achievements.yaml` (what they can prove) and `application-data.yaml` (what to answer in forms).
+> Do not ask again what `user/profile.md` already has (name, country, time zone, languages, channel, autonomy): read it.
 
-## Part 1 · How to run the interview (instructions for the AI)
+## Part 1 · How to run the interview
 
 1. Read `user/profile.md`, your memory and the current CV if the user provides it. **Ask for the CV first**: it answers half of the questions.
 2. Build a draft of `jobs-profile.yaml` with what you can infer and show it. Mark anything not confirmed with `(?)`.
@@ -60,7 +60,7 @@
 
 ## Part 3 · What each answer changes
 
-The installer AI uses this table to substitute variables in the SOULs and in the rules.
+The builder uses this table to substitute variables in the SOULs and rules.
 
 | Answer | Effect on the system |
 | --- | --- |
@@ -76,21 +76,21 @@ The installer AI uses this table to substitute variables in the SOULs and in the
 | `cv_template` | `cv_custom.pdf` is produced in addition to `cv_ats.pdf` |
 | `search_times` | Cron for `start_search.sh` |
 | `apply_threshold`, `max_deliveries_per_day`, `analyze_flagged` | When the analyst passes the opening to the writer, and how many openings are prepared per day (spend control) |
-| `auto_apply`, `review_before_submit` | Whether the `jobs-applier` bot exists, and whether it asks for a screenshot before submitting |
+| `auto_apply`, `review_before_submit` | Whether the `jobs-applier` bot exists (and its entries in `squad.yaml`), and whether it shows a screenshot before submitting |
 | `weekly_summary` | Orchestrator agent cron on Mondays |
 
 ## Part 4 · Achievements record (`achievements.yaml`)
 
-It is the squad's most important asset: **nothing goes into a CV unless it is here.** It is built during installation and grows over time.
+The squad's most important asset: **nothing goes into a CV unless it is here.** Built during installation; it grows over time.
 
-How to build it (instructions for the AI):
+How to build it:
 
 1. Extract from the current CV every experience, project, achievement, tool, education item and language. One achievement per entry.
 2. For each achievement, ask what makes it credible: what exactly did you do? Is there a number (before/after, volume, time, money)? Is there evidence (link, screenshot, document)?
 3. Mark `verified: true` **only** when the user confirms the final text. Anything unconfirmed stays `false`, and no bot uses it.
 4. Distinguish proficiency levels: `led`, `did`, `participated`, `familiar`. The writer cannot raise the level.
 5. If the user applies in more than one language, store the text in each language and ask them to confirm both.
-6. Do it in batches (one job experience per batch). If it is long, it can be finished in another session: the system works with whatever is verified.
+6. One job experience per batch. It can be finished in another session: the system works with whatever is verified.
 
 ```yaml
 # {{ROOT}}/projects/jobs/achievements.yaml
@@ -123,7 +123,7 @@ public_evidence:                 # portfolio, repositories, publications
 
 ## Part 5 · Application data (`application-data.yaml`)
 
-Only if `auto_apply` is `try`. These are the answers that almost every form asks for. The applier **only** uses what is here, in `user/contact.yaml`, in `achievements.yaml` or in the answers for each application; if a form asks for something else, it asks. Ask for each item explaining what it is for, and accept "prefer not to answer" (it is recorded as is).
+Only if `auto_apply` is `try`: the answers almost every form asks for. The applier uses **only** this file, `user/contact.yaml`, `achievements.yaml`, the application's answers and answers from a consultation with jobs-writer; for anything else, it asks. Explain what each item is for and accept "prefer not to answer" (recorded as is).
 
 ```yaml
 # {{ROOT}}/projects/jobs/application-data.yaml   (sensitive, in .gitignore)
