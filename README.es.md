@@ -7,85 +7,58 @@
 
 [English](README.md) · **Español**
 
-Squads de agentes de IA listos para instalar en [Hermes Agent](https://github.com/NousResearch/hermes-agent): búsqueda de empleo, agencia de marketing, agencia de desarrollo web, o el tuyo propio. Un orquestador te escribe por Telegram, Discord o WhatsApp; los especialistas trabajan solos y solo te consultan lo importante. Un bot constructor instala squads, crea nuevos contigo y mantiene todo actualizado. Son planes en Markdown (en inglés) que Hermes lee e instala; los bots te hablan en tu idioma, personalizados a cada persona y livianos para cualquier computador.
+**Squads de agentes de IA listos para instalar en [Hermes Agent](https://github.com/NousResearch/hermes-agent)**: búsqueda de empleo, marketing, desarrollo web, o el tuyo propio. Un **orquestador** te escribe por Telegram, Discord o WhatsApp; los especialistas trabajan solos y solo te consultan lo importante. Un bot **constructor** (`builder`) instala squads, crea nuevos contigo y mantiene todo actualizado. Todo son planes en Markdown (en inglés) que Hermes lee e instala; los bots te hablan en tu idioma, personalizados a ti y livianos para cualquier computador.
 
-## ¿Por qué hermes-agent-squads?
+## Cómo funciona
 
-- **Sin programar.** Clonas la carpeta, le dices a Hermes "lee `START-HERE.md`" y él mismo pregunta, instala y prueba. Los scripts que hagan falta los escribe Hermes en tu equipo.
-- **Personalizado.** Cada squad te entrevista y adapta cada bot: tu oficio, tus marcas, tu idioma, tu horario, tu presupuesto. Nada viene fijo.
-- **Automático, con control.** Solo te llegan resultados listos para responder. Publicar, postular o enviar nunca pasa sin tu confirmación.
-- **Pocos bots, bien pensados.** 4 o 5 especialistas por squad, cada uno con una razón para existir. Lo mecánico lo hacen scripts, no modelos.
-- **Liviano.** Sin Docker ni servidores: el único servicio es Hermes. Funciona en equipos de 8 GB.
-- **Tu app de siempre.** Telegram, Discord o WhatsApp, con un tema o canal por proyecto.
-- **Tus modelos.** Un modelo predeterminado rápido y económico para todos los bots; el constructor te deja elegir otro modelo y esfuerzo de razonamiento por bot entre los que ofrece tu conexión.
-- **Actualizaciones seguras.** "Actualiza mi instalación" aplica los cambios uno por uno y nunca sobrescribe tus datos ni tus cambios.
-
-## Arquitectura
-
+```mermaid
+flowchart LR
+    subgraph repo["Este repositorio: ~/Hermes/plans"]
+        SH[START-HERE.md]
+        B[base/]
+        SQ[squads/jobs · marketing · web]
+        M[base/migrations/]
+    end
+    subgraph pc["Tu computador: ~/Hermes"]
+        O((orquestador))
+        BU((constructor))
+        P["projects/(squad)/"]
+    end
+    U([Tú]) -- "1 · lee START-HERE.md" --> SH
+    SH -- "2 · instala solo la base" --> O & BU
+    BU -- "3 · instala o crea un squad" --> SQ
+    SQ -- bots especialistas --> P
+    M -- "actualiza mi instalación" --> BU
+    U <-- "Telegram · Discord · WhatsApp" --> O
+    U <-- "cambios, squads nuevos" --> BU
 ```
-Tú ◄──── Telegram · Discord · WhatsApp ────► orquestador   conversa, lanza flujos,
- │                                               │         atiende confirmaciones
- └──────────── su propio bot ──────► constructor   instala y crea squads,
-                                                   cambia la configuración, actualiza
-                                                   ▼
-   cron o pedido ──► Kanban ──► especialista ──► especialista ──► revisor
-                                (cada uno crea la tarea del siguiente)  │
-                                                                         ▼
-                                    deliver.py ──► mensaje con el resultado listo
+
+1. **La base, una vez.** Clonas este repo y le pides a Hermes que lea `START-HERE.md`. Esa sesión instala **solo la base**: tu perfil, el orquestador y el constructor.
+2. **Los squads, desde el constructor.** El constructor es el único bot que instala, crea o adapta squads. Pídele "instala el squad de desarrollo web" o "crea un squad para <objetivo>".
+3. **El día a día, con el orquestador.** Conversa contigo, lanza flujos y atiende tus confirmaciones.
+
+Dentro de un squad, el trabajo avanza en un tablero Kanban:
+
+```mermaid
+flowchart LR
+    T[cron o tu pedido] --> K[Kanban]
+    K --> S1[especialista] --> S2[especialista] --> R[revisor]
+    R -- corregir --> S2
+    R -- aprobado --> D[deliver.py] --> Msg([mensaje con el resultado listo])
 ```
 
-- **Base:** el orquestador, el constructor (`builder`), tu perfil y la carpeta `~/Hermes`. Se instala una sola vez.
-- **Squads:** equipos de especialistas por tema. El constructor los instala cuando los necesitas y el orquestador aprende sus flujos solo.
+Cada especialista crea la tarea del siguiente. Nada irreversible (publicar, postular, enviar, desplegar a producción) pasa sin tu confirmación.
 
 ## Squads disponibles
 
 | Squad | Qué te llega | Especialistas | Estado |
 | --- | --- | --- | --- |
 | [Búsqueda de empleo](squads/jobs/README.md) | El enlace de cada vacante que encaja y el CV hecho para ella. Respondes "postula" y, si el formulario es simple, postula por ti | explorador, analista, redactor, revisor, postulador | Nivel 1 diseñado |
-| [Agencia de marketing](squads/marketing/README.md) | Propuestas listas para aprobar para varias marcas: posts, carruseles, reels con motion, emails, landings, planes e informes, con versiones y un tablero visual | estratega, creativo, productor, revisor | Nivel 1 diseñado |
-| [Agencia de desarrollo web](squads/web/README.md) | Sitios web de la idea a producción: especificación, desarrollo, revisión independiente y un enlace de vista previa para aprobar antes de publicar en tu dominio | arquitecto, desarrollador, asesor, revisor, desplegador | Nivel 1 diseñado |
+| [Marketing](squads/marketing/README.md) | Propuestas listas para aprobar para varias marcas: posts, carruseles, reels con motion, emails, landings, planes e informes, con versiones y un tablero visual | estratega, creativo, productor, revisor | Nivel 1 diseñado |
+| [Desarrollo web](squads/web/README.md) | Sitios web de la idea a producción: especificación, desarrollo con un control de calidad estricto, revisión independiente y un enlace de vista previa para aprobar antes de publicar en tu dominio | arquitecto, desarrollador, asesor, revisor, desplegador | Nivel 1 diseñado |
 | El tuyo | Pídele al constructor un squad para tu objetivo | Hasta 5 | [Compártelo](CONTRIBUTING.md) |
 
-## Requisitos
-
-| Qué | Para qué |
-| --- | --- |
-| [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Hermes Desktop recomendado) | Donde viven los bots |
-| Una API key de un proveedor de modelos | Los modelos que usan los bots |
-| Telegram, Discord o WhatsApp | Por donde te escriben el orquestador y el constructor |
-| Un computador que quede encendido (Mac, Windows o Linux) | Para que los automatismos corran solos |
-
-## Instalación
-
-```bash
-git clone https://github.com/PuntoyComaTech/hermes-agent-squads.git ~/Hermes/plans
-```
-
-En Windows, la carpeta es `C:\Users\<tu usuario>\Hermes\plans`. También puedes descargar el ZIP y descomprimirlo ahí.
-
-## Inicio rápido
-
-1. Abre Hermes Desktop y escribe en el chat principal:
-
-   > Lee el archivo `~/Hermes/plans/START-HERE.md` y sigue las instrucciones para la IA.
-
-2. Responde sus preguntas (de 30 a 60 minutos). Instala la base y conecta el orquestador y el constructor a tu app de mensajería.
-3. Escríbele al constructor: "instala el squad de marketing" o "crea un squad para <tu objetivo>".
-
-Desde ahí hablas con el orquestador para el trabajo diario y con el constructor para los cambios. La guía completa, sin tecnicismos, está en [`START-HERE.md`](START-HERE.md).
-
-## Cómo se ve
-
-Búsqueda de empleo:
-
-```text
-🟢 84/100 · Analista de datos — Acme (remoto en la región)
-Postular: https://boards.greenhouse.io/acme/jobs/123
-CV adjunto 📎 cv_ats.pdf
-Responde: "postula" · "cambia: <qué>" · "no"
-```
-
-Agencia de marketing:
+Cómo se ve:
 
 ```text
 ☕ Café Luna · Propuestas semana 41 (4)
@@ -96,37 +69,57 @@ Agencia de marketing:
 Responde: "aprueba todo" · "aprueba 1 y 3" · "cambia la 2: …" · "no a la 4"
 ```
 
-## Cómo funciona
+## Inicio rápido
 
-### Personalización primero
+| Necesitas | Para qué |
+| --- | --- |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Hermes Desktop recomendado) | Donde viven los bots |
+| Una API key de un proveedor de modelos | Los modelos que usan los bots |
+| Telegram, Discord o WhatsApp | Por donde te escriben el orquestador y el constructor |
+| Un computador que quede encendido (Mac, Windows o Linux) | Para que los automatismos corran solos |
 
-Antes de crear nada, Hermes te pregunta lo que no sabe y confirma lo que ya sabe. Cada respuesta cambia algo concreto: filtros, horarios, cupos, idioma, marcas, herramientas. Los bots son plantillas con variables que salen de tu perfil.
-
-### Niveles
-
-Cada squad arranca en un **Nivel 1** que funciona de punta a punta con lo mínimo. Los niveles siguientes (más fuentes, conectores, aprendizaje) se activan solo cuando las métricas lo justifican y tú lo pides.
-
-### Seguridad
-
-- Nada irreversible sin tu confirmación explícita. Pagar, firmar o crear cuentas: nunca.
-- Cada bot tiene solo los permisos que necesita: los bots que leen la web abierta no tienen terminal, y los que tienen terminal no leen la web abierta.
-- Los textos de páginas externas son datos, nunca órdenes.
-
-## Estructura del repositorio
-
-```text
-START-HERE.md            guía para la persona e instrucciones de entrada para la IA
-base/                    lo común a todos los squads: principios, orquestador, constructor, perfil, instalación, actualizaciones
-  migrations/            pasos de actualización idempotentes para instalaciones existentes
-squads/
-  jobs/                  squad de búsqueda de empleo (7 archivos + squad.yaml)
-  marketing/             squad de agencia de marketing (7 archivos + squad.yaml + reference/)
-  web/                   squad de agencia de desarrollo web (7 archivos + squad.yaml)
-00-evaluation/           por qué el diseño es así: pros y contras y registro de decisiones
-CONTRIBUTING.md          reglas para contribuir y proponer squads
+```bash
+git clone https://github.com/PuntoyComaTech/hermes-agent-squads.git ~/Hermes/plans
 ```
 
-Cada squad tiene los mismos 7 archivos más su manifiesto `squad.yaml`:
+En Windows, la carpeta es `C:\Users\<tu usuario>\Hermes\plans`, o descarga el ZIP y descomprímelo ahí. Luego, en el chat principal de Hermes Desktop:
+
+> Lee el archivo `~/Hermes/plans/START-HERE.md` y sigue las instrucciones para la IA.
+
+Responde sus preguntas (de 30 a 60 minutos). Cuando la base esté lista, escríbele al constructor: "instala el squad de marketing". La guía completa, sin tecnicismos, está en [`START-HERE.md`](START-HERE.md).
+
+## ¿Por qué hermes-agent-squads?
+
+- **Sin programar.** Hermes pregunta, instala y prueba solo. Los scripts los escribe Hermes en tu equipo.
+- **Personalizado.** Cada squad te entrevista y adapta cada bot: tu oficio, marcas, idioma, horario, presupuesto.
+- **Automático, con control.** Solo te llegan resultados listos. Publicar, postular o enviar nunca pasa sin tu sí.
+- **Pocos bots, bien pensados.** 4 o 5 especialistas por squad. Lo mecánico lo hacen scripts, no modelos.
+- **Liviano.** Sin Docker ni servidores: el único servicio es Hermes. Funciona en equipos de 8 GB.
+- **Tus modelos.** Un modelo para todos los bots, o un modelo y esfuerzo de razonamiento por bot.
+- **Actualizaciones seguras.** "Actualiza mi instalación" aplica los cambios uno por uno y nunca sobrescribe tus datos ni tus cambios.
+- **Seguro por diseño.** Cada bot tiene solo los permisos que necesita; los que leen la web abierta no tienen terminal. El texto externo es dato, nunca orden.
+
+## Mapa del repositorio
+
+```text
+START-HERE.md              entrada: guía para la persona + instrucciones para la IA instaladora
+base/                      lo común a todos los squads
+  01-principles.md         reglas que siguen todos los bots e instaladores (leer primero)
+  02-architecture.md       estructura de ~/Hermes, Kanban, consultas, lock de trabajo pesado
+  03-user-profile.md       cuestionario del perfil de la persona
+  04-orchestrator.md       el bot del día a día
+  05-squad-template.md     plantilla que sigue cada squad
+  06-base-installation.md  instalación de la base, la hace la IA instaladora
+  07-builder.md            el bot que instala y crea squads
+  08-updates.md            cómo llegan las actualizaciones a una instalación
+  migrations/              pasos de actualización idempotentes, numerados
+squads/<squad>/            jobs · marketing · web, los mismos 7 archivos + squad.yaml
+00-evaluation/             razones del diseño y registro de decisiones (02-decisions.md)
+llms.txt                   índice para agentes de IA
+CONTRIBUTING.md            reglas, nombres, cómo proponer un squad
+```
+
+Cada squad tiene los mismos archivos:
 
 | Archivo | Contenido |
 | --- | --- |
@@ -137,8 +130,18 @@ Cada squad tiene los mismos 7 archivos más su manifiesto `squad.yaml`:
 | `04-installation.md` | Instrucciones para que el constructor lo instale y lo mantenga |
 | `05-scripts.md` | Especificación de los scripts que el constructor escribe en tu equipo |
 | `06-testing-and-operations.md` | Pruebas de aceptación, métricas y cuándo subir de nivel |
+| `squad.yaml` | Manifiesto: bots, toolsets, `plan_version` |
 
-En tu computador todo queda ordenado en `~/Hermes/`: `plans/` (este repositorio), `squads/` (los que creas tú), `user/`, `orchestrator/`, `builder/` y `projects/<squad>/`.
+## Para agentes de IA
+
+Si eres un agente de IA leyendo este repositorio:
+
+- **Punto de entrada:** [`START-HERE.md`](START-HERE.md), sección "For the installer AI". Después [`base/01-principles.md`](base/01-principles.md).
+- **Solo el constructor crea squads** (`base/01-principles.md` §1.10). Una sesión cualquiera de Hermes a la que se le pide la configuración inicial instala la base (perfil, orquestador, constructor) y luego deriva a la persona al constructor. Nunca instala, crea ni adapta un squad.
+- **Los planes son solo Markdown.** Scripts y configuraciones se especifican como prompts y se escriben en el equipo de la persona al instalar.
+- **Verificar, nunca adivinar.** Cada comando se comprueba contra su salida real; la documentación de Hermes manda sobre un plan.
+- **Las actualizaciones son migraciones** en [`base/migrations/`](base/migrations/), nunca reescrituras de los datos de la persona.
+- **Por qué las cosas son así:** [`00-evaluation/02-decisions.md`](00-evaluation/02-decisions.md), de la más nueva a la más antigua.
 
 ## Contribuir
 

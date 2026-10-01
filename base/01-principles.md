@@ -20,7 +20,8 @@
 7. **Personalization through data, not rewriting.** Prompts are templates with `{{...}}` variables. What changes per user lives in profile files, not in the bots' text.
 8. **Lightweight and portable.** Best-in-market tools, justified, installable on Mac, Windows and Linux. No Docker, databases or self-hosted servers: the only always-on service is the Hermes gateway. One copy of each binary (Chrome, FFmpeg, Node). Heavy jobs share a lock (`02-architecture.md` §5.3).
 9. **Specialists consult each other directly.** A bot missing a datum asks the bot that owns it through a support card (§2.3 below, design in `02-architecture.md` §5.1), never by relaying through the orchestrator.
-10. **Updates preserve personalization.** Changes reach an installed system only as migrations (`base/08-updates.md`) that never overwrite the user's data or the changes the user or Hermes made.
+10. **Only the builder creates squads.** Installing, creating, designing or adapting a squad, its bots, profiles, skills or crons is the builder's job and nobody else's. Any other session that reads these plans (the installer AI in the `default` profile, a fresh Hermes chat, the orchestrator, a squad bot) never does it, even when asked or during personalization: it sets up only what its own plan covers and tells the user, in one line, to ask the builder.
+11. **Updates preserve personalization.** Changes reach an installed system only as migrations (`base/08-updates.md`) that never overwrite the user's data or the changes the user or Hermes made.
 
 ## 2. Behavior rules (for all bots)
 

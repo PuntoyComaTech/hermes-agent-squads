@@ -1,7 +1,7 @@
-# Personalization: web development agency
+# Personalization: web development squad
 
 > Two moments:
-> - **Agency profile**: once, in step 1 of the installation. Produces `{{ROOT}}/projects/web/web-profile.yaml`.
+> - **Squad profile**: once, in step 1 of the installation. Produces `{{ROOT}}/projects/web/web-profile.yaml`.
 > - **Site onboarding**: every time the user starts a site, during the installation or later by chat. Produces `sites/<slug>/settings.yaml`; the architect then writes `spec.md`.
 >
 > Do not repeat what `user/profile.md` already has (name, country, timezone, languages, channel, schedule, tone, autonomy, `main_model`).
@@ -15,7 +15,7 @@
 5. Never a silent default: propose a value, say its effect in one line, confirm.
 6. Show the final YAML in plain words (not the raw file for `technical_level: none`) and wait for "ok".
 
-## Part 2 · Agency profile
+## Part 2 · Squad profile
 
 ### Required
 
@@ -27,7 +27,7 @@
 | `cloudflare_account` | Do you have a Cloudflare account? yes · no | With no: guided creation (free). Needed before the first preview |
 | `default_provider` | Do you already host sites on Vercel? no (Cloudflare, recommended) · yes, keep Vercel | `deploy-cloudflare` or `deploy-vercel` pinned by default |
 | `initial_sites` | Which site do you want first? One line about it | Onboarded at the end of the installation |
-| `notify_window` | When can the agency message you? (suggestion: the schedule in your profile) | When `deliver.py` sends |
+| `notify_window` | When can the squad message you? (suggestion: the schedule in your profile) | When `deliver.py` sends |
 
 ### Technical (the builder detects them; ask only what it cannot see)
 

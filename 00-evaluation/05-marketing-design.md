@@ -1,13 +1,13 @@
-# Marketing agency: how many bots, who leads, and with which tools
+# Marketing squad: how many bots, who leads, and with which tools
 
-2026-09-25 · Squad: marketing agency · Outcomes: D-012 to D-023 in `02-decisions.md`
+2026-09-25 · Squad: marketing · Outcomes: D-012 to D-023 in `02-decisions.md`
 
 > Criterion: it works for anyone on Mac, Windows or Linux. We pick the best tool that installs locally and is lightweight, so the machine does not freeze when a flow uses several tools at once.
 > Hermes facts come from its official documentation (September 2026); third-party figures from their official sites or 2026 comparisons. Memory figures marked "(est.)" are estimates, measured during installation.
 
 ## Requirements
 
-An in-house agency covering motion and video, plans and guides, social media and copywriting, data analysis, creatives, market and trend research, landing pages, design and email. Each delivery is a **proposal refined** with the user. The user talks to a **director** who delegates. **Several projects run at once**. A **visual place** on the computer shows everything. Condition: **more complex is not necessarily better.**
+An in-house squad covering motion and video, plans and guides, social media and copywriting, data analysis, creatives, market and trend research, landing pages, design and email. Each delivery is a **proposal refined** with the user. The user talks to a **director** who delegates. **Several projects run at once**. A **visual place** on the computer shows everything. Condition: **more complex is not necessarily better.**
 
 ---
 

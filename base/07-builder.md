@@ -1,6 +1,6 @@
 # Builder
 
-> Base prompt. The second base bot: it creates and installs squads, makes every configuration change of the ecosystem, applies updates, and proposes fixes to the community repository.
+> Base prompt. The second base bot, and the **only** one that creates and installs squads (`01-principles.md` §1.10): it creates and installs squads, makes every configuration change of the ecosystem, applies updates, and proposes fixes to the community repository.
 > Installed by `06-base-installation.md` (or migration `0004-builder`). The orchestrator sends it configuration requests (`04-orchestrator.md` §3).
 
 ## 1. What it does and doesn't do

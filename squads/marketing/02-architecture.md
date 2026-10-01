@@ -1,4 +1,4 @@
-# Architecture: marketing agency
+# Architecture: marketing squad
 
 > Folders, piece types, flows, proposal lifecycle, data contracts, Studio, Kanban and squad rules. Read by the builder before installing and by whoever maintains the squad. Bots do not read it: they get the squad's `AGENTS.md` (§9) and the `piece-contract` skill (`03-bots.md` §3).
 > What is common to all squads (orchestrator, channels, Kanban, handoff chain, direct consultation, delivery) is in `base/02-architecture.md`; only what is specific to this squad goes here.
@@ -11,7 +11,7 @@
 {{M}}/
 ├── squad.yaml                 # filled-in manifest (squad.yaml in this plan)
 ├── AGENTS.md                  # squad rules (§9)
-├── marketing-profile.yaml     # how the agency works (01-personalization.md)
+├── marketing-profile.yaml     # how the squad works (01-personalization.md)
 ├── install-notes.md           # installation notes and what was verified
 ├── ai-spend.csv               # image, video and voice AI spend (written by the producer)
 ├── skills/                    # own skills, one flat folder per role (03-bots.md §3)
@@ -164,7 +164,7 @@ The answering bot works in CONSULT mode (`03-bots.md` §2). The rule reaches the
 | The user says | File or field | What stops | What continues |
 | --- | --- | --- | --- |
 | "pause <brand>" | `brands/<slug>/PAUSE` | That brand's weekly planning and monthly report | Requests, chains in progress, deliveries |
-| "pause the agency" | `{{M}}/PAUSE` | The same, for all brands | The same |
+| "pause the squad" | `{{M}}/PAUSE` | The same, for all brands | The same |
 | "quiet until Monday" | `quiet_until` in `marketing-profile.yaml` | `deliver.py` messages, held until that date | The bots' work |
 
 ## 4. A proposal's lifecycle
@@ -424,7 +424,7 @@ Next: <bot and mode to hand off to when done, or "outbox">
 Goes in `{{M}}/AGENTS.md`, added to the base one. It makes the base rules specific to marketing without repeating them.
 
 ```markdown
-# Marketing agency · squad rules
+# Marketing squad · rules
 
 1. One brand per task. Write only inside your task's brand folder (its tenant), plus
    {{M}}/outbox/ready/ if you deliver and {{M}}/ai-spend.csv if you are the producer. You may
@@ -468,7 +468,7 @@ Goes in `{{M}}/AGENTS.md`, added to the base one. It makes the base rules specif
     marketing-profile.yaml.
 16. Handoff per piece-contract: tenant = slug, workspace = dir:<absolute brand path>,
     idempotency key <ID>-<role>-<MODE>-v<N>-r<R>, full body. You do not see other tasks.
-17. PAUSE (brand or agency) stops only automatic work: weekly planning and the monthly report.
+17. PAUSE (brand or squad) stops only automatic work: weekly planning and the monthly report.
     Tasks in progress and the user's requests continue.
 18. Mindset: execute on a 90-day horizon. Learn from whoever markets to the same audience today
     and is growing, not from rankings, case studies older than 6 months, or gurus. Every piece

@@ -1,6 +1,6 @@
-# Testing and operations: marketing agency
+# Testing and operations: marketing squad
 
-> Level 1 acceptance tests, daily operations, metrics and criteria for moving up a level. Used by the builder (installation step 10, and after every change to a SOUL, skill or script) and by the orchestrator when the user asks how the agency is doing.
+> Level 1 acceptance tests, daily operations, metrics and criteria for moving up a level. Used by the builder (installation step 10, and after every change to a SOUL, skill or script) and by the orchestrator when the user asks how the squad is doing.
 
 ## 1. Acceptance tests (Level 1)
 
@@ -80,7 +80,7 @@ Use one of the user's real brands plus a test brand deleted at the end. Tests ma
 
 ## 3. Metrics
 
-The orchestrator calculates them from cards and batches when the user asks "how's the agency doing?", and in the weekly summary if enabled.
+The orchestrator calculates them from cards and batches when the user asks "how's the squad doing?", and in the weekly summary if enabled.
 
 | Metric | What it measures | Initial target |
 | --- | --- | --- |

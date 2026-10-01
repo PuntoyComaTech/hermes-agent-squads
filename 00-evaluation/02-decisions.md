@@ -6,11 +6,11 @@ One entry per structural decision, newest first. IDs and dates are stable: other
 
 ## D-034 · 2026-09-30 · Named Cloudflare accounts, one per client
 
-**Decision:** `cf`'s named auth profiles are documented as an option of `deploy-cloudflare` and `02-architecture.md` §8, with a maintenance entry to set one up and take it down. `cf auth create <name>` saves a login under a name; `cf auth activate <name> [dir]` binds that login to a site folder; `cf auth deactivate [dir]` unbinds; `cf auth delete <name>` removes it; `cf auth list` shows what exists; `--profile <name>` picks one for a single command. Work inside the bound folder then uses that login and nothing else. Two uses: a client who brings **their own** Cloudflare account, and an agency that wants a hard wall between clients so a slip on one site cannot reach another. This is orthogonal to `CLOUDFLARE_API_TOKEN` in the deployer's `.env`, which stays the default for sites on the agency's own account.
+**Decision:** `cf`'s named auth profiles are documented as an option of `deploy-cloudflare` and `02-architecture.md` §8, with a maintenance entry to set one up and take it down. `cf auth create <name>` saves a login under a name; `cf auth activate <name> [dir]` binds that login to a site folder; `cf auth deactivate [dir]` unbinds; `cf auth delete <name>` removes it; `cf auth list` shows what exists; `--profile <name>` picks one for a single command. Work inside the bound folder then uses that login and nothing else. Two uses: a client who brings **their own** Cloudflare account, and a user who wants a hard wall between clients so a slip on one site cannot reach another. This is orthogonal to `CLOUDFLARE_API_TOKEN` in the deployer's `.env`, which stays the default for sites on the user's own account.
 **Why:** the squad's whole credential design is one bot holding one token, which is right for one account and wrong the moment a client wants the site on theirs — the alternative is asking a client for a token, which is a worse thing to ask for than a login. Binding to a folder is the isolation the tenant model already gives to data, applied to credentials. The commands are part of `cf` itself, so it adds no tool and no service.
 **Evidence (cf v1.0.0-beta.9, 2026-09-30):** `cf auth --help` lists `create`, `activate`, `deactivate`, `delete`, `list`, `login`, `logout`, `whoami`; `cf auth activate` takes a directory positional and defaults to the current one; `cf auth deactivate` requires the exact bound directory; `--profile` is a global flag on every command; `cf auth list` returns a JSON array of saved profiles.
 **Known unknown, stated in the text rather than guessed:** the precedence between `CLOUDFLARE_API_TOKEN` and a bound named profile is not documented. If the env var wins, a named login is silently useless and the site deploys under the **wrong account** — the worst failure mode available here. So the plan does not depend on it: a site with `settings.yaml` `cloudflare.profile` set runs every cf command with `--profile <name>` and with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` removed from that command's environment, so only the named login can act. The observed precedence is still recorded in `install-notes.md` at setup.
-**Rejected alternatives:** asking the client for an API token (broader than a login, and the client has to build it); one `web-deployer` profile per client (five bots per client, and the plan's whole point is that bots stay generic and sites vary); a separate machine or container per client (violates `01-principles.md` §1.8's lightweight rule); documenting it as the default (it is not: most agencies own the account, and a default that needs an extra login is a worse default).
+**Rejected alternatives:** asking the client for an API token (broader than a login, and the client has to build it); one `web-deployer` profile per client (five bots per client, and the plan's whole point is that bots stay generic and sites vary); a separate machine or container per client (violates `01-principles.md` §1.8's lightweight rule); documenting it as the default (it is not: most users own the account, and a default that needs an extra login is a worse default).
 **Scope:** one optional field, `settings.yaml` `cloudflare.profile`, default `null` meaning today's behaviour; no status, handoff or consult-pair contract changed, so no migration and no `plan_version` bump. Wrangler does not read cf profiles, so `npx wrangler` commands on such a site block `needs_input` until the client's access for them exists.
 ## D-033 · 2026-09-30 · A mandatory code-quality gate for every site repo
 
@@ -80,7 +80,7 @@ The advisor is a bot, `web-advisor`, with its model and reasoning effort set lik
 **Decision:** plans, reports, diagnoses, campaign concepts, guides, ideas, research and council sessions are pieces (`pieces/<ID>/card.md` and `v<N>/document.md`), like a post or a video. Idempotency keys include the role (`<ID>-<role>-<MODE>-v<N>-r<R>`), because the creative and the producer use the same mode on the same piece. Scripts are Python, not shell, and none edits the Hermes configuration: per-brand topics are added by the installer, and until then the brand uses the main chat.
 **Why:** one contract for versions, review, delivery and the Studio. It fixes deliverables with no contract, colliding keys and a script that restarted the gateway it runs on.
 
-## D-022 · 2026-09-25 · Agency skills: in-house per role, third-party per profile
+## D-022 · 2026-09-25 · Squad skills: in-house per role, third-party per profile
 
 **Decision:** the squad's own skills live in `{{ROOT}}/projects/marketing/skills/<role>/`, one flat folder per role; each profile lists only its folder and `common/` in `skills.external_dirs`. Third-party skills are installed per profile from the Hermes Skills Hub, only those for that role and the services the user chose: `coreyhaines31/marketingskills`, optional official Hermes skills and some from `anthropics/skills`. The squad's `AGENTS.md` has a path table so those skills use each brand's folders unedited.
 **Why:** each bot's skill index stays short, third-party skills update with `hermes skills update` and pass the security scan, and nothing depends on `external_dirs` reading subfolders (undocumented).
@@ -122,16 +122,16 @@ The advisor is a bot, `web-advisor`, with its model and reasoning effort set lik
 
 ## D-014 · 2026-09-25 · Several projects: a folder per brand and a tenant
 
-**Decision:** each agency project is a brand with a `brands/<slug>/` folder. Its tasks carry `--tenant <slug>` and the workspace of its folder. On Telegram or Discord each brand has its own topic or channel, set up by the installer; until it exists, the brand uses the main chat with its name.
+**Decision:** each squad project is a brand with a `brands/<slug>/` folder. Its tasks carry `--tenant <slug>` and the workspace of its folder. On Telegram or Discord each brand has its own topic or channel, set up by the installer; until it exists, the brand uses the main chat with its name.
 **Why:** the same bots serve all brands, isolated by folder and filterable per brand in the visual Kanban. It is the pattern Hermes documents.
 
-## D-013 · 2026-09-25 · The orchestrator is the agency director
+## D-013 · 2026-09-25 · The orchestrator is the squad director
 
 **Decision:** there is no director bot. The orchestrator, with the `orchestration-marketing` skill, chats, onboards projects, launches flows, presents proposals and handles changes. The strategist breaks campaigns and weeks down into pieces.
 **Why:** a single point of contact (D-004) with no extra hops. See `05-marketing-design.md` §2.
 **Revisit if:** with many brands or clients the orchestrator gets overloaded → `marketing-director` bot.
 
-## D-012 · 2026-09-25 · Marketing agency with 4 specialists
+## D-012 · 2026-09-25 · Marketing squad with 4 specialists
 
 **Decision:** the twelve requested roles are covered by `marketing-strategist` (thinks and researches; the only one with web access), `marketing-creative` (ideas and words; no web), `marketing-producer` (builds with code: design, motion, landing pages, emails; the only one with a terminal) and `marketing-reviewer` (independent).
 **Why:** each bot is justified by permissions, model or independence. A piece goes through 3 bots, and disciplines that share tools are not split. See `05-marketing-design.md` §1.

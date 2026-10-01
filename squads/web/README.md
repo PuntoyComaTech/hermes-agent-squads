@@ -1,4 +1,4 @@
-# Squad: Web development agency
+# Squad: Web development
 
 > One-page summary of the squad. The user reads it to decide whether to install it; the builder uses it as a starting point for `squad-install`. Requires the base.
 > Everything specific to the user and to each site comes from [`01-personalization.md`](01-personalization.md).
@@ -89,7 +89,7 @@ Hosting: **Cloudflare by default** (commercial use allowed on the free plan). As
 
 | File | Contents |
 | --- | --- |
-| [`01-personalization.md`](01-personalization.md) | Agency questionnaire, per-site onboarding, `web-profile.yaml`, `settings.yaml` |
+| [`01-personalization.md`](01-personalization.md) | Squad questionnaire, per-site onboarding, `web-profile.yaml`, `settings.yaml` |
 | [`02-architecture.md`](02-architecture.md) | Folders, IDs, flows, decisions, consultations, data contracts, Kanban, `AGENTS.md` |
 | [`03-bots.md`](03-bots.md) | Configuration, SOULs, skills, orchestration skill |
 | [`04-installation.md`](04-installation.md) | Installation by the builder and maintenance |

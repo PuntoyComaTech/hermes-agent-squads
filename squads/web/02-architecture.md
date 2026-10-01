@@ -1,4 +1,4 @@
-# Architecture: web development agency
+# Architecture: web development squad
 
 > Folders, identifiers, flows, decisions, consultations, data contracts, Kanban and squad rules.
 > The builder reads it before installing. The bots do not read this file: they get the contracts from the `site-contract` skill (`03-bots.md` §4) and the rules from the squad's `AGENTS.md` (§9).
@@ -110,7 +110,7 @@ Never, even with confirmation: pay, create accounts, buy domains, delete reposit
 | The user says | File or field | What stops | What continues |
 | --- | --- | --- | --- |
 | "pause <site>" | `sites/<slug>/PAUSE` | Auto-advance to the next milestone | Tasks in progress, requests, deliveries |
-| "pause the agency" | `{{W}}/PAUSE` | The same, all sites | The same |
+| "pause the squad" | `{{W}}/PAUSE` | The same, all sites | The same |
 | "quiet until <date>" | `quiet_until` in `web-profile.yaml` | `deliver.py` messages | The bots' work |
 
 ## 4. Statuses
@@ -347,14 +347,14 @@ Handoffs:
 - **GitHub access** (`repo_mode` in `web-profile.yaml`, agreed with the user at install, never a default): `bot_creates` = a token with access to all repositories plus Administration write, and the deployer creates each repo; `user_creates` = the user creates each empty private repo and adds it to the token, which sees only those repos. Deployer REPO, at each site's onboarding, checks with `gh` what the token can do (`03-bots.md` §1, GitHub token check) and either creates the repo or confirms the user's empty repo is reachable.
 - **GitHub always**: one private repo per site in `github_owner`; one branch and one PR per work item; production = merge to `main` with a merge commit (never squash, so stacked milestone branches merge in order) and a production deploy from `main`; rollback = previous version on the provider, then `git revert` of the merge on `main`.
 - **Free plan limits** (Workers Free): 100,000 requests/day, 10 ms CPU per request; static asset requests free and unlimited. Workers Paid: USD 5/month, 10M requests, CPU up to 5 min.
-- **Named Cloudflare accounts, one per client** (verified on cf v1.0.0-beta.9, 2026-09-30): `cf auth create <name>`, `cf auth activate <name> [dir]`, `cf auth deactivate [dir]`, `cf auth delete <name>`, `cf auth list`, and the global `--profile <name>`. `cf` holds several logins at once and can bind one to a directory, so work inside that directory uses that login and nothing else. This is for two cases: a client who brings **their own** Cloudflare account, and an agency that wants a hard wall between clients so a slip in one site cannot touch another. The site records it in `settings.yaml` `cloudflare.profile`. **Precedence between `CLOUDFLARE_API_TOKEN` and a named profile is undocumented**, and if the env var wins the site deploys under the wrong account. So the deployer never depends on it: for a site with `cloudflare.profile` set, every cf command runs as `env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID cf --profile <name> …`, with the agency's token removed from that command's environment, and never relies on the folder binding alone. `cf auth whoami` run that way must report the client's account before the first deploy. Wrangler does not read cf profiles: for such a site, `npx wrangler` commands block `needs_input` until the client's own access for them is set up. Unbind with `cf auth deactivate` when the site is handed over.
+- **Named Cloudflare accounts, one per client** (verified on cf v1.0.0-beta.9, 2026-09-30): `cf auth create <name>`, `cf auth activate <name> [dir]`, `cf auth deactivate [dir]`, `cf auth delete <name>`, `cf auth list`, and the global `--profile <name>`. `cf` holds several logins at once and can bind one to a directory, so work inside that directory uses that login and nothing else. This is for two cases: a client who brings **their own** Cloudflare account, and a user who wants a hard wall between clients so a slip in one site cannot touch another. The site records it in `settings.yaml` `cloudflare.profile`. **Precedence between `CLOUDFLARE_API_TOKEN` and a named profile is undocumented**, and if the env var wins the site deploys under the wrong account. So the deployer never depends on it: for a site with `cloudflare.profile` set, every cf command runs as `env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID cf --profile <name> …`, with the deployer's token removed from that command's environment, and never relies on the folder binding alone. `cf auth whoami` run that way must report the client's account before the first deploy. Wrangler does not read cf profiles: for such a site, `npx wrangler` commands block `needs_input` until the client's own access for them is set up. Unbind with `cf auth deactivate` when the site is handed over.
 
 ## 9. The squad's `AGENTS.md`
 
 Goes in `{{W}}/AGENTS.md`, added to the base one.
 
 ```markdown
-# Web development agency · squad rules
+# Web development squad · rules
 
 1. One site per task. Write only inside your task's site folder (its tenant), plus
    {{W}}/outbox/ready/ if your role delivers. Read {{W}}/scripts/ and your skills; never another
@@ -399,5 +399,5 @@ Goes in `{{W}}/AGENTS.md`, added to the base one.
     decision.
 13. Handoff per site-contract: tenant = slug, workspace = dir:<absolute site path>, idempotency key
     <ID>-<role>-<MODE>-r<R>, the full body, the skills for the next bot.
-14. PAUSE (the site's or the agency's) stops only auto-advance to the next milestone.
+14. PAUSE (the site's or the squad's) stops only auto-advance to the next milestone.
 ```

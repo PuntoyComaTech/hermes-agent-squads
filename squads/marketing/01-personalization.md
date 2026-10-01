@@ -1,14 +1,14 @@
-# Personalization: marketing agency
+# Personalization: marketing squad
 
 > Two moments:
-> - **Agency profile**: once, in installation step 1 (the builder). Produces `{{ROOT}}/projects/marketing/marketing-profile.yaml`.
+> - **Squad profile**: once, in installation step 1 (the builder). Produces `{{ROOT}}/projects/marketing/marketing-profile.yaml`.
 > - **Brand onboarding**: each time the user onboards a project, at installation or later by chat with the orchestrator. Produces the brand's files in `brands/<slug>/`.
 >
 > Never ask what `user/profile.md` already has (name, country, timezone, languages, channel, schedule, tone, autonomy, main model): read it.
 
 ## Part 1 · How to run the interview (instructions for the AI)
 
-1. Read `user/profile.md` and your memory. Start with two questions: **who the agency will work for** and **which brands to onboard** (name and website or social profiles). The rest of each brand is researched from those, not asked.
+1. Read `user/profile.md` and your memory. Start with two questions: **who the squad will work for** and **which brands to onboard** (name and website or social profiles). The rest of each brand is researched from those, not asked.
 2. Show a draft with what you infer; mark anything unconfirmed with `(?)`.
 3. Ask for what is missing: required fields first, at most 5 at a time, with options when there are any.
 4. Turn vague answers ("increase sales", "something modern") into concrete data ("How many sales per month today, and how many in 90 days?").
@@ -16,22 +16,22 @@
 6. Match `marketing_experience`: with a beginner, no jargon; explain each term in one line.
 7. Show the complete final YAML and ask for an "ok".
 
-## Part 2 · Agency profile
+## Part 2 · Squad profile
 
 ### Required
 
 | Field | Question | Why it matters |
 | --- | --- | --- |
-| `works_for` | Who will the agency work for? my own business · clients (I'm a freelancer or an agency) · the company I work for · my personal brand · several of these | Who approves, how proposals are presented, and the separation between client brands |
+| `works_for` | Who will the squad work for? my own business · clients (I'm a freelancer or an agency) · the company I work for · my personal brand · several of these | Who approves, how proposals are presented, and the separation between client brands |
 | `marketing_experience` | How much do you know about marketing? I'm just starting · I get by · it's my job | How the director explains each proposal |
 | `initial_brands` | Which projects do you want to onboard first? Name and website or social profiles for each | They are onboarded when the installation finishes |
-| `services` | What do you want the agency to do? Choose several: social media content · ads · video and motion · email · landing pages · plan and strategy · results reports · visual identity · articles and SEO. And, if needed: influencers · community · partnerships · press · pricing and offers | Which flows are enabled, which skills are installed in each bot, and whether the video engine is installed |
+| `services` | What do you want the squad to do? Choose several: social media content · ads · video and motion · email · landing pages · plan and strategy · results reports · visual identity · articles and SEO. And, if needed: influencers · community · partnerships · press · pricing and offers | Which flows are enabled, which skills are installed in each bot, and whether the video engine is installed |
 | `approval_mode` | How do you prefer to approve? all together once a week (recommended) · piece by piece as they are ready | Whether proposals arrive as a batch or one by one |
 | `planning` | What day and time should I plan the following week? (each brand can have its own, or "none") | Time of the weekly automation; the batch arrives a few hours later |
 | `review_minutes_per_week` | How many minutes per week can you spend reviewing proposals? | Used to suggest the quota and the length of messages |
 | `weekly_quota_per_brand` | How many pieces per week and per brand, at most? (each brand can have its own) | Pace and spending limit. Suggestion: 3-5 for a small brand |
 | `ai_budget_usd_month` | How much can you spend per month on AI-generated images, video or voice? With 0 it still works: design with code, free stock photos or your own, and a free voice | Which providers are configured (image, premium voice, Level 2 AI video), and the monthly cap the producer tracks in `ai-spend.csv` |
-| `notify_window` | On which days and at what times can the agency message you? (suggestion: the schedule in your profile) | Window in which `deliver.py` sends; outside it, messages are held |
+| `notify_window` | On which days and at what times can the squad message you? (suggestion: the schedule in your profile) | Window in which `deliver.py` sends; outside it, messages are held |
 
 ### Technical (the AI detects them; ask only for what it cannot see)
 
@@ -178,7 +178,7 @@ brands/<slug>/
 ├── brand.md           # voice, verified proof points, distinctive assets, usage rules
 ├── DESIGN.md          # visual identity in Google's open format
 ├── preferences.md     # what was learned from the user's replies
-├── settings.yaml      # how the agency operates for this brand
+├── settings.yaml      # how the squad operates for this brand
 └── identity/          # logo, fonts, product photos, licensed music
 ```
 
@@ -317,7 +317,7 @@ language: es-MX
 address: informal               # informal | formal | voseo
 currency: MXN
 timezone: America/Mexico_City
-services: [social, video, email, reports]   # subset of the agency's services
+services: [social, video, email, reports]   # subset of the squad's services
 channels:
   - network: instagram
     formats: [carousel, reel, story]
@@ -328,9 +328,9 @@ channels:
     per_week: 1
   - network: email
     per_week: 1
-planning: "Thursday 10:00"      # in the user's time; "none" = no weekly planning; if missing, the agency's value
-weekly_quota: 4                 # if missing, the agency's weekly_quota_per_brand applies
-approval_mode: batch            # batch | piece; if missing, the agency's value
+planning: "Thursday 10:00"      # in the user's time; "none" = no weekly planning; if missing, the squad's value
+weekly_quota: 4                 # if missing, the squad's weekly_quota_per_brand applies
+approval_mode: batch            # batch | piece; if missing, the squad's value
 current_site: {platform: none, url: ""}   # none | static | wordpress | webflow | shopify | other
 approver: user                  # user | client
 destination: topic              # topic | channel | main (filled in by the installation)
