@@ -12,39 +12,41 @@ Ready-to-install **AI agent squads for [Hermes Agent](https://github.com/NousRes
 ## How it works
 
 ```mermaid
-flowchart LR
-    subgraph repo["This repository: ~/Hermes/plans"]
-        SH[START-HERE.md]
-        B[base/]
-        SQ[squads/jobs · marketing · web]
-        M[base/migrations/]
+flowchart TB
+    U([You])
+    subgraph repo["This repository · ~/Hermes/plans"]
+        SH["START-HERE.md"]
+        SQ["squads/ · jobs, marketing, web"]
+        M["base/migrations/"]
     end
-    subgraph pc["Your computer: ~/Hermes"]
-        O((orchestrator))
-        BU((builder))
-        P["projects/(squad)/"]
+    subgraph pc["Your computer · ~/Hermes"]
+        O(("orchestrator"))
+        BU(("builder"))
+        P["projects/(squad)/ · specialist bots"]
     end
-    U([You]) -- "1 · read START-HERE.md" --> SH
-    SH -- "2 · installs the base only" --> O & BU
-    BU -- "3 · install / create a squad" --> SQ
-    SQ -- specialist bots --> P
-    M -- "update my installation" --> BU
-    U <-- "Telegram · Discord · WhatsApp" --> O
-    U <-- "changes, new squads" --> BU
+    U -->|"1 · read START-HERE.md"| SH
+    SH -->|"2 · installs the base only"| O
+    SH -->|"2 · installs the base only"| BU
+    BU -->|"3 · reads the plan"| SQ
+    BU -->|"3 · installs the squad"| P
+    M -->|"update my installation"| BU
+    U <-->|"daily work · Telegram, Discord, WhatsApp"| O
+    O -->|"launches tasks"| P
 ```
 
 1. **Base, once.** You clone this repo and ask Hermes to read `START-HERE.md`. That session installs **only the base**: your profile, the orchestrator and the builder.
-2. **Squads, from the builder.** The builder is the only bot that installs, creates or adapts squads. Ask it "install the web development squad" or "create a squad for <goal>".
+2. **Squads, from the builder.** The builder is the only bot that installs, creates or adapts squads. Ask it "install the web development squad" or "create a squad for _your goal_".
 3. **Day to day, the orchestrator.** It chats with you, launches flows and handles your approvals.
 
 Inside a squad, work moves on a Kanban board:
 
 ```mermaid
-flowchart LR
-    T[cron or your request] --> K[Kanban]
-    K --> S1[specialist] --> S2[specialist] --> R[reviewer]
-    R -- fix --> S2
-    R -- approved --> D[deliver.py] --> Msg([message with the finished result])
+flowchart TB
+    T["cron or your request"] --> K["Kanban"]
+    K --> S1["specialist"] --> S2["specialist"] --> R{"reviewer"}
+    R -->|"fix"| S2
+    R -->|"approved"| D["deliver.py"]
+    D --> Msg(["message with the finished result"])
 ```
 
 Each specialist creates the next task. Nothing irreversible (publish, apply, send, deploy to production) happens without your confirmation.
@@ -113,6 +115,7 @@ base/                      shared by every squad
   migrations/              idempotent update steps, numbered
 squads/<squad>/            jobs · marketing · web, same 7 files + squad.yaml
 00-evaluation/             design rationale and the decision log (02-decisions.md)
+AGENTS.md                  rules for AI agents using or editing this repo
 llms.txt                   index for AI agents
 CONTRIBUTING.md            rules, naming, how to propose a squad
 ```
@@ -134,7 +137,7 @@ Every squad has the same files:
 
 If you are an AI agent reading this repository:
 
-- **Entry point:** [`START-HERE.md`](START-HERE.md), section "For the installer AI". Then [`base/01-principles.md`](base/01-principles.md).
+- **Read [`AGENTS.md`](AGENTS.md) first.** Entry point for installing: [`START-HERE.md`](START-HERE.md), section "For the installer AI".
 - **Only the builder creates squads** (`base/01-principles.md` §1.10). A generic Hermes session asked for the initial setup installs the base (profile, orchestrator, builder) and then sends the user to the builder. It never installs, creates or adapts a squad.
 - **Plans are Markdown only.** Scripts and configs are specified as prompts and written on the user's machine at install time.
 - **Verify, never guess.** Every command is checked against its real output; Hermes documentation wins over a plan.
