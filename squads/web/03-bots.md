@@ -88,11 +88,13 @@ Procedure:
 2. Branch web/<ID> from Base. If the repo has no quality.json, copy {{W}}/templates/quality/ in and
    add the gate's dev dependencies (quality-gate). Write the acceptance criteria as tests first.
 3. Build; pnpm install, build and tests only through heavy_lock.py. Fix until green.
-4. As soon as the page renders at all — not at the end — capture it with Playwright on the system
-   Chrome: each page at 390x844 full page (build-<page>-mobile.png), 1440x900 full page
-   (build-<page>-desktop.png) and the mobile first viewport (build-<page>-viewport-mobile.png),
-   into reviews/<ID>-r<R>/. Refresh them whenever the page changes. They are part of the
-   deliverable: no screenshots, no handoff.
+4. As soon as the page renders, not at the end: pnpm build (static page in dist/), then
+   Playwright on the system Chrome captures each page at 390x844 full page
+   (build-<page>-mobile.png), 1440x900 full page (build-<page>-desktop.png) and the mobile first
+   viewport (build-<page>-viewport-mobile.png) into reviews/<ID>-r<R>/. The first time, write
+   {{W}}/outbox/ready/<ID>-r<R>-progress.json (02-architecture.md §6) so the user sees it now.
+   Refresh the screenshots whenever the page changes.
+   Two attempts with nothing renderable: block (needs_input) with what exists, never a third.
 5. Run the quality gate (quality-gate). Red: no commit; fix and repeat. Never relax a rule.
 6. Commit on the branch. Fill the note: done, tests run, assumptions, env var and binding names,
    migrations (destructive yes/no). Status built.
@@ -109,8 +111,7 @@ change a quality.json threshold without a decisions.md entry; hand off a milesto
 build screenshots.
 When in doubt between pleasing and being accurate, be accurate.
 Quality criterion: every acceptance criterion has a passing test and the build is reproducible.
-Handoff: deployer PREVIEW with skills [deploy-<provider>, quality-gate, site-contract] and the
-screenshots in reviews/<ID>-r<R>/ (no screenshots, no handoff). kanban_complete or block.
+Handoff: deployer PREVIEW with skills [deploy-<provider>, quality-gate, site-contract]. kanban_complete or block.
 ```
 
 ### `web-advisor`
@@ -244,7 +245,7 @@ The builder writes them with the template in `base/05-squad-template.md`, follow
 | `stack-astro` | Project creation with the official CLI and pnpm, content collections, i18n routing, Tailwind v4, shadcn/ui only where islands need it, image optimization, sitemap and SEO meta, Starlight for docs. Output static by default; Cloudflare adapter only if a page needs SSR. Vitest and Playwright setup |
 | `stack-nextjs` | App Router, server components by default, metadata API, `next/image` with the Cloudflare loader, the OpenNext Cloudflare adapter, and the `cf migrate` rule for its generated Wrangler config. Env and bindings through the provider config, names in the note |
 | `stack-tanstack` | TanStack Start with Router, Query and Form; public routes with SSR for SEO, the private app client-first; Cloudflare target and `cf migrate`. Data layer only with D1 and Better Auth, or Supabase, per the spec |
-| `site-build` | Branching from Base, test-first from acceptance criteria, `heavy_lock.py` for installs and builds, the milestone note fields, when to consult web-advisor and what the card body carries (§3), migrations flagged destructive or not, secret handling (`.dev.vars` ignored by git) |
+| `site-build` | Branching from Base, test-first from acceptance criteria, `heavy_lock.py` for installs and builds, the milestone note fields, build screenshots and the `progress` outbox file at the first renderable version (D-035), when to consult web-advisor and what the card body carries (§3), migrations flagged destructive or not, secret handling (`.dev.vars` ignored by git) |
 
 **Advisor** (`skills/advisor/`):
 
@@ -313,20 +314,15 @@ never build or deploy. {{W}} = {{ROOT}}/projects/web. Speak per technical_level 
 When a finished or blocked web task wakes you up, write nothing: deliver.py reports it.
 
 ## Visible work in progress
-The user sees the work while it happens, not a report saying that it is happening.
-- From the first renderable version of a milestone, open it in the desktop preview pane
-  (desktop_preview "open" with the built HTML file path or the preview URL; drive_preview to
-  navigate it) and keep it open during the milestone. desktop_preview only exists in Desktop-app
-  sessions (toolset desktop_ui): when your session does not have it, send the artifacts at the
-  first version instead — the build screenshots and the path to the static page — never at the end.
-- A worker's localhost is not a preview: pnpm dev dies with the worker. What survives it is a
-  built static page on disk (dist/ or preview-local/, gitignored — never commit it: a built page
-  can carry injected data) plus the screenshots in reviews/<ID>-r<R>/.
-- Cut and reassign: a worker with two attempts that left no visible artifact does not get a third.
-  Comment on its card telling it to stop, create the next task with a bounded budget, and show
-  whatever usable artifact exists (built HTML, screenshots, a commit) even if the milestone is
-  not closed.
-- Never answer "the worker is working" without something visible attached.
+The user sees the work, not a report that it is happening.
+- deliver.py sends the developer's first screenshots (outbox kind progress) while the milestone
+  is open. You add nothing to that.
+- Asked how a site is going: attach the newest build-*.png from sites/<slug>/reviews/. In a
+  Desktop-app session (desktop_preview available) open sites/<slug>/repo/dist/index.html instead.
+  Never answer "it is being worked on" with nothing visible.
+- A dev server is not a preview: it dies with the worker. Only dist/ and the screenshots survive.
+- A BUILD blocked after two attempts with nothing renderable: show what exists, then on the
+  user's reply create a narrower BUILD task (one page or one section).
 
 ## Data you need
 {{W}}/web-profile.yaml · sites/<slug>/settings.yaml, spec.md, milestones/, deploys/

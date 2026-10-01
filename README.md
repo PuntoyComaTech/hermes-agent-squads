@@ -14,23 +14,24 @@ Ready-to-install **AI agent squads for [Hermes Agent](https://github.com/NousRes
 ```mermaid
 flowchart TB
     U([You])
-    subgraph repo["This repository · ~/Hermes/plans"]
+    subgraph plans["This repository · ~/Hermes/plans"]
         SH["START-HERE.md"]
-        SQ["squads/ · jobs, marketing, web"]
-        M["base/migrations/"]
+        SQ["squads/"]
+        MG["base/migrations/"]
     end
-    subgraph pc["Your computer · ~/Hermes"]
+    subgraph home["Your computer · ~/Hermes"]
         O(("orchestrator"))
-        BU(("builder"))
-        P["projects/(squad)/ · specialist bots"]
+        B(("builder"))
+        P["squad bots"]
     end
-    U -->|"1 · read START-HERE.md"| SH
-    SH -->|"2 · installs the base only"| O
-    SH -->|"2 · installs the base only"| BU
-    BU -->|"3 · reads the plan"| SQ
-    BU -->|"3 · installs the squad"| P
-    M -->|"update my installation"| BU
-    U <-->|"daily work · Telegram, Discord, WhatsApp"| O
+    U -->|"1 · ask Hermes to read it"| SH
+    SH -->|"2 · installs the base"| O
+    SH -->|"2 · installs the base"| B
+    U -->|"3 · install a squad"| B
+    B -->|"reads the plan"| SQ
+    B -->|"installs"| P
+    MG -.->|"update my installation"| B
+    U <-->|"4 · daily chat"| O
     O -->|"launches tasks"| P
 ```
 
@@ -38,18 +39,18 @@ flowchart TB
 2. **Squads, from the builder.** The builder is the only bot that installs, creates or adapts squads. Ask it "install the web development squad" or "create a squad for _your goal_".
 3. **Day to day, the orchestrator.** It chats with you, launches flows and handles your approvals.
 
-Inside a squad, work moves on a Kanban board:
+Inside a squad, tasks move on a Kanban board, each specialist creating the next:
 
 ```mermaid
 flowchart TB
-    T["cron or your request"] --> K["Kanban"]
-    K --> S1["specialist"] --> S2["specialist"] --> R{"reviewer"}
+    T(["cron or your request"]) --> S1["specialist"]
+    S1 -->|"creates the next task"| S2["specialist"]
+    S2 --> R{"reviewer"}
     R -->|"fix"| S2
-    R -->|"approved"| D["deliver.py"]
-    D --> Msg(["message with the finished result"])
+    R -->|"approved"| D["deliver.py · no LLM"]
+    D --> M(["you get the finished result"])
+    M -->|"only with your yes"| X["publish · apply · send · deploy"]
 ```
-
-Each specialist creates the next task. Nothing irreversible (publish, apply, send, deploy to production) happens without your confirmation.
 
 ## Available squads
 
@@ -135,14 +136,7 @@ Every squad has the same files:
 
 ## For AI agents
 
-If you are an AI agent reading this repository:
-
-- **Read [`AGENTS.md`](AGENTS.md) first.** Entry point for installing: [`START-HERE.md`](START-HERE.md), section "For the installer AI".
-- **Only the builder creates squads** (`base/01-principles.md` §1.10). A generic Hermes session asked for the initial setup installs the base (profile, orchestrator, builder) and then sends the user to the builder. It never installs, creates or adapts a squad.
-- **Plans are Markdown only.** Scripts and configs are specified as prompts and written on the user's machine at install time.
-- **Verify, never guess.** Every command is checked against its real output; Hermes documentation wins over a plan.
-- **Updates are migrations** in [`base/migrations/`](base/migrations/), never in-place rewrites of the user's data.
-- **Why things are the way they are:** [`00-evaluation/02-decisions.md`](00-evaluation/02-decisions.md), newest first.
+Read [`AGENTS.md`](AGENTS.md) first, then [`START-HERE.md`](START-HERE.md) "For the installer AI". Short index: [`llms.txt`](llms.txt). The rule most often broken: a generic Hermes session installs **only the base**; only the builder installs, creates or adapts squads (`base/01-principles.md` §1.10).
 
 ## Contributing
 
