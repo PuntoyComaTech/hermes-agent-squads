@@ -1,7 +1,7 @@
 key: web
 name: Web development squad
 source: official            # official (plans/squads) | own (~/Hermes/squads)
-plan_version: 2              # v2: mandatory quality gate (D-033) — contract change, ships a conditional migration
+plan_version: 3              # v3: build screenshots as deliverable + visible previews (D-035) and verified gate configs — contract change, ships migration 0008
 level: 1
 multi_project: true
 projects_dir: sites          # projects/web/sites/<slug>/

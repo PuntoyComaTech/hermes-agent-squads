@@ -258,6 +258,10 @@ File, destructive: yes/no, what it changes.
 - `verdict`: `APPROVED`, `FIX` or `ESCALATE`. `changes`: `[{"to": "developer|architect", "what": "..."}]`.
 - **Critical** (blocks `APPROVED`): **the quality gate fails** (`quality-gate`: types, lint, complexity or size over limit, a broken architecture boundary, duplication over the threshold, dead code, a known vulnerability in a dependency, or coverage below the minimum), an unmet acceptance criterion, axe `critical` or `serious`, a score under `thresholds`, a broken internal link, a secret in client code or the repo, a missing security header from the `site-review` list, invented content presented as fact.
 - `summary`: 3 plain-language lines for the user.
+- The `reviews/<ID>-r<R>/` folder also holds the developer's build screenshots
+  (`build-<page>-mobile.png`, `build-<page>-desktop.png`, `build-<page>-viewport-mobile.png`,
+  D-035), next to `checks.json` and the reviewer's own shots. They are part of the BUILD
+  deliverable: without them there is no handoff to PREVIEW.
 
 ### `deploys/<ID>-<env>-<n>.json`
 
@@ -331,7 +335,7 @@ Handoffs:
 | Architect SPEC | Nothing: `outbox/ready/<ID>-spec.json` |
 | Deployer REPO | Nothing: `settings.yaml` `repo.created: true`, or a `needs_input` block with the user's steps |
 | Architect TRIAGE | Developer BUILD (kind `change`) |
-| Developer BUILD | Deployer PREVIEW |
+| Developer BUILD | Deployer PREVIEW (the build screenshots are part of the deliverable; no screenshots, no handoff) |
 | Deployer PREVIEW | Reviewer REVIEW |
 | Reviewer FIX | Developer BUILD, round +1, with `changes` |
 | Reviewer APPROVED | `outbox/ready/<ID>-preview.json`; next milestone BUILD if `auto_advance`, no PAUSE, and the spec has one |

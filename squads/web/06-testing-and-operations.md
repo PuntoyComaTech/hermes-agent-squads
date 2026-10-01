@@ -22,7 +22,8 @@ Use the user's first site plus a test site deleted at the end. Tests marked **I*
 
 | # | I | Test | Input | Expected result |
 | --- | --- | --- | --- | --- |
-| E | I | Full chain | "ok" to the spec | BUILD, PREVIEW and REVIEW tasks with role in their keys. Branch `web/<ID>`, PR open, preview URL 200, `checks.json` all green, the preview message with a screenshot |
+| E | I | Full chain | "ok" to the spec | BUILD, PREVIEW and REVIEW tasks with role in their keys. Branch `web/<ID>`, PR open, preview URL 200, `checks.json` all green, the preview message with a screenshot. The BUILD left `build-*-mobile.png`, `build-*-desktop.png` and `build-*-viewport-mobile.png` in `reviews/<ID>-r<R>/` **before** the milestone closed |
+| E2 | | Visible work in progress | Watch a milestone from the first version | The first renderable version produces the build screenshots and the orchestrator shows them (or opens the static page in the preview pane on a Desktop session) while the milestone is still open. A worker with two attempts and no visible artifact is cut and reassigned, and whatever artifact exists is shown |
 | F | | Auto-advance | M1 approved, spec has M2 | M2's BUILD starts on its own; with `sites/<slug>/PAUSE` it does not |
 | G | | FIX loop | Remove an image's alt text and relaunch REVIEW | Accessibility critical, FIX to the developer, round 1 fixes it. A finding that survives 2 rounds escalates with one question |
 | H | | Leaked secret | Put a fake `sk_live_…` in a client file | Security critical, never APPROVED |
@@ -71,6 +72,7 @@ Use the user's first site plus a test site deleted at the end. Tests marked **I*
 | REPO blocks with "cannot create repositories" or does not see the site's repo | The token no longer matches `repo_mode` (access narrowed, repo not added, Administration missing) | The user follows the steps in the block, or asks the builder to switch `repo_mode` |
 | Preview works, custom domain does not | Nameservers not changed yet, or DNS still propagating | DOMAIN CHECK again; it reports the current nameservers in plain words |
 | Lighthouse scores vary between runs | Machine under load | The lock serializes checks; with 8 GB, `max_in_progress: 2` |
+| The user says "I have seen nothing for hours" | The deliverable was code only, and the worker's dev server died with the worker | Build screenshots in `reviews/<ID>-r<R>/` from the first renderable version, and the preview pane (or the artifacts by message) from that same moment; after two attempts with no visible artifact, cut and reassign |
 | A site's messages arrive in the main chat | No topic yet | "add the topic for <site>" to the builder |
 
 ## 3. Metrics
