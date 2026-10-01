@@ -208,7 +208,7 @@ Finish with kanban_complete (paths in artifacts) or kanban_block.
 
 ### 4.1 The squad's own skills
 
-The builder writes them with the template in `base/05-squad-template.md`, following the bundled `hermes-agent-skill-authoring` format, in `{{W}}/skills/<role>/<name>/SKILL.md`. Before writing a stack or provider skill, it reads that tool's current documentation (Context7 or the official site) and records the versions in `install-notes.md`.
+The builder writes them with the template in `base/05-squad-template.md`, following the bundled `hermes-agent-skill-authoring` format, in `{{W}}/skills/<role>/<name>/SKILL.md`. The orchestrator's is the exception: it goes **directly** in `{{W}}/skills/orchestration/SKILL.md`, one level up, because `registry.py` reads its `name` from that file (`base/07-builder.md` §6). Before writing a stack or provider skill, it reads that tool's current documentation (Context7 or the official site) and records the versions in `install-notes.md`.
 
 **Common** (`skills/common/`):
 
@@ -248,11 +248,11 @@ The builder writes them with the template in `base/05-squad-template.md`, follow
 
 | Skill | Content |
 | --- | --- |
-| `deploy-cloudflare` | `required_environment_variables`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. The cf rules (`02-architecture.md` §8). The verified commands for: project creation, build, preview version upload and its URL, production deploy, listing versions and deployments, rollback, custom domains, zones and DNS records, D1 migrations (`cf d1 migrations apply`), one-off secrets (`npx wrangler secret put`), logs (`npx wrangler tail`). Each command was found with `cf cli search` at install and is re-checked when cf reports an unknown command. Per stack: Astro static assets, OpenNext output, TanStack Start output. Smoke check and deploy record. Backup before a destructive D1 migration (export with the verified command) |
+| `deploy-cloudflare` | `required_environment_variables`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. The cf rules (`02-architecture.md` §8). The verified commands for: project creation, build, preview version upload and its URL, production deploy, listing versions and deployments, rollback, custom domains, zones and DNS records, D1 migrations (`cf d1 migrations apply`), one-off secrets (`npx wrangler secret put`), logs (`npx wrangler tail`). A Worker's custom domain has no direct `cf` command (v1.0.0-beta.9): it is declared in `cloudflare.config.ts` and applied with `cf workers triggers deploy` (`02-architecture.md` §8). Each command was found with `cf cli search` at install and is re-checked when cf reports an unknown command. Per stack: Astro static assets, OpenNext output, TanStack Start output. Smoke check and deploy record. Backup before a destructive D1 migration (export with the verified command) |
 | `deploy-vercel` | Only if `default_provider: vercel`: `vercel` CLI with a token in the deployer's `.env`, preview per branch, production promote, rollback, domains. Block commercial sites on Hobby |
 | `github-flow` | Auth only from `GH_TOKEN` (`gh auth status` to check; never `gh auth login`). The GitHub token check (§1) and what REPO does for each `repo_mode`, with the verified outputs and the plain-language steps for the user (create an empty private repo, add it to the token; or widen the token to all repositories with Administration write). `git push` authenticates through a per-repo helper (`git -C repo config credential.helper '!gh auth git-credential'`), never the global git config. With `gh`: create a private repo, push `main`, push branches, open or update the PR per work item (title from the milestone, body with the summary and preview URL), read checks, merge in order with a merge commit, revert a merge for rollback. Complements the bundled `github` skill |
 
-**Orchestrator** (`skills/orchestration/`): `orchestration-web` (§5.1), its `references/onboarding.md` (`01-personalization.md` Part 5), and one `site-<slug>` per site with a topic or channel (§5.2).
+**Orchestrator** (`skills/orchestration/SKILL.md`, not a subfolder — `registry.py` reads its `name` from that file): `orchestration-web` (§5.1), its `references/onboarding.md` (`01-personalization.md` Part 5), and one `site-<slug>` per site with a topic or channel (§5.2).
 
 ### 4.2 Third-party skills, by bot
 
@@ -279,7 +279,7 @@ Do not install: `web-pentest` (offensive testing is out of scope; the security l
 ```markdown
 ---
 name: orchestration-web
-description: Web agency flows. Use it when the user talks about a website or web app, starts a new site, replies to a spec or preview ("ok", "publish", "change: …", "bug: …"), asks to connect a domain, roll back, check status or pause a site.
+description: 'Web agency flows. Use it when the user talks about a website or web app, starts a new site, replies to a spec or preview ("ok", "publish", "change: …", "bug: …"), asks to connect a domain, roll back, check status or pause a site.'
 version: 1.0.0
 metadata:
   hermes:

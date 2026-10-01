@@ -9,6 +9,7 @@
 - **Language:** plans are written in English; bots always talk to the user in the user's preferred language.
 - **Header:** each file starts with a `>` block that says what it is and when it is used.
 - **Prompts:** everything inside ```` ```markdown ```` blocks is prompt text that is copied as is.
+- **Quote YAML scalars containing `:` or `#`:** skill and SOUL frontmatter `description:` fields often list literal replies (`"ok", "publish", "change: …"`), and a bare scalar breaks the parser (`mapping values are not allowed here`). Single quotes are safest when the text itself contains double quotes.
 - **Nothing personal:** each user's data are `{{...}}` variables that come from their profile. Examples use fictional people, and never sensitive data or real cases.
 - **Nothing tied to one machine:** tools chosen from the best on the market, justified, installable on Mac, Windows and Linux, and lightweight (`base/01-principles.md` §1.8).
 - **Hermes:** every claim about Hermes Agent is first verified in its official documentation (`NousResearch/hermes-agent`, `website/docs` folder).

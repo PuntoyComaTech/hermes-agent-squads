@@ -59,7 +59,7 @@ Use one of the user's real brands plus a test brand deleted at the end. Tests ma
 - **The user:** replies to batches and pieces; asks for things or onboards brands by chat whenever they want.
 - **Weekly (automatic):** each brand's planning, with the `preferences.md` distillation and the trend radar.
 - **Monthly:** on the last day, the reminder to export statistics to `data/inbox/`; the report arrives on the 1st. Level 2 connectors remove the export.
-- **If something doesn't arrive:** `hermes kanban list --tenant <slug> --status blocked` shows what is stuck; `hermes cron list` confirms the automations aren't paused; the Studio shows each piece's status.
+- **If something doesn't arrive:** `hermes kanban list --tenant <slug> --status blocked` shows what is stuck; `hermes -p <profile> cron list` confirms the automations aren't paused (per profile; without `-p` it lists only the default one); the Studio shows each piece's status.
 - **Monthly maintenance** (the builder, on request; `04-installation.md`, Maintenance): skills up to date; HyperFrames tested before updating; `scripts/limits.yaml` current.
 - **Backup:** git versions the text with a daily commit; media in `brands/` is covered by the computer's backup.
 

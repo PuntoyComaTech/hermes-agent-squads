@@ -49,6 +49,10 @@ winget on Windows, apt on Linux, or the vendor installer):
      and live logs. Check: npx wrangler@<version> --version.
   f) Google Chrome or the system Chromium, shared with marketing if installed.
   g) In ~/Hermes/projects/web/: a Python 3.11+ .venv with PyYAML, playwright, requests and pytest.
+     Find a 3.11+ interpreter first (`python3 --version`): macOS ships 3.9.x, and `python3 -m venv`
+     then silently produces a venv too old for these scripts. Without one, create the venv from any
+     3.11+ interpreter on the machine (a brew python, or another squad's venv) or install one with
+     the user's ok. Record the interpreter version in install-notes.md.
      Playwright uses the system browser (channel "chrome", or executablePath for Chromium) and
      downloads its own only if none exists. With npm, pinned: lighthouse and axe-core.
 Summarize versions and space in install-notes.md.
@@ -71,8 +75,12 @@ STEP 6 · Profiles. For each bot in 03-bots.md §1:
   - SOUL.md from §2 with variables substituted.
   - hermes -p <bot> config set for model, agent.reasoning_effort (the user's choice), terminal.cwd,
     skills.external_dirs (role folder and common), memory disabled.
-  - Toolsets from the table and agent.disabled_toolsets. A new profile inherits toolset state:
-    disable the blocked ones explicitly and verify with hermes -p <bot> tools list.
+  - Toolsets from the table and `agent.disabled_toolsets`. A new profile inherits toolset state:
+    disable the blocked ones explicitly and verify with `hermes -p <bot> tools list`. That list also
+    shows toolsets Hermes enables by default and this plan never asks for (`todo`, `memory`,
+    `session_search`, `connections`, `clarify`, `cronjob`, `computer_use`): turn each one off too.
+    `web-advisor` in particular must end with only `file`, `skills` and `kanban` (the kanban tools are
+    registered for Kanban workers automatically, so `kanban` is not in `squad.yaml` `toolsets`).
   - web-advisor: only file and skills; tools list must show terminal, web, browser and
     delegation disabled.
   - Third-party skills (§4.2): hermes skills inspect <source>, then
@@ -138,7 +146,8 @@ STEP 10 · Orchestrator, channel, manifest, automations.
      squads/marketing/04-installation.md step 7b.
   c) Create $HERMES_HOME/scripts/ for the orchestrator if missing, copy deliver.py, create the
      cron every 15m (--no-agent), and the weekly summary if chosen. Paused until step 11.
-     hermes cron list, then hermes cron doctor.
+     hermes -p <profile> cron list (per profile; without `-p` it lists only the default one), then
+     hermes cron doctor.
   d) Add the line in "Active squads" in user/profile.md. Record in builder/installed.yaml:
      squads.web = {source: official, plan_version: <from squad.yaml>, commit: <plans commit>}.
 

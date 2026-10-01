@@ -9,7 +9,7 @@ Writes `projects/<key>/squad.yaml` for each installed official squad, adds `scri
 Every installed squad has `projects/<key>/squad.yaml` and `scripts/registry.py` exists and runs without error.
 
 ## Steps
-1. For each installed official squad: copy `plans/squads/<key>/squad.yaml` to `projects/<key>/squad.yaml` and fill it from the installed system: `level` from the current registry, each bot's `model` and `reasoning_effort` from `hermes -p <bot> config get` (or the profile's `config.yaml`), crons from `hermes cron list`. Keep extra bots or crons the user added.
+1. For each installed official squad: copy `plans/squads/<key>/squad.yaml` to `projects/<key>/squad.yaml` and fill it from the installed system: `level` from the current registry, each bot's `model` and `reasoning_effort` from `hermes -p <bot> config get` (or the profile's `config.yaml`), crons from `hermes -p <profile> cron list` (the `-p` is required: without it the command lists only the default profile and silently under-reports). Keep extra bots or crons the user added.
 2. Write `scripts/registry.py` from `07-builder.md` §6.
 3. Run it. Apply the printed list with `hermes -p orchestrator config set skills.external_dirs '<list>'`.
 

@@ -58,7 +58,7 @@ Run after installing and after every SOUL or skill change. Adjust the `{{}}` val
 | A company replies | - | "they called me from X" / "rejected by X" |
 | Monday | The weekly summary arrives | Nothing, or adjusts what it suggests |
 
-Weekly check (the builder, on request, 2 minutes): `hermes cron list` (no overdue jobs), `hermes kanban list --status blocked`, `hermes gateway status`. Overdue crons mean the computer slept or the gateway stopped: the user runs `hermes gateway restart`.
+Weekly check (the builder, on request, 2 minutes): `hermes -p <profile> cron list` (no overdue jobs; `-p` is required or only the default profile is listed), `hermes kanban list --status blocked`, `hermes gateway status`. Overdue crons mean the computer slept or the gateway stopped: the user runs `hermes gateway restart`.
 
 ## 3. Metrics
 
