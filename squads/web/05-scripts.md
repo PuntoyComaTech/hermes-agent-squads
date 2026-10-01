@@ -218,36 +218,341 @@ no app layers (a one-pager): the rule that matters is that the direction always 
 more annoying, and it is the standard the owner chose. When an unfixable third-party type breaks,
 exclude **that** folder, never the whole project.
 
-### `biome.json` — format + base lint
+### `{{W}}/templates/quality/biome.json` — format + base lint
 
 `recommended` plus every rule in `style`, `correctness`, `suspicious`, `complexity`, `performance`,
-`a11y`, `security` and `nursery` set to `error`. 2-space indent, line width 100, LF, double quotes,
-semicolons, trailing commas. It ignores `.astro` (Prettier owns those). Tests may exceed the
-cognitive-complexity limit; nothing else is relaxed.
+`a11y`, `security` and `nursery` set to `error` — each group as `{"preset": "all"}`, **never**
+`{"all": true}` (Traps below). 2-space indent, line width 100, LF, double quotes, semicolons,
+trailing commas. It ignores `.astro` (Prettier owns those). Tests may exceed the
+cognitive-complexity limit; nothing else is relaxed. Verified content (2026-10-01, the gate runs
+green on a real site with it):
 
-### `eslint.config.mjs` — only what Biome cannot do
+```json
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "assist": {
+    "actions": { "source": { "preset": "all" } },
+    "enabled": true
+  },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "src/**",
+      "tests/**",
+      "*.config.ts",
+      "*.config.mjs",
+      "*.json",
+      "*.css",
+      "!**/*.astro"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "a11y": { "preset": "all" },
+      "complexity": { "preset": "all" },
+      "correctness": { "preset": "all" },
+      "nursery": { "preset": "all" },
+      "performance": { "preset": "all" },
+      "security": { "preset": "all" },
+      "style": { "preset": "all" },
+      "suspicious": { "preset": "all" }
+    }
+  },
+  "overrides": [
+    {
+      "assist": {
+        "actions": {
+          "source": {
+            "useSortedAttributes": "on",
+            "useSortedKeys": "off",
+            "useSortedPackageJson": "on"
+          }
+        }
+      },
+      "includes": ["package.json"]
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*.spec.ts", "tests/**"],
+      "linter": { "rules": { "complexity": { "noExcessiveCognitiveComplexity": "off" } } }
+    },
+    {
+      "includes": ["*.config.ts", "*.config.mjs", "run-gate.mjs", "eslint.config.mjs"],
+      "linter": {
+        "rules": {
+          "correctness": { "noNodejsModules": "off", "noUnresolvedImports": "off" },
+          "style": { "noDefaultExport": "off", "noTernary": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["tests/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "off",
+            "noUnresolvedImports": "off",
+            "useQwikValidLexicalScope": "off"
+          },
+          "performance": { "noAwaitInLoops": "off" },
+          "style": { "noTernary": "off" }
+        }
+      }
+    }
+  ],
+  "vcs": { "clientKind": "git", "enabled": true, "useIgnoreFile": true }
+}
+```
 
-Flat config, everything in `error`, `warn` is not a level this gate uses:
+Four things in that file are load-bearing and were found the hard way:
 
-- `typescript-eslint` `strictTypeChecked` + `stylisticTypeChecked`.
-- `sonarjs` recommended, with `cognitive-complexity` and `cyclomatic-complexity` capped from `quality.json`.
-- Size and shape (Single Responsibility): `max-lines-per-function`, `max-params`, `max-depth`,
-  `max-nested-callbacks`, `max-lines`, `max-statements`, `max-classes-per-file`, from `quality.json`.
-- `boundaries`: `element-types` allows only the next layer down, `entry-point` forbids reaching
-  inside a layer. The core layer imports nothing. That is Dependency Inversion actually enforced,
-  not described. In a two-layer site, `content` must not import `ui`.
-- `security` recommended (`detect-object-injection` stays `error`; suppress one line with a written
-  reason, never by default).
-- `functional`: `immutable-data`, `no-let`, `prefer-readonly-type`, `no-return-void`.
-- `unicorn` recommended.
-- Plus `no-explicit-any`, `consistent-type-imports`, `no-floating-promises`, `no-misused-promises`,
-  and `no-warning-comments` on `TODO`/`FIXME`/`HACK` without a linked issue.
-- Test files may exceed complexity and nest callbacks to 5, and may mutate data. Nothing else.
+- **`files.includes` must exclude `.astro`** (`!**/*.astro`). Biome cannot parse them: sweeping
+  `src/**` flags code that is not wrong (13 `lint/correctness` diagnostics on the two `.astro`
+  files of a real site), none of them defects.
+- **`css.parser.tailwindDirectives: true`**: without it the Tailwind v4 `@theme` block is a parse
+  error and `biome check` cannot even format the CSS.
+- **The `package.json` override**: `useSortedKeys` wants pure alphabetical order while
+  `useSortedPackageJson` wants the manifest's canonical order — both come with `"preset": "all"`
+  and they contradict each other. The override lets the manifest's order win
+  (`useSortedKeys: "off"`); without it `package.json` always shows an `assist/source` finding.
+- **Three rules are scoped off by a reproducible false positive**, not for convenience:
+  `useQwikValidLexicalScope` (flags closures in files that are not Qwik), `noUnresolvedImports`
+  (does not follow `@playwright/test` → `playwright/test` under pnpm's isolation) and
+  `noNodejsModules` (tests and config files read the disk on purpose).
 
-### `.prettierrc` — `.astro` only
+### `{{W}}/templates/quality/eslint.config.mjs` — only what Biome cannot do
 
-`plugins: ["prettier-plugin-astro"]`, `overrides` setting `parser: astro` for `*.astro`. Never let
-Prettier format anything Biome also formats: the two will fight.
+Flat config, everything in `error`, `warn` is not a level this gate uses. The rule families are
+the ones D-033 lists (`typescript-eslint` typed, `sonarjs`, size and shape, `boundaries`,
+`security`, `functional`, `unicorn`), and the file below is the shape that actually runs: the
+typed rules are scoped to the files that have a TypeScript program, or ESLint aborts before
+linting anything (Traps below).
+
+```js
+// ESLint only brings what Biome does not have. Do not duplicate rules between the two tools
+// or they will fight over the same file.
+//
+// ENGINEERING DECISION, 2026-09-30 (verified against real peerDependencies):
+//   eslint-plugin-jsx-a11y is NOT included: its three latest versions (6.10.0-6.10.2) cap at
+//   eslint ^9, and eslint-plugin-unicorn (70-76, all of them) requires eslint >=10.4. They
+//   cannot coexist. ESLint 10 + unicorn wins. Accessibility is covered by Biome (a11y: preset
+//   all) and, above all, by axe-core against WCAG 2.2 AA run by the reviewer on the real
+//   preview. Add jsx-a11y when it supports ESLint 10.
+import eslint from "@eslint/js";
+import boundaries from "eslint-plugin-boundaries";
+import functional from "eslint-plugin-functional";
+import security from "eslint-plugin-security";
+import sonarjs from "eslint-plugin-sonarjs";
+import unicorn from "eslint-plugin-unicorn";
+import tseslint from "typescript-eslint";
+
+import quality from "./quality.json" with { type: "json" };
+
+const c = quality.complexity ?? {};
+
+// Layers: the dependency direction ALWAYS points at the core. That is SOLID's Dependency
+// Inversion, enforced rather than described. On a site without layers (a landing page) change
+// this to ['content', 'ui'].
+const layers = quality.layers ?? ["ui", "features", "domain"];
+
+export default tseslint.config(
+  { ignores: ["dist/**", "node_modules/**", ".astro/**", "coverage/**", "public/**"] },
+
+  eslint.configs.recommended,
+
+  // Rules that need type information apply ONLY to TypeScript files: `eslint.config.mjs` and
+  // `astro.config.mjs` sit outside the tsconfig `include`, so typescript-eslint cannot give
+  // them a program and aborts with "requires type information". Plain JS keeps
+  // `recommended`, without the typed rules.
+  //
+  // `projectService: true` is what gives those rules their TypeScript program: the
+  // `strictTypeChecked` / `stylisticTypeChecked` configs bring the rules but NOT the
+  // parserOptions, and without this none of them can run.
+  {
+    extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
+    files: ["**/*.ts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+  },
+  {
+    extends: [tseslint.configs.recommended],
+    files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
+  },
+
+  // ---- Sonar's rules, local and with NO server (SOLID: Single Responsibility) ----
+  sonarjs.configs.recommended,
+  {
+    rules: {
+      "sonarjs/cognitive-complexity": ["error", c.cognitive_max ?? 10],
+      // eslint-plugin-sonarjs 4.x takes the threshold as an object (`{ threshold }`),
+      // not as a number.
+      "sonarjs/cyclomatic-complexity": ["error", { threshold: c.cyclomatic_max ?? 10 }],
+    },
+  },
+
+  // ---- Size and shape: one function = one thing ----
+  {
+    rules: {
+      "max-classes-per-file": ["error", c.max_classes_per_file ?? 1],
+      "max-depth": ["error", c.max_depth ?? 3],
+      "max-lines": [
+        "error",
+        { max: c.max_lines_per_file ?? 300, skipBlankLines: true, skipComments: true },
+      ],
+      "max-lines-per-function": [
+        "error",
+        { max: c.max_lines_per_function ?? 50, skipBlankLines: true, skipComments: true },
+      ],
+      "max-nested-callbacks": ["error", c.max_nested_callbacks ?? 3],
+      "max-params": ["error", c.max_params ?? 3],
+      "max-statements": ["error", c.max_statements ?? 20],
+    },
+  },
+
+  // ---- Architecture: boundaries between layers (Open/Closed + Dependency Inversion) ----
+  {
+    plugins: { boundaries },
+    rules: {
+      "boundaries/element-types": [
+        "error",
+        {
+          default: "disallow",
+          rules: layers.map((layer, index) => ({
+            allow: index + 1 < layers.length ? [layers[index + 1]] : [],
+            from: [layer],
+          })),
+        },
+      ],
+      "boundaries/entry-point": ["error", { default: "disallow" }],
+    },
+    settings: {
+      // `mode` is deprecated in eslint-plugin-boundaries 7: "folder" is already the default.
+      "boundaries/elements": layers.map((t) => ({ pattern: `src/${t}/*`, type: t })),
+      "boundaries/include": ["src/**"],
+    },
+  },
+
+  // ---- Security ----
+  security.configs.recommended,
+  {
+    rules: {
+      // Excepted only where the code justifies it, never by default.
+      "security/detect-object-injection": "error",
+    },
+  },
+
+  // ---- Immutability (predictability, Liskov Substitution) ----
+  // `eslint-plugin-functional` mixes rules that READ TYPES (`immutable-data`,
+  // `no-return-void`, `prefer-readonly-type`) with rules that do not (`no-let`). Applying all
+  // of them to the `.mjs` config files aborts the run: those files are outside the tsconfig
+  // `include` and have no TypeScript program. Plain JS/TS keeps `no-let`.
+  {
+    plugins: { functional },
+    rules: {
+      "functional/no-let": "error",
+    },
+  },
+  {
+    extends: [functional.configs.recommended],
+    files: ["**/*.ts"],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+  },
+  {
+    files: ["**/*.ts"],
+    rules: {
+      "functional/immutable-data": "error",
+      "functional/no-let": "error",
+      "functional/no-return-void": "error",
+      "functional/prefer-readonly-type": "error",
+    },
+  },
+
+  // ---- Modern best practices ----
+  unicorn.configs.recommended,
+  {
+    rules: {
+      "unicorn/no-null": "error",
+      "unicorn/prefer-module": "error",
+      "unicorn/prefer-top-level-await": "error",
+    },
+  },
+
+  // ---- Never take the shortcut ----
+  // These rules are TypeScript ones (with type information), so they are also scoped to the
+  // `.ts` files. `no-warning-comments` needs no types and applies to every file.
+  {
+    files: ["**/*.ts"],
+    rules: {
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+    },
+  },
+  {
+    // ESLint 10 removed this rule's `message` option; only `terms`, `location` and
+    // `decoration` exist. A pending task with no linked issue does not enter the repo.
+    rules: {
+      "no-warning-comments": ["error", { terms: ["todo", "fixme", "hack"] }],
+    },
+  },
+
+  // Test files allow more complexity and callbacks, and nothing else is relaxed.
+  {
+    files: ["**/*.test.ts", "**/*.spec.ts", "tests/**"],
+    rules: {
+      "functional/immutable-data": "off",
+      "functional/no-conditional-statements": "off",
+      // A Playwright test is an imperative script: `await page.goto("/")` is an EXPRESSION
+      // with an effect and has no equivalent statement form, and walking a list of buttons to
+      // check each one is the natural shape. Off only here, by file type; the site's code and
+      // its data (`copy.ts`) keep requiring immutability. Reason: the shape of Playwright
+      // tests, not the style of the code.
+      "functional/no-expression-statements": "off",
+      "functional/no-loop-statements": "off",
+      "functional/no-return-void": "off",
+      "max-nested-callbacks": ["error", 5],
+      "sonarjs/cognitive-complexity": "off",
+    },
+  },
+);
+```
+
+### `{{W}}/templates/quality/.prettierrc.json` — `.astro` only
+
+Named `.prettierrc.json` so the format is explicit (both names resolve; verified 2026-10-01). The
+content is what matters: a `$comment` key is not a Prettier option — Prettier ignores it with
+`Ignored unknown option` on **every** file it formats (Traps below). Verified content:
+
+```json
+{
+  "endOfLine": "lf",
+  "overrides": [{ "files": "*.astro", "options": { "parser": "astro" } }],
+  "plugins": ["prettier-plugin-astro"],
+  "printWidth": 100,
+  "semi": true,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "trailingComma": "all"
+}
+```
+
+`overrides` sets `parser: astro` for `*.astro`. Never let Prettier format anything Biome also
+formats: the two will fight.
 
 ### `run-gate.mjs` — one command, stops at the first failure
 
@@ -274,6 +579,51 @@ repite. Atajo legítimo: cambia el umbral en quality.json y anótalo en decision
 
 `--fix` repairs formatting and what is auto-fixable. It **never** lowers a threshold and never
 disables a rule.
+
+### `pnpm-workspace.yaml` — pin `rollup` (third-party types)
+
+`tsconfig.json` turns on `exactOptionalPropertyTypes` and `skipLibCheck: false`, and with those,
+vite 6.4.3 and rollup 4.63.5 declare the same `Plugin` interface in incompatible ways: vite builds
+`{ ssr?: boolean | undefined, attributes?: … }` and rollup expects `ssr?: boolean` without
+`undefined`. The error lives in both third-party `.d.ts` files and cannot be fixed from the
+project. Pin rollup to the last version where both coexisted, in `pnpm-workspace.yaml`:
+
+```yaml
+overrides:
+  rollup: 4.55.1
+```
+
+Verified 2026-10-01 on a real Astro site: with the pin, `tsc --noEmit` reports 0 errors. When a
+third-party type breaks like this, pin the dependency and record the pin in `decisions.md`; do not
+relax `skipLibCheck`, and exclude only the offending package's folder as a last resort, never the
+whole project.
+
+### Traps already hit (2026-10-01)
+
+Each row is a config written from the text above in a real installation that did not run. The
+error is the exact one the tool printed. They stay here so no installer writes them again.
+
+| Written | Exact error | Right |
+| --- | --- | --- |
+| Rule groups as `{"all": true}` | `deserialize ━ Found an unknown key 'all'.` (once per group) | `{"preset": "all"}` |
+| A `$comment` key in `biome.json` | `deserialize ━ Found an unknown key '$comment'.` | No comment keys: Biome only accepts its schema |
+| `files.includes` sweeping `src/**` | False `lint/correctness` diagnostics on every `.astro` file (13 on the two pages of a real site) | `"!**/*.astro"` in `files.includes`; Prettier owns `.astro` |
+| `eslint.config.mjs` without `projectService` | `Error while loading rule '@typescript-eslint/await-thenable': You have used a rule which requires type information, but don't have parserOptions set to generate type information for this file.` | `parserOptions: { projectService: true }` on the typed block |
+| Typed rules over the `.mjs` config files | `Error while loading rule '@typescript-eslint/no-floating-promises': … Occurred while linting …/eslint.config.mjs` | Scope the typed rules to `files: ["**/*.ts"]`, as above |
+| `sonarjs/cyclomatic-complexity` with a number | `Key "rules": Key "sonarjs/cyclomatic-complexity": Value 10 should be object.` | `["error", { threshold: 10 }]` (eslint-plugin-sonarjs 4.x takes an object) |
+| `no-warning-comments` with a `message` option | `Key "rules": Key "no-warning-comments": … Unexpected property "message". Expected properties: "terms", "location", "decoration".` | Only `terms`, `location`, `decoration` (ESLint 10 removed `message`) |
+| `run-gate.mjs` running `knip --no-exit-code=false` | `Option '--no-exit-code' does not take an argument` | Plain `knip`: it already exits non-zero on findings, which is what the gate wants |
+| A `$comment` key in `.prettierrc*` | `[warn] Ignored unknown option { $comment: … }.` on every file | No comment keys |
+| `boundaries/elements` with `mode: "folder"` | `[boundaries][warning]: The 'mode' option in element descriptors is deprecated and will be removed in a future major version.` | Omit `mode` ("folder" is already the default) |
+
+Two structural traps, same source:
+
+- **The runner must find its own root.** `run-gate.mjs` is copied into each site repo and also
+  lives in `{{W}}/templates/quality/`. It must detect whether it sits at the repo root (a
+  `package.json` or `tsconfig.json` next to it) before running `tsc` and `eslint`: without that
+  check, the gate ran on the template directory and passed without checking the site at all.
+- **A `$comment` key is never valid** in a tool's config (`biome.json`, `.prettierrc*`, ESLint).
+  Put explanations in `quality.json` (`comment` inside the section it explains) or in this file.
 
 ### Who runs it, and what a failure blocks
 
