@@ -119,6 +119,179 @@ sites (one with topic, one main), each kind of outbox file, a blocked task notif
 keys in two spellings.
 ```
 
+## Quality gate (Level 1, shared)
+
+> Added by D-033. Mandatory on every site repo; nothing ships without it. This is a **standard**,
+> not a suggestion: the thresholds below are the agency owner's, and relaxing any of them is a
+> decision written into `decisions.md` with its reason. Written at install to `{{W}}/templates/quality/`
+> and copied into each site repo at its first build.
+
+### The standard in one table
+
+Each tool has one job, so none fights another for the same file.
+
+| Tool | Job | Verified version (2026-09-30) |
+| --- | --- | --- |
+| TypeScript | Type checking at maximum strictness | 5.x |
+| `@biomejs/biome` | Formatting + base lint of TS/JS/JSON/CSS | 2.5.15 |
+| `prettier` | **Only** `.astro` (Biome cannot format them) | 3.9.9 + `prettier-plugin-astro` |
+| `eslint` | Only the rule families Biome lacks | 10.11.0 + `typescript-eslint` 8.71.0 |
+| ↳ `eslint-plugin-sonarjs` | **Sonar's rules, local, no server** | 4.2.2 |
+| ↳ `eslint-plugin-boundaries` | Architecture boundaries between layers (SOLID) | 7.2.0 |
+| ↳ `eslint-plugin-security` | Dangerous patterns | 4.1.0 |
+| ↳ `eslint-plugin-functional` | Immutability | 10.0.1 |
+| ↳ `eslint-plugin-unicorn` | Modern best practices | 76.0.0 |
+| `jscpd` | Duplication. Rust engine, self-contained binary | 5.4.0 |
+| `knip` | Unused files, exports and dependencies | 6.39.0 |
+| `osv-scanner` | Known vulnerabilities in every locked dependency. Local binary, offline, free (Apache 2.0) | 2.6.0 |
+| Vitest + Playwright | Tests and coverage | — |
+
+**Sonar without a server.** `eslint-plugin-sonarjs` brings Sonar's rules locally. A real SonarQube
+needs a server, and `base/01-principles.md` §1.8 forbids Docker, servers and databases. **Do not
+install SonarQube**; if an agency ever wants one, that is a change to a base rule and needs its own
+decision entry.
+
+**`osv-scanner` runs offline.** Google's scanner against the public OSV database, as a single Go
+binary outside the repo (`brew install osv-scanner`, or the release binary). The scan always runs
+with `--offline`: no project or dependency data leaves the machine, no account, no server, no cost.
+The database is a local cache in `{{ROOT}}/.cache/osv` (`OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`),
+refreshed by the gate when older than 24 h with `--download-offline-databases`, which only
+downloads the public database. Strict: any known vulnerability, of any severity, fails the gate
+(exit 1), and so does a missing lockfile (exit 128). The only exception is an `[[IgnoredVulns]]`
+entry in the repo's `osv-scanner.toml` with `reason` and an `ignoreUntil` at most 30 days away,
+recorded in `decisions.md`; an expired one fails again.
+
+**`jscpd` is not replaced.** Checked against the package registry on 2026-09-30: still published
+(same day), Rust engine, HTML/JSON/SARIF reports, and it fails CI over a threshold. Nothing better
+exists for duplication in the JS ecosystem.
+
+**`eslint-plugin-jsx-a11y` is deliberately excluded.** Verified against real `peerDependencies`:
+its three latest versions (6.10.0–6.10.2) cap at `eslint ^9`, while `eslint-plugin-unicorn` (70–76,
+all of them) requires `eslint >=10.4`. **No combination makes them coexist.** ESLint 10 + unicorn
+was chosen because the rest of the set fits whole. Accessibility is covered, better, by Biome's
+`a11y: all` while writing and by **axe-core against WCAG 2.2 AA** on the deployed preview at review
+time — a browser check rather than a static guess. Add `jsx-a11y` when it supports ESLint 10.
+
+### `{{W}}/templates/quality/quality.json` — the only file anyone tunes
+
+```json
+{
+  "version": 1,
+  "typescript": { "strict_max": true, "skipLibCheck": false },
+  "complexity": {
+    "cognitive_max": 10, "cyclomatic_max": 10, "max_lines_per_function": 50,
+    "max_params": 3, "max_depth": 3, "max_nested_callbacks": 3,
+    "max_lines_per_file": 300, "max_statements": 20, "max_classes_per_file": 1
+  },
+  "duplication": { "tool": "jscpd", "max_percent": 0, "min_tokens": 50 },
+  "dead_code": { "tool": "knip", "exit_code_on_findings": true },
+  "coverage": { "lines_min": 80, "branches_min": 80, "per_acceptance_criterion": true },
+  "gates_block": true,
+  "layers": ["ui", "features", "domain"]
+}
+```
+
+`max_percent: 0` is zero tolerance: any 50-token block appearing twice fails the build. That is the
+strictest the tool allows and it is intentional. `layers` becomes `["content","ui"]` for a site with
+no app layers (a one-pager): the rule that matters is that the direction always points at the core.
+
+### `tsconfig.json` — every extra switch on
+
+```json
+{
+  "compilerOptions": {
+    "strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true, "noPropertyAccessFromIndexSignature": true,
+    "noFallthroughCasesInSwitch": true, "noImplicitReturns": true,
+    "noUnusedLocals": true, "noUnusedParameters": true,
+    "allowUnreachableCode": false, "allowUnusedLabels": false,
+    "forceConsistentCasingInFileNames": true, "isolatedModules": true,
+    "verbatimModuleSyntax": true, "noUncheckedSideEffectImports": true,
+    "skipLibCheck": false, "noEmit": true
+  },
+  "include": ["src", "tests", "*.config.ts", "*.config.mjs"],
+  "exclude": ["node_modules", "dist", ".astro"]
+}
+```
+
+`skipLibCheck: false` is deliberate: it type-checks the dependencies' own types too. Slower and
+more annoying, and it is the standard the owner chose. When an unfixable third-party type breaks,
+exclude **that** folder, never the whole project.
+
+### `biome.json` — format + base lint
+
+`recommended` plus every rule in `style`, `correctness`, `suspicious`, `complexity`, `performance`,
+`a11y`, `security` and `nursery` set to `error`. 2-space indent, line width 100, LF, double quotes,
+semicolons, trailing commas. It ignores `.astro` (Prettier owns those). Tests may exceed the
+cognitive-complexity limit; nothing else is relaxed.
+
+### `eslint.config.mjs` — only what Biome cannot do
+
+Flat config, everything in `error`, `warn` is not a level this gate uses:
+
+- `typescript-eslint` `strictTypeChecked` + `stylisticTypeChecked`.
+- `sonarjs` recommended, with `cognitive-complexity` and `cyclomatic-complexity` capped from `quality.json`.
+- Size and shape (Single Responsibility): `max-lines-per-function`, `max-params`, `max-depth`,
+  `max-nested-callbacks`, `max-lines`, `max-statements`, `max-classes-per-file`, from `quality.json`.
+- `boundaries`: `element-types` allows only the next layer down, `entry-point` forbids reaching
+  inside a layer. The core layer imports nothing. That is Dependency Inversion actually enforced,
+  not described. In a two-layer site, `content` must not import `ui`.
+- `security` recommended (`detect-object-injection` stays `error`; suppress one line with a written
+  reason, never by default).
+- `functional`: `immutable-data`, `no-let`, `prefer-readonly-type`, `no-return-void`.
+- `unicorn` recommended.
+- Plus `no-explicit-any`, `consistent-type-imports`, `no-floating-promises`, `no-misused-promises`,
+  and `no-warning-comments` on `TODO`/`FIXME`/`HACK` without a linked issue.
+- Test files may exceed complexity and nest callbacks to 5, and may mutate data. Nothing else.
+
+### `.prettierrc` — `.astro` only
+
+`plugins: ["prettier-plugin-astro"]`, `overrides` setting `parser: astro` for `*.astro`. Never let
+Prettier format anything Biome also formats: the two will fight.
+
+### `run-gate.mjs` — one command, stops at the first failure
+
+Written as a prompt here like every script (`05-scripts.md` preamble applies): `node` only, no
+dependencies of its own, argparse-equivalent flags `--fix` and `--skip-tests`, logs to stderr, exit 1 at the first
+failing step and 0 when everything passes, idempotent. It reads `quality.json`, runs every step
+through the shared heavy-work lock (`python {{ROOT}}/scripts/heavy_lock.py run --name gate-<step> --wait 1800 -- <cmd>`), and runs in this fixed order:
+
+1. `tsc --noEmit` — types.
+2. `biome check .` (or `--write` with `--fix`).
+3. `eslint .` (or `--fix`).
+4. `prettier --check "**/*.astro"` (or `--write`).
+5. `knip` — dead code.
+6. `jscpd . --threshold <max_percent> --min-tokens <min_tokens> --reporters json,console`.
+7. `osv-scanner scan source --offline -L pnpm-lock.yaml` (with `--config osv-scanner.toml` if the
+   repo has one). Any exit other than 0 fails. If the local database is older than 24 h, first
+   `osv-scanner scan source --offline-vulnerabilities --download-offline-databases -L pnpm-lock.yaml`;
+   if that download fails, scan the cached database and say how old it is; no database at all fails.
+8. `vitest run --coverage` — skipped with `--skip-tests`; otherwise coverage must meet
+   `coverage.lines_min` and `coverage.branches_min`.
+
+On failure it prints which step failed and: *"No hay commit, ni PR, ni preview. Arregla esto y
+repite. Atajo legítimo: cambia el umbral en quality.json y anótalo en decisions.md."*
+
+`--fix` repairs formatting and what is auto-fixable. It **never** lowers a threshold and never
+disables a rule.
+
+### Who runs it, and what a failure blocks
+
+| Role | When | If it fails |
+| --- | --- | --- |
+| `web-developer` | Before **every** commit (BUILD) | No commit. Fix and repeat. Never `--force`, never relax a rule. |
+| `web-deployer` | Before opening the PR (PREVIEW) | **No PR and no preview.** `kanban_block` naming the failing step. |
+| `web-reviewer` | First step of REVIEW, before anything else | **Critical finding**: it does not approve. Goes in `critical` of `reviews/<ID>-r<R>.json`. |
+
+The reviewer does not repair code: a failing gate is FIX to the developer.
+
+### Never
+
+Relax a rule, raise a threshold or add an exception **without writing it in `decisions.md`** with
+the reason · `--force` · `skipLibCheck: true` · `@ts-ignore` · `any` · a file-wide `eslint-disable` ·
+turning off `knip`, `jscpd` or `osv-scanner` to get unstuck · an `IgnoredVulns` entry without `ignoreUntil` · a server-based SonarQube. A `// eslint-disable` with
+no written reason is a critical finding from the reviewer.
+
 ## Level 2
 
 Specified when the user moves up (`06-testing-and-operations.md` §5):

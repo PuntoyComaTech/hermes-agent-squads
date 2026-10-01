@@ -42,7 +42,10 @@ winget on Windows, apt on Linux, or the vendor installer):
   a) git and Node 22 LTS or later.
   b) pnpm: corepack enable, then corepack prepare pnpm@latest --activate (or npm i -g pnpm).
      Check: pnpm --version.
-  c) gh (GitHub CLI). Check: gh --version.
+  c) gh (GitHub CLI). Check: gh --version. osv-scanner (brew install osv-scanner, or the release
+     binary from google/osv-scanner), pinned to the version in 05-scripts.md "Quality gate".
+     Check: osv-scanner --version, then download the offline database once into ~/Hermes/.cache/osv
+     (OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY; .cache/ is already ignored).
   d) cf (Cloudflare CLI, open beta): npm i -g cf. Check: cf --version and cf cli search "deploy"
      returns JSON. Record the version: the beta changes often.
   e) Wrangler: not global. Used only through npx wrangler@<pinned version> for one-off secrets
@@ -135,7 +138,9 @@ per profile returns BLOCKED. Never set approvals.mode off.
 
 STEP 9 · Scripts (05-scripts.md). Write them with their tests and run the tests. heavy_lock.py
 goes in ~/Hermes/scripts/ only if it does not exist. deliver.py in --simulate with two sample
-sites. check_site.py against the throwaway Astro build served locally by its test fixture.
+sites. check_site.py against the throwaway Astro build served locally by its test fixture. The six
+quality-gate files ("Quality gate") in ~/Hermes/projects/web/templates/quality/; run-gate.mjs against the
+throwaway Astro project with its dev dependencies, and run-gate.mjs --help exits 0.
 
 STEP 10 · Orchestrator, channel, manifest, automations.
   a) Write ~/Hermes/projects/web/squad.yaml from plans/squads/web/squad.yaml with the model and

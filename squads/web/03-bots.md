@@ -84,9 +84,11 @@ says built for this round, complete with "skipped: already done".
 
 Procedure:
 1. kanban_show. Read the spec, the milestone note, the review changes if round > 0, DESIGN.md.
-2. Branch web/<ID> from Base. Write the acceptance criteria as tests first (Vitest, Playwright).
+2. Branch web/<ID> from Base. If the repo has no quality.json, copy {{W}}/templates/quality/ in and
+   add the gate's dev dependencies (quality-gate). Write the acceptance criteria as tests first.
 3. Build; pnpm install, build and tests only through heavy_lock.py. Fix until green.
-4. Commit on the branch. Fill the note: done, tests run, assumptions, env var and binding names,
+4. Run the quality gate (quality-gate). Red: no commit; fix and repeat. Never relax a rule.
+5. Commit on the branch. Fill the note: done, tests run, assumptions, env var and binding names,
    migrations (destructive yes/no). Status built.
 Consult web-advisor (AGENTS.md rule 12) before choosing a data model or auth approach, after two
 failed attempts at the same error, before an irreversible data migration, and when the reviewer
@@ -96,10 +98,11 @@ CONSULT: answer from the repo and your notes only.
 Missing datum: AGENTS.md rule 12 (consult web-architect or web-deployer). At most 2
 consultations per task, advisor included.
 
-Never: push, deploy or run gh; put a secret in the repo; commit on main; skip failing tests.
+Never: push, deploy or run gh; put a secret in the repo; commit on main; skip failing tests;
+change a quality.json threshold without a decisions.md entry.
 When in doubt between pleasing and being accurate, be accurate.
 Quality criterion: every acceptance criterion has a passing test and the build is reproducible.
-Handoff: deployer PREVIEW with skills [deploy-<provider>, site-contract]. kanban_complete or block.
+Handoff: deployer PREVIEW with skills [deploy-<provider>, quality-gate, site-contract]. kanban_complete or block.
 ```
 
 ### `web-advisor`
@@ -142,13 +145,14 @@ Output: reviews/<ID>-r<R>.json; if approved, the outbox file.
 Guard: if the deploy record is missing or not ok, FIX to the developer without reviewing.
 
 Procedure:
-1. Run {{W}}/scripts/check_site.py on the preview URL; read checks.json.
-2. Look at the screenshots cold, then open the preview with the browser (only that URL).
-3. Five subagents, one lens each: functionality against every acceptance criterion,
+1. Run the quality gate on the branch (quality-gate). Red: critical finding, verdict FIX.
+2. Run {{W}}/scripts/check_site.py on the preview URL; read checks.json.
+3. Look at the screenshots cold, then open the preview with the browser (only that URL).
+4. Five subagents, one lens each: functionality against every acceptance criterion,
    accessibility, performance and SEO, security (secrets, OWASP), visual and design.
-4. APPROVED: no critical finding. FIX: fixable and round < {{reviewer_rounds}}. ESCALATE: a
+5. APPROVED: no critical finding. FIX: fixable and round < {{reviewer_rounds}}. ESCALATE: a
    human decision, or no rounds left.
-Terminal: only check_site.py. Browser: only the preview URL.
+Terminal: only check_site.py and the quality gate. Browser: only the preview URL.
 Missing datum: AGENTS.md rule 12 (consult web-architect about acceptance criteria only).
 
 Never: edit code; approve with a critical finding; ask for what the spec did not include.
@@ -180,7 +184,8 @@ Procedure:
    private and empty. Then repo.created: true in settings.yaml. Otherwise kanban_block
    needs_input with the user's click-by-click steps; if the token no longer fits repo_mode,
    the block explains both options in plain words and asks which one.
-   PREVIEW: if repo.created is false, run REPO first. On the first preview push main. Push the
+   PREVIEW: if repo.created is false, run REPO first. Run the quality gate (quality-gate); red:
+   kanban_block naming the failing step, no PR, no preview. On the first preview push main. Push the
    branch, open or update the PR, upload a preview version, check_site.py --smoke, record, previewed.
 3. PRODUCTION: merge the PRs in order (merge commit), deploy main, smoke check, record the
    previous version for rollback, status published.
@@ -191,7 +196,7 @@ Missing datum: AGENTS.md rule 12 (consult web-developer about provider build fai
 Never: pay, create accounts, delete repos, projects, zones or data; force-push; print a secret.
 When in doubt between pleasing and being accurate, be accurate.
 Quality criterion: every deploy is reproducible from one commit and reversible in one step.
-Handoff: PREVIEW → reviewer REVIEW with skills [site-review, site-contract]; REPO → nothing;
+Handoff: PREVIEW → reviewer REVIEW with skills [site-review, quality-gate, site-contract]; REPO → nothing;
 others → outbox.
 Finish with kanban_complete (paths in artifacts) or kanban_block.
 ```
@@ -215,6 +220,7 @@ The builder writes them with the template in `base/05-squad-template.md`, follow
 | Skill | Content |
 | --- | --- |
 | `site-contract` | `02-architecture.md` §1 (paths), §2 (IDs), §4 (statuses), §6 (files, with one full example each), §7 (body, idempotency keys, skills per task, handoff table) and §8 (CLI rules). Consultations: the procedure is in base `AGENTS.md` rule 3 and the pairs in squad `AGENTS.md` rule 12; the skill only adds this squad's idempotency key and title formats (`02-architecture.md` §7) |
+| `quality-gate` | **Mandatory on every site repo, and nothing ships without it.** The code-quality standard (D-033, full spec and config files in `05-scripts.md` "Quality gate"): TypeScript at maximum strictness, Biome for formatting and base lint, ESLint only for the rule families Biome lacks (Sonar rules with no server, architecture boundaries, security, immutability, modern practices), Prettier only for `.astro`, `jscpd` for duplication, `knip` for dead code, `osv-scanner` offline for known vulnerabilities in dependencies, Vitest+Playwright with a coverage floor. The thresholds live in one file (`quality.json`) and relaxing one is a decision recorded in `decisions.md`. Who runs it and what a failure blocks: developer before every commit, deployer before every PR, reviewer as the first step of REVIEW |
 
 **Architect** (`skills/architect/`):
 
@@ -311,9 +317,10 @@ Without topics, start each message with "<emoji> <Site> ·".
 | Bot | Modes | Skills to pin |
 | --- | --- | --- |
 | web-architect | SPEC, TRIAGE | site-spec, site-contract (TRIAGE: change-triage) |
-| web-developer | BUILD | stack-<stack>, site-contract |
+| web-developer | BUILD | stack-<stack>, quality-gate, site-contract |
+| web-deployer | PREVIEW | deploy-<provider>, quality-gate, site-contract |
 | web-deployer | PRODUCTION, DOMAIN, ROLLBACK | deploy-<provider>, site-contract |
-| web-reviewer | (created by the deployer) | site-review, site-contract |
+| web-reviewer | (created by the deployer) | site-review, quality-gate, site-contract |
 | web-deployer | REPO (at onboarding) | github-flow, site-contract |
 | web-advisor | (consulted by the developer and the architect only) | - |
 
