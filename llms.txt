@@ -2,10 +2,11 @@
 
 > Ready-to-install AI agent squads for Hermes Agent (NousResearch): job search, marketing and web development, plus a builder that creates your own. Markdown plans only: Hermes reads them and installs a personalized orchestrator, a builder and specialist bots that message the user on Telegram, Discord or WhatsApp.
 
-Rules for agents: start at START-HERE.md. A generic Hermes session installs only the base (user profile, orchestrator, builder) and then sends the user to the builder; only the builder installs, creates or adapts squads (base/01-principles.md §1.10). Verify every command against its real output. Updates are migrations, never rewrites of user data.
+Rules for agents: read AGENTS.md, then start at START-HERE.md. A generic Hermes session installs only the base (user profile, orchestrator, builder) and then sends the user to the builder; only the builder installs, creates or adapts squads (base/01-principles.md §1.10). Verify every command against its real output. Updates are migrations, never rewrites of user data.
 
 ## Start
 
+- [AGENTS.md](AGENTS.md): rules for AI agents using or editing this repository
 - [START-HERE.md](START-HERE.md): user guide and the installer AI's instructions
 - [base/01-principles.md](base/01-principles.md): rules every bot and installer follows
 - [base/06-base-installation.md](base/06-base-installation.md): base installation steps

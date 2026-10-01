@@ -12,39 +12,41 @@
 ## Cómo funciona
 
 ```mermaid
-flowchart LR
-    subgraph repo["Este repositorio: ~/Hermes/plans"]
-        SH[START-HERE.md]
-        B[base/]
-        SQ[squads/jobs · marketing · web]
-        M[base/migrations/]
+flowchart TB
+    U([Tú])
+    subgraph repo["Este repositorio · ~/Hermes/plans"]
+        SH["START-HERE.md"]
+        SQ["squads/ · jobs, marketing, web"]
+        M["base/migrations/"]
     end
-    subgraph pc["Tu computador: ~/Hermes"]
-        O((orquestador))
-        BU((constructor))
-        P["projects/(squad)/"]
+    subgraph pc["Tu computador · ~/Hermes"]
+        O(("orquestador"))
+        BU(("constructor"))
+        P["projects/(squad)/ · bots especialistas"]
     end
-    U([Tú]) -- "1 · lee START-HERE.md" --> SH
-    SH -- "2 · instala solo la base" --> O & BU
-    BU -- "3 · instala o crea un squad" --> SQ
-    SQ -- bots especialistas --> P
-    M -- "actualiza mi instalación" --> BU
-    U <-- "Telegram · Discord · WhatsApp" --> O
-    U <-- "cambios, squads nuevos" --> BU
+    U -->|"1 · lee START-HERE.md"| SH
+    SH -->|"2 · instala solo la base"| O
+    SH -->|"2 · instala solo la base"| BU
+    BU -->|"3 · lee el plan"| SQ
+    BU -->|"3 · instala el squad"| P
+    M -->|"actualiza mi instalación"| BU
+    U <-->|"trabajo diario · Telegram, Discord, WhatsApp"| O
+    O -->|"lanza tareas"| P
 ```
 
 1. **La base, una vez.** Clonas este repo y le pides a Hermes que lea `START-HERE.md`. Esa sesión instala **solo la base**: tu perfil, el orquestador y el constructor.
-2. **Los squads, desde el constructor.** El constructor es el único bot que instala, crea o adapta squads. Pídele "instala el squad de desarrollo web" o "crea un squad para <objetivo>".
+2. **Los squads, desde el constructor.** El constructor es el único bot que instala, crea o adapta squads. Pídele "instala el squad de desarrollo web" o "crea un squad para _tu objetivo_".
 3. **El día a día, con el orquestador.** Conversa contigo, lanza flujos y atiende tus confirmaciones.
 
 Dentro de un squad, el trabajo avanza en un tablero Kanban:
 
 ```mermaid
-flowchart LR
-    T[cron o tu pedido] --> K[Kanban]
-    K --> S1[especialista] --> S2[especialista] --> R[revisor]
-    R -- corregir --> S2
-    R -- aprobado --> D[deliver.py] --> Msg([mensaje con el resultado listo])
+flowchart TB
+    T["cron o tu pedido"] --> K["Kanban"]
+    K --> S1["especialista"] --> S2["especialista"] --> R{"revisor"}
+    R -->|"corregir"| S2
+    R -->|"aprobado"| D["deliver.py"]
+    D --> Msg(["mensaje con el resultado listo"])
 ```
 
 Cada especialista crea la tarea del siguiente. Nada irreversible (publicar, postular, enviar, desplegar a producción) pasa sin tu confirmación.
@@ -115,6 +117,7 @@ base/                      lo común a todos los squads
   migrations/              pasos de actualización idempotentes, numerados
 squads/<squad>/            jobs · marketing · web, los mismos 7 archivos + squad.yaml
 00-evaluation/             razones del diseño y registro de decisiones (02-decisions.md)
+AGENTS.md                  reglas para agentes de IA que usan o editan el repo
 llms.txt                   índice para agentes de IA
 CONTRIBUTING.md            reglas, nombres, cómo proponer un squad
 ```
@@ -136,7 +139,7 @@ Cada squad tiene los mismos archivos:
 
 Si eres un agente de IA leyendo este repositorio:
 
-- **Punto de entrada:** [`START-HERE.md`](START-HERE.md), sección "For the installer AI". Después [`base/01-principles.md`](base/01-principles.md).
+- **Lee primero [`AGENTS.md`](AGENTS.md).** Punto de entrada para instalar: [`START-HERE.md`](START-HERE.md), sección "For the installer AI".
 - **Solo el constructor crea squads** (`base/01-principles.md` §1.10). Una sesión cualquiera de Hermes a la que se le pide la configuración inicial instala la base (perfil, orquestador, constructor) y luego deriva a la persona al constructor. Nunca instala, crea ni adapta un squad.
 - **Los planes son solo Markdown.** Scripts y configuraciones se especifican como prompts y se escriben en el equipo de la persona al instalar.
 - **Verificar, nunca adivinar.** Cada comando se comprueba contra su salida real; la documentación de Hermes manda sobre un plan.
