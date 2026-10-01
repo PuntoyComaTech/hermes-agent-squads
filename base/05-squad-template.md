@@ -82,16 +82,17 @@ When the user runs several independent projects (brands, sites, clients):
 
 ### Bots
 - [ ] Each SOUL built with the template below, using profile variables.
-- [ ] Minimal toolsets; the forbidden ones in `agent.disabled_toolsets`. Vision through `auxiliary.vision`, not a separate model.
+- [ ] Minimal toolsets; the forbidden ones in `agent.disabled_toolsets`. Vision through `auxiliary.vision`, not a separate model. `hermes profile create` enables toolsets a plan rarely asks for (`todo`, `memory`, `session_search`, `connections`, `clarify`, `cronjob`, `computer_use`): disable everything outside the plan's table and verify the real list with `hermes -p <bot> tools list`, or "minimal toolsets" is silently not met. A worker with `cronjob` and `computer_use` breaks the squad's isolation.
+- [ ] `kanban` does **not** belong in `bots[].toolsets`. Hermes registers the kanban tools for dispatcher-spawned task workers on its own (`HERMES_KANBAN_TASK`; `reference/toolsets-reference.md` "Workflow-gated"), and `all`/`*` deliberately does not enable it anywhere else. It only needs listing where a bot must create tasks from a chat channel (`hermes tools enable kanban --platform <p>`).
 - [ ] Model and reasoning effort per bot: the user's choice, asked by the builder, stored in `squad.yaml` `bots[]`.
-- [ ] An `orchestration-<key>` skill following `04-orchestrator.md` §5, in `skills/orchestration/`, apart from every specialist's skills folder.
+- [ ] An `orchestration-<key>` skill following `04-orchestrator.md` §5, as `skills/orchestration/SKILL.md` (that exact file: `registry.py` reads its `name`; `07-builder.md` §6), apart from every specialist's skills folder.
 
 ### Installation
 - [ ] Step 0: personalization. Nothing is created before it.
 - [ ] A models step: one table with bot, recommended model, recommended effort, the user's choice (`07-builder.md` §5).
 - [ ] Verifiable steps, each with its command and expected output.
 - [ ] Writes `projects/<key>/squad.yaml`, runs `scripts/registry.py`, and applies the orchestrator's `skills.external_dirs`.
-- [ ] Creates the automations (cron) and the delivery script; tests that a message reaches the user's channel.
+- [ ] Creates the automations (cron) and the delivery script; tests that a message reaches the user's channel. Then confirm every `crons[]` entry exists with `hermes -p <profile> cron list` (the `-p` is required: without it the command lists only the default profile and silently under-reports) and `hermes cron doctor`.
 - [ ] Records the squad in `builder/installed.yaml` (`08-updates.md`).
 - [ ] End-to-end test.
 

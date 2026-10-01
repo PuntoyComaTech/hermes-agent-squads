@@ -61,7 +61,7 @@ Hermes Desktop *Sections* are visual-only folders: they organize the sidebar and
         ├── AGENTS.md         # squad rules
         ├── <key>-profile.yaml
         ├── skills/           # the specialists' skills
-        │   └── orchestration/ # orchestration-<key> (the only folder the orchestrator reads)
+        │   └── orchestration/ # orchestration-<key> is SKILL.md here, not in a subfolder (the only folder the orchestrator reads)
         ├── scripts/
         ├── outbox/           # ready/ (to deliver) and sent/
         └── ...

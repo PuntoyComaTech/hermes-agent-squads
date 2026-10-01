@@ -7,7 +7,9 @@
 
 ```markdown
 Project: {{W}} = {{ROOT}}/projects/web. Python 3.11+ (venv in {{W}}/.venv), same script on Mac,
-Windows and Linux; no .sh or .ps1. Deterministic code, no LLM. Each script is an argparse CLI:
+Windows and Linux; no .sh or .ps1. The interpreter that creates the venv must be 3.11+:
+`python3 --version` first, because macOS ships 3.9.x and `python3 -m venv` then silently builds a
+venv that cannot run these scripts (`04-installation.md` step 3g). Deterministic code, no LLM. Each script is an argparse CLI:
 --json when requested, logs to stderr, exit 0 on success, 1 on a data error, 2 on a network or
 external tool error. Idempotent. Tests with pytest in {{W}}/tests/; a short README in
 {{W}}/scripts/. pathlib paths; absolute or relative to {{W}}. Never read or write outside {{W}},
@@ -44,9 +46,12 @@ Checks, full mode:
   200 (critical). External links: HEAD, then GET on 405; failures are warn only.
 - Meta: title, description, lang, canonical, Open Graph title and image, viewport; sitemap.xml
   and robots.txt present when the spec has more than one page; hreflang per language.
-- Lighthouse (npx lighthouse, pinned, mobile preset, --output json, system Chrome through
-  CHROME_PATH): performance, accessibility, best-practices, seo per page against thresholds in
-  web-profile.yaml (lighthouse_mobile_ssr for dynamic_seo and saas). Under threshold: critical.
+- Lighthouse (npx lighthouse, pinned, --only-categories=performance,accessibility,best-practices,seo,
+  mobile form factor, --output json, system Chrome through CHROME_PATH): the four categories per page
+  against thresholds in web-profile.yaml (lighthouse_mobile_ssr for dynamic_seo and saas). Under
+  threshold: critical. Lighthouse's category ids use hyphens (`best-practices`) while the YAML keys in
+  web-profile.yaml use underscores (`best_practices`): map each key to its category id explicitly, or
+  that check reads as `None (min 90)` and fails on every page while reporting no score.
 - Accessibility: Playwright (system Chrome) loads each page, injects axe-core (pinned, from
   {{W}}/node_modules), runs WCAG 2.2 AA rules; counts by impact against axe_max.
 - Screenshots: each page at 390x844 (mobile-<page>.png) and 1440x900 (desktop-<page>.png),

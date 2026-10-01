@@ -129,8 +129,9 @@ STEP 8 · Automations (03-bots.md §5.1). Create $HERMES_HOME/scripts/ for each 
 one (trap 4 in 05-scripts.md), copy each script into it (copy, don't link) and create the crons
 listed in squad.yaml: plan_week.py (every hour), deliver.py (every 15m), monthly_report.py
 (every day at 08:00) if monthly_report is true, and the weekly summary if weekly_summary is
-true. Leave them paused until step 10. Show hermes cron list, then hermes cron doctor (it
-reports jobs that silently don't fire, including a missing script directory).
+true. Leave them paused until step 10. Show `hermes -p <profile> cron list` (per profile; without
+`-p` it lists only the default one), then `hermes cron doctor` (it
+  reports jobs that silently don't fire, including a missing script directory).
 
 STEP 9 · First brand (from initial_brands). Do what the orchestrator would (03-bots.md §4.1,
 "Onboarding a brand"): a minimal settings.yaml and, with topics, its brand-<slug> skill and its

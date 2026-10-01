@@ -340,6 +340,7 @@ Handoffs:
 ## 8. Hosting and CLI rules
 
 - **`cf` for everything Cloudflare**: projects, dev, build, deploy, versions, DNS, domains, zones, D1, R2, KV, WAF. Auth: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. `cf cli search "<task>"` finds the command; the exact command is never guessed. Config in `cloudflare.config.ts`.
+- **A Worker's custom domain has no direct command in `cf`** (verified on cf v1.0.0-beta.9, 2026-09-30: `cf cli search "custom domain"` returns only R2 and AI-gateway domain commands). The domain is declared in `cloudflare.config.ts` and applied with `cf workers triggers deploy` (`--dry-run` first for DOMAIN CHECK). `deploy-cloudflare` records whatever shape the installed CLI actually verified, not an assumed one.
 - **Wrangler only where cf has no command**: setting one secret (`npx wrangler secret put <NAME> --name <worker>`, or `--secrets-file` on `cf workers versions create`) and live logs (`npx wrangler tail <worker>`). Before any Wrangler use, check `cf cli search` first.
 - **Wrangler-configured templates** (OpenNext for Next.js, TanStack Start's Cloudflare target): `cf migrate --dry-run`, then `cf migrate`, before any `cf dev`, `cf build` or `cf deploy`.
 - **Preview** = a version uploaded from the branch without becoming the live deployment (`cf workers versions create`); its preview URL goes in `deploy.json`. The builder verifies at install the exact preview and rollback commands with `cf cli search` and writes them into `deploy-cloudflare`.

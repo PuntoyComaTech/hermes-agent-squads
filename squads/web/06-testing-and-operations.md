@@ -53,7 +53,7 @@ Use the user's first site plus a test site deleted at the end. Tests marked **I*
 ## 2. Daily operations
 
 - **The user:** replies to specs and previews, says "publish" when happy, asks for changes by chat.
-- **If something does not arrive:** `hermes kanban list --tenant <slug> --status blocked`; `hermes cron list` (deliver not paused); `hermes kanban runs <task-id>` for a task stuck in running.
+- **If something does not arrive:** `hermes kanban list --tenant <slug> --status blocked`; `hermes -p orchestrator cron list` (deliver not paused; `-p` is required or only the default profile is listed); `hermes kanban runs <task-id>` for a task stuck in running.
 - **Monthly (the builder, on request):** skills up to date; `cf` updated and its commands re-verified; token expiry dates in `install-notes.md`.
 - **Backup:** code is on GitHub; the squad's text is committed daily in `{{ROOT}}`; D1 data is exported before any destructive migration.
 

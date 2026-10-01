@@ -84,7 +84,8 @@ STEP 8 · Automations, from squad.yaml crons.
      --no-agent cron "every 15m".
   c) If weekly_summary: the orchestrator agent cron from 03-bots.md §5, with deliver to
      the channel.
-  Leave them paused until step 10. hermes cron list, then hermes cron doctor.
+  Leave them paused until step 10. `hermes -p <profile> cron list` (per profile; without `-p` it
+  lists only the default one), then `hermes cron doctor`.
 
 STEP 9 · Registry and orchestrator. Run python ~/Hermes/scripts/registry.py: it
 regenerates orchestrator/registry.md and prints the orchestrator's skills.external_dirs

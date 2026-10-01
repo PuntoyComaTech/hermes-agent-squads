@@ -96,9 +96,9 @@ Verify: the plan's end-to-end test passes and the registry lists the squad.
 When: schedules, bots, skills, toolsets, channels or levels change (from the user or a kanban task from the orchestrator).
 1. Restate the change in one line; find what it touches (`squad.yaml`, profiles, crons).
 2. Commit in `{{ROOT}}`, `hermes profile export` of each touched profile.
-3. Apply with `hermes -p <profile> config set`, `tools enable/disable`, `hermes cron ...`; update `projects/<key>/squad.yaml`; rerun `registry.py` if bots, skills, crons or asks changed.
+3. Apply with `hermes -p <profile> config set`, `tools enable/disable`, `hermes -p <profile> cron ...`; update `projects/<key>/squad.yaml`; rerun `registry.py` if bots, skills, crons or asks changed.
 4. Record it in `builder/changelog.md`.
-Verify: the real output of the config or cron list shows the new value. Reply with the result in 1-3 lines (completing the kanban task if one came in).
+Verify: the real output of `hermes -p <profile> config get` or `hermes -p <profile> cron list` shows the new value. Both need `-p`: without it the command reads the default profile and reports a change that never happened. Reply with the result in 1-3 lines (completing the kanban task if one came in).
 
 ### 4.4 `update-installation`
 
@@ -135,6 +135,7 @@ Written by the base installation (`06-base-installation.md` step 2) or migration
 - Input: every `{{ROOT}}/projects/*/squad.yaml`.
 - Output 1: rewrites `{{ROOT}}/orchestrator/registry.md` in the format of `04-orchestrator.md` §4: a "Base: builder" row when `hermes profile list` shows `builder`, then one row per squad (name, `projects/<key>/`, level, bot profiles, orchestration skill, crons in words, `asks`). Keeps the existing "History" section and appends a line when a squad appears or its level changes.
 - Output 2: prints to stdout the orchestrator's `skills.external_dirs` list as one YAML literal: `{{ROOT}}/skills` plus `{{ROOT}}/projects/<key>/<orchestration_skills>` for each squad.
+- Output 1 needs each squad's orchestration skill **name** (`orchestration-<key>`): read it from the `name:` field of `<orchestration_skills>/SKILL.md` (that file, not a subfolder), and exit 1 naming the file and field if it is missing or unparseable.
 - Never touches Hermes config. Exit 1 with the file and field if a manifest is invalid.
 
 ## 7. Limits
