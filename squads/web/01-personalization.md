@@ -167,6 +167,7 @@ repo:
   created: false                 # true once deployer REPO created or verified it
 cloudflare:
   worker_name: panaderia-sol
+  profile: null                  # named cf login for a client's own account (D-034); null = deployer's .env token
   preview_url: null              # filled by the deployer
 production:
   url: null
