@@ -58,10 +58,10 @@ Dates are the creation date, not the attempt: a retry produces the same ID, whic
 ### 3.1 Chain of a milestone
 
 ```text
- user "ok" to the spec ─► orchestrator ─► developer BUILD (skills: stack-<x>, site-contract)
+ user "ok" to the spec ─► orchestrator ─► developer BUILD (skills: stack-<x>, quality-gate, site-contract)
  architect TRIAGE ─────────────────────►        │ branch web/<ID>, tests, local commits, milestone note
  user "bug: …" ─► orchestrator ────────►        ▼
-                                          deployer PREVIEW (skills: deploy-<provider>, site-contract)
+                                          deployer PREVIEW (skills: deploy-<provider>, quality-gate, site-contract)
                                                 │ push branch, PR, preview deploy, smoke check, deploy.json
                                                 ▼
                                           reviewer REVIEW ── FIX (round < reviewer_rounds) ─► developer BUILD (round +1)
@@ -256,7 +256,7 @@ File, destructive: yes/no, what it changes.
 ```
 
 - `verdict`: `APPROVED`, `FIX` or `ESCALATE`. `changes`: `[{"to": "developer|architect", "what": "..."}]`.
-- Critical (blocks `APPROVED`): an unmet acceptance criterion, axe `critical` or `serious`, a score under `thresholds`, a broken internal link, a secret in client code or the repo, a missing security header from the `site-review` list, invented content presented as fact.
+- **Critical** (blocks `APPROVED`): **the quality gate fails** (`quality-gate`: types, lint, complexity or size over limit, a broken architecture boundary, duplication over the threshold, dead code, a known vulnerability in a dependency, or coverage below the minimum), an unmet acceptance criterion, axe `critical` or `serious`, a score under `thresholds`, a broken internal link, a secret in client code or the repo, a missing security header from the `site-review` list, invented content presented as fact.
 - `summary`: 3 plain-language lines for the user.
 
 ### `deploys/<ID>-<env>-<n>.json`
@@ -306,7 +306,7 @@ In `production`, `confirmed` holds the user's literal answer and timestamp, `pre
 - **Tenant:** `<slug>` on every task; children inherit it.
 - **Workspace:** `dir:{{W}}/sites/<slug>` (absolute).
 - **Idempotency key:** `<ID>-<role>-<MODE>-r<R>` (role: `architect`, `developer`, `reviewer`, `deployer`; the advisor only answers consultations). Production: `<ID>-deployer-PRODUCTION-<YYYYMMDDHHmm of the confirmation>`. Consultations: `<ID>-consult-<from>-<to>-<n>`.
-- **Skills per task** (`skills=[…]`, must be installed on the assignee): developer `[stack-<stack>, site-contract]`; deployer `[deploy-<provider>, site-contract]` (REPO: `[github-flow, site-contract]`); reviewer `[site-review, site-contract]`; architect `[site-spec, site-contract]`.
+- **Skills per task** (`skills=[…]`, must be installed on the assignee): developer `[stack-<stack>, quality-gate, site-contract]`; deployer `[deploy-<provider>, site-contract]`, PREVIEW adds `quality-gate` (REPO: `[github-flow, site-contract]`); reviewer `[site-review, quality-gate, site-contract]`; architect `[site-spec, site-contract]`.
 - **Max runtime:** BUILD 60 min, REVIEW 30, PREVIEW and PRODUCTION 20, SPEC and TRIAGE 20, DOMAIN, ROLLBACK and REPO 15, CONSULT 10. `kanban_heartbeat` every few minutes during installs and builds.
 - **Title:** `<MODE> · <slug> · <6-word summary>`; consultations `CONSULT · <ID> · <question in 6 words>`.
 

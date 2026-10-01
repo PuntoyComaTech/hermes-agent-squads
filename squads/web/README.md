@@ -81,7 +81,7 @@ Hosting: **Cloudflare by default** (commercial use allowed on the free plan). As
 
 ## What the computer needs
 
-- Installed by the builder, with permission: Node 22+, pnpm, git, `gh`, `cf` (Cloudflare CLI), Wrangler (only through `npx`), Python 3.11+ venv with Playwright using the system Chrome, Lighthouse and axe-core.
+- Installed by the builder, with permission: Node 22+, pnpm, git, `gh`, `cf` (Cloudflare CLI), Wrangler (only through `npx`), Python 3.11+ venv with Playwright using the system Chrome, Lighthouse and axe-core, and `osv-scanner` (local and offline) for dependency vulnerabilities.
 - No Docker or servers: the only always-on service is the Hermes gateway. Builds and browser checks share the heavy-work lock.
 - Accounts the user creates: GitHub and Cloudflare (both free). The builder guides creating a minimal-scope Cloudflare API token and a fine-grained GitHub token, both stored only in `web-deployer`'s `.env`. The user chooses whether the bot creates each site's repository (the token sees all repositories) or the user creates each empty one (the token sees only those).
 
