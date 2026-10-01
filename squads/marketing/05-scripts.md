@@ -1,4 +1,4 @@
-# Scripts: marketing agency
+# Scripts: marketing squad
 
 > Script specifications. The builder writes them in installation step 6; they also work as prompts for any coding AI.
 > Level 1: `heavy_lock.py`, `hf.py`, `render_html.py`, `render_video.py`, `contact_sheet.py`, `check_piece.py`, `stock_photos.py`, `download_assets.py`, `render_document.py`, `deliver.py`, `studio.py`, `metrics.py`, `plan_week.py`, `monthly_report.py`. Level 2 adds publishing, email drafts, landing deployment, data connectors and the Studio with buttons.

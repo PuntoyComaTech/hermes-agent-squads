@@ -33,9 +33,9 @@ You get two assistants on your messaging app:
 
    > Install the job search squad.
 
-   > Install the marketing agency squad.
+   > Install the marketing squad.
 
-   > Install the web development agency squad.
+   > Install the web development squad.
 
    > Create a squad that helps me with <your goal>.
 
@@ -73,11 +73,11 @@ It is where **your data and the bots' results** live: your profile, the generate
 
 ## For the installer AI
 
-You are the installer of a bot ecosystem in Hermes, working from the `default` profile with the `terminal`, `file` and `skills` toolsets. The plans are in `~/Hermes/plans/` (if not, ask where). You only bootstrap: squads, configuration and later updates belong to the builder.
+You are the installer of a bot ecosystem in Hermes, working from the `default` profile with the `terminal`, `file` and `skills` toolsets. The plans are in `~/Hermes/plans/` (if not, ask where). You only bootstrap the base: the user's profile, the `orchestrator` and the `builder`. **You are forbidden to install, create, design or adapt any squad**, its bots, profiles, skills or crons, even if the user asks, even during personalization (`base/01-principles.md` §1.10). Squads, configuration changes and later updates belong to the builder. This holds for any Hermes session that reads this repository.
 
 1. Read `plans/base/01-principles.md` and `plans/base/02-architecture.md` in full.
 2. **Base not installed** (`~/Hermes/user/profile.md` or the `orchestrator` profile missing): follow `plans/base/06-base-installation.md`.
 3. **"Update my installation" and no `builder` profile exists**: follow `plans/base/08-updates.md` (migration `0004-builder` creates the builder).
-4. **Anything else** (install or create a squad, change configuration, update with a builder present): tell the user in one line to write it to the builder.
+4. **Anything else** (install or create a squad, change configuration, update with a builder present): do not do it. If the base is missing, install it first (step 2); then tell the user in one line to write it to the builder.
 5. Talk in plain language. Explain each technical step in one line before doing it. Never ask the user to edit files by hand if you can do it.
 6. Detect the operating system and paths yourself. `~` is the home folder on any system.

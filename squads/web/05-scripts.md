@@ -1,4 +1,4 @@
-# Scripts: web development agency
+# Scripts: web development squad
 
 > Script specifications. The builder writes them in step 9 of the installation, on the user's computer; they also work as prompts for any coding AI.
 > Level 1: `deliver.py` and `check_site.py`, plus the shared `heavy_lock.py`. Deploy commands are not scripts: `web-deployer` runs them following `deploy-cloudflare` (`02-architecture.md` §5).
@@ -122,7 +122,7 @@ keys in two spellings.
 ## Quality gate (Level 1, shared)
 
 > Added by D-033. Mandatory on every site repo; nothing ships without it. This is a **standard**,
-> not a suggestion: the thresholds below are the agency owner's, and relaxing any of them is a
+> not a suggestion: the thresholds below are the user's, and relaxing any of them is a
 > decision written into `decisions.md` with its reason. Written at install to `{{W}}/templates/quality/`
 > and copied into each site repo at its first build.
 
@@ -148,7 +148,7 @@ Each tool has one job, so none fights another for the same file.
 
 **Sonar without a server.** `eslint-plugin-sonarjs` brings Sonar's rules locally. A real SonarQube
 needs a server, and `base/01-principles.md` §1.8 forbids Docker, servers and databases. **Do not
-install SonarQube**; if an agency ever wants one, that is a change to a base rule and needs its own
+install SonarQube**; if a user ever wants one, that is a change to a base rule and needs its own
 decision entry.
 
 **`osv-scanner` runs offline.** Google's scanner against the public OSV database, as a single Go

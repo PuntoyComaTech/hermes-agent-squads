@@ -26,7 +26,7 @@ The plan ships the template; at install time the builder writes the filled-in co
 
 ```yaml
 key: web
-name: Web development agency
+name: Web development squad
 source: official            # official (plans/squads) | own (~/Hermes/squads)
 plan_version: 1              # bump when the squad's contracts change
 level: 1

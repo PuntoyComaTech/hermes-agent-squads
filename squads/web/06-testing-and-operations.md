@@ -1,7 +1,7 @@
-# Testing and operations: web development agency
+# Testing and operations: web development squad
 
 > Level 1 acceptance tests, daily operations, common problems, metrics and moving up a level.
-> Used by the builder (installation step 11, and after every change to a SOUL, skill or script) and by the orchestrator when the user asks how the agency is doing.
+> Used by the builder (installation step 11, and after every change to a SOUL, skill or script) and by the orchestrator when the user asks how the squad is doing.
 
 ## 1. Acceptance tests (Level 1)
 
@@ -75,7 +75,7 @@ Use the user's first site plus a test site deleted at the end. Tests marked **I*
 
 ## 3. Metrics
 
-The orchestrator computes them from milestone notes, reviews and deploy records when asked "how is the agency doing?".
+The orchestrator computes them from milestone notes, reviews and deploy records when asked "how is the squad doing?".
 
 | Metric | What it measures | Initial target |
 | --- | --- | --- |

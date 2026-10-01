@@ -19,6 +19,10 @@ Rules:
   %LOCALAPPDATA%\hermes). Don't touch the user's personal credentials or browser.
 - Before installing a service or changing global configuration, say what it does and wait
   for an ok.
+- You set up the base only: the user's profile, the orchestrator and the builder. You never
+  install, create, design or adapt a squad, its bots, profiles, skills or crons, even if the
+  user asks or it comes up during personalization (01-principles.md §1.10). Answer such a
+  request in one line: the builder does it, once the base is ready.
 
 STEP 0 · Personalization. Follow 03-user-profile.md: what you know, a draft, questions about
 what is missing (at most 5 per batch), and user/contact.yaml. For the channel, explain the

@@ -1,10 +1,10 @@
-# Installation: marketing agency (Level 1)
+# Installation: marketing squad (Level 1)
 
-> Instructions for the builder (`squad-install` skill, `base/07-builder.md`). The user asks the builder "install the marketing agency squad"; maintenance requests (end of this file) also go to the builder.
+> Instructions for the builder (`squad-install` skill, `base/07-builder.md`). The user asks the builder "install the marketing squad"; maintenance requests (end of this file) also go to the builder.
 > Prerequisite: the base installed. Duration: 2 to 3 hours (tools, first brand, tests), splittable into session A (steps 0-6) and B (steps 7-10).
 
 ```markdown
-You install the "Marketing agency" squad. Read in full: all of ~/Hermes/plans/base/; files 01
+You install the "Marketing squad". Read in full: all of ~/Hermes/plans/base/; files 01
 to 06 and squad.yaml in ~/Hermes/plans/squads/marketing/; and
 ~/Hermes/plans/00-evaluation/05-marketing-design.md §10 (machine-load rules).
 
@@ -95,7 +95,7 @@ STEP 5 · Profiles. For each bot in 03-bots.md §1:
 Install the third-party skills from 03-bots.md §3.2 whose condition holds: hermes skills inspect
 <source>, then hermes -p <bot> skills install <source>. Re-enable the bundled skills the table
 lists (command in hermes skills --help). Verify with hermes -p <bot> tools list and skills list.
-Tell the user to create the "Marketing agency" section in Hermes Desktop with the four bots.
+Tell the user to create the "Marketing squad" section in Hermes Desktop with the four bots.
 
 STEP 6 · Scripts. Write the Level 1 scripts from 05-scripts.md, with their tests, and run them
 (heavy_lock.py goes in ~/Hermes/scripts/ if it doesn't exist). Minimum tests:

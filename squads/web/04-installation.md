@@ -1,10 +1,10 @@
-# Installation: web development agency (Level 1)
+# Installation: web development squad (Level 1)
 
 > Instructions for the `builder` bot, skill `squad-install` (`base/07-builder.md` §4.2). You get here when the user asks the builder to "install the web squad", or for a maintenance task (at the end).
 > Requires the base installed, including the builder. Duration: 1.5 to 2.5 hours, most of it waiting for the user to create accounts and the first site's chain. It can be split: A (steps 0-8) and B (steps 9-11).
 
 ```markdown
-You are installing the "Web development agency" squad. Read in full: all of ~/Hermes/plans/base/
+You are installing the "Web development squad". Read in full: all of ~/Hermes/plans/base/
 and ~/Hermes/plans/squads/web/ (files 01 to 06 and squad.yaml). git pull in plans/ and in
 ~/Hermes/.cache/hermes-docs first; Hermes facts come from that docs cache, not the web.
 
@@ -89,7 +89,7 @@ STEP 6 · Profiles. For each bot in 03-bots.md §1:
   - Third-party skills (§4.2): hermes skills inspect <source>, then
     hermes -p <bot> skills install <source>; re-enable the bundled ones listed.
   - The Kanban HERMES_BIN trap: squads/marketing/04-installation.md step 5.
-Tell the user to create the "Web agency" section in Hermes Desktop with the five bots.
+Tell the user to create the "Web squad" section in Hermes Desktop with the five bots.
 
 STEP 7 · Accounts and credentials. Only web-deployer holds them.
   a) GitHub. If there is no account, guide the user to create one (free) and wait.

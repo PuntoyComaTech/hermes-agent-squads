@@ -1,11 +1,11 @@
-# Squad: Marketing agency
+# Squad: Marketing
 
 > One-page summary: the user reads it to decide whether to install the squad; the builder starts from it. Requires the base.
 > For anyone who does marketing: a business owner, a freelancer, an agency with clients, a marketing team or a creator. Everything specific to each user and brand comes from [`01-personalization.md`](01-personalization.md).
 
 ## Purpose
 
-A marketing agency that works on its own for **several projects at once** and delivers **ready-to-approve proposals**: social media pieces, ads, videos, emails, campaign landing pages, plans and reports, in each brand's voice and identity. Full websites belong to the web squad.
+A marketing squad that works on its own for **several projects at once** and delivers **ready-to-approve proposals**: social media pieces, ads, videos, emails, campaign landing pages, plans and reports, in each brand's voice and identity. Full websites belong to the web squad.
 
 The user approves, requests changes or discards from their messaging app. Nothing is published or sent without their "yes".
 
@@ -27,17 +27,17 @@ Reply: "approve all" · "approve 1 and 3" · "change 2: …" · "no to 4"
 | --- | --- |
 | `approve all` · `approve 1 and 3` | They are approved. On posting day, the reminder arrives with the copy ready (Level 1), or they are scheduled after the user confirms (Level 2) |
 | `change 2: shorter and with a real photo` | A new, reviewed version arrives in the same chat |
-| `no to 4, we don't do promos` | It is discarded, and the agency remembers this for that brand |
-| `new project: Estudio Pilates Sol, @pilatessol` | Onboarding: the agency researches the brand, asks for whatever is missing, and proposes a diagnosis, voice, identity and plan |
+| `no to 4, we don't do promos` | It is discarded, and the squad remembers this for that brand |
+| `new project: Estudio Pilates Sol, @pilatessol` | Onboarding: the squad researches the brand, asks for whatever is missing, and proposes a diagnosis, voice, identity and plan |
 | `make a reel for Thursday's launch` | On-demand piece |
 | `campaign for Christmas` | Brief and 3 concepts (A, B, C) with a sketch; when the user replies "B", the pieces for that concept arrive |
 | `marketing plan` · `how are we doing?` · `ideas` | 90-day plan, report with data, or numbered ideas based on trends ("do idea 2") |
 | `pause Café Luna` · `resume` | Stops or restarts that brand's automatic work (planning and report); on-demand requests continue |
-| `quiet until Monday` | The agency keeps working, but does not write until that date |
+| `quiet until Monday` | The squad keeps working, but does not write until that date |
 
 On the computer, the **Studio** shows each brand's proposals, versions, calendar and status; the Hermes Kanban shows what is in production.
 
-## What the agency does
+## What the squad does
 
 | Service | Who | Level |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ On the computer, the **Studio** shows each brand's proposals, versions, calendar
 
 | Level | What it adds | When to move up |
 | --- | --- | --- |
-| **1 · Automatic agency** | Project onboarding, plan, automatic weekly planning with trends, pieces of every type, review, proposals over messaging with versions, preferences learned per brand, Studio, monthly report with exported data, publishing reminders | - |
+| **1 · Automatic squad** | Project onboarding, plan, automatic weekly planning with trends, pieces of every type, review, proposals over messaging with versions, preferences learned per brand, Studio, monthly report with exported data, publishing reminders | - |
 | **2 · Connected** | Scheduling posts and creating email drafts in cloud services (always with confirmation), deploying landing pages to Cloudflare, read-only data connectors, Studio with buttons (Hermes plugin), AI video | When posting by hand takes up too much time, or the user wants data without exporting it |
 | **3 · Optimization** | Metric-driven loops (ad fatigue, keyword drops, landing page regressions, creative retro), tests with stopping rules, a dedicated director if there are many brands | With 8 or more weeks of connected data |
 
@@ -95,7 +95,7 @@ Why 4 bots and why the orchestrator is the director: [`00-evaluation/05-marketin
 
 | File | Contents |
 | --- | --- |
-| [`01-personalization.md`](01-personalization.md) | Agency profile, onboarding of each brand, brand files and examples |
+| [`01-personalization.md`](01-personalization.md) | Squad profile, onboarding of each brand, brand files and examples |
 | [`02-architecture.md`](02-architecture.md) | Folders, piece types, flows, proposal lifecycle, data contracts, Studio and squad rules |
 | [`03-bots.md`](03-bots.md) | Each bot's SOUL, own and third-party skills, orchestration skill and automations |
 | [`04-installation.md`](04-installation.md) | Builder instructions to install Level 1, and maintenance |

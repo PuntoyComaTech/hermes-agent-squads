@@ -1,0 +1,32 @@
+# hermes-agent-squads
+
+> Ready-to-install AI agent squads for Hermes Agent (NousResearch): job search, marketing and web development, plus a builder that creates your own. Markdown plans only: Hermes reads them and installs a personalized orchestrator, a builder and specialist bots that message the user on Telegram, Discord or WhatsApp.
+
+Rules for agents: start at START-HERE.md. A generic Hermes session installs only the base (user profile, orchestrator, builder) and then sends the user to the builder; only the builder installs, creates or adapts squads (base/01-principles.md §1.10). Verify every command against its real output. Updates are migrations, never rewrites of user data.
+
+## Start
+
+- [START-HERE.md](START-HERE.md): user guide and the installer AI's instructions
+- [base/01-principles.md](base/01-principles.md): rules every bot and installer follows
+- [base/06-base-installation.md](base/06-base-installation.md): base installation steps
+- [base/07-builder.md](base/07-builder.md): the builder, the only bot that installs and creates squads
+
+## Base
+
+- [base/02-architecture.md](base/02-architecture.md): ~/Hermes layout, Kanban, consults, heavy-work lock
+- [base/03-user-profile.md](base/03-user-profile.md): user profile questionnaire
+- [base/04-orchestrator.md](base/04-orchestrator.md): the day-to-day bot
+- [base/05-squad-template.md](base/05-squad-template.md): template for every squad
+- [base/08-updates.md](base/08-updates.md): updates and migrations
+- [base/migrations/](base/migrations/): numbered, idempotent migrations
+
+## Squads
+
+- [squads/jobs/README.md](squads/jobs/README.md): job search squad
+- [squads/marketing/README.md](squads/marketing/README.md): marketing squad
+- [squads/web/README.md](squads/web/README.md): web development squad
+
+## Optional
+
+- [00-evaluation/02-decisions.md](00-evaluation/02-decisions.md): decision log, newest first
+- [CONTRIBUTING.md](CONTRIBUTING.md): conventions and how to propose a squad
