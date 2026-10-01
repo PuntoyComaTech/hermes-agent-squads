@@ -14,23 +14,24 @@
 ```mermaid
 flowchart TB
     U([Tú])
-    subgraph repo["Este repositorio · ~/Hermes/plans"]
+    subgraph plans["Este repositorio · ~/Hermes/plans"]
         SH["START-HERE.md"]
-        SQ["squads/ · jobs, marketing, web"]
-        M["base/migrations/"]
+        SQ["squads/"]
+        MG["base/migrations/"]
     end
-    subgraph pc["Tu computador · ~/Hermes"]
+    subgraph home["Túr computer · ~/Hermes"]
         O(("orquestador"))
-        BU(("constructor"))
-        P["projects/(squad)/ · bots especialistas"]
+        B(("constructor"))
+        P["bots del squad"]
     end
-    U -->|"1 · lee START-HERE.md"| SH
-    SH -->|"2 · instala solo la base"| O
-    SH -->|"2 · instala solo la base"| BU
-    BU -->|"3 · lee el plan"| SQ
-    BU -->|"3 · instala el squad"| P
-    M -->|"actualiza mi instalación"| BU
-    U <-->|"trabajo diario · Telegram, Discord, WhatsApp"| O
+    U -->|"1 · pide a Hermes que lo lea"| SH
+    SH -->|"2 · instala la base"| O
+    SH -->|"2 · instala la base"| B
+    U -->|"3 · instala un squad"| B
+    B -->|"lee el plan"| SQ
+    B -->|"instala"| P
+    MG -.->|"actualiza mi instalación"| B
+    U <-->|"4 · chat diario"| O
     O -->|"lanza tareas"| P
 ```
 
@@ -38,18 +39,18 @@ flowchart TB
 2. **Los squads, desde el constructor.** El constructor es el único bot que instala, crea o adapta squads. Pídele "instala el squad de desarrollo web" o "crea un squad para _tu objetivo_".
 3. **El día a día, con el orquestador.** Conversa contigo, lanza flujos y atiende tus confirmaciones.
 
-Dentro de un squad, el trabajo avanza en un tablero Kanban:
+Dentro de un squad, las tareas avanzan en un tablero Kanban; cada especialista crea la siguiente:
 
 ```mermaid
 flowchart TB
-    T["cron o tu pedido"] --> K["Kanban"]
-    K --> S1["especialista"] --> S2["especialista"] --> R{"revisor"}
+    T(["cron o tu pedido"]) --> S1["especialista"]
+    S1 -->|"crea la tarea siguiente"| S2["especialista"]
+    S2 --> R{"revisor"}
     R -->|"corregir"| S2
-    R -->|"aprobado"| D["deliver.py"]
-    D --> Msg(["mensaje con el resultado listo"])
+    R -->|"aprobado"| D["deliver.py · sin LLM"]
+    D --> M(["te llega el resultado listo"])
+    M -->|"solo con tu sí"| X["publicar · postular · enviar · desplegar"]
 ```
-
-Cada especialista crea la tarea del siguiente. Nada irreversible (publicar, postular, enviar, desplegar a producción) pasa sin tu confirmación.
 
 ## Squads disponibles
 
@@ -137,14 +138,7 @@ Cada squad tiene los mismos archivos:
 
 ## Para agentes de IA
 
-Si eres un agente de IA leyendo este repositorio:
-
-- **Lee primero [`AGENTS.md`](AGENTS.md).** Punto de entrada para instalar: [`START-HERE.md`](START-HERE.md), sección "For the installer AI".
-- **Solo el constructor crea squads** (`base/01-principles.md` §1.10). Una sesión cualquiera de Hermes a la que se le pide la configuración inicial instala la base (perfil, orquestador, constructor) y luego deriva a la persona al constructor. Nunca instala, crea ni adapta un squad.
-- **Los planes son solo Markdown.** Scripts y configuraciones se especifican como prompts y se escriben en el equipo de la persona al instalar.
-- **Verificar, nunca adivinar.** Cada comando se comprueba contra su salida real; la documentación de Hermes manda sobre un plan.
-- **Las actualizaciones son migraciones** en [`base/migrations/`](base/migrations/), nunca reescrituras de los datos de la persona.
-- **Por qué las cosas son así:** [`00-evaluation/02-decisions.md`](00-evaluation/02-decisions.md), de la más nueva a la más antigua.
+Lee primero [`AGENTS.md`](AGENTS.md) y luego [`START-HERE.md`](START-HERE.md), sección "For the installer AI". Índice corto: [`llms.txt`](llms.txt). La regla que más se rompe: una sesión cualquiera de Hermes instala **solo la base**; solo el constructor instala, crea o adapta squads (`base/01-principles.md` §1.10).
 
 ## Contribuir
 
