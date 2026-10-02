@@ -98,8 +98,8 @@ profile. The only exit point toward the user for this squad.
    - preview: title, URL, summary lines, the mobile screenshot of the home page
      (as a photo), the reply line. With approver client, add a
      forwardable paragraph.
-   - progress: "<emoji> <Name> · First look: <title>" + summary lines + the mobile and desktop
-     build screenshots of the home page (as photos). No reply line: it asks nothing.
+   - progress: "<emoji> <Name> · In progress: <title>" + summary lines + the page's mobile and
+     desktop build screenshots (as photos). No reply line: it asks nothing.
    - production: "✅ <Name> is live: <url>" + what changed + "Say "rollback" if something is
      wrong."
    - domain: the registrar steps as a numbered list, then the confirmation question as sent by
