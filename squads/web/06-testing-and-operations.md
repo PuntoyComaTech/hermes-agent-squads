@@ -23,7 +23,7 @@ Use the user's first site plus a test site deleted at the end. Tests marked **I*
 | # | I | Test | Input | Expected result |
 | --- | --- | --- | --- | --- |
 | E | I | Full chain | "ok" to the spec | BUILD, PREVIEW and REVIEW tasks with role in their keys. Branch `web/<ID>`, PR open, preview URL 200, `checks.json` all green, the preview message with a screenshot. The BUILD left `build-*-mobile.png`, `build-*-desktop.png` and `build-*-viewport-mobile.png` in `reviews/<ID>-r<R>/` **before** the milestone closed |
-| E2 | | Visible work in progress | Watch a milestone from the start | At the first renderable version the build screenshots exist and a `progress` message with them arrives while the milestone is open. A BUILD with two attempts and nothing renderable blocks and shows what exists |
+| E2 | | Visible work in progress | Launch a BUILD from Hermes Desktop, then one from the messaging channel | Desktop: the preview pane shows `127.0.0.1:<live.port>` and updates while the developer works; no dev server remains after the task. Messaging: a `progress` message with screenshots arrives per newly rendered page while the milestone is open. A BUILD with two attempts and nothing renderable blocks and shows what exists |
 | F | | Auto-advance | M1 approved, spec has M2 | M2's BUILD starts on its own; with `sites/<slug>/PAUSE` it does not |
 | G | | FIX loop | Remove an image's alt text and relaunch REVIEW | Accessibility critical, FIX to the developer, round 1 fixes it. A finding that survives 2 rounds escalates with one question |
 | H | | Leaked secret | Put a fake `sk_live_…` in a client file | Security critical, never APPROVED |
@@ -72,7 +72,7 @@ Use the user's first site plus a test site deleted at the end. Tests marked **I*
 | REPO blocks with "cannot create repositories" or does not see the site's repo | The token no longer matches `repo_mode` (access narrowed, repo not added, Administration missing) | The user follows the steps in the block, or asks the builder to switch `repo_mode` |
 | Preview works, custom domain does not | Nameservers not changed yet, or DNS still propagating | DOMAIN CHECK again; it reports the current nameservers in plain words |
 | Lighthouse scores vary between runs | Machine under load | The lock serializes checks; with 8 GB, `max_in_progress: 2` |
-| The user says "I have seen nothing for hours" | No `progress` file, or the developer skipped the screenshot step | Check `reviews/<ID>-r<R>/build-*.png` and `outbox/`; a BUILD with nothing renderable after two attempts must block (D-035) |
+| The user says "I have seen nothing for hours" | Wrong `live.watch` for where the user is, dev server not started, or no `progress` file | Check `settings.yaml` `live`, the port, `reviews/<ID>-r<R>/build-*.png` and `outbox/`; a BUILD with nothing renderable after two attempts must block (D-035) |
 | A site's messages arrive in the main chat | No topic yet | "add the topic for <site>" to the builder |
 
 ## 3. Metrics

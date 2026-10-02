@@ -80,7 +80,7 @@ The reviewer reviews the deployed preview, not a local build: a build that fails
 | Flow | Trigger | Chain | What reaches the user |
 | --- | --- | --- | --- |
 | **New site** | "new site: …" | orchestrator onboarding (`01-personalization.md` Part 5) → architect SPEC → outbox, and in parallel deployer REPO (§8, GitHub access) | Plan: pages, stack in one line, milestones, monthly cost, open questions; with `repo_mode: user_creates`, the steps to create the empty repo |
-| **Spec approval** | "ok" to the plan | orchestrator: `active: true`, spec `approved` → developer BUILD M1 | "Building milestone 1" |
+| **Spec approval** | "ok" to the plan | orchestrator: `active: true`, spec `approved`, `live.watch` → developer BUILD M1 | "Building milestone 1", then the live page (Desktop, console) or progress screenshots (messaging) |
 | **Milestone** | Spec approved, or auto-advance | §3.1 | Preview link and summary |
 | **Publish** | "publish" | orchestrator confirmation (§3.3) → deployer PRODUCTION → outbox | Live link |
 | **Change** | "change: …" | architect TRIAGE (updates spec, creates the work item) → developer BUILD → §3.1 | New preview |
@@ -258,9 +258,9 @@ File, destructive: yes/no, what it changes.
 - `verdict`: `APPROVED`, `FIX` or `ESCALATE`. `changes`: `[{"to": "developer|architect", "what": "..."}]`.
 - **Critical** (blocks `APPROVED`): **the quality gate fails** (`quality-gate`: types, lint, complexity or size over limit, a broken architecture boundary, duplication over the threshold, dead code, a known vulnerability in a dependency, or coverage below the minimum), an unmet acceptance criterion, axe `critical` or `serious`, a score under `thresholds`, a broken internal link, a secret in client code or the repo, a missing security header from the `site-review` list, invented content presented as fact.
 - `summary`: 3 plain-language lines for the user.
-- `reviews/<ID>-r<R>/` also holds the developer's build screenshots (`build-<page>-mobile.png`,
-  `build-<page>-desktop.png`, `build-<page>-viewport-mobile.png`, D-035). No screenshots, no
-  handoff to PREVIEW.
+- With `live.watch: screenshots`, `reviews/<ID>-r<R>/` also holds the developer's build
+  screenshots (`build-<page>-mobile.png`, `build-<page>-desktop.png`,
+  `build-<page>-viewport-mobile.png`, D-035).
 
 ### `deploys/<ID>-<env>-<n>.json`
 
@@ -302,7 +302,7 @@ In `production`, `confirmed` holds the user's literal answer and timestamp, `pre
 }
 ```
 
-`kind`: `spec`, `preview`, `progress`, `production`, `domain`, `rollback`. `progress` (D-035) is written by the developer at a milestone's first renderable version, file `<ID>-r<R>-progress.json`, with `title`, `summary` and the build screenshots in `attachments`; no `url`, no `reply`. Paths relative to the site folder; `deliver.py` makes them absolute. For `spec`, `attachments` holds `spec.md`.
+`kind`: `spec`, `preview`, `progress`, `production`, `domain`, `rollback`. `progress` (D-035, only with `live.watch: screenshots`) is written by the developer each time a page of the milestone first renders, file `<ID>-r<R>-progress-<n>.json`, with `title`, `summary` and that page's build screenshots in `attachments`; no `url`, no `reply`. Paths relative to the site folder; `deliver.py` makes them absolute. For `spec`, `attachments` holds `spec.md`.
 
 ## 7. Kanban in this squad
 
@@ -334,7 +334,7 @@ Handoffs:
 | Architect SPEC | Nothing: `outbox/ready/<ID>-spec.json` |
 | Deployer REPO | Nothing: `settings.yaml` `repo.created: true`, or a `needs_input` block with the user's steps |
 | Architect TRIAGE | Developer BUILD (kind `change`) |
-| Developer BUILD | Deployer PREVIEW (only with the build screenshots, D-035) |
+| Developer BUILD | Deployer PREVIEW (with `live.watch: screenshots`, only with the build screenshots, D-035) |
 | Deployer PREVIEW | Reviewer REVIEW |
 | Reviewer FIX | Developer BUILD, round +1, with `changes` |
 | Reviewer APPROVED | `outbox/ready/<ID>-preview.json`; next milestone BUILD if `auto_advance`, no PAUSE, and the spec has one |

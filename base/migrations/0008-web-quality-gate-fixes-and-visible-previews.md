@@ -10,9 +10,9 @@ Part of web `plan_version: 3` (`squads/web/squad.yaml`). Two fixes from the firs
    `05-scripts.md` "Quality gate" now gives the verified file contents and a traps table. The
    Prettier file becomes `.prettierrc.json`; `run-gate.mjs` checks it sits at a repo root and runs
    `knip` with no flags.
-2. **Visible work in progress (D-035).** The developer leaves build screenshots in
-   `reviews/<ID>-r<R>/` from the first renderable version and writes a `progress` outbox file that
-   `deliver.py` sends. No screenshots, no handoff to PREVIEW.
+2. **Visible work in progress (D-035).** Each site gets `settings.yaml` `live` (`port`, `watch`).
+   In Hermes Desktop or the console the user watches the developer's dev server on localhost; on
+   messaging the developer sends progress screenshots through a `progress` outbox file.
 
 ## Already applied if
 
@@ -28,12 +28,15 @@ Part of web `plan_version: 3` (`squads/web/squad.yaml`). Two fixes from the firs
 3. In every existing site `repo/`: replace the four config files with the corrected ones. Add the
    `rollup` pin to `pnpm-workspace.yaml` only if `tsc --noEmit` reports the vite/rollup `Plugin`
    conflict. Run the gate once and report the result. Do **not** commit.
-4. Rewrite `{{W}}/scripts/deliver.py` from `05-scripts.md` (new `progress` kind) and rerun its
+4. In every `sites/<slug>/settings.yaml` without `live`: add `live.port` (lowest free from 4321,
+   one per site) and `live.watch: screenshots`. The orchestrator switches it to `live` when the
+   user launches a BUILD from Desktop or the console.
+5. Rewrite `{{W}}/scripts/deliver.py` from `05-scripts.md` (new `progress` kind) and rerun its
    tests in `--simulate`.
-5. With the three-way comparison (`08-updates.md` §4), from the current plan text: the
+6. With the three-way comparison (`08-updates.md` §4), from the current plan text: the
    `web-developer` SOUL and `skills/developer/site-build` (`03-bots.md` §2, §4.1), and
    `skills/orchestration/SKILL.md` (`03-bots.md` §5.1 "Visible work in progress").
-6. Set `plan_version: 3` in `{{ROOT}}/projects/web/squad.yaml`. Rerun
+7. Set `plan_version: 3` in `{{ROOT}}/projects/web/squad.yaml`. Rerun
    `python {{ROOT}}/scripts/registry.py` and apply the printed list if it changed.
 
 ## Conflicts
@@ -49,12 +52,13 @@ formatters on one file.
 - On a site repo, `pnpm exec biome check --error-on-warnings .` starts with no `Found an unknown
   key`, and `pnpm exec tsc --noEmit` exits 0.
 - `deliver.py --simulate` prints a `progress` message for a sample `progress` file.
-- The developer SOUL contains `progress.json`; the orchestrator skill contains "Visible work in
+- Every site's `settings.yaml` has `live.port`, all different.
+- The developer SOUL contains `live.watch`; the orchestrator skill contains "Visible work in
   progress".
 - `plan_version` is `3` in `{{ROOT}}/projects/web/squad.yaml`.
 
 ## Rollback
 
-Restore the template files, `deliver.py` and the skills from the step 1 backup, remove the rollup
+Remove `live` from the sites' `settings.yaml`. Restore the template files, `deliver.py` and the skills from the step 1 backup, remove the rollup
 pin where this migration added it, and set `plan_version` back to `2`. Site repos keep their
 copies; screenshots already taken stay.

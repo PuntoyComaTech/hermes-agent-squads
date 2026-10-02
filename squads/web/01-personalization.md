@@ -130,7 +130,7 @@ The orchestrator runs it (`orchestration-web`, "New site"). It asks only what th
 
 ### Procedure
 
-1. Name and slug (lowercase, no accents); minimal `settings.yaml` with `active: false`.
+1. Name and slug (lowercase, no accents); minimal `settings.yaml` with `active: false` and `live.port`, the lowest port from 4321 up not used by another site.
 2. Deployer REPO task for the site (`02-architecture.md` §8, GitHub access). With `repo_mode: user_creates` and no reachable empty repo, the deployer blocks with `needs_input` and click-by-click steps (create an empty private repo named `<slug>`, add it to the token's repository access); `deliver.py` sends them and the user replies "done".
 3. Questions above, at most 5 per round. Files the user sends go to `sites/<slug>/inputs/`.
 4. Architect SPEC task. The spec arrives with open questions (at most 5).
@@ -174,6 +174,9 @@ production:
   version_id: null
   deployed_at: null
 destination: topic               # topic | channel | main
+live:                            # how the user watches a BUILD (D-035)
+  port: 4321                     # unique per site, assigned at onboarding: 4321, 4322, ...
+  watch: live                    # live (Desktop or console: localhost) | screenshots (messaging); set by the orchestrator
 ```
 
 ## Part 7 · Example (fictional)
