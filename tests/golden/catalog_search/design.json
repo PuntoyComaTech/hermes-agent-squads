@@ -1,0 +1,44 @@
+{
+  "counts": {
+    "plugin": 4,
+    "skill": 6,
+    "mcp": 2
+  },
+  "queries": [
+    {
+      "query": "design",
+      "total": 2,
+      "results": [
+        {
+          "kind": "skill",
+          "id": "bundled:claude-design",
+          "name": "claude-design",
+          "tier": "bundled",
+          "source": "skills",
+          "description": "Design HTML artifacts, prototypes and decks.",
+          "env": [],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "bundled with Hermes; list it under skills.keep",
+          "score": 50
+        },
+        {
+          "kind": "skill",
+          "id": "official:creative/impeccable",
+          "name": "impeccable",
+          "tier": "official",
+          "source": "optional-skills",
+          "description": "Design-quality review and polish for web UI.",
+          "env": [],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "hermes skills install official/creative/impeccable",
+          "score": 30
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

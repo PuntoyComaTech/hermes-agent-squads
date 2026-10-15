@@ -1,0 +1,8 @@
+name: or-picker
+repo: https://github.com/example/or-picker
+sha: 0000000000000000000000000000000000000005
+description: "Removed picker kept in the fixture to prove the kill list is honoured."
+maintainer: example
+tier: community
+category: tools
+capabilities: {provides_tools: [], provides_hooks: [], provides_middleware: [], requires_env: []}

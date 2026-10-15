@@ -1,0 +1,44 @@
+{
+  "counts": {
+    "plugin": 4,
+    "skill": 6,
+    "mcp": 2
+  },
+  "queries": [
+    {
+      "query": "blender",
+      "total": 2,
+      "results": [
+        {
+          "kind": "plugin",
+          "id": "blender",
+          "name": "blender",
+          "tier": "official",
+          "source": "plugin-catalog",
+          "description": "Official Blender Lab MCP server over stdio with a Blender workflow skill. Requires Blender 5.1+, its MCP add-on and uv. Disclosure - tools execute arbitrary Python in Blender with your privileges; first start download...",
+          "env": [],
+          "connector": null,
+          "disclosure": "tools execute arbitrary Python in Blender with your privileges; first start downloads the server and its dependencies with uv.",
+          "needs_ok": true,
+          "install": "hermes plugins install blender",
+          "score": 100
+        },
+        {
+          "kind": "plugin",
+          "id": "blender-render-helper",
+          "name": "blender-render-helper",
+          "tier": "community",
+          "source": "plugin-catalog",
+          "description": "Community helper that queues Blender renders from chat.",
+          "env": [],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": true,
+          "install": "hermes plugins install blender-render-helper",
+          "score": 70
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

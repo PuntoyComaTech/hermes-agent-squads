@@ -1,0 +1,9 @@
+name: hermes-video-editor
+repo: https://github.com/example/hermes-video-editor
+sha: 0000000000000000000000000000000000000003
+description: "Timeline video editing tools. Disclosure - PolyForm Noncommercial licence: commercial use needs a separate licence from the author."
+title: Video Editor
+maintainer: example
+tier: community
+category: media
+capabilities: {provides_tools: [trim_clip, concat_clips], provides_hooks: [], provides_middleware: [], requires_env: []}

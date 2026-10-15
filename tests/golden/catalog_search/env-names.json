@@ -1,0 +1,56 @@
+{
+  "counts": {
+    "plugin": 4,
+    "skill": 6,
+    "mcp": 2
+  },
+  "queries": [
+    {
+      "query": "CLOUDFLARE_API_TOKEN",
+      "total": 1,
+      "results": [
+        {
+          "kind": "plugin",
+          "id": "cloudflare-pages",
+          "name": "cloudflare-pages",
+          "tier": "community",
+          "source": "plugin-catalog",
+          "description": "Deploy static sites to Cloudflare Pages.",
+          "env": [
+            "CLOUDFLARE_ACCOUNT_ID",
+            "CLOUDFLARE_API_TOKEN"
+          ],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": true,
+          "install": "hermes plugins install cloudflare-pages",
+          "score": 25
+        }
+      ]
+    },
+    {
+      "query": "SHOPIFY_SHOP",
+      "total": 1,
+      "results": [
+        {
+          "kind": "skill",
+          "id": "official:productivity/shopify",
+          "name": "shopify",
+          "tier": "official",
+          "source": "optional-skills",
+          "description": "Manage a Shopify store through the Admin API.",
+          "env": [
+            "SHOPIFY_ACCESS_TOKEN",
+            "SHOPIFY_SHOP"
+          ],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "hermes skills install official/productivity/shopify",
+          "score": 25
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

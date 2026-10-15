@@ -1,0 +1,64 @@
+{
+  "counts": {
+    "plugin": 4,
+    "skill": 6,
+    "mcp": 2
+  },
+  "queries": [
+    {
+      "query": "video",
+      "total": 2,
+      "results": [
+        {
+          "kind": "plugin",
+          "id": "hermes-video-editor",
+          "name": "hermes-video-editor",
+          "tier": "community",
+          "source": "plugin-catalog",
+          "description": "Timeline video editing tools. Disclosure - PolyForm Noncommercial licence: commercial use needs a separate licence from the author.",
+          "env": [],
+          "connector": null,
+          "disclosure": "PolyForm Noncommercial licence: commercial use needs a separate licence from the author.",
+          "needs_ok": true,
+          "install": "hermes plugins install hermes-video-editor",
+          "score": 50
+        },
+        {
+          "kind": "skill",
+          "id": "official:creative/hyperframes",
+          "name": "hyperframes",
+          "tier": "official",
+          "source": "optional-skills",
+          "description": "Render MP4/WebM videos from HTML compositions.",
+          "env": [],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "hermes skills install official/creative/hyperframes",
+          "score": 30
+        }
+      ]
+    },
+    {
+      "query": "gsap",
+      "total": 1,
+      "results": [
+        {
+          "kind": "skill",
+          "id": "official:creative/hyperframes",
+          "name": "hyperframes",
+          "tier": "official",
+          "source": "optional-skills",
+          "description": "Render MP4/WebM videos from HTML compositions.",
+          "env": [],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "hermes skills install official/creative/hyperframes",
+          "score": 30
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

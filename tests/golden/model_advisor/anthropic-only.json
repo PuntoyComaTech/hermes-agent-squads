@@ -1,0 +1,580 @@
+{
+  "roles": [
+    "base"
+  ],
+  "providers": {
+    "authenticated": [
+      {
+        "slug": "anthropic",
+        "family": "anthropic",
+        "models": 17
+      },
+      {
+        "slug": "claude-subscription-directsdk-experimental",
+        "family": "anthropic",
+        "models": 8
+      }
+    ],
+    "families": [
+      "anthropic"
+    ],
+    "source": "cache",
+    "stale": []
+  },
+  "squads": [
+    {
+      "key": "web",
+      "bots": [
+        {
+          "bot": "web",
+          "role": "lead",
+          "lane": "lead",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "extras": []
+        },
+        {
+          "bot": "web-frontend",
+          "role": "worker",
+          "lane": "design",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "web-backend",
+          "role": "worker",
+          "lane": "code",
+          "model": "claude-sonnet-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "code lane, candidate 4/6 (anthropic): Backend work is long tool loops on tests",
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "advisor",
+              "model": "claude-opus-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium",
+              "alternatives": [
+                {
+                  "model": "claude-opus-5-5",
+                  "provider": "anthropic",
+                  "reasoning": "medium"
+                }
+              ],
+              "reason": "advisor lane, candidate 1/4 (anthropic): Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations"
+            }
+          ]
+        },
+        {
+          "bot": "web-qa",
+          "role": "worker",
+          "lane": "review",
+          "model": "claude-sonnet-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "extras": []
+        },
+        {
+          "bot": "web-deployer",
+          "role": "worker",
+          "lane": "research",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps and deploy runs are high-volume and low-judgment",
+          "extras": []
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    },
+    {
+      "key": "marketing",
+      "bots": [
+        {
+          "bot": "marketing",
+          "role": "lead",
+          "lane": "lead",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "extras": []
+        },
+        {
+          "bot": "marketing-research",
+          "role": "worker",
+          "lane": "research",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps and deploy runs are high-volume and low-judgment",
+          "extras": []
+        },
+        {
+          "bot": "marketing-creative",
+          "role": "worker",
+          "lane": "copy",
+          "model": "claude-sonnet-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
+          "extras": []
+        },
+        {
+          "bot": "marketing-producer",
+          "role": "worker",
+          "lane": "design",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "marketing-reviewer",
+          "role": "worker",
+          "lane": "review",
+          "model": "claude-sonnet-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "extras": []
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    },
+    {
+      "key": "jobs",
+      "bots": [
+        {
+          "bot": "jobs",
+          "role": "lead",
+          "lane": "lead",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "extras": []
+        },
+        {
+          "bot": "jobs-scout",
+          "role": "worker",
+          "lane": "research",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps and deploy runs are high-volume and low-judgment",
+          "extras": [
+            {
+              "use": "chain:application/analyze",
+              "lane": "review",
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high",
+              "alternatives": [
+                {
+                  "model": "claude-sonnet-5-5",
+                  "provider": "anthropic",
+                  "reasoning": "high"
+                }
+              ],
+              "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers"
+            }
+          ]
+        },
+        {
+          "bot": "jobs-writer",
+          "role": "worker",
+          "lane": "copy",
+          "model": "claude-sonnet-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
+          "extras": []
+        },
+        {
+          "bot": "jobs-reviewer",
+          "role": "worker",
+          "lane": "review",
+          "model": "claude-sonnet-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "extras": []
+        }
+      ],
+      "shared": []
+    },
+    {
+      "key": "studio",
+      "bots": [
+        {
+          "bot": "studio",
+          "role": "lead",
+          "lane": "design",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "studio-motion",
+          "role": "worker",
+          "lane": "design",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "studio-3d",
+          "role": "worker",
+          "lane": "design",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    },
+    {
+      "key": "builder",
+      "bots": [
+        {
+          "bot": "builder",
+          "role": "lead",
+          "lane": "lead",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "medium",
+          "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium"
+            },
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "medium"
+            }
+          ],
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "extras": [
+            {
+              "use": "cron:builder-watch",
+              "lane": "digest",
+              "model": "claude-haiku-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high",
+              "alternatives": [
+                {
+                  "model": "claude-haiku-5-5",
+                  "provider": "anthropic",
+                  "reasoning": "high"
+                }
+              ],
+              "reason": "digest lane, candidate 1/4 (anthropic): The daily upstream digest reads filtered release notes and writes JSON"
+            }
+          ]
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "low",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "low"
+            }
+          ],
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    }
+  ],
+  "lanes": []
+}
