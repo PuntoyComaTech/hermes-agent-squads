@@ -1,69 +1,90 @@
+schema: 2
 key: web
-name: Web development squad
-source: official            # official (plans/squads) | own (~/Hermes/squads)
-plan_version: 3              # v3: live localhost or progress screenshots (D-035), verified gate configs. Migration 0008
-level: 1
-multi_project: true
-projects_dir: sites          # projects/web/sites/<slug>/
-orchestration_skills: skills/orchestration   # relative to projects/web/
-bots:                        # model / reasoning_effort: null in the plan; the user's choice at install (base/07-builder.md §5)
-  - profile: web-architect
-    does: "Turns the idea into a plain-language spec with stack, milestones and acceptance criteria; triages changes"
-    modes: [SPEC, TRIAGE, CONSULT]
-    toolsets: [web, browser, file, skills, delegation, vision]
-    disabled_toolsets: [terminal, code_execution, image_gen, video_gen, tts]
-    skills_dirs: [skills/architect, skills/common]
-    model: null              # recommended: main_model
-    reasoning_effort: null
-  - profile: web-developer
-    does: "Builds each milestone in the site's repo on a branch, with tests, and commits locally"
-    modes: [BUILD, CONSULT]
-    toolsets: [terminal, file, skills, vision]
-    disabled_toolsets: [web, browser, code_execution, delegation, image_gen, video_gen, tts]
-    skills_dirs: [skills/developer, skills/common]
-    model: null              # recommended: Claude Sonnet 5.5
-    reasoning_effort: null   # recommended: high
-  - profile: web-advisor
-    does: "Read-only second opinion for the developer and the architect on hard technical choices; answers CONSULT cards only"
-    modes: [CONSULT]
-    toolsets: [file, skills]
-    disabled_toolsets: [terminal, web, browser, code_execution, delegation, vision, image_gen, video_gen, tts]
-    skills_dirs: [skills/advisor, skills/common]
-    model: null              # recommended: Claude Opus 5.5
-    reasoning_effort: null   # recommended: medium
-  - profile: web-reviewer
-    does: "Reviews each preview with 5 independent lenses and approves, fixes or escalates"
-    modes: [REVIEW]
-    toolsets: [browser, vision, file, skills, delegation, terminal]   # terminal only for check_site.py
-    disabled_toolsets: [web, code_execution, image_gen, video_gen, tts]
-    skills_dirs: [skills/reviewer, skills/common]
-    model: null              # recommended: main_model
-    reasoning_effort: null
-  - profile: web-deployer
-    does: "Owns GitHub and the hosting provider: repos, PRs, preview and production deploys, DNS, domains, secrets, rollback"
-    modes: [REPO, PREVIEW, PRODUCTION, DOMAIN, ROLLBACK, CONSULT]
-    toolsets: [terminal, file, skills]
-    disabled_toolsets: [web, browser, code_execution, delegation, vision, image_gen, video_gen, tts]
-    skills_dirs: [skills/deployer, skills/common]
-    model: null              # recommended: main_model
-    reasoning_effort: null
-consult:                     # allowed direct consultations (base/02-architecture.md §5.1)
-  - {from: web-developer, to: web-architect, about: "spec scope or an acceptance criterion"}
-  - {from: web-deployer, to: web-developer, about: "a build that fails on the provider but passes locally"}
-  - {from: web-developer, to: web-deployer, about: "exact names of env vars, secrets and bindings"}
-  - {from: web-reviewer, to: web-architect, about: "what an acceptance criterion means"}
-  - {from: web-developer, to: web-advisor, about: "data model or auth approach, an error that failed twice, an irreversible data migration, a finding the reviewer repeats"}
-  - {from: web-architect, to: web-advisor, about: "an architecture choice (data model, auth, stack fit)"}
-crons:
-  - {name: deliver, profile: orchestrator, script: deliver.py, schedule: "every 15m", no_agent: true}
-  - {name: weekly-summary, profile: orchestrator, script: null, schedule: "0 9 * * 1", no_agent: false}   # only if weekly_summary
-asks:                        # registry column "Ask it things like..."
-  - "new site: <idea>"
-  - "ok"
-  - "publish"
-  - "change: <what>"
-  - "bug: <what> + screenshot"
-  - "connect my domain"
-  - "rollback"
-  - "status"
-  - "pause <site> · resume"
+name: Web
+version: 3.0.0
+description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
+hermes_requires: ">=0.22.0"
+board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
+section: {id: web, name: Web}
+lead: web
+defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [terminal, file, skills, kanban, todo]}
+bots:
+  web:
+    role: lead
+    title: Web lead
+    description: "Interviews the user, writes spec.md, plans milestones, files chains, triages changes and accepts work"
+    lane: lead
+    toolsets: [file, skills, kanban, memory, session_search, clarify, todo, web, vision, delegation]
+    skills: {squad: [leading-web, site-contract], auto_load: leading-web,
+             keep: [official:software-development/grill-me]}
+    plugins: {enable: [disk-cleanup]}
+    memory: true
+    hidden: false
+    cron:
+      web-watch: {schedule: "0 */4 * * *", script: web_watch.py, agent: false}
+  web-frontend:
+    role: worker
+    title: Web frontend
+    description: "UI, design system, motion, scroll animation and three.js for the site repo"
+    lane: design
+    reasoning: medium
+    toolsets: [file, skills, kanban, todo, terminal, vision, browser]
+    skills: {squad: [building-frontend, site-contract], auto_load: building-frontend,
+             keep: [official:creative/impeccable, official:creative/auteur, official:web-development/scrollcraft,
+                    official:creative/dream-loop, bundled:claude-design, bundled:design-md,
+                    bundled:popular-web-designs]}
+    plugins: {enable: [disk-cleanup, security-guidance]}
+    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+    connectors: {enabled: false, suggest: []}
+    memory: false
+    hidden: true
+  web-backend:
+    role: worker
+    title: Web backend
+    description: "APIs, data, auth and tests; consults the advisor lane on data model, auth and migrations"
+    lane: code
+    toolsets: [file, skills, kanban, todo, terminal, delegation]
+    skills: {squad: [building-backend, site-contract], auto_load: building-backend,
+             keep: [bundled:test-driven-development, bundled:systematic-debugging,
+                    official:software-development/rest-graphql-debug, official:software-development/ast-grep]}
+    plugins: {enable: [disk-cleanup, security-guidance]}
+    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+    connectors: {enabled: false, suggest: [supabase, neon_mcp]}
+    delegation: {lane: advisor}
+    memory: false
+    hidden: true
+  web-qa:
+    role: worker
+    title: Web QA
+    description: "Five lenses on each preview: acceptance, visual, WCAG 2.2, Core Web Vitals, security and SEO"
+    lane: review
+    toolsets: [file, skills, kanban, todo, browser, vision, terminal, delegation]
+    skills: {squad: [reviewing-sites, site-contract], auto_load: reviewing-sites,
+             keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
+    plugins: {enable: [disk-cleanup]}
+    mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
+    memory: false
+    hidden: true
+  web-deployer:
+    role: worker
+    title: Web deployer
+    description: "GitHub flow, preview and production deploys, DNS and rollback; the only bot with tokens"
+    lane: research
+    toolsets: [file, skills, kanban, todo, terminal]
+    skills: {squad: [deploying-sites, site-contract], auto_load: deploying-sites,
+             keep: [official:web-development/publish-site, bundled:github]}
+    plugins: {enable: [disk-cleanup]}
+    connectors: {enabled: false, suggest: [cloudflare_mcp, vercel_mcp]}
+    passthrough: [CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GH_TOKEN]
+    memory: false
+    hidden: true
+chains:
+  milestone:
+    - {stage: api, assignee: web-backend, skill: building-backend, when: backend}
+    - {stage: ui, assignee: web-frontend, skill: building-frontend}
+    - {stage: preview, assignee: web-deployer, skill: deploying-sites}
+    - {stage: qa, assignee: web-qa, skill: reviewing-sites}
+    - {stage: accept, assignee: web, skill: leading-web}
+  deploy-production:
+    - {stage: production, assignee: web-deployer, skill: deploying-sites}
+asks: ["new site: <idea>", "ok", "publish", "change: <what>", "bug: <what>", "connect my domain", "rollback", "status"]
