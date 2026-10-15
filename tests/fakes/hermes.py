@@ -14,6 +14,12 @@ import yaml
 
 FAKE_ROOT = Path(os.environ.get("FAKE_HERMES_SRC") or Path(__file__).resolve().parent / "root")
 ROOT = Path(os.environ.get("HERMES_HOME", "/nonexistent"))
+# Core toolset names of toolsets.py (v0.22): `tools enable` rejects anything else, as the real CLI does.
+KNOWN_TOOLSETS = frozenset("""
+bot_room browser catalog clarify code_execution coding computer_use connections context_engine cronjob debugging
+delegation desktop_ui discord discord_admin feishu_doc feishu_drive file image_gen kanban memory onboarding project
+safe search session_search skills terminal todo tts video video_gen vision web x_search yuanbao
+""".split())
 argv = sys.argv[1:]
 profile = None
 if argv[:1] == ["-p"]:
@@ -79,7 +85,8 @@ def config_add(path, section, key, value):
 
 def main():
     if argv == ["--version"]:
-        print("Hermes Agent v0.22.0 (fake)")
+        # one line, with the +build suffix a git install reports
+        print("Hermes Agent v0.22.0+2.gd97007c (fake)")
         return
     if argv == ["--print-runtime-command"]:
         boot = (f"import sys; sys.path.insert(0, '{FAKE_ROOT}'); sys._hermes_pin_default_home = True; "
@@ -105,9 +112,14 @@ def main():
                 (home / "skills" / ".bundled_manifest").write_text("bundled-demo:abc\n")
             print(f"created {name}")
         elif sub == "describe":
-            data = load(HOME.parent / args[0] / "profile.yaml", {})
+            data = load(ROOT / "profiles" / args[0] / "profile.yaml", {})
             data["description"] = opt("--text")
             save(ROOT / "profiles" / args[0] / "profile.yaml", data)
+        elif sub == "show":
+            data = load(ROOT / "profiles" / args[0] / "profile.yaml", {})
+            print(f"Profile: {args[0]}")
+            print(f"Description: {data.get('description', '')}")
+            print(f"Gateway:        {'running' if args[0] == 'default' else 'stopped'}")
         elif sub == "export":
             home = ROOT / "profiles" / args[0]
             if not home.is_dir():
@@ -117,6 +129,8 @@ def main():
             with tarfile.open(out, "w:gz") as tf:
                 tf.add(home, arcname=args[0], filter=lambda ti: None if Path(ti.name).name in (".env", "auth.json") else ti)
         elif sub == "delete":
+            if "--yes" not in args:
+                die("refusing to delete without --yes")
             shutil.rmtree(ROOT / "profiles" / args[0])
         elif sub == "list":
             print(" Profile    Model    Gateway    Alias")
@@ -129,6 +143,8 @@ def main():
         need_profile()
         sub, args = rest[0], rest[1:]
         if sub == "opt-out":
+            if "--yes" not in args:
+                die("refusing to remove bundled skills without --yes")
             (HOME / ".no-bundled-skills").write_text("")
             if "--remove" in args:
                 manifest = HOME / "skills" / ".bundled_manifest"
@@ -152,6 +168,22 @@ def main():
         data = jobs()
         if sub == "create":
             sched = args[0]
+            value_flags = {"--name", "--deliver", "--failure-deliver", "--repeat", "--skill", "--script", "--model",
+                           "--provider", "--reasoning-effort", "--interpreter", "--monitor-script", "--monitor-url",
+                           "--workdir", "--paused-reason"}
+            bare, skip = [], False
+            for a in args[1:]:
+                if skip:
+                    skip = False
+                elif a in value_flags:
+                    skip = True
+                elif not a.startswith("--"):
+                    bare.append(a)
+            script = opt("--script")
+            if not script and "--skill" not in args and not bare:
+                die("cron create needs a prompt, --skill or --script")
+            if script and not (HOME / "scripts" / script).is_file():
+                die(f"script not found: {script}")
             data["jobs"].append({
                 "id": uuid.uuid4().hex[:12], "name": opt("--name"), "script": opt("--script"),
                 "no_agent": "--no-agent" in args, "deliver": opt("--deliver", "local"),
@@ -168,7 +200,10 @@ def main():
                 job["schedule"] = {"kind": "cron", "expr": opt("--schedule"), "display": opt("--schedule")}
             if "--skill" in args:
                 job["skills"] = opts("--skill")
-            job["no_agent"] = "--no-agent" in args and "--agent" not in args
+            if "--no-agent" in args:
+                job["no_agent"] = True
+            elif "--agent" in args:
+                job["no_agent"] = False  # an absent flag leaves the value alone
         elif sub == "remove":
             data["jobs"] = [j for j in data["jobs"] if j["id"] != args[0]]
         else:
@@ -183,7 +218,8 @@ def main():
                 key = opt("--idempotency-key")
                 if key not in cards:
                     cards[key] = {"id": f"t_{len(cards) + 1:04d}", "title": args[0], "assignee": opt("--assignee"),
-                                  "parent": opt("--parent"), "project": opt("--project")}
+                                  "parent": opt("--parent"), "project": opt("--project"),
+                                  "status": "todo", "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
                     store.write_text(json.dumps(cards))
                 print(json.dumps({"id": cards[key]["id"]}))
             else:
@@ -194,7 +230,7 @@ def main():
         store = ROOT / "boards.json"
         boards = json.loads(store.read_text()) if store.is_file() else []
         if sub == "list":
-            print(json.dumps([b for b in boards]))
+            print(json.dumps([b for b in boards if not b.get("archived")]))
         elif sub == "create":
             boards.append({"slug": args[0], "name": opt("--name"), "archived": False})
         elif sub == "rm":
@@ -210,9 +246,17 @@ def main():
         lines = store.read_text().splitlines() if store.is_file() else []
         if sub == "list":
             print("\n".join(f"  {ln}" for ln in lines) or "No projects yet.")
+        elif sub == "show":
+            row = next((ln for ln in lines if ln.split()[:1] == [args[0]]), None)
+            if row is None:
+                die(f"no such project: {args[0]}")
+            path = row.split("path=", 1)[1].split()[0] if "path=" in row else ""
+            print(f"Project: {row.split()[1] if len(row.split()) > 1 else args[0]}")
+            print(f"   primary: {path}")
+            print(f"   * {path}")
         elif sub == "create":
             slug = opt("--slug")
-            lines.append(f"{slug}  {args[0]}  board={opt('--board')}")
+            lines.append(f"{slug}  {args[0]}  board={opt('--board')}  path={args[1]}")
             store.write_text("\n".join(lines) + "\n")
         else:
             die(f"fake: project {sub}")
@@ -220,13 +264,23 @@ def main():
         need_profile()
         assert rest[0] == "add"
         cfg = load(HOME / "config.yaml", {})
-        cfg.setdefault("mcp_servers", {})[rest[1]] = {"command": opt("--command"), "url": opt("--url")}
+        failing = set(filter(None, (os.environ.get("FAKE_MCP_PROBE_FAIL") or "").split(",")))
+        cfg.setdefault("mcp_servers", {})[rest[1]] = {"command": opt("--command"), "url": opt("--url"),
+                                                      "enabled": rest[1] not in failing}
         save(HOME / "config.yaml", cfg)
     elif cmd == "plugins":
         need_profile()
         sub, args = rest[0], rest[1:]
-        if sub in ("enable", "install"):
+        if sub == "enable":
             config_add(None, "plugins", "enabled", args[0])
+        elif sub == "install":
+            # real behavior: without --yes-deps the dependency consent fails closed, so the plugin lands in
+            # <home>/plugins but stays disabled; enabling needs --enable together with --yes-deps.
+            plugdir = HOME / "plugins" / args[0]
+            plugdir.mkdir(parents=True, exist_ok=True)
+            (plugdir / "plugin.json").write_text("{}")
+            if "--enable" in args and "--yes-deps" in args:
+                config_add(None, "plugins", "enabled", args[0])
         elif sub == "disable":
             cfg = load(HOME / "config.yaml", {})
             cfg.setdefault("plugins", {}).setdefault("enabled", [])
@@ -234,8 +288,12 @@ def main():
             save(HOME / "config.yaml", cfg)
     elif cmd == "tools":
         need_profile()
-        # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union).
+        # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union),
+        # and unknown toolset names are refused.
         if rest[:1] == ["enable"]:
+            unknown = [n for n in rest[1:] if n not in KNOWN_TOOLSETS and ":" not in n]
+            if unknown:
+                die(f"unknown toolset: {', '.join(unknown)}")
             cfg = load(HOME / "config.yaml", {})
             have = set((cfg.get("platform_toolsets") or {}).get("cli") or [])
             cfg.setdefault("platform_toolsets", {})["cli"] = sorted(have | set(rest[1:]))

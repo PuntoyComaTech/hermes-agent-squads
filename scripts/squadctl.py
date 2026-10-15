@@ -150,6 +150,18 @@ class Ctx:
             self._runtime = (argv[0], root.group(1))
         return self._runtime
 
+    def apply_config(self, home: Path, payload: dict) -> None:
+        """One write pass per home through Hermes's own config writer (_profile_apply.py)."""
+        py, hroot = self.runtime()
+        boot = ("import sys,runpy; sys.path.insert(0, %r); sys._hermes_pin_default_home=True; "
+                "import hermes_bootstrap; runpy.run_path(%r, run_name='__main__')") % (
+            hroot, str(HERE / "_profile_apply.py"))
+        p = subprocess.run([py, "-I", "-c", boot], input=json.dumps(payload),
+                           capture_output=True, text=True, timeout=300,
+                           env={**os.environ, "HERMES_HOME": str(home)})
+        if p.returncode != 0:
+            raise Fail(f"{home.name}: config failed: {(p.stdout + p.stderr).strip()[-600:]}")
+
 
 # --- output (TOON by default) ---------------------------------------------------------------------------------------
 
@@ -413,6 +425,45 @@ def sched_matches(job: dict, wanted: str) -> bool:
     return mins(wanted) in {mins(h) for h in have if h}
 
 
+# App locations `shutil.which` misses (GUI apps on macOS).
+APP_MAC_PATHS = {"blender": "/Applications/Blender.app/Contents/MacOS/Blender"}
+
+
+def find_app(spec: str) -> tuple[str | None, str | None]:
+    """(path, version) of a `requires.apps` entry like `blender>=5.1`. The version is read with
+    `--version` only when the entry pins one; an unparsable version is reported, never guessed."""
+    name = re.split(r"[<>=~]", spec)[0].strip()
+    want = spec[len(name):].strip()
+    path = shutil.which(name)
+    if not path:
+        mac = APP_MAC_PATHS.get(name)
+        path = mac if mac and Path(mac).is_file() else None
+    version = None
+    if path and want:
+        try:
+            done = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=60,
+                                  stdin=subprocess.DEVNULL)
+            hit = re.search(r"(\d+(?:\.\d+){1,2})", (done.stdout or "") + (done.stderr or ""))
+            version = hit.group(1) if hit else None
+        except (OSError, subprocess.SubprocessError):
+            version = None
+    return path, version
+
+
+def app_problem(spec: str) -> str | None:
+    """One note when a required app is missing or does not satisfy its version pin; None when fine."""
+    name = re.split(r"[<>=~]", spec)[0].strip()
+    want = spec[len(name):].strip()
+    path, version = find_app(spec)
+    if not path:
+        return f"app {spec} not found on PATH (or {APP_MAC_PATHS.get(name, 'the app path')})"
+    if want and version is None:
+        return f"app {name} found at {path} but `--version` gave no parsable version (need {want})"
+    if want and version and not version_ok(want, version):
+        return f"app {name} {version} at {path} does not satisfy {spec}"
+    return None
+
+
 class Applier:
     """Reconciles the bots of one squad. With dry=True it only reads and reports."""
 
@@ -475,8 +526,7 @@ class Applier:
                  ["tools.connectors.enabled", bool(conn.get("enabled")), False],
                  ["memory.memory_enabled", bool(bot.get("memory")), False],
                  ["memory.user_profile_enabled", bool(bot.get("memory")), False],
-                 ["curator.enabled", True, False], ["curator.consolidate", False, False],
-                 ["kanban.max_in_progress_per_profile", 1, False]]
+                 ["curator.enabled", True, False], ["curator.consolidate", False, False]]
         if bot.get("website_blocklist"):
             plan += [["security.website_blocklist.enabled", True, False],
                      ["security.website_blocklist.domains", list(bot["website_blocklist"]), False]]
@@ -491,8 +541,10 @@ class Applier:
 
     def ui_meta(self, bot: dict) -> dict:
         meta = {"title": bot["title"], "hidden": bool(bot.get("hidden", bot["role"] == "worker"))}
-        if self.spec.get("section"):
-            meta |= {"sectionId": self.spec["section"]["id"], "sectionName": self.spec["section"]["name"]}
+        section = self.spec.get("section")
+        # sectionId/sectionName are emitted every time, None included: the Desktop replaces the whole
+        # hermes-bots mapping, so a dropped section must clear its id instead of leaving a stale one.
+        meta |= {"sectionId": (section or {}).get("id"), "sectionName": (section or {}).get("name")}
         return meta
 
     def cron_plan(self, name: str, bot: dict, notes: list[str]) -> dict:
@@ -554,18 +606,13 @@ class Applier:
         meta_changed = pa.merge_ui_meta(profile_yaml, meta) is not None
         if diff or meta_changed or created:
             if not dry:
-                py, hroot = ctx.runtime()
-                boot = ("import sys,runpy; sys.path.insert(0, %r); sys._hermes_pin_default_home=True; "
-                        "import hermes_bootstrap; runpy.run_path(%r, run_name='__main__')") % (
-                            hroot, str(HERE / "_profile_apply.py"))
-                p = subprocess.run([py, "-I", "-c", boot], input=json.dumps({"set": sets, "ui_meta_bots": meta}),
-                                   capture_output=True, text=True, timeout=300,
-                                   env={**os.environ, "HERMES_HOME": str(home)})
-                if p.returncode != 0:
-                    raise Fail(f"{name}: config failed: {(p.stdout + p.stderr).strip()[-600:]}")
+                ctx.apply_config(home, {"set": sets, "ui_meta_bots": meta})
                 if any(k == "platform_toolsets.cli" for k, *_ in diff) or created:
                     ctx.hermes("tools", "enable", *bot["toolsets"], profile=name)
         acts += self.describe(diff, created)
+        if created:
+            # bundled keeps are external skill dirs: one visible line each, never folded into the key count
+            acts += [f"skill dir + {Path(v).name} (bundled)" for _ident, k, v in keeps if k == "dir"]
         if meta_changed:
             acts.append(f"ui_meta.hermes-bots {meta}")
         if not dry and not (home / "workspace").is_dir() and not self.self_mode:
@@ -577,7 +624,7 @@ class Applier:
 
         # plugins, mcp
         acts += self.plugins(name, bot, cfg, pending)
-        acts += self.mcp(name, bot, cfg)
+        acts += self.mcp(name, bot, cfg, pending)
 
         # description, SOUL
         if not self.self_mode:
@@ -599,8 +646,9 @@ class Applier:
         if conn:
             notes.append(f"connectors suggested: {', '.join(conn)}")
         for app in (bot.get("requires") or {}).get("apps") or []:
-            if not shutil.which(re.split(r"[<>=~]", app)[0]):
-                notes.append(f"app {app} not found on PATH")
+            problem = app_problem(app)
+            if problem:
+                notes.append(problem)
         status = "unchanged" if not acts else ("created" if created else "changed")
         if dry and acts:
             status = "would-" + status.removesuffix("d")
@@ -697,7 +745,9 @@ class Applier:
                 if bundled:
                     ctx.hermes("plugins", "enable", pname, "--no-allow-tool-override", profile=name)
                 else:
-                    ctx.hermes("plugins", "install", pname, "--enable", profile=name)
+                    # --yes-deps: consent comes from `apply --confirm`, not from this non-interactive call;
+                    # without it dependency consent fails closed and the plugin stays installed but disabled.
+                    ctx.hermes("plugins", "install", pname, "--enable", "--yes-deps", profile=name)
         for pname in spec.get("disable") or []:
             if pname in enabled:
                 acts.append(f"plugins disable {pname}")
@@ -705,17 +755,23 @@ class Applier:
                     ctx.hermes("plugins", "disable", pname, profile=name)
         return acts
 
-    def mcp(self, name: str, bot: dict, cfg: dict) -> list[str]:
-        have = set((cfg.get("mcp_servers") or {}).keys())
+    def mcp(self, name: str, bot: dict, cfg: dict, pending: list[str]) -> list[str]:
+        have = cfg.get("mcp_servers") or {}
         acts = []
         for sname, srv in (bot.get("mcp") or {}).items():
             if sname in have:
+                if not (have.get(sname) or {}).get("enabled", True):
+                    # saved `enabled: false`: the probe failed and `y` answered "Save anyway?"
+                    pending.append(f"mcp {sname}: probe failed, server saved disabled; run `hermes -p {name} mcp test {sname}`")
                 continue
             acts.append(f"mcp add {sname}")
             if not self.dry:
                 tail = ["--url", srv["url"]] if "url" in srv else ["--command", srv["command"], "--args",
                                                                      *srv.get("args", [])]
                 self.ctx.hermes("mcp", "add", sname, *tail, profile=name, stdin="y\n")
+                live = (read_yaml(self.ctx.home(name) / "config.yaml") or {}).get("mcp_servers") or {}
+                if not (live.get(sname) or {}).get("enabled", True):
+                    pending.append(f"mcp {sname}: probe failed, server saved disabled; run `hermes -p {name} mcp test {sname}`")
         return acts
 
     def cron(self, name: str, bot: dict, existed: bool, notes: list[str]) -> list[str]:
@@ -828,6 +884,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
     if unassigned and not dry:
         raise Fail("; ".join(unassigned) + ". Run scripts/model_advisor.py, then pass --models <file>.", 2)
     board = "none" if a.self_mode else ensure_board(ctx, spec, dry)
+    root_acts = root_kanban(ctx, dry)
     bots = [ap.bot(n) for n in names]
     counts: dict[str, int] = {}
     for b in bots:
@@ -843,7 +900,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
         if new != load_installed(ctx):
             write_yaml(ctx.local / "installed.yaml", new)
     rows = [{k: v for k, v in b.items() if v or k in ("bot", "status")} for b in bots]
-    return {"squad": key, "dry_run": dry, "board": board, "summary": counts, "bots": rows}
+    return {"squad": key, "dry_run": dry, "board": board, "root": root_acts, "summary": counts, "bots": rows}
 
 
 def cmd_apply(ctx: Ctx, a: argparse.Namespace, force_dry: bool = False) -> int:
@@ -879,6 +936,23 @@ def check(name: str, status: str, detail: str) -> dict:
     return {"check": name, "status": status, "detail": detail}
 
 
+ROOT_KANBAN_KEY = "kanban.max_in_progress_per_profile"
+
+
+def root_kanban(ctx: Ctx, dry: bool) -> list[str]:
+    """The kanban dispatcher reads `kanban.*` from the gateway root config only (the gateway holds the
+    dispatcher lock), never from a per-bot profile: the one-card-per-profile cap is set once in
+    <root>/config.yaml. Setting it here is safe: it never spends or publishes anything."""
+    cfg = read_yaml(ctx.root / "config.yaml") or {}
+    cur = pa.current(cfg, ROOT_KANBAN_KEY)
+    if cur == 1:
+        return []
+    acts = [f"set root {ROOT_KANBAN_KEY}: {pa.as_cli(cur) if cur is not None else 'unset'} -> 1"]
+    if not dry:
+        ctx.apply_config(ctx.root, {"set": [[ROOT_KANBAN_KEY, 1, False]], "ui_meta_bots": None})
+    return acts
+
+
 def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
     out = []
     ver = hermes_version(ctx) if shutil.which("hermes") else None
@@ -888,10 +962,14 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
     out.append(check("desktop-kanban", "info", "enable Capabilities > Plugins > Kanban to see the boards; "
                      "the dispatcher runs in the gateway regardless (not readable from the CLI)"))
     if ver:
-        listing = ctx.hermes("profile", "list", check=False)
-        running = any("running" in ln.split() for ln in listing.splitlines() if ln.strip().lstrip("\u25c6 ").startswith("default"))
+        shown = ctx.hermes("profile", "show", "default", check=False)
+        running = bool(re.search(r"^Gateway:\s+running", shown, re.M))
         out.append(check("gateway", "ok" if running else "warn", "default profile gateway "
                          + ("running" if running else "not running: kanban cards will not be dispatched")))
+    for act in root_kanban(ctx, True):
+        out.append(check("root:kanban", "warn", act))
+    if not any(c["check"] == "root:kanban" for c in out):
+        out.append(check("root:kanban", "ok", f"{ROOT_KANBAN_KEY} = 1"))
     installed = load_installed(ctx)
     _i, models = effective_models(ctx, None)
     now = time.time()
@@ -909,8 +987,10 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
                 out.append(check(f"{name}:{env}", "ok" if os.environ.get(env) else "warn",
                                  "set" if os.environ.get(env) else "missing in this environment"))
             for app in (bot.get("requires") or {}).get("apps") or []:
-                found = shutil.which(re.split(r"[<>=~]", app)[0])
-                out.append(check(f"{name}:app:{app}", "ok" if found else "warn", found or "not found on PATH"))
+                problem = app_problem(app)
+                path, version = find_app(app)
+                out.append(check(f"{name}:app:{app}", "warn" if problem else "ok",
+                                 problem or f"{path} {version or ''}".strip()))
         slug = (spec.get("board") or {}).get("slug")
         if slug and ver:
             try:
