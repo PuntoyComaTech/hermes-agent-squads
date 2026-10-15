@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/PuntoyComaTech/hermes-agent-squads/squads/_schema/squad.schema.json",
+  "title": "Hermes squad manifest (schema 2)",
+  "description": "squads/<key>/squad.yaml, builder.yaml and local squads. Cross-field rules (lead is a bot with role lead, chain assignees are bots, lanes exist in model-roles.yaml) are enforced by squadctl and tests, not by this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "key", "name", "version", "lead", "bots"],
+  "properties": {
+    "schema": {"const": 2},
+    "key": {"$ref": "#/$defs/slug"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 40},
+    "description": {"type": "string", "maxLength": 200},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "hermes_requires": {"type": "string", "pattern": "^(>=|>|==|<=|<|~=)\\s*\\d+\\.\\d+(\\.\\d+)?$"},
+    "board": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "name"],
+      "properties": {
+        "slug": {"$ref": "#/$defs/slug"},
+        "name": {"type": "string", "minLength": 1},
+        "icon": {"type": "string", "maxLength": 8},
+        "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "description": {"type": "string", "maxLength": 200}
+      }
+    },
+    "section": {
+      "description": "Desktop Bots pane section, written to ui_meta.hermes-bots as sectionId/sectionName.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {"$ref": "#/$defs/slug"},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "lead": {"$ref": "#/$defs/botName"},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aux_lane": {"$ref": "#/$defs/lane"},
+        "vision_lane": {"$ref": "#/$defs/lane"},
+        "cron_toolsets": {"$ref": "#/$defs/toolsets"}
+      }
+    },
+    "bots": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/botName"},
+      "additionalProperties": {"$ref": "#/$defs/bot"}
+    },
+    "chains": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/slug"},
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {"$ref": "#/$defs/stage"}
+      }
+    },
+    "asks": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 80}
+    }
+  },
+  "$defs": {
+    "slug": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$"},
+    "botName": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$"},
+    "lane": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "reasoning": {"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]},
+    "skillName": {"type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$", "maxLength": 40},
+    "envName": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+    "toolsets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"}
+    },
+    "confirm": {
+      "description": "Disclosure or licence question the builder quotes; the item is installed only after the user's explicit OK.",
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 300
+    },
+    "keepId": {
+      "description": "bundled:<name> (Hermes source tree), official:<category>/<name> (optional skills), hub:<identifier>, local:<name> (already in the profile).",
+      "type": "string",
+      "pattern": "^(bundled:[a-z0-9][a-z0-9-]*|official:[a-z0-9-]+/[a-z0-9][a-z0-9-]*|hub:[A-Za-z0-9._/-]+|local:[a-z0-9][a-z0-9-]*)$"
+    },
+    "keep": {
+      "oneOf": [
+        {"$ref": "#/$defs/keepId"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "confirm"],
+          "properties": {"id": {"$ref": "#/$defs/keepId"}, "confirm": {"$ref": "#/$defs/confirm"}}
+        }
+      ]
+    },
+    "plugin": {
+      "oneOf": [
+        {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "confirm"],
+          "properties": {
+            "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "confirm": {"$ref": "#/$defs/confirm"}
+          }
+        }
+      ]
+    },
+    "mcpServer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "command": {"type": "string", "minLength": 1},
+            "args": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {"url": {"type": "string", "pattern": "^https?://"}}
+        }
+      ]
+    },
+    "cronJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schedule", "script"],
+      "properties": {
+        "schedule": {"type": "string", "minLength": 1},
+        "script": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+\\.(py|sh)$"},
+        "args": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "string"}}
+          ]
+        },
+        "agent": {
+          "description": "false: --no-agent gate only. Object: the gate wakes an agent on this lane with this skill.",
+          "oneOf": [
+            {"const": false},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["lane", "skill"],
+              "properties": {
+                "lane": {"$ref": "#/$defs/lane"},
+                "skill": {"$ref": "#/$defs/skillName"},
+                "reasoning": {"$ref": "#/$defs/reasoning"}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "bot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "title", "description", "lane", "toolsets"],
+      "properties": {
+        "role": {"enum": ["lead", "worker"]},
+        "title": {"type": "string", "minLength": 1, "maxLength": 40},
+        "description": {"type": "string", "minLength": 10, "maxLength": 160},
+        "lane": {"$ref": "#/$defs/lane"},
+        "reasoning": {"$ref": "#/$defs/reasoning"},
+        "toolsets": {"$ref": "#/$defs/toolsets"},
+        "skills": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "squad": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/skillName"}},
+            "auto_load": {"oneOf": [{"$ref": "#/$defs/skillName"}, {"type": "null"}]},
+            "keep": {"type": "array", "items": {"$ref": "#/$defs/keep"}}
+          }
+        },
+        "plugins": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enable": {"type": "array", "items": {"$ref": "#/$defs/plugin"}},
+            "disable": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}}
+          }
+        },
+        "mcp": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/slug"},
+          "additionalProperties": {"$ref": "#/$defs/mcpServer"}
+        },
+        "connectors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "suggest": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"}}
+          }
+        },
+        "passthrough": {
+          "description": "Environment variable names only; values are never stored here.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/envName"}
+        },
+        "delegation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"lane": {"oneOf": [{"$ref": "#/$defs/lane"}, {"type": "null"}]}}
+        },
+        "memory": {"type": "boolean"},
+        "hidden": {"type": "boolean"},
+        "website_blocklist": {
+          "description": "Domains written to security.website_blocklist.domains (enabled when non-empty).",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Za-z0-9*.-]+$"}
+        },
+        "cron": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/slug"},
+          "additionalProperties": {"$ref": "#/$defs/cronJob"}
+        },
+        "requires": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apps": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*((>=|==|>)\\d+(\\.\\d+)*)?$"}
+            }
+          }
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "assignee"],
+      "properties": {
+        "stage": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"},
+        "assignee": {"$ref": "#/$defs/botName"},
+        "skill": {"$ref": "#/$defs/skillName"},
+        "when": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+        "lane": {
+          "description": "Per-card --model from this lane; the profile's reasoning effort still applies.",
+          "$ref": "#/$defs/lane"
+        }
+      }
+    }
+  }
+}

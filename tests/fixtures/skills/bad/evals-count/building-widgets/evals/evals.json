@@ -1,0 +1,17 @@
+{
+  "skill_name": "building-widgets",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Card: add a revenue widget for the sales dashboard.",
+      "expected_output": "A widget built from the contract fields with a passing check script.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Card: the orders widget shows a blank header.",
+      "expected_output": "Root cause in the field mapping, fixed, with check_widget.sh passing.",
+      "files": []
+    }
+  ]
+}
