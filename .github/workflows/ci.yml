@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: python -m pip install pytest jsonschema pyyaml
+      - name: Compile Python scripts
+        run: python -m compileall -q $(ls -d scripts squads skills 2>/dev/null)
+      - name: Skill and SOUL format gate
+        run: python scripts/skill_lint.py --require-shellcheck
+      - name: Validate squad manifests against the schema
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          import yaml
+          from jsonschema import Draft202012Validator
+          validator = Draft202012Validator(json.loads(Path("squads/_schema/squad.schema.json").read_text()))
+          bad = 0
+          for path in [Path("builder.yaml"), *sorted(Path("squads").glob("*/squad.yaml"))]:
+              if not path.is_file():
+                  continue
+              for err in validator.iter_errors(yaml.safe_load(path.read_text())):
+                  bad += 1
+                  print(f"{path}: {'/'.join(map(str, err.absolute_path))}: {err.message}")
+          sys.exit(1 if bad else 0)
+          PY
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: python -m pip install pytest jsonschema pyyaml
+      - name: Run pytest against a temp HERMES_HOME
+        run: |
+          export HERMES_HOME="$(mktemp -d)"
+          python -m pytest tests -q
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck every shell script outside tests
+        run: |
+          files=()
+          while IFS= read -r f; do
+            if head -n 1 "$f" | grep -qE '^#!.*\b(ba)?sh\b'; then files+=("$f"); fi
+          done < <(git ls-files 'scripts/*' 'squads/*/scripts/*' 'skills/*/scripts/*' 'squads/*/skills/*/scripts/*')
+          if [ "${#files[@]}" -eq 0 ]; then echo "no shell scripts"; exit 0; fi
+          shellcheck "${files[@]}"
