@@ -7,12 +7,114 @@
       {
         "slug": "copilot",
         "family": "openai",
-        "models": 53
+        "models": [
+          "claude-fable-5.1",
+          "claude-fable-5",
+          "claude-haiku-5.5",
+          "claude-opus-4.8-fast",
+          "claude-opus-4.8",
+          "claude-opus-5.5",
+          "claude-opus-5",
+          "claude-sonnet-5.5",
+          "claude-sonnet-5",
+          "copilot-search-a",
+          "copilot-search-b",
+          "copilot-search-c",
+          "exec-agent-a",
+          "exec-agent-b",
+          "exec-agent-c",
+          "gemini-3.7-flash",
+          "gemini-3.8-flash",
+          "gemini-4-argon",
+          "gpt-5.4-mini-free-auto",
+          "gpt-5.4-mini",
+          "gpt-5.4-nano",
+          "gpt-5.4",
+          "gpt-5.5",
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+          "gpt-6.1-sol",
+          "gpt-6-astra",
+          "gpt-6-luna",
+          "gpt-6-sol",
+          "kimi-k3-base",
+          "kimi-k3-copilot",
+          "kimi-k3",
+          "mai-code-1.1-flash",
+          "mai-code-1-flash-4th",
+          "trajectory-compaction",
+          "gpt-5-mini",
+          "gpt-4o-mini-2024-07-18",
+          "gpt-4o-2024-11-20",
+          "gpt-4o-2024-08-06",
+          "claude-haiku-4.5",
+          "gpt-4.1-2025-04-14",
+          "gpt-5.6-luna-free-auto",
+          "gpt-3.5-turbo-0613",
+          "gpt-4",
+          "gpt-4-0613",
+          "gpt-4-0125-preview",
+          "gpt-4o-2024-05-13",
+          "gpt-4-o-preview",
+          "gpt-4.1",
+          "gpt-3.5-turbo",
+          "gpt-4o-mini",
+          "gpt-4o"
+        ],
+        "key_in": []
       },
       {
         "slug": "opencode-go",
         "family": "open-weights",
-        "models": 45
+        "models": [
+          "deepseek-v4.1-flash",
+          "deepseek-v4-pro",
+          "glm-5.1",
+          "glm-5.2",
+          "glm-5.3",
+          "grok-4.6",
+          "grok-4.7",
+          "muse-spark-1.2-contributor",
+          "muse-spark-1.3-contributor",
+          "glm-5.3-flash",
+          "omen-alpha",
+          "gpt-5.6-luna",
+          "gpt-6-luna",
+          "claude-haiku-5-5",
+          "hy3",
+          "hy4-preview",
+          "kimi-k2.6",
+          "kimi-k2.7-code",
+          "kimi-k3",
+          "mimo-v2.5",
+          "mimo-v2.6-flash",
+          "mimo-v2.5-pro",
+          "mimo-v2.6-pro",
+          "minimax-m2.5",
+          "minimax-m2.7",
+          "gemini-4-argon-contributor",
+          "minimax-m3",
+          "space-bunny",
+          "longcat-2.0",
+          "longcat-2.5-preview-free",
+          "step-5-preview-free",
+          "cat-jam-free",
+          "qwen3.6-plus",
+          "qwen3.7-max",
+          "qwen3.8-max",
+          "qwen3.8-flash",
+          "qwen3.7-plus",
+          "kimi-k2.5",
+          "grok-4.5",
+          "glm-5",
+          "mimo-v2-pro",
+          "mimo-v2-omni",
+          "deepseek-v4-flash",
+          "qwen3.5-plus",
+          "hy3-preview"
+        ],
+        "key_in": []
       }
     ],
     "families": [
@@ -20,7 +122,9 @@
       "open-weights"
     ],
     "source": "cache",
-    "stale": []
+    "stale": [],
+    "report": [],
+    "excluded": []
   },
   "squads": [
     {
@@ -45,7 +149,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -54,20 +158,20 @@
           "lane": "design",
           "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5.5",
-              "provider": "copilot",
-              "reasoning": "high"
-            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
               "reasoning": "high"
+            },
+            {
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         },
         {
@@ -89,27 +193,27 @@
               "reasoning": "high"
             }
           ],
-          "reason": "code lane, candidate 1/6 (open-weights): Backend work is long tool loops on tests",
+          "reason": "code lane (alias of code-routine), candidate 1/6 (open-weights): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
           "extras": [
             {
               "use": "delegation",
               "lane": "advisor",
               "model": "claude-opus-5.5",
               "provider": "copilot",
-              "reasoning": "medium",
+              "reasoning": "high",
               "alternatives": [
-                {
-                  "model": "gpt-5.4",
-                  "provider": "copilot",
-                  "reasoning": "high"
-                },
                 {
                   "model": "mimo-v2.6-pro",
                   "provider": "opencode-go",
                   "reasoning": "xhigh"
+                },
+                {
+                  "model": "gpt-5.4",
+                  "provider": "copilot",
+                  "reasoning": "high"
                 }
               ],
-              "reason": "advisor lane, candidate 1/4 (anthropic): Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations"
+              "reason": "advisor lane (alias of code-complex), candidate 1/5 (anthropic): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
             }
           ]
         },
@@ -122,17 +226,17 @@
           "reasoning": "high",
           "alternatives": [
             {
-              "model": "claude-sonnet-5.5",
+              "model": "claude-opus-5.5",
               "provider": "copilot",
               "reasoning": "high"
             },
             {
-              "model": "mimo-v2.6-pro",
-              "provider": "opencode-go",
-              "reasoning": "xhigh"
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers",
+          "reason": "review lane, candidate 3/5 (openai): Independent review catches more when the reviewer's model family differs from the producers'; family differs from the producers",
           "extras": []
         },
         {
@@ -154,7 +258,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps and deploy runs are high-volume and low-judgment",
+          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
           "extras": []
         }
       ],
@@ -223,7 +327,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -245,29 +349,29 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps and deploy runs are high-volume and low-judgment",
+          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
           "extras": []
         },
         {
           "bot": "marketing-creative",
           "role": "worker",
           "lane": "copy",
-          "model": "claude-sonnet-5.5",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "gpt-5.4",
+              "model": "claude-sonnet-5.5",
               "provider": "copilot",
               "reasoning": "medium"
             },
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "gpt-5.4",
+              "provider": "copilot",
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
+          "reason": "copy lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -276,20 +380,20 @@
           "lane": "design",
           "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5.5",
-              "provider": "copilot",
-              "reasoning": "high"
-            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
               "reasoning": "high"
+            },
+            {
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         },
         {
@@ -306,12 +410,12 @@
               "reasoning": "xhigh"
             },
             {
-              "model": "claude-sonnet-5.5",
+              "model": "claude-opus-5.5",
               "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers",
+          "reason": "review lane, candidate 3/5 (openai): Independent review catches more when the reviewer's model family differs from the producers'; family differs from the producers",
           "extras": []
         }
       ],
@@ -380,7 +484,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -402,7 +506,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps and deploy runs are high-volume and low-judgment",
+          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
           "extras": [
             {
               "use": "chain:application/analyze",
@@ -412,17 +516,17 @@
               "reasoning": "high",
               "alternatives": [
                 {
+                  "model": "claude-opus-5.5",
+                  "provider": "copilot",
+                  "reasoning": "high"
+                },
+                {
                   "model": "mimo-v2.6-pro",
                   "provider": "opencode-go",
                   "reasoning": "xhigh"
-                },
-                {
-                  "model": "claude-sonnet-5.5",
-                  "provider": "copilot",
-                  "reasoning": "high"
                 }
               ],
-              "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers"
+              "reason": "review lane, candidate 3/5 (openai): Independent review catches more when the reviewer's model family differs from the producers'; family differs from the producers"
             }
           ]
         },
@@ -430,22 +534,22 @@
           "bot": "jobs-writer",
           "role": "worker",
           "lane": "copy",
-          "model": "claude-sonnet-5.5",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "gpt-5.4",
+              "model": "claude-sonnet-5.5",
               "provider": "copilot",
               "reasoning": "medium"
             },
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "gpt-5.4",
+              "provider": "copilot",
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
+          "reason": "copy lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -457,17 +561,17 @@
           "reasoning": "high",
           "alternatives": [
             {
+              "model": "claude-opus-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
+            },
+            {
               "model": "mimo-v2.6-pro",
               "provider": "opencode-go",
               "reasoning": "xhigh"
-            },
-            {
-              "model": "claude-sonnet-5.5",
-              "provider": "copilot",
-              "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers",
+          "reason": "review lane, candidate 3/5 (openai): Independent review catches more when the reviewer's model family differs from the producers'; family differs from the producers",
           "extras": []
         }
       ],
@@ -482,20 +586,20 @@
           "lane": "design",
           "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5.5",
-              "provider": "copilot",
-              "reasoning": "high"
-            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
               "reasoning": "high"
+            },
+            {
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         },
         {
@@ -504,20 +608,20 @@
           "lane": "design",
           "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5.5",
-              "provider": "copilot",
-              "reasoning": "high"
-            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
               "reasoning": "high"
+            },
+            {
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         },
         {
@@ -526,20 +630,20 @@
           "lane": "design",
           "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5.5",
-              "provider": "copilot",
-              "reasoning": "high"
-            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
               "reasoning": "high"
+            },
+            {
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         }
       ],
@@ -608,7 +712,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "cron:builder-watch",

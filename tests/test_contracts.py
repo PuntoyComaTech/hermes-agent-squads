@@ -20,7 +20,11 @@ VALIDATOR = Draft202012Validator(SCHEMA)
 SQUADS = ["web", "marketing", "jobs", "studio"]
 DRAFTS = SQUADS + ["builder"]
 CACHES = sorted(p.stem for p in (FIX / "caches").glob("*.json"))
-PLAN_LANES = {"design", "lead", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"}
+PLAN_LANES = {"manager", "frontend", "design-pro", "code-complex", "code-routine", "review", "deploy",
+              "research", "digest", "aux", "vision"}
+# Deprecated lane names kept as {alias_of: ...} so old squad.yaml files still resolve (a later card renames them).
+ALIAS_LANES = {"lead": "manager", "design": "design-pro", "code": "code-routine", "advisor": "code-complex",
+               "copy": "manager"}
 
 
 def load_draft(name):
@@ -108,7 +112,14 @@ def test_schema_rejects(case):
 # --- model-roles ------------------------------------------------------------------------------------------------
 
 def test_model_roles_covers_every_plan_lane():
-    assert set(ROLES["lanes"]) == PLAN_LANES
+    assert set(ROLES["lanes"]) == PLAN_LANES | set(ALIAS_LANES)
+
+
+def test_alias_lanes_point_at_live_lanes():
+    for alias, target in ALIAS_LANES.items():
+        assert ROLES["lanes"][alias] == {"alias_of": target}, alias
+        assert target in PLAN_LANES
+    assert all(ROLES["lanes"][lane].get("alias_of") not in ALIAS_LANES for lane in ALIAS_LANES), "no alias chains"
 
 
 @pytest.mark.parametrize("lane", sorted(PLAN_LANES))
@@ -150,7 +161,7 @@ def test_lane_matches_fixture_cache(lane, cache_name):
 
 
 def test_regexes_do_not_overmatch_variants():
-    cands = {c["match"] for lane in ROLES["lanes"].values() for c in lane["candidates"]}
+    cands = {c["match"] for name, lane in ROLES["lanes"].items() if name in PLAN_LANES for c in lane["candidates"]}
     variants = ["gpt-5.4-mini", "gpt-5.4-nano", "glm-5.3-flash", "kimi-k3-base", "deepseek-v4-flash",
                 "mimo-v2.6-flash", "claude-opus-5", "claude-sonnet-5[1m]"]
     for v in variants:
@@ -170,7 +181,7 @@ def test_fixture_caches():
 
 
 def test_model_ids_only_in_data():
-    patterns = [c["match"] for lane in ROLES["lanes"].values() for c in lane["candidates"]]
+    patterns = [c["match"] for name, lane in ROLES["lanes"].items() if name in PLAN_LANES for c in lane["candidates"]]
     files = list((FIX / "squads").glob("*.yaml")) + [p for p in (FIX / "skills" / "good").rglob("*") if p.is_file()]
     for f in files:
         text = f.read_text()
