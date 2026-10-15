@@ -1,0 +1,7 @@
+{
+  "url": "https://api.github.com/repos/NousResearch/hermes-agent/releases?per_page=5",
+  "status": 200,
+  "etag": "W/\"41854624ce20b72e6e9fb2152fd54c25343a1cea906cf388a958c7b0d7d17418\"",
+  "content-type": "application/json; charset=utf-8",
+  "recorded": "2026-10-15"
+}
