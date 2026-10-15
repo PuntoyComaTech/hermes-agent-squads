@@ -5,9 +5,15 @@ Inputs
   providers  hermes_cli.model_switch_providers.list_authenticated_providers() in-process, else the same call under
              the Hermes runtime interpreter, else `hermes auth list` (slugs only). `--providers cache` or a comma
              list skips detection (offline).
+  key homes  where each provider's key lives (root vs profile): the same detection is re-run with HERMES_HOME
+             pointed at the root and at the profile, and the two views are diffed. "provider X authenticated at
+             root but not in profile Y" is that diff. Auto detection only; never reads .env or auth.json itself.
   models     <HERMES_HOME>/provider_models_cache.json ({slug: {fp, at, models[]}}); falls back to the models the
              detection call returned (providers such as nous have no cache entry).
-  lanes      scripts/data/model-roles.yaml, overridden per lane/family by <builder>/local/model-roles.yaml.
+  lanes      scripts/data/model-roles.yaml, overridden per lane/family by <builder>/local/model-roles.yaml;
+             deprecated lane names (lead, design, code, advisor, copy) resolve through `alias_of`.
+  excluded   <builder>/local/providers-exclude.txt (one slug per line): those providers are detected and
+             reported but never recommended.
 
 Output per bot: lane, model, provider, reasoning, up to 2 alternatives, one-line reason. The review lane prefers a
 family the producers of the squad do not use. Never reads or prints secrets. Cache entries older than 7 days are
@@ -126,21 +132,22 @@ def probe_in_process() -> list[dict] | None:
     return [{"slug": r["slug"], "models": list(r.get("models") or [])} for r in rows]
 
 
-def probe_runtime() -> list[dict] | None:
+def probe_runtime(env: dict | None = None) -> list[dict] | None:
     rt = runtime_python()
     if not rt:
         return None
     (python, flag), src = rt
     try:
-        out = subprocess.run([python, flag, "-c", PROBE.format(src=src)], capture_output=True, text=True, timeout=180)
+        out = subprocess.run([python, flag, "-c", PROBE.format(src=src)], capture_output=True, text=True,
+                             timeout=180, env=env)
         return json.loads(out.stdout.strip().splitlines()[-1]) if out.returncode == 0 else None
     except (OSError, ValueError, IndexError, subprocess.SubprocessError):
         return None
 
 
-def probe_auth_list() -> list[dict] | None:
+def probe_auth_list(env: dict | None = None) -> list[dict] | None:
     try:
-        out = subprocess.run(["hermes", "auth", "list"], capture_output=True, text=True, timeout=60)
+        out = subprocess.run(["hermes", "auth", "list"], capture_output=True, text=True, timeout=60, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
     # Provider header lines only ("<slug> (N credentials):", "<slug>: <label>", "<slug> (...):", as in
@@ -176,13 +183,87 @@ def resolve_providers(mode: str, cache: dict, now: float) -> dict:
     return {"providers": providers, "source": source, "stale": stale}
 
 
+# --- key locations and exclusions -------------------------------------------------------------------------------
+
+def scope_providers(home: Path) -> set[str]:
+    """Slugs Hermes reports authenticated with HERMES_HOME=home: its own view of that scope (root or
+    profile). Runs detection with the scope's home in the subprocess environment; never opens .env or
+    auth.json here."""
+    env = {**os.environ, "HERMES_HOME": str(home)}
+    for probe in (probe_runtime, probe_auth_list):
+        try:
+            rows = probe(env)
+        except Exception:
+            rows = None
+        if rows:
+            return {r["slug"] for r in rows}
+    return set()
+
+
+def key_locations(slugs: list[str]) -> tuple[dict[str, list[str]], list[str]]:
+    """Where each provider's key lives (root / profile), as Hermes sees it per scope. Returns
+    (key_in per slug, report lines "provider X authenticated at root but not in profile Y")."""
+    root, profile = hermes_root(), hermes_home()
+    scopes = [("root", root)] if root == profile else [("root", root), ("profile", profile)]
+    found = {}
+    for name, home in scopes:
+        try:
+            found[name] = scope_providers(home)
+        except Exception:
+            found[name] = set()
+    key_in = {slug: [name for name, _ in scopes if slug in found[name]] for slug in slugs}
+    report = [f"provider {slug} authenticated at root but not in profile {profile.name}"
+              for slug in slugs if root != profile and key_in[slug] == ["root"]]
+    return key_in, report
+
+
+def load_exclusions(path: Path | None) -> list[str]:
+    """Provider slugs that must never be recommended (one per line, # comments allowed)."""
+    if not path or not path.is_file():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise AdvisorError(f"cannot read {path.name}: {exc}") from exc
+    return [s for s in (line.split("#", 1)[0].strip() for line in lines) if s]
+
+
 # --- picking ----------------------------------------------------------------------------------------------------
 
 class Advisor:
-    def __init__(self, roles: dict, providers: list[dict]):
+    def __init__(self, roles: dict, providers: list[dict], exclude: set[str] | None = None):
         self.families = roles["families"]
         self.lanes = roles["lanes"]
-        self.providers = providers
+        self.excluded = set(exclude or ())
+        self.providers = [p for p in providers if p["slug"] not in self.excluded]
+
+    def resolve(self, lane: str) -> str:
+        """Follow alias_of (lead -> manager ...) to the live lane; cycle-safe."""
+        seen = set()
+        while True:
+            spec = self.lanes.get(lane)
+            if spec is None:
+                raise AdvisorError(f"unknown lane: {lane}")
+            target = spec.get("alias_of")
+            if not target:
+                return lane
+            if target in seen or target not in self.lanes:
+                raise AdvisorError(f"broken lane alias: {lane} -> {target}")
+            seen.add(lane)
+            lane = target
+
+    def real_lanes(self) -> list[str]:
+        """Lane names that are not aliases (the alias entries resolve to these)."""
+        return [name for name, spec in self.lanes.items() if not spec.get("alias_of")]
+
+    def lane_spec(self, lane: str) -> dict:
+        """Effective lane spec: the canonical lane's, overlaid with any keys the requested (alias)
+        entry sets itself, so a local override of an old lane name wins over its alias target."""
+        real = self.resolve(lane)
+        spec = dict(self.lanes[real])
+        if real != lane:
+            spec.update({k: v for k, v in self.lanes[lane].items() if k != "alias_of"})
+        return spec
 
     def family_of(self, slug: str) -> str | None:
         return next((f for f, globs in self.families.items() if any(fnmatch(slug, g) for g in globs)), None)
@@ -216,9 +297,8 @@ class Advisor:
         return {"model": best[1], "provider": best[2], "family": self.family_of(best[2]), "reasoning": reasoning}
 
     def pick(self, lane: str, avoid: dict[str, int] | None = None, _depth: int = 0) -> dict:
-        if lane not in self.lanes:
-            raise AdvisorError(f"unknown lane: {lane}")
-        spec = self.lanes[lane]
+        real = self.resolve(lane)
+        spec = self.lane_spec(lane)
         default = spec["reasoning"]
         cands = list(spec["candidates"])
         total = len(cands)
@@ -227,25 +307,26 @@ class Advisor:
             order.sort(key=lambda i: avoid.get(cands[i]["family"], 0))
         hits = [(i, h) for i in order for h in self.candidate_hits(cands[i], default)]
         why = str(spec.get("why", "")).split(";")[0].strip()
+        shown = f"{lane} lane" + (f" (alias of {real})" if real != lane else "")
         if hits:
             idx, best = hits[0]
-            reason = f"{lane} lane, candidate {idx + 1}/{total} ({best['family']}): {why}"
+            reason = f"{shown}, candidate {idx + 1}/{total} ({best['family']}): {why}"
             if avoid is not None and spec.get("rule") == "different-family-from-producer":
                 reason += "; " + self.review_note(best["family"], avoid)
             return {"lane": lane, **best, "alternatives": self.alternatives(hits), "reason": reason}
         mode = spec.get("fallback", "cheapest")
         best = None
-        if mode == "first-choice-provider" and lane != "lead" and _depth == 0:
-            lead = self.pick("lead", _depth=1)
+        if mode == "first-choice-provider" and real != "manager" and _depth == 0:
+            lead = self.pick("manager", _depth=1)
             best = {k: lead[k] for k in ("model", "provider", "family")} | {"reasoning": default}
-            mode = "lead pick"
+            mode = "manager pick"
         if best is None:
             best = self.cheapest(default)
             mode = "cheapest model"
         if best is None:
             raise AdvisorError(f"no model available for lane {lane}; refresh the provider cache")
         return {"lane": lane, **best, "alternatives": [],
-                "reason": f"{lane} lane: no candidate matches the connected providers, using the {mode}; {why}"}
+                "reason": f"{shown}: no candidate matches the connected providers, using the {mode}; {why}"}
 
     def review_note(self, family: str, avoid: dict[str, int]) -> str:
         if not avoid:
@@ -309,15 +390,16 @@ def bot_extras(doc: dict, name: str, bot: dict) -> list[tuple[str, str]]:
 
 def advise_squad(adv: Advisor, doc: dict) -> dict:
     bots = doc["bots"]
-    producers = {n: adv.pick(b["lane"]) for n, b in bots.items() if b["lane"] != "review" and b["role"] != "lead"}
+    producers = {n: adv.pick(b["lane"]) for n, b in bots.items()
+                 if adv.resolve(b["lane"]) != "review" and b["role"] != "lead"}
     if not producers:
-        producers = {n: adv.pick(b["lane"]) for n, b in bots.items() if b["lane"] != "review"}
+        producers = {n: adv.pick(b["lane"]) for n, b in bots.items() if adv.resolve(b["lane"]) != "review"}
     avoid: dict[str, int] = {}
     for p in producers.values():
         avoid[p["family"]] = avoid.get(p["family"], 0) + 1
 
     def pick(lane: str) -> dict:
-        return adv.pick(lane, avoid) if lane == "review" else adv.pick(lane)
+        return adv.pick(lane, avoid) if adv.resolve(lane) == "review" else adv.pick(lane)
 
     out = []
     for name, bot in bots.items():
@@ -334,6 +416,11 @@ def advise_squad(adv: Advisor, doc: dict) -> dict:
 def render_text(result: dict) -> str:
     lines = [f"providers: {', '.join(p['slug'] for p in result['providers']['authenticated'])} "
              f"(via {result['providers']['source']})"]
+    for p in result["providers"]["authenticated"]:
+        where = ", ".join(p["key_in"]) if p["key_in"] else "unknown home"
+        flag = " [excluded: never recommended]" if p.get("excluded") else ""
+        lines.append(f"  {p['slug']}: key in {where}, {len(p['models'])} models{flag}")
+    lines.extend(f"  {line}" for line in result["providers"].get("report", []))
     if result["providers"]["stale"]:
         lines.append(f"stale cache (older than 7 days): {', '.join(result['providers']['stale'])}; "
                      f"ask the user to run `hermes model --refresh` in a terminal (it opens a picker)")
@@ -374,6 +461,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="lane table (default: scripts/data/model-roles.yaml)")
     p.add_argument("--local-roles", type=Path, default=BUILDER / "local" / "model-roles.yaml",
                    help="per-user override of lanes and families (default: local/model-roles.yaml)")
+    p.add_argument("--exclude-file", type=Path, default=BUILDER / "local" / "providers-exclude.txt",
+                   help="providers that must never be recommended, one slug per line "
+                        "(default: local/providers-exclude.txt)")
     p.add_argument("--now", type=float, help="epoch seconds used for cache staleness (tests)")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     return p
@@ -383,15 +473,21 @@ def run(args: argparse.Namespace) -> dict:
     roles, sources = load_roles(args.roles, args.local_roles)
     cache = load_cache(args.cache or default_cache_path())
     found = resolve_providers(args.providers, cache, args.now if args.now is not None else time.time())
-    adv = Advisor(roles, found["providers"])
+    excluded = set(load_exclusions(args.exclude_file))
+    adv = Advisor(roles, found["providers"], exclude=excluded)
+    slugs = [p["slug"] for p in found["providers"]]
+    key_map, report = key_locations(slugs) if args.providers == "auto" else ({s: [] for s in slugs}, [])
     result = {
         "roles": sources,
         "providers": {"authenticated": [{"slug": p["slug"], "family": adv.family_of(p["slug"]),
-                                         "models": len(p["models"])} for p in found["providers"]],
-                      "families": adv.present_families(), "source": found["source"], "stale": found["stale"]},
+                                         "models": p["models"], "key_in": key_map.get(p["slug"], []),
+                                         **({"excluded": True} if p["slug"] in excluded else {})}
+                                        for p in found["providers"]],
+                      "families": adv.present_families(), "source": found["source"], "stale": found["stale"],
+                      "report": report, "excluded": [s for s in slugs if s in excluded]},
         "squads": [advise_squad(adv, load_yaml(find_squad(ref))) for ref in args.squads],
     }
-    lanes = args.lane or ([] if args.squads else list(adv.lanes))
+    lanes = args.lane or ([] if args.squads else adv.real_lanes())
     avoid = None
     if args.producer_lane:
         avoid = {}
