@@ -205,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
                     "pytest, skill_lint and schema gates (default: .venv/bin/python, else the one running "
                     "this script; under scripts/hpy that is the Hermes runtime, which lacks pytest)")
     ap.add_argument("--remote", default="origin", help="git remote holding main (default: origin)")
-    ap.add_argument("--only", action="append", metavar="GATE", choices=["pytest", "skill_lint", "schema", "plan"],
+    ap.add_argument("--only", action="append", metavar="GATE", choices=["pytest", "skill_lint", "schema", "plan", "private"],
                     help="run only this gate (repeatable; implies --dry-run); the tree, bump and changelog "
                          "checks always run")
     a = ap.parse_args(argv)
