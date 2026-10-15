@@ -16,23 +16,23 @@
   `squadctl apply` runs `hermes mcp add` per server
   (`squads/_schema/squad.schema.json`; `scripts/squadctl.py`).
 - Manage existing servers with `hermes mcp list` and `hermes mcp remove`
-  (`website/docs/reference/mcp-config-reference.md`).
+  (`website/docs/reference/cli-commands.md#hermes-mcp`).
 
 ## Config shape
 
 - MCP servers live in config under `mcp_servers` with per-server command, args,
   env and tool filters (`website/docs/reference/mcp-config-reference.md`).
-- Squad tooling treats a server as applied when its name already exists in
-  `mcp_servers` (`scripts/squadctl.py`).
+- Squad tooling treats a server as applied when its name exists in
+  `mcp_servers` and is enabled; a failed probe stays pending
+  (`scripts/squadctl.py`).
 
 ## Using MCP well
 
 - An MCP server adds tools to the bot that has it; give one only to the bot that
   needs it (`website/docs/guides/use-mcp-with-hermes.md`).
-- MCP tools can be deferred behind tool search like built-in tools
+- MCP tools are deferred behind tool search automatically; built-in tools only
+  when named in `tools.tool_search.defer`
   (`website/docs/user-guide/features/tool-search.md`).
-- Community MCP servers run arbitrary code as the bot's user; treat them like
-  plugins and review the source or disclosure first
-  (`website/docs/user-guide/features/mcp.md`).
-- Deeper material: `website/docs/user-guide/features/mcp.md` and
-  `website/docs/developer-guide/middleware.md`.
+- The picker installs Nous-reviewed catalog entries; there is no community
+  submission tier (`website/docs/user-guide/features/mcp.md`).
+- Full reference: `website/docs/user-guide/features/mcp.md`.

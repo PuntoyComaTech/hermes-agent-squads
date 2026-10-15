@@ -45,13 +45,13 @@ One subagent per lens, clean context, no writes. Each finding: page, what is wro
 - CLS under 0.1: images and embeds have dimensions; fonts do not shift layout; no banner inserted after load.
 - INP under 200 ms: no long task over 50 ms on the critical path; third-party scripts justified.
 - Weight: JS budget for the page, image bytes above the fold, render-blocking CSS and fonts.
-- SEO: title and description unique per page, canonical, sitemap, robots, Open Graph image, structured data where the type fits, headings match the page purpose.
 
 ## 5. Security and SEO hygiene
 
 - Secrets: `check_site.py` scan of loaded bundles and HTML plus the repo and the branch history; any key shape is critical and stops the chain.
 - Dependencies: known high or critical vulnerabilities listed; a fresh lockfile; no unexpected postinstall.
-- Headers: at least `X-Content-Type-Options`, `Referrer-Policy`, frame protection, HSTS on https; a CSP or a written reason why not.
-- Mixed content: no `http://` asset on an https page; cookies set with `secure` and a sensible `sameSite` if any.
+- Headers: at least `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` or CSP `frame-ancestors`, HSTS on https; a CSP or a written reason why not.
+- Mixed content: no `http://` asset on an https page; cookies set with `secure` and `SameSite=Lax` or `Strict` if any.
 - Forms: no sensitive data in the URL; POST over https; honeypot or rate limit on public forms; server-side validation evidenced by the backend lens' checks.
+- SEO: title and description unique per page, canonical, sitemap, robots, Open Graph image, structured data where the type fits, headings match the page purpose.
 - Privacy: no third-party tracker beyond what the spec and the site's legal pages declare.

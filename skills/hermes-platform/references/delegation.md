@@ -31,11 +31,10 @@
 
 ## The advisor pattern
 
-- Pair a cheap worker model with a strong advisor consulted rarely: ask the
-  advisor on data-model, auth, repeated failure or irreversible-migration calls
-  only (`website/docs/guides/delegation-patterns.md`; `docs/decisions.md` D-005).
-- Multi-lens reviews run as `delegate_task` subagents with clean contexts inside
-  one reviewer bot, not as extra profiles (`docs/decisions.md` D-005).
+- Pair a cheap worker model with a strong advisor consulted rarely; escalate on
+  data-model, auth, repeated failure or irreversible migration (squad
+  convention).
+- Multi-lens reviews: `docs/decisions.md` D-005.
 - Squad manifests express this as `delegation: {lane: advisor}`; the builder
   writes `delegation.provider/model/reasoning_effort` from the lane
   (`squads/_schema/squad.schema.json`; `scripts/squadctl.py`).

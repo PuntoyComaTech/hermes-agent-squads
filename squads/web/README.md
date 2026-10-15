@@ -1,10 +1,10 @@
 # Squad: Web
 
-> One-page summary: the user reads it to decide whether to install the squad; the builder starts from it. `squad.yaml` is the manifest, `scripts/` the deterministic tools, `skills/` what the bots load.
+`squad.yaml` is the manifest, `scripts/` the deterministic tools, `skills/` what the bots load.
 
 ## Purpose
 
-Someone who does not program gets their website or web app **built, reviewed and live, from their chat**. They describe the site, approve a plain-language plan, look at a preview and say "publish".
+Someone who does not program gets their website or web app built, reviewed and live. The user describes a site, approves a plain-language plan, checks a preview and says "publish".
 
 Several sites at once, each its own project folder and its own GitHub repository. Nothing reaches production, DNS, money or data without the user's explicit answer for that action.
 
@@ -17,7 +17,7 @@ https://m1-panaderia-sol.example.workers.dev
 - Menu page, in Spanish and English
 - Loads in 1.2 s on a phone; no accessibility errors
 📎 screenshot attached
-Reply: "publish" · "change: …" · "bug: … + screenshot"
+Reply: "publish" · "change: ..." · "bug: ... + screenshot"
 ```
 
 | The user says | What happens |
@@ -32,25 +32,13 @@ Reply: "publish" · "change: …" · "bug: … + screenshot"
 
 ## Bots
 
-| Bot | Does | Why it is a separate bot |
-|---|---|---|
-| `web` (lead) | Interview, `spec.md`, milestones, chains, triage, acceptance, the user's messages | Single point of contact; it never builds |
-| `web-frontend` | UI, design system, motion, scroll animation, three.js | Design quality is model-bound: the `design` lane |
-| `web-backend` | APIs, data, auth, tests; delegates to the `advisor` lane | Long tool loops on tests need a cheap fast coder with an escalation path |
-| `web-qa` | Five lenses: acceptance, visual, WCAG 2.2, Core Web Vitals, security and SEO | Whoever builds never approves |
-| `web-deployer` | GitHub flow, preview and production deploys, DNS, rollback | The only bot holding `GH_TOKEN`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` |
+One visible lead (`web`) and four hidden workers; bots, lanes and keeps: `squad.yaml`.
 
 Models come from the lanes in `scripts/data/model-roles.yaml`; the builder asks the user once and records the answer.
 
 ## Stack
 
-| Type | Examples | Stack |
-|---|---|---|
-| `static` | Landing, blog, docs, portfolio | Astro |
-| `dynamic_seo` | Catalog, shop, content site | Next.js App Router |
-| `tanstack`/`saas` | Public part plus a private app | TanStack Start |
-
-Common: Tailwind, TypeScript, pnpm, Biome, Vitest, Playwright. Pinned versions live in `stacks.json` (`skills/building-frontend/scripts/`) and are what `scaffold_site.py` writes. Motion uses GSAP ScrollTrigger; 3D uses three.js with React Three Fiber (see `skills/building-frontend/references/`). Hosting is Cloudflare by default; a server-rendered site in production usually needs its paid plan, stated before the first deploy.
+Common: Tailwind, TypeScript, pnpm, Biome, Vitest, Playwright. Types, stacks and pinned versions: `skills/building-frontend/scripts/stacks.json`. Motion uses GSAP ScrollTrigger; 3D uses three.js with React Three Fiber (see `skills/building-frontend/references/`). Hosting is Cloudflare by default; a server-rendered site in production usually needs its paid plan, stated before the first deploy.
 
 ## Chain: milestone
 
@@ -69,9 +57,7 @@ flowchart LR
 
 ## Cron
 
-| Job | On | Schedule | What it does |
-|---|---|---|---|
-| `web-watch` | `web` (lead) | `0 */4 * * *` | `--no-agent`: prints to the lead's Bot Chat only when a card has been blocked over 24 h or is stale |
+`web-watch` runs on the lead; schedule, script and delivery: `squad.yaml`. It prints to the lead's Bot Chat only when a card needs attention.
 
 ## What the computer needs
 

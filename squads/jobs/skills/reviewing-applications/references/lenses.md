@@ -42,7 +42,7 @@ Output: `{"verdict": "PASS|FIX", "can_do_the_job": true, "concerns": [], "interv
 ## writing
 
 Files: `application/`, `opening.md`.
-Grammar, spelling, jargon, bullet shape (strong verb + what + for whom + result), length within the format the
+Grammar, spelling, jargon, bullet shape per writing-applications step 3, length within the format the
 deliverable needs, tone of the letter and the answers. Each finding names the fix; never rewrite the text here.
 
 Output: `{"verdict": "PASS|FIX", "findings": [{"location": "", "text": "", "fix": ""}]}`
@@ -50,8 +50,8 @@ Output: `{"verdict": "PASS|FIX", "findings": [{"location": "", "text": "", "fix"
 ## Aggregating
 
 1. Copy each block verbatim into `reviews` of `review-N.json`.
-2. Truthfulness FAIL → never APPROVED. Collect the findings as `type: content` corrections with the exact
+2. Truthfulness FAIL -> never APPROVED. Collect the findings as `type: content` corrections with the exact
    replacement text required from a verified achievement.
-3. Any blocker or fixable finding → FIX, with each correction carrying `type` and instructions. Round 2 (or a `C`
-   round) that is still not APPROVED → NOT_APPROVED.
+3. Any blocker or fixable finding -> FIX, with each correction carrying `type` and instructions. Round 2 (or a
+   CHANGE round) that is still not APPROVED -> NOT_APPROVED.
 4. `summary_for_user`: at most 5 lines, in the user's language, no internals.

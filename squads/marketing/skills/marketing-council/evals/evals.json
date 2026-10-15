@@ -9,7 +9,7 @@
     },
     {
       "id": 2,
-      "prompt": "Quick take: what would Ogilvy say about this headline — 'Revolutionize your workflow with AI synergy'?",
+      "prompt": "Quick take: what would Ogilvy say about this headline, 'Revolutionize your workflow with AI synergy'?",
       "expected_output": "One advisor, only the Ogilvy dossier loaded; critique through his headline doctrine; no quote that is not in the dossier or a research source; a concrete rewrite direction; labeled as simulation.",
       "files": []
     },

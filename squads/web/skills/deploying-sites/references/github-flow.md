@@ -1,6 +1,6 @@
 # GitHub flow
 
-Auth is only `GH_TOKEN` (fine-grained personal access token) through the profile's passthrough. Never `gh auth login`: it stores credentials for the whole OS user and would share them with every bot that has a terminal.
+Auth is only `GH_TOKEN` (fine-grained personal access token) through the profile's passthrough. Never `gh auth login`.
 
 ## Check the token before anything
 
@@ -15,7 +15,7 @@ Whether it can create repositories, without creating one: a deliberately invalid
 ## Repo modes
 
 - `bot_creates` (token sees all repositories plus Administration write): create the private repo, set `origin`, push `main`.
-- `user_creates` (token sees only the site repos): verify the user's empty private repo is reachable, then push. Not reachable → block with click-by-click steps: create an empty private repo named `<slug>`, add it to the token's repository access, reply "done".
+- `user_creates` (token sees only the site repos): verify the user's empty private repo is reachable, then push. Not reachable -> block with click-by-click steps: create an empty private repo named `<slug>`, add it to the token's repository access, reply "done".
 
 ```bash
 gh repo create <owner>/<slug> --private --source repo --remote origin --push   # bot_creates

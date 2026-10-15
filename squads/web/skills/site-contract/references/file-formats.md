@@ -36,7 +36,7 @@ repo:
   created: false         # true once the deployer created or verified it
 production:
   url: null
-  version_id: null       # live version, the rollback target's successor
+  version_id: null       # live version id
   deployed_at: null
 automation:
   reviewer_rounds: 2
@@ -47,8 +47,6 @@ automation:
     axe_max: {critical: 0, serious: 0}
     broken_internal_links: 0
     core_web_vitals: {lcp_ms: 2500, cls: 0.1, inp_ms: 200}
-live:
-  url: null              # the dev server URL while a BUILD runs, in the card body
 ```
 
 ## 2. `spec.md`
@@ -82,7 +80,7 @@ Each criterion is testable: page, action, expected result.
 ## Out of scope
 ## Open questions (at most 5)
 ## Changes
-- v2 · 2026-10-12 · "add a gallery" → M4
+- v2 · 2026-10-12 · "add a gallery" -> M4
 ```
 
 ## 3. `milestones/<ID>.md`
@@ -159,7 +157,7 @@ Every stage appends one History line; the building bot is the only one that edit
   "previous_version_id": null,
   "confirmed": null,
   "ok": true,
-  "smoke": {"status": 200, "checks": "reviews/…/smoke.json"},
+  "smoke": {"status": 200, "checks": "reviews/.../smoke.json"},
   "notes": []
 }
 ```

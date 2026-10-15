@@ -1,6 +1,6 @@
 # Design rail
 
-The rule of the squad: a page must look deliberate at a glance. Tokens, not one-off values; hierarchy, not decoration.
+The rule of the squad: tokens, not one-off values; hierarchy, not decoration.
 
 ## Tokens first
 
@@ -33,7 +33,7 @@ Two font families maximum. Fluid sizes with `clamp()`. A component that needs a 
 
 ## Components
 
-- One job per component, one file per component, variants through props/classes — never a fork of the file.
+- One job per component, one file per component, variants through props/classes, never a fork of the file.
 - Names describe the role (`SiteHeader`, `PriceTable`), not the look.
 - A component owns its styles; global CSS holds tokens, resets and base elements only.
 - States are part of the component: hover, focus-visible, active, disabled, empty, loading, error.
@@ -41,7 +41,7 @@ Two font families maximum. Fluid sizes with `clamp()`. A component that needs a 
 
 ## Accessibility at build time
 
-- Body text contrast at least 4.5:1, large text 3:1; check the accent color on both backgrounds.
+- Body text contrast per WCAG 2.2 SC 1.4.3 (4.5:1, large 3:1), UI components per SC 1.4.11 (3:1); check the accent color on both backgrounds.
 - `:focus-visible` outline everywhere, never removed; skip link to the main landmark.
 - Hit targets at least 24x24 px (WCAG 2.2, 2.5.8), 44 px on touch-first actions.
 - Every image has `alt` (empty for decoration); icon-only buttons carry an accessible name.

@@ -29,7 +29,7 @@ bots:
     toolsets: [file, skills, kanban, todo, web, browser, delegation]
     skills: {squad: [finding-jobs, analyzing-jobs, jobs-contract], keep: [bundled:blocked-page-recovery]}
     plugins: {enable: [disk-cleanup]}
-    website_blocklist: [linkedin.com, "*.linkedin.com"]
+    website_blocklist: [linkedin.com]
     hidden: true
   jobs-writer:
     role: worker

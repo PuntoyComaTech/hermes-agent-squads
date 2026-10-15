@@ -32,19 +32,17 @@
 
 ## The community catalog
 
-- `plugin-catalog/` in the Hermes tree holds community catalog entries; the
-  manifest declares `name`, `tier: official | community`, description and
-  disclosure lines (`plugin-catalog/README.md`).
-- Presence in the catalog directory is the trust signal, not an endorsement;
-  download pinning and disclosure rules are in `plugin-catalog/README.md`.
+- `plugin-catalog/` in the Hermes tree holds Nous-approved catalog entries; the
+  manifest carries `name`, `tier: official | community`, a one-line
+  `description` and optional `known_issues` (`plugin-catalog/README.md`).
+- Presence in the catalog directory is the trust signal; exact-SHA pinning and
+  the admission rules are in `plugin-catalog/README.md`.
 - The desktop `catalog` toolset searches the catalog and installs through an
   approval card (`website/docs/reference/toolsets-reference.md`).
 
 ## Review before enabling
 
-- Community plugins and hub skills: run `hermes skills inspect` / read the
-  catalog entry, quote its disclosure and licence to the user, and get an
-  explicit OK (`plugin-catalog/README.md`; `docs/decisions.md` C-02).
+- Approval: `AGENTS.md` -> Rules; steps: `finding-capabilities`.
 - A plugin runs with the bot's permissions; enable it only on the bot that
   needs it (example: `security-guidance` only where code is written,
   `website/docs/user-guide/features/built-in-plugins.md`).

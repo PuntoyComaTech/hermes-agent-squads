@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Check a rendered deliverable against the brief: spec, EBU R128 loudness, contact sheet (plan section 4.4).
-
-  render_check.py FILE [FILE ...] [--brief BRIEF.md] [--duration S] [--fps N] [--resolution WxH]
-                  [--target-lufs LUFS] [--tolerance-seconds S] [--tolerance-fps F]
-                  [--contact-sheet PATH|auto] [--samples N] [--json]
+"""Check a rendered deliverable against the brief: spec, EBU R128 loudness, contact sheet.
 
 Reads the expectations from the brief front matter (duration, fps, resolution, format, loudness) and lets
 each flag override one of them. Uses ffprobe for the spec, `ffmpeg -af ebur128` for loudness and ffmpeg

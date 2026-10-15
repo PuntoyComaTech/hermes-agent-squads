@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Just edit the worker's config.yaml directly, faster.",
-      "expected_output": "Refuses hand edits outside ui_meta and routes the change through the overlay and squadctl apply (V-10).",
+      "expected_output": "Refuses hand edits: routes the change through the overlay and squadctl apply (V-10).",
       "files": []
     },
     {

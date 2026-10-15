@@ -17,7 +17,7 @@ if [ $# -lt 1 ]; then
   echo "usage: hpy <script.py> [args...]" >&2
   exit 2
 fi
-tool="$1"
+tool="${1#scripts/}"
 shift
 
 if [ -n "${HPY_PYTHON:-${SQUADCTL_PYTHON:-}}" ]; then

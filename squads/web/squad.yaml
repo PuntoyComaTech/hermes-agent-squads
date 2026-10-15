@@ -28,13 +28,13 @@ bots:
     description: "UI, design system, motion, scroll animation and three.js for the site repo"
     lane: design
     reasoning: medium
-    toolsets: [file, skills, kanban, todo, terminal, vision, browser]
+    toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
     skills: {squad: [building-frontend, site-contract], auto_load: building-frontend,
              keep: [official:creative/impeccable, official:creative/auteur, official:web-development/scrollcraft,
                     official:creative/dream-loop, bundled:claude-design, bundled:design-md,
                     bundled:popular-web-designs]}
     plugins: {enable: [disk-cleanup, security-guidance]}
-    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: []}
     memory: false
     hidden: true
@@ -48,7 +48,7 @@ bots:
              keep: [bundled:test-driven-development, bundled:systematic-debugging,
                     official:software-development/rest-graphql-debug, official:software-development/ast-grep]}
     plugins: {enable: [disk-cleanup, security-guidance]}
-    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: [supabase, neon_mcp]}
     delegation: {lane: advisor}
     memory: false
@@ -79,6 +79,8 @@ bots:
     memory: false
     hidden: true
 chains:
+  onboarding:
+    - {stage: repo, assignee: web-deployer, skill: deploying-sites}
   milestone:
     - {stage: api, assignee: web-backend, skill: building-backend, when: backend}
     - {stage: ui, assignee: web-frontend, skill: building-frontend}

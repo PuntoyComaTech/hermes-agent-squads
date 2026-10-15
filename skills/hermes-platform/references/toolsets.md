@@ -10,10 +10,6 @@
 
 - A toolset is a named group of tools; the full table of toolsets and their
   tools is `website/docs/reference/toolsets-reference.md`.
-- Important groups for squads: `file`, `terminal`, `skills`, `kanban`, `todo`,
-  `memory`, `session_search`, `clarify`, `web`, `browser`, `vision`,
-  `delegation`, `cronjob`, `project`
-  (`website/docs/reference/toolsets-reference.md`).
 
 ## Enabling and disabling
 
@@ -21,16 +17,14 @@
   `platform_toolsets.cron` for cron agent runs
   (`website/docs/user-guide/configuration.md`; `scripts/squadctl.py`).
 - `agent.disabled_toolsets` removes toolsets; squad tooling sets it to
-  `always_disabled ∪ (managed − enabled)` so a bot can never gain a toolset the
-  manifest does not declare (`scripts/squadctl.py`; `scripts/data/always-disabled.yaml`).
+  `always_disabled + (MANAGED - bot.toolsets)` so a bot can never gain a toolset
+  the manifest does not declare (`scripts/squadctl.py`;
+  `scripts/data/always-disabled.yaml`).
+- The always-disabled list for squad bots, the reason per name and the registry
+  check are in the header of `scripts/data/always-disabled.yaml`
+  (`tests/test_contracts.py`; `docs/decisions.md` C-07).
 - `hermes tools enable <names...> --profile <bot>` toggles the toolset registry
   alongside the config keys (`scripts/squadctl.py`).
-- The always-disabled list for squad bots (credentials, payments, computer use,
-  messaging write access) is `scripts/data/always-disabled.yaml`; names there
-  were checked against the Hermes toolset registry
-  (`tests/test_contracts.py`, `docs/decisions.md` C-07).
-- Squad toolset presets: leads get file, skills, kanban, memory, session_search,
-  clarify, todo; workers get file, skills, kanban, todo (`docs/decisions.md` C-10).
 
 ## Tool discovery notes
 
@@ -40,5 +34,3 @@
 - `web_search` deliberately does not belong to the `browser` toolset, so
   disabling `browser` cannot strip it
   (`website/docs/reference/toolsets-reference.md`).
-- Many tools are deferred behind tool search instead of being removed
-  (`website/docs/user-guide/features/tool-search.md`).

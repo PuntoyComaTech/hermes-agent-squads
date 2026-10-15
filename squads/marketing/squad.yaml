@@ -20,7 +20,7 @@ bots:
       auto_load: leading-marketing
       keep: [official:creative/social-media-content-calendar, official:productivity/decision-questionnaire]
     plugins: {enable: [disk-cleanup]}
-    connectors: {enabled: false, suggest: [hubspot, notion]}
+    connectors: {enabled: false, suggest: []}
     memory: true
     hidden: false
     cron:
@@ -31,12 +31,13 @@ bots:
     title: Marketing research
     description: "Dated market, competitor and ad-library evidence"
     lane: research
-    toolsets: [file, skills, kanban, todo, web, browser]
+    toolsets: [file, skills, kanban, todo, web, browser, terminal]
     skills:
       squad: [researching-markets, brand-contract]
-      keep: [bundled:competitor-news-monitor, bundled:blocked-page-recovery, official:social-media/reddit-reading, official:research/scrapling]
+      auto_load: researching-markets
+      keep: [bundled:competitor-news-monitor, bundled:blocked-page-recovery, official:social-media/reddit-reading]
     plugins: {enable: [disk-cleanup]}
-    connectors: {enabled: false, suggest: [semrush, ahrefs_mcp]}
+    connectors: {enabled: false, suggest: []}
     hidden: true
   marketing-creative:
     role: worker
@@ -46,8 +47,10 @@ bots:
     toolsets: [file, skills, kanban, todo, vision]
     skills:
       squad: [writing-copy, brand-contract, marketing-psychology]
+      auto_load: writing-copy
       keep: [bundled:humanizer]
     plugins: {enable: [disk-cleanup]}
+    connectors: {enabled: false, suggest: [notion]}
     hidden: true
   marketing-producer:
     role: worker
@@ -57,9 +60,10 @@ bots:
     toolsets: [file, skills, kanban, todo, terminal, vision, image_gen, browser]
     skills:
       squad: [producing-assets, brand-contract]
+      auto_load: producing-assets
       keep: [bundled:claude-design, bundled:design-md, official:creative/impeccable, official:creative/hyperframes]
     plugins: {enable: [disk-cleanup, security-guidance]}
-    connectors: {enabled: false, suggest: [canva_mcp, higgsfield_mcp]}
+    connectors: {enabled: false, suggest: []}
     hidden: true
   marketing-reviewer:
     role: worker
@@ -67,7 +71,7 @@ bots:
     description: "Five lenses: brief fit, voice, claims, persuasion and format specs"
     lane: review
     toolsets: [file, skills, kanban, todo, vision, delegation]
-    skills: {squad: [reviewing-marketing, brand-contract]}
+    skills: {squad: [reviewing-marketing, brand-contract], auto_load: reviewing-marketing}
     plugins: {enable: [disk-cleanup]}
     hidden: true
 chains:

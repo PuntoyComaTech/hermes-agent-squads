@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Install this community plugin, it looks perfect.",
-      "expected_output": "Reads the catalog entry, quotes its disclosure and licence to the user, and installs only after an explicit OK; declares it with confirm semantics in the manifest.",
+      "expected_output": "Reads `plugin-catalog/<name>.yaml`, quotes its disclosure and licence to the user, and installs only after an explicit OK; declares it in the manifest with a confirm text.",
       "files": []
     },
     {

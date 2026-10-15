@@ -22,26 +22,23 @@ body says NEW, CORRECTION or CHANGE. Nothing enters a document unless `achieveme
    those an achievement supports), CV language (= the opening's language), and the evidence pieces when
    `evidence.pieces_per_application` is above 0.
 3. **cv_content.json** per skill rendering-cv (the shape is documented there). Every experience bullet is a
-   strong verb + what + for whom + result, 12 to 22 words, and cites its achievement ids. Style: no empty
-   adjectives, no filler, one idea per bullet, most relevant experience first.
+   strong verb + what + for whom + result, 12 to 22 words, and cites its achievement ids. One idea per bullet.
 4. **Other deliverables** from `profile.md` -> `deliverables`: `cover_letter.md`, `answers.md`,
    `recruiter_message.md`. Each paragraph ends with `<!-- achievements: ACH-... -->`. Answers use only recorded
    data and verified achievements.
-5. **Render** with skill rendering-cv: `python3 "$HERMES_HOME/skills/squad-jobs/rendering-cv/scripts/render_cv.py"`
-   over `cv_content.json`; read `render_report.json`. At most 3 attempts; when space runs short, change the
-   design, never a fact or a number.
-6. Set `status.json` to `in_review` and create the reviewer's card: jobs-reviewer, skill
-   reviewing-applications, `parents` = [your card], `idempotency_key` `jobs:application:<project>:<ID>:review`
-   (round 2: `...:review-r2`).
+5. **Render** per skill rendering-cv over `cv_content.json`; read `render_report.json`.
+6. Set `status.json` to `in_review` and create the reviewer's card: jobs-reviewer,
+   `skills: [reviewing-applications]`, `parents: [<your card id>]`, `idempotency_key`
+   `jobs:application:<project>:<ID>:review` (correction round: `...:review-r2`; CHANGE round N:
+   `...:review-c<N>`).
 
 **CORRECTION / CHANGE.** Apply exactly what the reviewer or the user asked, note in `strategy.md` what changed,
-re-render, and file the round-2 review card. A requested claim with no verified achievement is never written:
-`kanban_block(kind="needs_input")` and name the missing achievement.
+re-render, and file the next review card (`...:review-r2` for a correction, `...:review-c<N>` for CHANGE round
+N). A requested claim with no verified achievement is never written: `kanban_block(kind="needs_input")` and name
+the missing achievement.
 
 ## Pitfalls
 
-- Never change a number, date, job title, company or tool; never round up; never raise a proficiency level.
-- Never use an achievement with `verified: false`, and never write a claim the user did not confirm.
 - Never browse: you have no web toolset, and the analysis is the scout's file.
 - Never edit `analysis.json`, `opening.md` or `status.json` history.
 - The CV header is the only place contact data may appear, and only in the rendered files.

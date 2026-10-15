@@ -10,14 +10,14 @@ The idea and the words, in the brand's voice, for one channel at a time. You hav
 ## When to Use
 
 - A `copy` stage card asks for `concept.md` and `copy.md` for a piece.
-- The piece needs two or three campaign territories to choose from (`CONCEPTS`).
+- The piece needs two or three campaign territories to choose from.
 - A fix card quotes the user's change request for copy.
 
 ## Procedure
 
 1. Read the card body, `brief.md`, `brand.md` and `preferences.md`. If the brief or a brand fact is unclear, block with one concrete question instead of guessing.
-2. Diverge before choosing: list at least five ideas and discard the first three — they are the ones the audience has already seen from everyone. Keep the odd one.
-3. `concept.md`: the idea in one sentence, why it works (the mechanism, in one line), and the art direction — background and scene, one hero, movement. For video, a storyboard table: scene, seconds, visual, on-screen text, voice-over.
+2. Diverge before choosing: list at least five ideas, discard the first three, keep the odd one.
+3. `concept.md`: the idea in one sentence, why it works (the mechanism, in one line), and the art direction (`producing-assets` step 2). For video, a storyboard table: scene, seconds, visual, on-screen text, voice-over.
 4. `copy.md`, per channel, one message and one call to action:
    - **Post / story**: first line carries the hook; lengths, hashtags and emojis follow `brand.md`.
    - **Carousel**: one idea per slide, 6-10 slides, the last one asks.
@@ -27,9 +27,9 @@ The idea and the words, in the brand's voice, for one channel at a time. You hav
    - **Article**: search intent first, the direct answer at the top, clear H2s.
    - **Script**: hook in the first two seconds, beats timed at ~150 words per minute, six-word on-screen text, subtitles, the ask at the end.
 5. Write alt text for the images and UTM on every outbound link (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content` = piece id); never on internal links.
-6. Run the copy through `humanizer` and strike the machine tells: "in today's fast-paced world", "it is worth noting", "unlock", "dive in", "not only... but also", stacked dashes, bold on every phrase. In other languages, the same class of clichés.
-7. `sources.md`: for every fact and external phrase, where it came from; and the proof point from `brand.md` each claim rests on.
-8. Hand off with `kanban_complete`, every written path in `metadata.paths` and the mechanism named in one line.
+6. Run the copy through `bundled:humanizer` and strike the machine tells: "in today's fast-paced world", "it is worth noting", "unlock", "dive in", "not only... but also", stacked dashes, bold on every phrase. In other languages, the same class of clichés.
+7. `sources.md`: name the `brand.md` proof point every claim rests on; facts and external phrases keep their source (`brand-contract`).
+8. Hand off with `kanban_complete`, every written path in `metadata.changed_files` and the mechanism named in one line.
 
 ## Pitfalls
 
@@ -41,7 +41,7 @@ The idea and the words, in the brand's voice, for one channel at a time. You hav
 
 ## Verification
 
-- One message and one call to action; the piece is understood in two seconds.
+- One message and one call to action; the hook sits in the first line (video: first 2 s).
 - Every claim maps to a `brand.md` row marked verified, with permission where a person is quoted.
 - Copy respects the voice samples, vocabulary and form of address in `brand.md`.
 - `concept.md`, `copy.md` and `sources.md` exist under the piece folder, and the handoff names the mechanism.

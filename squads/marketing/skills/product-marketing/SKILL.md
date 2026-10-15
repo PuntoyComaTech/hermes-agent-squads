@@ -1,6 +1,6 @@
 ---
 name: product-marketing
-description: "Fills the positioning, audience and proof context. Use when onboarding needs a brand.md draft, an update to positioning, or a customer-language pass before planning."
+description: "Drafts and versions brand.md positioning and proof. Use when onboarding needs a brand.md draft, an update to positioning, or a customer-language pass before planning."
 ---
 
 # Product marketing context
@@ -16,16 +16,11 @@ description: "Fills the positioning, audience and proof context. Use when onboar
 
 ## Procedure
 
-1. **Read what exists before asking.** The brand's own website, social profiles, product documents and the user's own copy beat any interview answer. The properties of the product as the customer sees them, not as the owner describes them internally.
-2. **Draft the sections in `templates/brand.md`**, in this order:
-   - Facts: one-line description, offer and prices, archetype, market, goal.
-   - Audience: segments, the job the offer is hired for, the stated problem versus the real one, who it is not for.
-   - Competitors: direct, secondary and indirect, and how each falls short; note who is marketing to this audience right now.
-   - Voice: adjectives, tone per channel, vocabulary yes/no, emoji and call-to-action rules, two or three approved samples.
-   - Proof points: table rows with type, source, `Verified` and `Permission to use`.
+1. **Read what exists before asking.** The brand's own website, social profiles, product documents and the user's own copy beat any interview answer.
+2. Fill `templates/brand.md` in order: Facts, Audience, Competitors, Voice, Proof points.
 3. **Chase verbatim language.** Exact customer phrases ("I just need it to arrive before Friday") beat polished descriptions; collect them from reviews, comments, messages and the user's answers, and mark where each came from.
 4. **Show the draft and ask what is wrong.** Anything the user cannot confirm stays out of Proof points; positional claims they cannot support get cut, not softened.
-5. **Version it.** Every substantive change bumps the frontmatter `version`, updates `updated` and prepends one `Changes` line saying what changed and why. Pure typo fixes do not bump. Past lines are never rewritten.
+5. **Version it.** Per `brand-contract` step 3.
 6. **Announce a repositioning.** When the change is a real repositioning, say so plainly in the two-line summary: everything after it will be built on the new context.
 
 ## Pitfalls

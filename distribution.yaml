@@ -4,4 +4,4 @@ description: "Creates, edits and maintains local Hermes squads"
 hermes_requires: ">=0.22.0"
 author: PuntoyComaTech
 license: MIT
-distribution_owned: [SOUL.md, config.yaml, distribution.yaml, builder.yaml, CHANGELOG.md, skills, scripts, squads]
+distribution_owned: [SOUL.md, config.yaml, distribution.yaml, builder.yaml, CHANGELOG.md, docs/decisions.md, skills, scripts, squads]

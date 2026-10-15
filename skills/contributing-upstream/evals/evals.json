@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "You are a maintainer; push the fix straight to main.",
-      "expected_output": "Runs lint, pytest and the temp-root plan first; pushes to main only with all green, otherwise opens a PR.",
+      "expected_output": "Runs `scripts/hpy release.py`: with a version bump, a CHANGELOG entry and all gates green (skill_lint, pytest, schema, temp-root plans) it pushes to main; otherwise it opens a PR.",
       "files": []
     },
     {

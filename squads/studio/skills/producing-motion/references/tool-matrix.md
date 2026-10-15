@@ -1,7 +1,7 @@
 # Tool matrix
 
 Which tool produces which shot, and the commands each kept skill documents. The skills named here are
-installed into the profile (keeps in squad.yaml); this file never replaces them.
+installed into the profile (keeps in squad.yaml).
 
 ## Contents
 
@@ -15,14 +15,14 @@ installed into the profile (keeps in squad.yaml); this file never replaces them.
 
 ## Choosing a tool
 
-| Shot | Tool | Why |
-|---|---|---|
-| Title cards, overlays, captions, product tours, social cuts | HyperFrames | HTML is the source of truth; GSAP timeline; renders MP4/WebM with FFmpeg |
-| Data-driven, templated or long compositions; React codebase already exists | Remotion | React compositions with parameters; needs the licence answer first |
-| Standalone scroll or gesture demo with pinned scenes | GSAP + ScrollTrigger | The technique lives in the auteur and hyperframes skills |
-| WebGL hero demo, 3D scene in the browser, `.glb` showcase | three.js / React Three Fiber | auteur and dream-loop cover the visual-fidelity techniques |
-| Math, algorithm or concept explainer with equations | Manim | Manim Community Edition scenes rendered by the Manim CLI |
-| Generative art, interactive sketch, canvas experiment | p5.js | One self-contained HTML file; no build step |
+| Shot | Tool |
+|---|---|
+| Title cards, overlays, captions, product tours, social cuts | HyperFrames |
+| Data-driven, templated or long compositions; React codebase already exists | Remotion |
+| Standalone scroll or gesture demo with pinned scenes | GSAP + ScrollTrigger |
+| WebGL hero demo, 3D scene in the browser, `.glb` showcase | three.js / React Three Fiber |
+| Math, algorithm or concept explainer with equations | Manim |
+| Generative art, interactive sketch, canvas experiment | p5.js |
 
 One shot, one tool. If a shot needs two (for example a Blender asset inside a three.js demo), the 3d
 stage produces the asset first and the motion stage imports it from `assets/`.
@@ -31,7 +31,7 @@ stage produces the asset first and the motion stage imports it from `assets/`.
 
 - Prerequisites: Node.js 22+, FFmpeg. Its skill ships `scripts/setup.sh` for the one-time install.
 - `npx hyperframes init <name> --non-interactive` scaffolds a project; `--example <template>` picks a
-  template (blank, warm-grain, kinetic-type, product-promo, swiss-grid, …).
+  template (blank, warm-grain, kinetic-type, product-promo, swiss-grid, ...).
 - `npx hyperframes lint` before preview or render; `npx hyperframes doctor` for environment issues.
 - `npx hyperframes preview` is a long-lived server (port 3002): stop it when the shot is done.
 - `npx hyperframes render --output renders/<piece-id>-<shot>-<NN>.mp4` with `--quality draft|standard|high`,
@@ -41,8 +41,7 @@ stage produces the asset first and the motion stage imports it from `assets/`.
 
 - React project; `npx remotion studio [--no-open]` for the interactive preview, `npx remotion render`
   to write the file (the remotion-best-practices skill routes to its render reference for flags).
-- Licence: free for individuals and companies up to 3 employees; a paid company licence is required from
-  4 employees. The plugin keep is confirm-gated in squad.yaml: no licence answer, no Remotion renders.
+- The keep is confirm-gated in squad.yaml: no licence answer, no Remotion renders.
 - Keep the project in `assets/remotion/` (or `renders/<...>/src` for a delivered demo) and pin the
   Remotion version in `package.json`.
 

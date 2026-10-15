@@ -1,6 +1,6 @@
 # Cloudflare deploys
 
-`cf` does everything: projects, builds, deploys, versions, DNS, domains, D1, R2, KV. It is in open beta, so **every command is confirmed with `cf cli search "<task>"` before use** — the shapes below are what to look for, not a substitute for the search.
+`cf` does everything: projects, builds, deploys, versions, DNS, domains, D1, R2, KV. It is in open beta, so every command is confirmed with `cf cli search "<task>"` before use, the shapes below are what to look for, not a substitute for the search.
 
 ## Auth
 
@@ -17,7 +17,7 @@ and confirm the account with `cf auth whoami` before the first deploy.
 ## Preview and production
 
 - Preview: upload a version from the branch without making it live (`cf workers versions create` or the project's deploy-without-promote form). The preview URL goes in the deploy record.
-- Production: deploy `main` (or promote the uploaded version) and record the previous `version_id` first — it is the rollback target.
+- Production: deploy `main` (or promote the uploaded version) and record the previous `version_id` first, it is the rollback target.
 - Rollback: bring the previous `version_id` back, then `git revert` the merge.
 - List versions and deployments before and after, so the record matches reality.
 - A Wrangler-configured template (a Next.js or TanStack project scaffolded with Wrangler files) needs `cf migrate --dry-run`, then `cf migrate`, before any `cf dev`, `cf build` or `cf deploy`.
@@ -27,7 +27,7 @@ and confirm the account with `cf auth whoami` before the first deploy.
 
 - Read first: the zone, its nameservers, and the records that will change. Write them into the card before asking for the user's yes.
 - Apply only with the `Confirmed:` line: the site's record, or the nameserver move when the domain is not on Cloudflare yet.
-- Verify with a DNS lookup and an HTTPS request before completing; propagation takes minutes, not seconds.
+- Verify with a DNS lookup and an HTTPS request before completing.
 
 ## Data (only when the spec needs it)
 
@@ -41,10 +41,10 @@ Only two, and only after `cf cli search` shows there is no `cf` way: setting one
 
 ## Vercel sites
 
-Only when `site.yaml -> provider: vercel`: token in the deployer's environment, one preview per branch, promote for production, rollback to the previous deployment, domains through the dashboard or CLI. A commercial site never runs on the non-commercial plan; check before the first production deploy.
+Only when `site.yaml -> provider: vercel`: token in the deployer's environment, one preview per branch, promote for production, rollback to the previous deployment, domains through the dashboard or CLI. A commercial site never runs on Vercel Hobby; check before the first production deploy.
 
 ## Never
 
-- Never edit DNS, delete a zone or record, or create an account or subscription.
+- Never edit DNS without the `Confirmed:` line; never delete a zone or record.
 - Never deploy a branch other than the reviewed one, and never without the `Confirmed:` line for production.
 - Never print the token or paste it into a file, a card or a command that echoes.

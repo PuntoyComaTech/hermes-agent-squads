@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Card: write the copy for piece 20261020-post-01. The brief cites a '12 years of experience' claim that is not in brand.md.",
-      "expected_output": "The claim is cut or the card is blocked with a question; copy.md is written inside pieces/20261020-post-01/ and metadata.paths lists it.",
+      "expected_output": "The claim is cut or the card is blocked with a question; copy.md is written inside pieces/20261020-post-01/ and metadata.changed_files lists it.",
       "files": []
     },
     {

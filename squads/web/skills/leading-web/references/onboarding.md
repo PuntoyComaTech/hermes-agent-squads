@@ -9,7 +9,7 @@
 
 ## 1. How to run the interview
 
-- Read `user profile` and any existing site folder first; show a draft with what you inferred and mark unconfirmed values `(?)`.
+- Read `USER.md` (the user profile memory) and any existing site folder first; show a draft with what you inferred and mark unconfirmed values `(?)`.
 - At most 5 questions per round, numbered, with options. Ask what you cannot infer before anything else.
 - No technical questions unless the user is one: ask about their business, visitors and what the site must do. Stack, provider and database are decided with the defaults below and explained in one line.
 - A vague answer ("something modern") gets one concrete request: "Send me one or two sites you like."
@@ -29,21 +29,17 @@
 | 6 | Do you have a look already: a logo and colors, sites you like, or you propose | `design.source` (`own` here, or a marketing brand slug) |
 | 7 | Does it take bookings, collect forms or have user accounts? | `integrations`; may change `type` |
 | 8 | Do you have a domain? (which, bought where, or not yet) | `domain` |
-| 9 | Is it for a business (it earns money)? | blocks commercial use on free non-commercial plans |
+| 9 | Is it for a business (it earns money)? | blocks commercial use on Vercel Hobby |
 
 Only if applicable: the current site being replaced (address, so its pages and redirects can be inventoried); a legal page the site must show (privacy, cookies, terms); a date it must be live by.
 
 ## 3. Mapping the answers
 
-| Type | Pages | Stack |
-|---|---|---|
-| `static` | Landing, blog, docs, portfolio | `astro` |
-| `dynamic_seo` | Catalog, shop, content site | `nextjs` |
-| `saas` | Public part plus a private app | `tanstack` |
+Type, pages and stack: `stacks.json` (`type` per stack; the stack follows the type).
 
 - Hosting default is `cloudflare`; `vercel` only when the user already uses it.
 - Data only if the spec needs it, and never in this milestone unless the site cannot work without it.
-- A server-rendered site in production usually needs a paid Workers plan: state the cost in the spec and again in the publish question.
+- A server-rendered site in production needs the paid Workers plan once it passes the free tier: state the condition and the current price in the spec and again in the publish question.
 - Milestones: at most one day of work each, ordered so the first one produces something visible. Every acceptance criterion is testable (page, action, expected result).
 - The first milestone never carries accounts, payments or a database.
 

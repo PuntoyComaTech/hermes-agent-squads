@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """File one search card per slot on the jobs board, unless the search is paused (cron --no-agent).
 
-Usage:
-  start_search.py [--project SLUG] [--board jobs] [--lead jobs] [--installed FILE] [--now "YYYY-MM-DD HH:MM"]
-
 Reads `$HERMES_HOME` for the Hermes root, asks the lead profile for its project when --project is absent, pauses
 when `<project>/profile.md` says `search: paused`, resolves the review-lane model from the builder's
-`local/installed.yaml` and files the card through `hermes -p <lead> kanban create` with a per-slot idempotency key.
+`local/installed.yaml` and files the card through `hermes -p <lead> kanban --board <board> create` with a per-slot
+idempotency key.
 
-Silent when a card was filed (or already existed): the cron job delivers stdout, and empty stdout is nothing to
-say. A line is printed when the search cannot run (missing project, missing profile.md). Exit 0 when the run was
-decided, 1 when hermes failed, 2 usage error. No network beyond the local hermes CLI.
+stdout is exactly what the cron delivers, and every setup state stays silent: a filed card, a paused search, a
+missing project or a missing `profile.md` all exit 0. Only a hermes failure prints (exit 1); 2 is a usage error.
+No network beyond the local hermes CLI.
 """
 from __future__ import annotations
 
@@ -35,7 +33,11 @@ STAGE = "search"
 
 
 class RunError(Exception):
-    pass
+    """hermes itself failed: the cron error alert must fire."""
+
+
+class SetupGap(Exception):
+    """The search is not set up yet (no project or no profile.md): silent exit 0."""
 
 
 def hermes_root() -> Path:
@@ -95,16 +97,16 @@ def resolve_project(bin_name: str, lead: str, explicit: str | None) -> tuple[str
     else:
         rows = project_slugs(hermes(bin_name, "-p", lead, "project", "list", check=False))
         if not rows:
-            raise RunError("no project on the jobs lead: create it with "
+            raise SetupGap("no project on the jobs lead: create it with "
                            "`squadctl project add jobs <name> <path>`")
         slug = next((s for s, active in rows if active), rows[0][0])
         show = hermes(bin_name, "-p", lead, "project", "show", slug, check=False)
     path = project_path(show)
     if not path:
-        raise RunError(f"project {slug}: no folder found (run `hermes -p {lead} project show {slug}`)")
+        raise SetupGap(f"project {slug}: no folder found (run `hermes -p {lead} project show {slug}`)")
     folder = Path(path).expanduser()
     if not folder.is_dir():
-        raise RunError(f"project {slug}: {folder} is not a directory")
+        raise SetupGap(f"project {slug}: {folder} is not a directory")
     return slug, str(folder)
 
 
@@ -238,19 +240,17 @@ def main(argv: list[str] | None = None) -> int:
             payload = {"filed": False, "reason": "paused", "project": slug, "slot": slot_id(now)}
         elif state == "missing":
             payload = {"filed": False, "reason": "no profile.md", "project": slug}
-            note = (f"jobs-search: {slug} has no profile.md under {folder}; the search waits. "
-                    f"Say \"set up my profile\" in the jobs Bot Chat.")
         else:
             payload = {"filed": True, "project": slug, "slot": slot_id(now),
                        **file_card(args.hermes_bin, args.lead, args, slug, folder, now,
                                    review_lane_model(args, args.lead))}
+    except SetupGap as exc:
+        payload = {"filed": False, "reason": str(exc)}
     except RunError as exc:
         print(f"jobs-search: {exc}")
         return 1
     if args.json:
         print(json.dumps(payload, indent=2))
-    elif note:
-        print(note)
     return 0
 
 

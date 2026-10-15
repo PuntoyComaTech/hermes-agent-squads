@@ -16,14 +16,13 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
 - **English only** in repo content; bots speak the user's language at runtime.
 - **Model ids only** in `scripts/data/model-roles.yaml` and `local/installed.yaml` (enforced).
 - **Real scripts, never prose scripts**: Python for YAML/JSON/HTTP work with `--help` on every script; bash only
-  for the `squadctl` shim and one-line wrappers.
-- **Skills follow the budget** (`skill_lint.py`): third-person description with "Use when", sections When to Use /
-  Procedure / Pitfalls / Verification, 3 evals, one-level references (`docs/decisions.md` V-09).
+  for the shims and one-line cron wrappers.
+- **Skills pass** `scripts/hpy skill_lint.py`; rules: `skill_lint.py --rules`.
 - **Verify every platform claim** against local Hermes docs or source and cite the path; when Hermes contradicts
   the repo, Hermes wins: fix the repo.
 - **Structural decisions** append to `docs/decisions.md` with id, date, decision, why.
 - **No secrets**: never read or write `.env`, `auth.json` or credential values.
-- **Plan → user OK → apply** for anything that touches a profile; `profile export` before any prune or uninstall.
+- **Plan, user OK, apply** for anything that touches a profile; `profile export` before any prune or uninstall.
 - **Community plugins and hub skills** install only after quoting their disclosure and licence and getting an
   explicit OK.
 

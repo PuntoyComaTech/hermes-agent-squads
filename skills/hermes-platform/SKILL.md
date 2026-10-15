@@ -1,11 +1,11 @@
 ---
 name: hermes-platform
-description: "Indexes verified Hermes Agent primitives. Use when designing squads, bots or configuration, before any design or config decision."
+description: "Indexes verified Hermes Agent primitives. Use when designing or changing a squad, bot or Hermes config."
 ---
 
 # Hermes platform
 
-Verified map of Hermes Agent primitives. Every fact in `references/` cites a
+Every fact in `references/` cites a
 `website/docs/...` path or a source file in the Hermes tree; facts that could
 not be verified are marked UNVERIFIED and must not be relied on.
 
@@ -20,10 +20,11 @@ not be verified are marked UNVERIFIED and must not be relied on.
 
 1. Pick the topic from the index below and read that reference file.
 2. Act only on cited facts. When the reference and the live Hermes disagree,
-   the live Hermes wins: run the CLI (`hermes <cmd> --help`) and update the
-   reference with its output and a citation.
+   the live Hermes wins: run the CLI (`hermes <cmd> --help`), record the fact
+   in `skills/hermes-local-notes/` and propose it upstream
+   (`skills/contributing-upstream`).
 3. For anything deeper, read the cited docs path in the local Hermes tree
-   (`website/docs/...` inside the Hermes install) or the Hermes website.
+   (`website/docs/...` inside the Hermes install).
 
 ## Reference index
 
@@ -51,7 +52,7 @@ not be verified are marked UNVERIFIED and must not be relied on.
 ## Pitfalls
 
 - Never trust a memory of a flag or config key; re-read the reference or run
-  `--help`. Model names never live in prose (see `scripts/data/model-roles.yaml`).
+  `--help`.
 - Desktop-internal facts (rail, Bots pane) cite `apps/desktop/src/...` source
   files and change without a docs update.
 - UNVERIFIED notes are hypotheses, not behavior.

@@ -45,7 +45,7 @@ bots:
         - security-guidance
         - name: hermes-video-editor
           confirm: "hermes-video-editor is PolyForm Noncommercial 1.0.0: free for non-commercial use, commercial use needs a separate licence from the author. Install only after the user confirms the use."
-    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     hidden: true
   studio-3d:
     role: worker
@@ -59,11 +59,10 @@ bots:
         - disk-cleanup
         - name: blender
           confirm: "The blender plugin runs arbitrary Python inside Blender with the user's privileges and needs Blender 5.1+, its MCP add-on and uv. Install only after the user's OK."
-    requires: {apps: [blender>=5.1, uv]}
+    requires: {apps: [blender>=5.1, uv, git]}
     hidden: true
 chains:
   piece:
-    - {stage: storyboard, assignee: studio, skill: directing-studio}
     - {stage: 3d, assignee: studio-3d, skill: rendering-3d, when: needs_3d}
     - {stage: motion, assignee: studio-motion, skill: producing-motion}
     - {stage: review, assignee: studio, skill: directing-studio}

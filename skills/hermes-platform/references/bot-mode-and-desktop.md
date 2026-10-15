@@ -23,13 +23,12 @@
   rows, creation, group chats, sections and hiding.
 - Hidden bots keep working (dispatch, routines) but stay out of the roster;
   `hidden` rides the bot's `ui_meta` next to `title`
-  (`apps/desktop/src/plugins/hermes-bots/data.ts`; `scripts/squadctl.py`).
+  (`apps/desktop/src/plugins/hermes-bots/types.ts`;
+  `apps/desktop/src/plugins/hermes-bots/hidden-bots.ts`; `scripts/squadctl.py`).
 - Sections file bots in the pane: the bot's `ui_meta` carries `sectionId` and
   `sectionName` (`apps/desktop/src/plugins/hermes-bots/data.bot-meta.test.ts`).
   Squad tooling writes them from the manifest's `section:`
   (`scripts/squadctl.py`).
-- Recommended layout for squads: hide workers, show the builder and one lead per
-  squad (`README.md`).
 
 ## Routines
 
@@ -47,7 +46,7 @@
   (`PROFILE_DROPDOWN_THRESHOLD = 13`,
   `apps/desktop/src/app/chat/sidebar/profile-switcher.tsx`).
 - The rail can be toggled off from the command palette ("Toggle profile rail");
-  with a full squad install (19 profiles) the Bots pane is the better selector
+  with a full squad install the Bots pane is the better selector
   (`README.md`).
 
 ## Kanban plugin
