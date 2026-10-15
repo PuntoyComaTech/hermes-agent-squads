@@ -1,17 +1,47 @@
 # Lane -> model candidates, read by scripts/model_advisor.py. Overridden by <builder>/local/model-roles.yaml.
 # This file and local/installed.yaml are the only places where model ids may appear (skill_lint rule model-ids).
 #
+# OUTPUT FORMAT (what `model_advisor.py --json` prints; consumed by `squadctl plan` and
+# `squadctl apply --models`):
+#   {
+#     "roles": ["base", "local"],                # lane tables that were merged
+#     "providers": {
+#       "authenticated": [{"slug", "family", "models": [ids], "key_in": ["root"|"profile", ...],
+#                          "excluded"?: true}],  # key_in = scopes where Hermes finds the key (auto
+#                                                # detection only; empty when --providers cache|list)
+#       "families": [...], "source": "in-process|runtime|auth-list|cache|list",
+#       "stale": [slugs],                        # provider cache entries older than 7 days
+#       "report": ["provider X authenticated at root but not in profile Y", ...],
+#       "excluded": [slugs]                      # local/providers-exclude.txt; listed, never recommended
+#     },
+#     "squads": [{"key", "bots": [BotPick...], "shared": [Pick...]}],
+#     "lanes": [Pick...]
+#   }
+#   Pick    = {"lane", "model", "provider", "reasoning", "alternatives": [{model, provider, reasoning}x<=2],
+#              "reason"}                          # "lane" is the REQUESTED name, even for aliases
+#   BotPick = Pick + {"bot", "role", "extras": [Pick + {"use"}]}
+#   `squadctl plan` keys bots by "bot" and lanes by "lane"; an alias keeps the requested key so a
+#   squad.yaml written against an old lane name still resolves.
+#
 # families: model family -> provider slugs (globs over provider_models_cache.json keys) that serve it natively.
-#   A family is "present" for a user when any of its providers is authenticated.
-# candidates: ordered by preference. The advisor picks the first candidate whose `match` regex (Python re,
-#   full match) hits a model id of an authenticated provider listed in `provider_pref` (default: the family's
-#   providers, in order). `reasoning` defaults to the lane's reasoning.
+#   A family is "present" for a user when any of its providers is authenticated and not excluded.
+# candidates: ordered by quality for the role, across families. The advisor picks the first candidate
+#   whose `match` regex (Python re, full match) hits a model id of an authenticated provider listed in
+#   `provider_pref` (default: the family's providers, in order). `reasoning` defaults to the lane's.
 # fallback: what to do when no candidate matches. `cheapest` = the provider's cheapest model by a
-#   name heuristic (flash, mini, haiku, nano); `first-choice-provider` = the lead lane's pick.
+#   name heuristic (flash, mini, haiku, nano); `first-choice-provider` = the manager lane's pick.
+# rule: `different-family-from-producer` (review) skips candidates of the producer lanes' families
+#   whenever another family is present.
+# alias_of: deprecated lane name -> its current lane (kept so existing squad.yaml files still resolve;
+#   a later card renames them in the manifests). Alias entries are keys of `lanes` on purpose, so
+#   `squadctl`'s "lane is not in model-roles.yaml" check passes unchanged.
+# exclusions: <builder>/local/providers-exclude.txt lists one provider slug per line; excluded
+#   providers are still DETECTED (Hermes cannot disable a provider; copilot is still seen via
+#   `gh auth token`) but never recommended.
 # Dated 2026-10. Regexes accept "-" or "." as the version separator and the [1m] context suffix, so catalog
 # renames between providers (claude-opus-5-5 vs claude-opus-5.5) do not break a lane.
 
-schema: 1
+schema: 2
 updated: 2026-10-15
 
 families:
@@ -21,22 +51,9 @@ families:
   google: [gemini, google*]
 
 lanes:
-  design:
-    why: "UI, motion and 3D quality is visibly model-bound; frontier design models first, medium effort (high burns quota without better UI)"
-    used_by: [web-frontend, marketing-producer, studio, studio-motion, studio-3d]
-    reasoning: medium
-    candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.4', reasoning: high}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
-      - {family: open-weights, match: 'kimi-k3', reasoning: high}
-      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
-    fallback: first-choice-provider
-
-  lead:
-    why: "Leads interview, plan and accept work; judgment and instruction following matter more than speed"
-    used_by: [web, marketing, jobs, builder]
+  manager:
+    why: "Planning, interviewing and accepting work: judgment and instruction following matter more than speed"
+    used_by: [squad leads, planner bots]
     reasoning: medium
     candidates:
       - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
@@ -47,56 +64,83 @@ lanes:
       - {family: open-weights, match: 'glm-5\.3', reasoning: high}
     fallback: cheapest
 
-  code:
-    why: "Backend work is long tool loops on tests; a cheap fast coder with high effort, escalating to the advisor lane"
-    used_by: [web-backend]
+  frontend:
+    why: "UI quality is model-bound and pays per pixel: strong UI models at high effort"
+    used_by: [web-frontend, marketing-producer]
     reasoning: high
     candidates:
-      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
-      - {family: open-weights, match: 'kimi-k2\.7-code', reasoning: high}
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {family: open-weights, match: 'kimi-k3', reasoning: high}
       - {family: open-weights, match: 'glm-5\.3', reasoning: high}
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.4', reasoning: medium}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
     fallback: first-choice-provider
 
-  advisor:
-    why: "Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations; strongest model wins"
-    used_by: [web-backend delegation]
-    reasoning: medium
+  design-pro:
+    why: "Frontier models for 3D/WebGL and complex motion where weaker models visibly fail"
+    used_by: [studio, studio-motion, studio-3d]
+    reasoning: high
     candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
       - {family: openai, match: 'gpt-5\.4', reasoning: high}
       - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
       - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+      - {family: open-weights, match: 'kimi-k3', reasoning: high}
     fallback: first-choice-provider
 
-  review:
-    why: "Independent review catches more when the reviewer's model family differs from the producer's"
-    used_by: [web-qa, marketing-reviewer, jobs-reviewer]
+  code-complex:
+    why: "Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+    used_by: [web-backend delegation, hard-problem advisors]
     reasoning: xhigh
-    rule: different-family-from-producer   # skip candidates of the producer lane's family when another family is present
     candidates:
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
       - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
       - {family: openai, match: 'gpt-5\.4', reasoning: high}
       - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
       - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
     fallback: first-choice-provider
 
-  copy:
-    why: "Copy, CVs and letters need voice and nuance more than tools; mid-tier writing models at medium effort"
-    used_by: [marketing-creative, jobs-writer, jobs-applier]
-    reasoning: medium
+  code-routine:
+    why: "CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort"
+    used_by: [web-backend]
+    reasoning: high
     candidates:
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.4', reasoning: medium}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
-      - {family: open-weights, match: 'kimi-k3', reasoning: medium}
+      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {family: open-weights, match: 'kimi-k2\.7-code', reasoning: high}
+      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
+      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
     fallback: first-choice-provider
 
+  review:
+    why: "Independent review catches more when the reviewer's model family differs from the producers'"
+    used_by: [web-qa, marketing-reviewer, jobs-reviewer]
+    reasoning: high
+    rule: different-family-from-producer   # prefer a family different from the frontend/code picks
+    candidates:
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+      - {family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+    fallback: first-choice-provider
+
+  deploy:
+    why: "Deploy runs are frequent and mechanical: cheapest capable executor at high effort"
+    used_by: [web-deployer]
+    reasoning: high
+    candidates:
+      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+    fallback: cheapest
+
   research:
-    why: "Web sweeps and deploy runs are high-volume and low-judgment; cheapest capable model"
-    used_by: [marketing-research, jobs-scout, web-deployer]
+    why: "Web sweeps are high-volume and low-judgment; cheapest capable model"
+    used_by: [marketing-research, jobs-scout]
     reasoning: medium
     candidates:
       - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: medium}
@@ -137,3 +181,10 @@ lanes:
       - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: low}
       - {family: openai, match: 'gpt-5\.4', reasoning: low}
     fallback: first-choice-provider
+
+  # Deprecated names, resolved through alias_of so existing squad.yaml files keep working.
+  lead: {alias_of: manager}
+  design: {alias_of: design-pro}
+  code: {alias_of: code-routine}
+  advisor: {alias_of: code-complex}
+  copy: {alias_of: manager}
