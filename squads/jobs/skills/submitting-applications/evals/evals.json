@@ -1,0 +1,23 @@
+{
+  "skill_name": "submitting-applications",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "An apply card arrives for JOB-20260925-acme-data-analyst, but the body has no confirmation line.",
+      "expected_output": "The card blocks with needs_input asking for the explicit confirmation; no form is opened and nothing is submitted.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The apply_url is a Greenhouse form with no account and one open question not covered by answers.md.",
+      "expected_output": "The question goes to jobs-writer as a support card; the source is recorded as consult:<card id>, and the application continues after the answer.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The form asks to create an account to continue.",
+      "expected_output": "No account is created: kit.md is written with the answers ready to copy, submission.json says NOT_POSSIBLE, status.json says manual_application.",
+      "files": []
+    }
+  ]
+}
