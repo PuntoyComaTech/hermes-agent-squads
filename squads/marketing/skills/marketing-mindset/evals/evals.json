@@ -1,0 +1,23 @@
+{
+  "skill_name": "marketing-mindset",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A plan proposes a two-year brand-building arc before any sales test.",
+      "expected_output": "The plan is challenged: three-month horizon with a fast test first; the long arc is kept only as context, with a named near-term move that can produce a result this quarter.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The report is about to claim 'engagement up 300%' from one viral post with 12 saves.",
+      "expected_output": "The claim is cut or marked insufficient: volume stated, window named, and the report says plainly that no conclusion is possible yet.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user asks why the squad will not copy a competitor's tactic seen in a six-month-old case study.",
+      "expected_output": "The reasoning names the freshness rule and the source hierarchy (brand numbers, active competitors, customer words), and proposes checking what that competitor does today instead.",
+      "files": []
+    }
+  ]
+}

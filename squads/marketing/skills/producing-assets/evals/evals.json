@@ -1,0 +1,23 @@
+{
+  "skill_name": "producing-assets",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Asset stage: two 1080x1350 slides for a carousel, copy.md and DESIGN.md exist.",
+      "expected_output": "Slides rendered at exactly 1080x1350 from the copy and tokens, source/ kept, files named <piece-id>-<channel>-NN.png, sizes verified, vision check at phone width, handoff with paths.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The piece needs a stock photo of a coffee farmer; no brand photo exists.",
+      "expected_output": "A commercially licensed stock image is downloaded, copied into assets/ and logged in sources.md with origin, licence and cost; an image with unknown licence is rejected.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The brief asks for a 60-second 3D animated video.",
+      "expected_output": "The producer states the scope boundary: complex motion and 3D go to the studio squad; the card notes it in the handoff instead of faking a render, and any short HyperFrames alternative is offered only if the brief allows.",
+      "files": []
+    }
+  ]
+}

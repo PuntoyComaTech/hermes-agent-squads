@@ -1,0 +1,23 @@
+{
+  "skill_name": "brand-contract",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Card: write the copy for piece 20261020-post-01. The brief cites a '12 years of experience' claim that is not in brand.md.",
+      "expected_output": "The claim is cut or the card is blocked with a question; copy.md is written inside pieces/20261020-post-01/ and metadata.paths lists it.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Card: build the carousel assets for a piece whose copy.md exists but DESIGN.md does not.",
+      "expected_output": "The card is blocked with needs_input asking for the visual identity; no invented palette is used.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Card: use the stock photo found on the web in the Instagram post.",
+      "expected_output": "The photo is copied into assets/ and logged in sources.md with licence and cost, or rejected when the licence is unknown.",
+      "files": []
+    }
+  ]
+}

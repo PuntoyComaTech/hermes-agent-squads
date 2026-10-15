@@ -1,0 +1,23 @@
+{
+  "skill_name": "writing-copy",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Copy stage for a carousel about a coffee subscription; the brief says the audience is problem-unaware and the brand voice is informal.",
+      "expected_output": "concept.md with one idea, its mechanism and the art direction; copy.md with one idea per slide, 6-10 slides and a closing ask, in the brand's voice; sources.md mapping claims to proof points.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The brief asks for urgency ('last chance today') but brand.md has no deadline or stock limit.",
+      "expected_output": "The urgency line is cut; the card either continues without it or blocks with one question asking for a real deadline; the decision is named in the handoff.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A fix card quotes: 'change 1: shorter subject line, mention the new roast'.",
+      "expected_output": "Subject shortened within 45 characters, the new roast named from a verified fact, the literal request kept in the card, and copy.md plus sources.md updated for the new round.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "marketing-plan",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Card: write the 90-day plan for cafe-luna. brand.md is active; the research file and the current-state scores exist; cost per customer is unknown.",
+      "expected_output": "plan/90-day.md with the eight template sections; the binding constraint named; moves with mechanisms, indicators and owners; cost per customer listed as an open decision, not invented.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user says: 'we have zero budget this quarter, plan for that'.",
+      "expected_output": "The plan keeps the free moves as the quarter's carriers, marks paid moves as later, and states in the budget section that the monthly number is zero.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "An approved plan exists and the report shows the main channel plateaued.",
+      "expected_output": "A new plan version opens (v{N+1}) with the change announced, weights shift toward the next stage, and the plateau is named with its data window.",
+      "files": []
+    }
+  ]
+}

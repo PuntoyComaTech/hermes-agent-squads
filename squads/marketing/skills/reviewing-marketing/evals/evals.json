@@ -1,0 +1,23 @@
+{
+  "skill_name": "reviewing-marketing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A carousel reaches review with a claim about 'the best coffee in town' that has no proof point in brand.md.",
+      "expected_output": "Verdict fix or escalate with the claim as a critical finding; review.md names what, where and the fix; one fix card returns to the copy stage as a child of the review card.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The piece passed a fix round and this is the second review; one minor wording issue remains, no critical issues.",
+      "expected_output": "The round is spent, so the verdict is escalate (or approve only if truly non-blocking and allowed): the card blocks with the exact question for the user, naming what is already settled.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A landing asset uses a stock photo whose licence line is missing in sources.md.",
+      "expected_output": "Critical finding: unlicensed or unknown-licence asset blocks approval; the fix card returns to the asset stage asking for the licence row or a replacement, and review.md records it.",
+      "files": []
+    }
+  ]
+}

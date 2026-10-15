@@ -1,0 +1,23 @@
+{
+  "skill_name": "leading-marketing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Card marketing-plan-week: brand cafe-luna is active, has no PAUSE and no calendar/2026-W42.md; the plan and the previous calendar exist.",
+      "expected_output": "calendar/2026-W42.md written from templates/calendar.md, then one piece chain filed per planned piece with project, stage skills, parent links and <squad>:piece:<project>:<piece-id>:<stage> keys; nothing published.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user replies to a presented piece: 'change 2: shorter headline, keep the photo'.",
+      "expected_output": "A fix card assigned to the copy stage carries the literal request; one preferences.md log line records the reply; the copy files are not edited by the lead.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The review stage completes with an approve verdict and the approve card becomes ready.",
+      "expected_output": "The piece is presented to the user in two lines with the cover path; on 'approve' the approve card completes and a preferences.md line is added; no schedule, send or publish action is taken.",
+      "files": []
+    }
+  ]
+}
