@@ -1,0 +1,23 @@
+{
+  "skill_name": "finding-jobs",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A search card for project job-search; one opening requires C1 English and profile.md says max_required_language: {english: B2}.",
+      "expected_output": "DISCARD with the language rule as the reason; opening.md saved, no analyze card filed for it.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The same opening appears twice with different tracking URLs, and once through the company site.",
+      "expected_output": "One canonical URL, one folder, one row in the search file, one analyze card.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The lead files a URL card with a LinkedIn link.",
+      "expected_output": "LinkedIn is never opened: the scout looks for the same opening on the company site or blocks asking the user for the text.",
+      "files": []
+    }
+  ]
+}

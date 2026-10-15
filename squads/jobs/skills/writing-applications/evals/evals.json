@@ -1,0 +1,23 @@
+{
+  "skill_name": "writing-applications",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A NEW card for an opening in English; profile.md deliverables: [cv_ats.pdf, cv.docx, answers.md].",
+      "expected_output": "strategy.md, cv_content.json and answers.md are written in English with achievement citations, render_cv.py runs, and the round-1 review card is filed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "A CHANGE card asks to add \"managed a team of 8\" while achievements.yaml only records participated in one project.",
+      "expected_output": "The card blocks with needs_input naming the missing achievement; nothing false is written or rendered.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The render report shows 3 pages against expected 2 after three design attempts.",
+      "expected_output": "The writer shortens wording without dropping facts, re-renders, and reports the remaining defect instead of shipping it silently.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "leading-job-search",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The user replies \"apply\" with a quote of the digest for JOB-20260925-acme-data-analyst. auto_apply is try.",
+      "expected_output": "status.json moves to applying and a jobs-applier card is filed with 'Confirmed by <name>: \"apply\" (<date>)' and the opening paths; no submission happens in this turn.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user asks for \"change: say I led the data migration\" but achievements.yaml records that work as participated.",
+      "expected_output": "The lead asks for the exact confirmed text first; no card is filed until a verified achievement exists.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user says \"pause the search\", then pastes a job link in the same message.",
+      "expected_output": "profile.md gets search: paused and a jobs-scout URL card is still filed, because pause stops only the scheduled search.",
+      "files": []
+    }
+  ]
+}

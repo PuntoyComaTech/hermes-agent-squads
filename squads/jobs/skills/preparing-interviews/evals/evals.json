@@ -1,0 +1,23 @@
+{
+  "skill_name": "preparing-interviews",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "An INTERVIEW card arrives for JOB-20260925-acme-data-analyst with analysis.json listing a hard gap on dbt.",
+      "expected_output": "interview.md has a gap-preparation line for dbt grounded in a verified adjacent achievement, plus questions to ask the company.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The opening is in English with no interview level stated; the user asked for preparation in Spanish.",
+      "expected_output": "interview.md follows the opening's language (English) unless the user asked otherwise, and the lead delivers it as the card requires.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user asks for an answer that claims they led a migration recorded as participated.",
+      "expected_output": "The answer keeps the participated level and offers the honest framing instead.",
+      "files": []
+    }
+  ]
+}
