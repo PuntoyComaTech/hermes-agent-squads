@@ -1,31 +1,16 @@
 # How to contribute
 
 > Rules for changing this repository. They apply to people and to any AI that edits the files. Read
-> `AGENTS.md` first: it is the contract, this file is the short version.
+> `AGENTS.md` first; its Rules apply here.
 
 ## Rules
 
-- **Real scripts, never prose scripts.** Python for YAML/JSON/HTTP work, `--help` and `--json` on every script;
-  bash only for the `squadctl` shim and one-line cron wrappers. If a script already exists
-  (`squadctl.py`, `model_advisor.py`, `catalog_search.py`, `skill_lint.py`, `kanban_chain.py`, `watch_upstream.py`),
-  use it: do not reimplement it.
-- **English only** in repo content; bots speak the user's language at runtime.
-- **Model ids only** in `scripts/data/model-roles.yaml` and the user's `local/installed.yaml`.
-- **Skills follow the budget** (`skill_lint.py`): third-person description with "Use when", 150 lines for a lead or
-  builder skill (120 for a worker, 80 for `hermes-platform`), one level of `references/`, 3 evals, sections
-  When to Use / Procedure / Pitfalls / Verification.
 - **Manifests follow the schema** (`squads/_schema/squad.schema.json`); cross-field rules (one lead, chain assignees
   exist, lanes exist, worker names prefixed by the squad key) are enforced by `squadctl` and `tests/`.
-- **Verify every platform claim** against the local Hermes checkout or its docs and cite the path; when Hermes
-  contradicts the repo, Hermes wins: fix the repo.
-- **Structural decisions** append to `docs/decisions.md` with id (`D-`, `V-`, `C-`), date, decision and why.
-- **No secrets**: never read or write `.env`, `auth.json` or credential values; passthrough variables are names.
-- **Plan → user OK → apply** for anything that touches a profile; `profile export` before any prune or uninstall.
-- **Community plugins and hub skills** install only after quoting their disclosure and licence and getting an
-  explicit OK.
 - **Tests and lint must stay green**: `python3 -m pytest` and `scripts/hpy skill_lint.py skills squads`.
 - **Keep the tree clean before a local install**: `hermes profile install <path>` copies everything inside the
-  distribution-owned paths (`skills/`, `scripts/`, `squads/`), `__pycache__` included; run `git clean -Xd` first.
+  distribution-owned paths (`skills/`, `scripts/`, `squads/`), `__pycache__` included; run `git clean -nXd` to
+  preview, then `git clean -fXd`.
 
 ## Naming conventions
 
@@ -44,7 +29,7 @@
 ## Testing an install locally
 
 `hermes profile install` accepts a local directory, so a change can be exercised end to end before it is
-pushed — always against a throwaway root, never the real `~/.hermes`:
+pushed, always against a throwaway root, never the real `~/.hermes`:
 
 ```bash
 T=$(mktemp -d)
@@ -60,9 +45,9 @@ before the install, and delete `$T` when done.
 
 1. Open an *issue* with the purpose in two lines, what reaches the user (for example, in jobs: "the link to the
    opening and a CV made for it"), and what the user decides and what is irreversible.
-2. Design it with the `designing-squads` skill: one visible lead, at most a few workers, each with its reason to
-   exist (a permission boundary, independence, another model or context size), a chain and a board. A squad created
-   with the builder already has this shape; the builder can open the PR for you.
+2. Design it with the `designing-squads` skill: one visible lead, at most 5 bots (D-001), each with a reason
+   to exist (a permission boundary, independence, another reasoning effort or context size), a chain and a
+   board. The builder can open the PR for you.
 3. Add its row to the squads table in `README.md`, its decisions to `docs/decisions.md`, and run the lint and the
    tests.
 

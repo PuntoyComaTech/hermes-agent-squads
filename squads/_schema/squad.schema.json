@@ -48,6 +48,7 @@
     "bots": {
       "type": "object",
       "minProperties": 1,
+      "maxProperties": 5,
       "propertyNames": {"$ref": "#/$defs/botName"},
       "additionalProperties": {"$ref": "#/$defs/bot"}
     },

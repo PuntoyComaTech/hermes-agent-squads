@@ -11,11 +11,7 @@ Writes into --output:
   cv.docx            when python-docx is available
   render_report.json pages, keyword coverage, links, defects and the engines used
 
-cv_content.json shape (contract in skill jobs-contract):
-  {language: en|es|..., header: {name, headline, email, phone, location, links[]},
-   summary, experience: [{title, company, dates, bullets: [{text, achievements[]}]}],
-   projects: [{name, url, text}], skills: [{name, level}], education: [{degree, institution, year}],
-   languages: [{language, level}]}
+cv_content.json shape: skill rendering-cv.
 
 Exit codes: 0 clean, 1 the report holds defects, 2 usage or input error. No network.
 """

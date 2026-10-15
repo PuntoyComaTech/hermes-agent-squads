@@ -15,17 +15,12 @@ description: "Registers Hermes Projects across lead and workers. Use when a squa
 1. Collect the project name and its real folder path; never impose a fixed
    layout (`docs/decisions.md` V-04).
 2. Run `scripts/hpy squadctl.py project add <squad> <name> <path>`. It runs
-   `hermes project create` in the lead and in every worker of the squad,
-   because Project state is per profile
-   (`skills/hermes-platform/references/projects.md`).
-3. To bind boards and worktrees, the create call passes `--slug` and `--board`;
-   cards then carry `--project <slug>` for a deterministic worktree and branch
+   `hermes project create` in the lead and in every worker of the squad.
+3. Cards then carry `--project <slug>` for a deterministic worktree and branch
    (`hermes kanban create --help`).
-4. Selecting a project in a bot: `hermes -p <bot> project use <slug>`, or the
-   Desktop project selector (`README.md`).
-5. Later changes (`add-folder`, `rename`, `archive`) go through
-   `hermes project ...` on each profile that holds the project
-   (`hermes project --help`).
+4. Selecting a project in a bot: `hermes -p <bot> project use <slug>`.
+5. Later changes (`add-folder`, `rename`, `archive`): run
+   `hermes -p <bot> project <action>` in the lead and every worker.
 
 ## Pitfalls
 

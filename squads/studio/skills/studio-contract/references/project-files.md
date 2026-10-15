@@ -50,17 +50,18 @@ with a 0.5 LU tolerance by `render_check.py` unless a flag overrides it.
 
 One row per shot. `Start` and `Duration` are seconds from 0; the sum must match `duration`. `Tool` is
 one of HyperFrames, Remotion, three.js/R3F, GSAP, Manim, p5.js, Blender. `Assets` names files that exist
-in `assets/`, so the producing stage never invents an input.
+in `assets/`, so the producing stage never invents an input. `Samples` is the delivery sample count for a
+Blender shot (`-` when it does not apply).
 
-| # | Shot | Start | Duration | Tool | Assets | Acceptance |
-|---|---|---|---|---|---|---|
-| 1 | Wide establishing | 0.0 | 2.0 | HyperFrames | assets/brand-mark.png | Logo legible, enters by 0.4 s |
-| 2 | Product orbit | 2.0 | 3.0 | Blender | assets/blender/watch.glb | One constant-speed revolution |
+| # | Shot | Start | Duration | Tool | Assets | Samples | Acceptance |
+|---|---|---|---|---|---|---|---|
+| 1 | Wide establishing | 0.0 | 2.0 | HyperFrames | assets/brand-mark.png | - | Logo legible, enters by 0.4 s |
+| 2 | Product orbit | 2.0 | 3.0 | Blender | assets/blender/watch.glb | 256 | One constant-speed revolution |
 
 ## assets/sources.md
 
 Append one row per external asset before it is used. `Licence` is a concrete identifier
-(`CC0-1.0`, `CC-BY-4.0`, `owned`, vendor name) — an empty or unknown licence means the asset is unusable.
+(`CC0-1.0`, `CC-BY-4.0`, `owned`, vendor name); an empty or unknown licence means the asset is unusable.
 
 | File | Source | Licence | Cost | Added by |
 |---|---|---|---|---|

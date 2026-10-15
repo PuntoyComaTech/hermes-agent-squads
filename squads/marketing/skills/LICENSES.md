@@ -1,10 +1,10 @@
 # Third-party licences
 
-Copyright and licence notices for the third-party skills moved into this directory. The skills were adapted to this squad's contracts and trimmed to the size budget in `docs/decisions.md`; the notices below are kept as each licence requires.
+Copyright and licence notices for the third-party skills moved into this directory. The skills were adapted to this squad's contracts; the notices below are kept as each licence requires.
 
 ## coreyhaines31/marketingskills
 
-Skills: `marketing-plan`, `product-marketing`, `marketing-council`, `marketing-psychology` (adapted and trimmed; reference files trimmed to the budget).
+Skills: `marketing-plan`, `product-marketing`, `marketing-council`, `marketing-psychology` (adapted).
 Source: https://github.com/coreyhaines31/marketingskills
 
 ```text
@@ -33,7 +33,7 @@ SOFTWARE.
 
 ## axelfreeman/marketing-mindset
 
-Skill: `marketing-mindset` (trimmed to the size budget; the upstream repo's `.github/`, `package.json`, `index.js`, `cordis.patch.yml`, `docs/`, `SKILL.lite.md`, `SKILL.deepseek-flash.md`, examples and scripts were not moved).
+Skill: `marketing-mindset` (adapted; only SKILL.md and references/ were moved).
 Source: https://github.com/axelfreeman/marketing-mindset
 
 ```text

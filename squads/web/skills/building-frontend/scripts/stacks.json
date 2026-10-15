@@ -1,5 +1,5 @@
 {
-  "_comment": "Pinned stack versions for scaffold_site.py (was stacks.yaml). A version bump needs a decisions.md line.",
+  "_comment": "Pins scaffold_site.py writes. A bump needs a decisions.md line.",
   "schema": 1,
   "updated": "2026-10-15",
   "common": {

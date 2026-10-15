@@ -5,7 +5,7 @@ description: "Renders Blender scenes, turntables and glTF assets. Use when a pie
 
 # Rendering 3D
 
-Blender work runs through the `blender` MCP plugin (official). The plugin executes arbitrary Python inside Blender with the user's privileges, and it ships its own Blender workflow skill: follow that skill for scene, tool and export details, and this one for the squad's conventions.
+Blender work runs through the `blender` MCP plugin (official). It ships its own Blender workflow skill: follow that skill for scene, tool and export details, and this one for the squad's conventions.
 
 ## When to Use
 
@@ -15,14 +15,13 @@ Blender work runs through the `blender` MCP plugin (official). The plugin execut
 
 ## Procedure
 
-1. `scripts/studio_project.py check <folder>`; read `brief.md` and `storyboard.md`; the shots this stage owns are its rows.
-2. Work on copies: put scenes under `assets/blender/`, never edit a `.blend` that lives outside the piece folder.
+1. `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/studio_project.py check <folder>`; read `brief.md` and `storyboard.md`; the shots this stage owns are its rows.
+2. Work on copies: scenes live in `assets/blender/<piece-id>/`; never edit a `.blend` outside the piece folder.
 3. Build or open the scene through the plugin's tools; set camera, materials and lighting from the storyboard. Follow `references/blender-workflow.md` for the stage conventions.
-4. Draft first: EEVEE or low samples for the review pass, the final engine and sample count for delivery. Render stills and turntables into `renders/`.
-5. A turntable is one clean 360-degree orbit over the brief's duration at the brief's fps: constant speed, no cuts, loops seamlessly.
-6. Export glTF (`.glb`) for the demos with materials applied, and validate it with `npx gltf-validator <file>` before handoff (studio-3d has no browser; the demo-page load is studio-motion's step); an export that does not validate is not done.
-7. Check animated output with `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; stills go through vision against the storyboard row.
-8. Log every external model, HDRI or texture in `assets/sources.md` with source, licence and cost before using it.
+4. Draft first: EEVEE or low samples for the review pass, the final engine and the storyboard's `Samples` count for delivery. Render stills and turntables into `renders/`.
+5. Export glTF (`.glb`) for the demos with materials applied, and validate it with `npx gltf-validator <file>` before handoff (studio-3d has no browser; the demo-page load is studio-motion's step); an export that does not validate is not done.
+6. Check animated output with `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; stills go through vision against the storyboard row.
+7. Log every external model, HDRI or texture in `assets/sources.md` with source, licence and cost before using it.
 
 ## Pitfalls
 

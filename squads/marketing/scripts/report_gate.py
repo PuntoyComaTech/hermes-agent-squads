@@ -2,9 +2,9 @@
 """Monthly report gate for the marketing squad (cron marketing-report, --no-agent).
 
 Files one REPORT card on the marketing board only when a brand's analytics exports changed since the
-last run. Zero LLM tokens. State is a fingerprint per project in `<profile>/local/state/gate_*.json`,
-via scripts/gate_lib.py; the card's idempotency key `marketing-report:<project>:<YYYY-MM>` makes
-repeated runs in the same month safe.
+last run. State is a fingerprint per project in `<profile>/local/state/gate_*.json`, via
+scripts/gate_lib.py; the card's idempotency key `marketing-report:<project>:<YYYY-MM>` makes repeated
+runs in the same month safe.
 
 For every project of the marketing profile:
   - skip when the primary folder has no `brand.md` or its frontmatter `status` is not `active`;
@@ -13,8 +13,8 @@ For every project of the marketing profile:
   - skip when the fingerprint of `data/inbox/` equals the last one stored;
   - otherwise create the card, assigned to the lead, with skill `leading-marketing`.
 
-Silent when there is nothing to file; one line per card when there is; exit 1 on a real error so the
-cron surfaces it. The line lands in the lead's Bot Chat (`--deliver bot-chat:marketing`).
+Silent when there is nothing to file and when a card is filed; exit 1 on a real error so the cron
+surfaces it.
 
 Examples:
   report_gate.py --dry-run                # show what would be filed, write nothing
@@ -49,7 +49,7 @@ def profile_from_home(profile_arg: str | None) -> str:
 
 
 def gate_lib():
-    """gate_lib.py from the profile's scripts dir, the hermes root scripts dir, or the builder profile."""
+    """gate_lib.py beside this script (squadctl copies it next to each cron script) or in a scripts/ dir."""
     try:
         import gate_lib as mod  # type: ignore[import-not-found]
         return mod
@@ -58,13 +58,16 @@ def gate_lib():
     h = home()
     root = h.parent.parent if h.parent.name == "profiles" else h
     here = Path(__file__).resolve()
-    for cand in (h / "scripts", here.parent, root / "scripts", root / "profiles" / "builder" / "scripts",
-                 here.parents[3] / "scripts" if len(here.parents) > 3 else here.parent):
+    cands = [h / "scripts", here.parent, root / "scripts"]
+    if len(here.parents) > 3:
+        cands.append(here.parents[3] / "scripts")  # a repo checkout
+    for cand in cands:
         if (cand / "gate_lib.py").is_file():
             sys.path.insert(0, str(cand))
             import gate_lib as mod  # type: ignore[import-not-found]
             return mod
-    raise RuntimeError("gate_lib.py not found (looked in the profile scripts dir, the hermes root and the builder profile)")
+    raise RuntimeError("gate_lib.py not found (looked in the profile scripts dir, beside this script, "
+                       "in the hermes root and in the checkout's scripts dir)")
 
 
 def run(argv: list[str]) -> str:
@@ -177,7 +180,8 @@ def main(argv: list[str] | None = None) -> int:
                 skipped.append({"project": slug, "reason": "no exports in data/inbox"})
                 continue
             name = f"marketing_report_{slug}"
-            if not gate.changed(name, gate.fingerprint(exports), save=not a.dry_run, directory=state_dir):
+            fp = gate.fingerprint(exports)
+            if not gate.changed(name, fp, save=False, directory=state_dir):
                 skipped.append({"project": slug, "reason": "exports unchanged"})
                 continue
             title = f"REPORT \u00b7 {slug} \u00b7 {month}"
@@ -190,13 +194,14 @@ def main(argv: list[str] | None = None) -> int:
                 cmd += ["--workspace", f"dir:{folder}"]
             if not a.dry_run:
                 run(cmd + ["--json"])
+                # Saved only after the card exists, so a failed create is retried on the next run.
+                gate.save_state(f"gate_{name}", {"fp": fp}, directory=state_dir)
             filed.append({"project": slug, "month": month, "key": key, "title": title})
         if a.json:
             print(json.dumps({"filed": filed, "skipped": skipped, "dry_run": a.dry_run}, indent=2))
-        else:
+        elif a.dry_run:
             for row in filed:
-                prefix = "would file" if a.dry_run else "filed"
-                print(f"{prefix} {row['title']} (key {row['key']})")
+                print(f"would file {row['title']} (key {row['key']})")
         return 0
     except SystemExit:
         raise

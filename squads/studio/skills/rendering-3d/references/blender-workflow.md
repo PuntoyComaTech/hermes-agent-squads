@@ -1,16 +1,10 @@
 # Blender workflow
 
-Squad conventions for the `3d` stage. The blender plugin (official) is the interface: it ships a Blender
-workflow skill with the tool names and scene recipes — read it first, then apply the conventions below.
+Squad conventions for the `3d` stage. The blender plugin (official) is the interface; it ships a Blender
+workflow skill with the tool names and scene recipes.
 
 ## Stage setup
 
-- Blender 5.1+, the plugin's MCP add-on and `uv` are prerequisites; the plugin refuses to install without
-  Blender and its discovery step does not prove the scene is ready. Check the plugin doctor output before
-  the first render of a piece.
-- Every scene is a copy: work in `assets/blender/<piece-id>/`. Never edit a `.blend` file that lives
-  outside the piece folder, and never run a script you have not read — the plugin executes arbitrary
-  Python with the user's privileges.
 - Keep the working scene (`*.blend`) and the exported assets in `assets/`; only finished files go to
   `renders/`.
 

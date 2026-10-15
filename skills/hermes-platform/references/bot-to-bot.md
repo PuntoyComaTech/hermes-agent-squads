@@ -27,9 +27,9 @@
 ## Silence
 
 - A bot with nothing to add may end a turn with an intentional silence token
-  (`[SILENT]`, `NO_REPLY`, ...); the transcript keeps the turn but renders
-  nothing (`website/docs/user-guide/bot-mode.md`;
-  `website/docs/user-guide/messaging/index.md`).
+  (`[SILENT]`, `NO_REPLY`, ...); it stays silent on machinery turns and when no
+  reply is expected, and a human turn gets a notice
+  (`website/docs/user-guide/messaging/index.md`).
 
 ## Group chats
 
@@ -44,7 +44,7 @@
 
 ## Across machines
 
-- Registered gateways under Settings → Connections are relay lines; rosters
+- Registered gateways under Settings > Connections are relay lines; rosters
   propagate automatically and `message_agent` reaches remote bots
   (`website/docs/user-guide/bot-mode.md`).
 - For always-on machine-to-machine messaging with no Desktop in the loop,

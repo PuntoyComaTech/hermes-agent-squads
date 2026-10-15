@@ -15,16 +15,10 @@ Turn a storyboard into rendered files, one shot at a time. A shot is done when i
 
 ## Procedure
 
-1. `scripts/studio_project.py check <folder>`; read `brief.md` and `storyboard.md`; write down each shot's spec (format, resolution, fps, duration, audio, loudness target).
-2. Pick the tool per shot with `references/tool-matrix.md`:
-   - HyperFrames for HTML + GSAP compositions: titles, overlays, captions, product tours (skill hyperframes);
-   - Remotion for data-driven, templated or long compositions in React (skill remotion-best-practices);
-   - GSAP with ScrollTrigger for standalone scroll demos (technique covered by the auteur and hyperframes skills);
-   - three.js or React Three Fiber for WebGL demos and 3D scenes (technique covered by auteur and dream-loop);
-   - Manim for math, algorithm and concept explainers (skill manim-video);
-   - p5.js for generative art and interactive sketches (skill p5js).
+1. `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/studio_project.py check <folder>`; read `brief.md` and `storyboard.md`; write down each shot's spec (format, resolution, fps, duration, audio, loudness target).
+2. Pick the tool per shot with `references/tool-matrix.md`.
 3. Work inside the piece folder only. Everything downloaded or generated as an input goes to `assets/` and is logged in `assets/sources.md`; a demo delivered as files lands in `renders/<piece-id>-<shot>-<NN>/`.
-4. Remotion needs a paid company licence from 4 employees: if the licence answer is not on record, `kanban_block` instead of using it.
+4. Remotion needs its licence answer on record (`squad.yaml` confirm; `references/tool-matrix.md` -> Remotion): without it, `kanban_block` instead of rendering.
 5. Render to `renders/<piece-id>-<shot>-<NN>.<ext>`; never overwrite a previous version.
 6. Check: `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`, fix and rerun until it exits 0. For a `format: html` demo there is no render to probe: open it in the browser and confirm it loads without console errors before handoff.
 7. Hand off: every render path, its `.check.json` report, the contact sheets, and the decisions taken (tool per shot, palette, timing changes and why).
@@ -34,7 +28,6 @@ Turn a storyboard into rendered files, one shot at a time. A shot is done when i
 - A preview server left running keeps a render worker busy forever: stop `hyperframes preview` and `remotion studio` before finishing.
 - Draft quality and delivery quality use the same cut: never change timing between the two.
 - Never make a render pass by editing the brief's numbers; fix the render or ask the lead.
-- No community skill is pinned for GSAP or three.js yet: use the libraries directly with the kept skills above, and propose a pinned skill through the builder only after its author and licence are reviewed.
 - Placeholder fonts, stock audio and unlicensed models never ship.
 - Heavy renders time out or fill the disk: keep intermediate frames in the piece folder and delete them after the check.
 

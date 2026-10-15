@@ -19,10 +19,9 @@ producer profile.
 
 ## Chain `piece`
 
-`storyboard` (lead) → `3d` (only with `--when needs_3d`) → `motion` → `review` (lead, one fix round).
-Delivery is a comment on the requester's card. Stage keys are `studio:piece:<project>:<piece-id>:<stage>`,
-so a rerun or a builder-filed chain (`squadctl chain studio piece --project <slug> --title <piece-id>
-[--when needs_3d]`) creates nothing twice. No cron.
+Stages: `squad.yaml` -> `chains.piece`. `squadctl chain studio piece --project <slug> --title <piece-id>
+[--when needs_3d]` files them, and stage keys are `studio:piece:<project>:<piece-id>:<stage>`, so a rerun
+creates nothing twice. No cron.
 
 ## Piece folder
 
@@ -47,28 +46,16 @@ Both are Python 3 with `--help`; `render_check.py` needs `ffprobe`/`ffmpeg` on P
 | `producing-motion` | `studio-motion` | Tool choice and the render check loop |
 | `rendering-3d` | `studio-3d` | Blender conventions per shot |
 
-Kept from Hermes: `official:creative/creative-ideation` (lead); `hub:skills-sh/remotion-dev/skills/
-remotion-best-practices`, `official:creative/hyperframes`, `official:creative/auteur`,
-`official:creative/dream-loop`, `bundled:manim-video`, `bundled:p5js` (motion). The blender plugin ships
-its own workflow skill.
+## Keeps and plugins
 
-## Install notes (licence and disclosure asks)
+`squad.yaml` -> `bots.*.skills.keep` and `bots.*.plugins`.
 
-The builder quotes these at install and installs only after the user's explicit OK:
+## Install notes
 
-- **Remotion** (hub skill keep): free for individuals and companies up to 3 employees; a paid company
-  licence is required from 4 employees.
-- **hermes-video-editor** plugin: PolyForm Noncommercial 1.0.0; commercial use needs a separate licence
-  from the author.
-- **blender** plugin: runs arbitrary Python inside Blender with the user's privileges; needs Blender 5.1+,
-  its MCP add-on and `uv` (`requires.apps: [blender>=5.1, uv]`).
-- **GSAP / three.js community skills**: none pinned yet. Until their author and licence are reviewed, the
-  auteur, hyperframes and dream-loop skills cover both; a new pin is a builder change to this squad.
+Licence and disclosure asks are the `confirm` items in `squad.yaml`; the builder quotes them and installs
+only after the user's explicit OK.
 
 ## Operations
 
-- Workers are hidden, have no memory and run one card at a time; the lead is visible with board
-  notifications.
-- Weights: `studio-motion` and `studio-3d` run on the `design` lane; per-card `--model` pins are only used
-  by the builder at install.
-- A piece never edits the requester's project files; it writes only inside its own folder.
+Bot visibility, lanes and per-card pins come from `squad.yaml`; `scripts/squadctl plan studio` lists what
+an install or change would do.

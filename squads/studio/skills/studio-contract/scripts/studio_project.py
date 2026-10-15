@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create or verify the folder layout of one studio piece (plan section 4.4).
+"""Create or verify the folder layout of one studio piece.
 
 A piece lives in <project>/studio/<piece-id>/ and holds brief.md, storyboard.md, assets/ and renders/.
 The formats are documented in the studio-contract skill (references/project-files.md).

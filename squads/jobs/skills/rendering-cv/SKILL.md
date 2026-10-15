@@ -6,7 +6,7 @@ description: "Renders cv_content.json to PDF, DOCX and ATS text. Use when a CV c
 # Rendering the CV
 
 Deterministic rendering: `cv_content.json` in, submit-ready files out, defects reported in `render_report.json`.
-The script ships with this skill; never rewrite it, run it.
+Run the script; never edit it.
 
 ## When to Use
 
@@ -27,8 +27,7 @@ The script ships with this skill; never rewrite it, run it.
 
    `--json` prints the report; `--engine weasyprint|chromium` forces one PDF engine; `--help` lists everything.
 2. Files written to `--output`: `cv_ats.html` and `cv_ats.txt` always; `cv_ats.pdf` when WeasyPrint or Chromium is
-   present; `cv.docx` when python-docx is present; `render_report.json` always. Exit 0 clean, 1 with defects
-   (a missing engine is a defect), 2 usage error.
+   present; `cv.docx` when python-docx is present; `render_report.json` always.
 3. Read `render_report.json`: `defects`, `pages_actual` against `pages_expected`, `keyword_coverage` and
    `missing_keywords`. Quote its numbers in the card; never estimate them yourself.
 4. A missing engine or package is never installed by you: write it in the card summary (`pip install weasyprint
@@ -55,9 +54,8 @@ Section headings follow `language` (English and Spanish; anything else uses Engl
 ## Pitfalls
 
 - Never edit `cv_content.json` to raise keyword coverage with a claim no achievement supports.
-- Keep the ATS file one column, no icons, no tables, real clickable links: that is what the template renders.
+- Keep the ATS file one column, no icons, no tables, real clickable links.
 - Never write contact data into a card, comment or file outside `application/`.
-- The PDF is only as many pages as the renderer reports; do not guess from the source.
 
 ## Verification
 

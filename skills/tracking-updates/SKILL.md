@@ -1,6 +1,6 @@
 ---
 name: tracking-updates
-description: "Summarizes upstream changes into a digest. Use when Hermes or the squads repo ships an update."
+description: "Digests upstream changes and proposes each to the user. Use when Hermes or the squads repo ships an update."
 ---
 
 # Tracking updates
@@ -23,14 +23,12 @@ The `builder-watch` cron runs daily on the builder
    against `local/state/watch.json`. No change: it prints
    `{"wakeAgent": false}` and the tick costs zero tokens.
 2. On change it prints `{"wakeAgent": true, "context": {...}}` with the tags,
-   the filtered release notes (headings and bullets about profile, skill,
-   kanban, cron, plugin, MCP, connector, desktop, bot, toolset, project,
-   gateway, deprecations, renames, breaking changes, dotted config keys; capped
-   at 15k chars) and the squads version delta.
-3. The agent runs on the **digest lane** — the cheapest model at high effort
-   (`scripts/data/model-roles.yaml -> lanes.digest`) — with this skill, reads
-   only the filtered files and writes the digest JSON below. It posts at most 5
-   lines to `bot-chat:builder` and edits nothing.
+   the filtered release notes (`scripts/hpy watch_upstream.py --help`) and the
+   squads version delta.
+3. The agent runs on the `digest` lane
+   (`builder.yaml` -> `bots.builder.cron.builder-watch.agent`) with this skill,
+   reads only the filtered files and writes the digest JSON below. It posts at
+   most 5 lines to `bot-chat:builder` and edits nothing.
 
 Digest JSON (`local/state/digests/<date>.json`):
 
@@ -58,7 +56,7 @@ Digest JSON (`local/state/digests/<date>.json`):
 2. Knowledge updates go to `skills/hermes-local-notes/` (not shipped), so a
    distribution update keeps them.
 3. Squad changes go to the overlay `local/squads/<key>/squad.yaml`, then
-   `plan` → user OK → `apply`.
+   `plan`, user OK, `apply`.
 4. A new squads version: suggest `hermes profile update builder`, which never
    touches `local/`, memories, sessions or `.env`
    (`skills/hermes-platform/references/profiles-and-distributions.md`).
@@ -68,7 +66,6 @@ Digest JSON (`local/state/digests/<date>.json`):
 - Summarizing from the unfiltered release body: only the filtered file may
   reach the digest model.
 - Acting on a `confidence: low` item: research first or drop it.
-- Skipping the gate: every agent cron has one (`docs/decisions.md` V-14).
 
 ## Verification
 

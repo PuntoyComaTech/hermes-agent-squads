@@ -1,11 +1,11 @@
 # Motion and scroll animation
 
-Motion exists to explain, never to decorate a missing idea. One idea per page, a few seconds long.
+One idea per page, a few seconds long.
 
 ## Principles
 
 - Animate `transform` and `opacity` only: both stay on the compositor. Never `width`, `height`, `top`, `left` or `margin`.
-- Durations: 150-250 ms for state changes, 400-800 ms for entrance, 10-20 ms per unit for scrubbed scroll progress.
+- Durations: 150-250 ms for state changes, 400-800 ms for entrance; scrubbed scroll progress uses `scrub: 0.5`.
 - Easing: `ease-out` for entrances, `ease-in-out` for loops, a soft spring for touch surfaces. No linear except scrubbed progress.
 - Never block content on animation: the page must be complete and readable with JavaScript disabled and with `prefers-reduced-motion: reduce`.
 - Budget: at most one hero motion, one reveal pattern, one hover idiom. Everything else is instant.
@@ -41,18 +41,17 @@ ctx.revert();
 ```
 
 - React: `useGSAP(() => { ... }, { scope })` from `@gsap/react`; it reverts on unmount. Vanilla: `ctx.revert()` in the cleanup path.
-- Scrubbed values: `scrub: true` ties the timeline to the scrollbar; a number (0.3-0.8) adds smoothing. Use `scrub` only when the user is meant to control the pace.
+- Scrubbed values: `scrub: true` ties the timeline to the scrollbar; `scrub: 0.5` adds smoothing. Use `scrub` only when the user is meant to control the pace.
 - Pinning: pin a wrapper, never a node inside a flex/grid that reflows, and check `pinSpacing` before changing margins. A pinned section needs an explicit height budget on mobile.
 - `markers: true` only while developing; it must never ship.
 - `ScrollTrigger.refresh()` after fonts load, images load, a route change or a resize of dynamic content; otherwise triggers fire at the wrong offsets.
 - Destroy on teardown: `ScrollTrigger.getAll().forEach((t) => t.kill())` only as a last resort; prefer `ctx.revert()`.
-- Skeleton page with several sections: one `ScrollTrigger` per section, `start: "top 75%"`, no global scroll listener anywhere else.
+- Skeleton page with several sections: one `ScrollTrigger` per section, `start: "top 80%"`, no global scroll listener anywhere else.
 
 ## Framework notes
 
 - Astro islands: mount the animation in a `client:visible` island so it never runs before the section exists.
 - React/Next: animation code lives in a client component; never touch `document` during server render.
-- Vue/Svelte: create in mount, revert in destroy.
 - Per-frame work belongs to the render loop (`useFrame`/`requestAnimationFrame`), not to a scroll listener; see `three.md` for scroll-driven 3D.
 
 ## Verification

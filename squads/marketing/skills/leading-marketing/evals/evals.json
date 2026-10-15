@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Card marketing-plan-week: brand cafe-luna is active, has no PAUSE and no calendar/2026-W42.md; the plan and the previous calendar exist.",
-      "expected_output": "calendar/2026-W42.md written from templates/calendar.md, then one piece chain filed per planned piece with project, stage skills, parent links and <squad>:piece:<project>:<piece-id>:<stage> keys; nothing published.",
+      "expected_output": "calendar/2026-W42.md written from templates/calendar.md, then one piece chain filed per planned piece with board, project, stage skills, parents links and marketing:piece:<project>:<piece-id>:<stage> keys; nothing published.",
       "files": []
     },
     {

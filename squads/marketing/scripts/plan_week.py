@@ -2,8 +2,8 @@
 """Weekly calendar gate for the marketing squad (cron marketing-plan-week, --no-agent).
 
 Files one CALENDAR card on the marketing board only when an active brand has no calendar file for the
-coming week. Zero LLM tokens. The card's idempotency key `marketing-plan-week:<project>:<YYYY>-W<WW>`
-makes repeated runs safe, so the gate can run daily and still file one card per project and week.
+coming week. The card's idempotency key `marketing-plan-week:<project>:<YYYY>-W<WW>` makes repeated
+runs safe, so the gate can run daily and still file one card per project and week.
 
 For every project of the marketing profile:
   - skip when the primary folder has no `brand.md` or its frontmatter `status` is not `active`;
@@ -11,8 +11,8 @@ For every project of the marketing profile:
   - skip when `calendar/<YYYY>-W<WW>.md` already exists for the coming week;
   - otherwise create the card, assigned to the lead, with skill `leading-marketing`.
 
-Silent when there is nothing to file; one line per card when there is; exit 1 on a real error so the
-cron surfaces it. The line lands in the lead's Bot Chat (`--deliver bot-chat:marketing`).
+Silent when there is nothing to file and when a card is filed; exit 1 on a real error so the cron
+surfaces it.
 
 Examples:
   plan_week.py --dry-run                 # show what would be filed, write nothing
@@ -158,10 +158,9 @@ def main(argv: list[str] | None = None) -> int:
             filed.append({"project": slug, "week": f"{year}-W{week:02d}", "key": key, "title": title})
         if a.json:
             print(json.dumps({"filed": filed, "skipped": skipped, "dry_run": a.dry_run}, indent=2))
-        else:
+        elif a.dry_run:
             for row in filed:
-                prefix = "would file" if a.dry_run else "filed"
-                print(f"{prefix} {row['title']} (key {row['key']})")
+                print(f"would file {row['title']} (key {row['key']})")
         return 0
     except SystemExit:
         raise

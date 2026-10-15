@@ -53,7 +53,7 @@ Dated profile: summary, product, sector, brand tone, team signals, news, sources
 |---|---|
 | `strategy.md` | headline, narrative, order of experiences, keywords to cover, evidence pieces and why, CV language |
 | `cv_content.json` | input of `render_cv.py`, see skill rendering-cv |
-| `cover_letter.md`, `answers.md` | per `deliverables`; each paragraph ends with `<!-- achievements: ACH-... -->` |
+| `cover_letter.md`, `answers.md`, `recruiter_message.md` | per `deliverables`; each paragraph ends with `<!-- achievements: ACH-... -->` |
 | `cv_ats.pdf`, `cv.docx`, `cv_ats.txt`, `render_report.json` | output of `render_cv.py` |
 
 `interview.md` lives beside `application/`: it is the writer's interview-preparation output for that opening.

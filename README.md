@@ -9,7 +9,7 @@ creates new ones with you and keeps everything updated. The repo root is the bui
 **profile distribution**: one command installs it, one command updates it.
 
 Each squad is one visible lead (the only bot you talk to) plus hidden workers that pass work
-along a Kanban board. Irreversible steps — apply, publish, send, deploy — always wait for
+along a Kanban board. Irreversible steps (apply, publish, send, deploy) always wait for
 your explicit yes.
 
 ## Install (3 commands)
@@ -32,12 +32,13 @@ ask the builder "what changed upstream", or run `hermes profile update builder`.
 
 ## Desktop setup
 
-1. **Kanban plugin.** Enable Capabilities → Plugins → **Kanban** to see the boards
+1. **Kanban plugin.** Enable Capabilities > Plugins > **Kanban** to see the boards
    (it ships disabled by default; the dispatcher runs in the gateway regardless).
-2. **Bots pane.** The Bots tab is your roster: workers are hidden, so you see Home, the
-   builder and one lead per squad. Sections come from each squad's manifest.
-3. **Rail.** The profile rail lists every profile (a full install has 19) and condenses
-   into a dropdown above 13; use ⌘K → *Toggle profile rail* and switch in the Bots pane.
+2. **Bots pane.** The Bots tab is your roster: workers are hidden, so you see Hermes (default),
+   the builder and one lead per squad. Sections come from each squad's manifest.
+3. **Rail.** The profile rail lists every profile (a full install has 20 profiles including the
+   default) and condenses into a dropdown above 13; use Cmd+K > *Toggle profile rail* and switch
+   in the Bots pane.
 4. **Projects.** Each site, brand or client is a Hermes Project; the builder registers it
    in the lead and the workers (`squadctl project add`), and the Desktop groups sessions
    by project.
@@ -50,7 +51,7 @@ ask the builder "what changed upstream", or run `hermes profile update builder`.
 | [Marketing](squads/marketing/README.md) | `marketing` | Dated research, 90-day plans, copy and assets for your brands, five-lens review | lead, research, creative, producer, reviewer |
 | [Jobs](squads/jobs/README.md) | `jobs` | Matching openings with tailored applications; "apply" sends (or a manual kit) | lead, scout, writer, reviewer, applier |
 | [Studio](squads/studio/README.md) | `studio` | Motion, video and 3D assets ordered by the other squads | lead, motion, 3d |
-| Yours | — | Ask the builder: "create a squad for <goal>" | up to 5 |
+| Yours | - | Ask the builder: "create a squad for <goal>" | up to 5 |
 
 ### Web
 
@@ -112,28 +113,12 @@ A card is one bounded job; each stage creates the next as a dependent card
 then the lead asks you only what is yours to decide. Cron jobs run behind zero-LLM gates:
 a quiet tick costs nothing.
 
-## Repository map
-
-```text
-distribution.yaml      profile distribution manifest (what install/update touches)
-SOUL.md  config.yaml   builder identity and minimal profile config
-builder.yaml           builder bot spec; applied by scripts/hpy squadctl.py apply --self
-CHANGELOG.md           what shipped, read by the update watcher
-skills/                10 builder skills (hermes-platform = verified Hermes reference)
-scripts/               squadctl, migrate_v1, model_advisor, catalog_search, skill_lint,
-                       kanban_chain, watch_upstream + gate_lib, data/ lane tables
-squads/<key>/          squad manifests, SOULs, skills, scripts (web, marketing, jobs, studio)
-squads/_schema/        squad manifest JSON schema
-docs/decisions.md      condensed decision log
-tests/                 pytest against a temporary HERMES_HOME (not shipped)
-```
-
 ## For AI agents
 
-Read [`AGENTS.md`](AGENTS.md) first; short index in [`llms.txt`](llms.txt). Verified Hermes
-behavior is in `skills/hermes-platform/references/` (every fact cites its docs path).
-Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md) — or ask your builder, it can propose
-them with your OK.
+Read [`AGENTS.md`](AGENTS.md) first (repository map in its last section); short index in
+[`llms.txt`](llms.txt). Verified Hermes behavior is in `skills/hermes-platform/references/`
+(every fact cites its docs path). Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md), or ask
+your builder: it can propose them with your OK.
 
 ## License
 

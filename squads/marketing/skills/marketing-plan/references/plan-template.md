@@ -23,15 +23,15 @@
 ## 2. Strategic frame
 
 - Category: the "shelf" the audience looks on.
-- Audience and awareness level (unaware → most aware).
+- Audience and Schwartz awareness level.
 - Positioning in one sentence, backed by `brand.md`.
-- Market-quality gate: problem size × frequency and what it constrains.
+- Market-quality gate: problem size x frequency and what it constrains.
 - Voice non-negotiables from `brand.md`.
 
 ## 3. Current state
 
 - The score table from references/current-state-rubric.md, one row per area.
-- The binding constraint: the lowest-scored high-impact area.
+- The binding constraint (`current-state-rubric.md` -> Reading the scores).
 - What already works and deserves keeping.
 - What is stuck, and the reason given by the user.
 
@@ -46,7 +46,7 @@ One table per stage; the binding constraint's stage first.
 - **Activation**: the first valued experience: offer, landing, first message, first order.
 - **Retention**: repeat action and depth: follow-up, content rhythm, service.
 - **Referral**: how happy customers bring more: reviews, word of mouth, sharing.
-- **Revenue**: pricing, bundles, upsells — only moves the offer can support.
+- **Revenue**: pricing, bundles, upsells, only moves the offer can support.
 
 A move without a mechanism or an indicator is an experiment: give it a volume, one variable and a kill date, or cut it.
 
@@ -62,10 +62,10 @@ A move without a mechanism or an indicator is an experiment: give it a volume, o
 
 ## 6. Budget
 
-- Monthly budget from `brand.md`, split: 70% current channels, 20% next, 10-20% experimental.
+- Monthly budget from `brand.md`, split: 70% current channels, 20% next, 10% experimental.
 - Spend rows in the brand's currency: paid media, tools, production, AI.
 - "Zero" is a full answer: when there is no budget, say which free moves carry the quarter.
-- Cost per customer: use a measured number; if none exists, mark it PROVISIONAL and put it in open decisions.
+- CAC: use a measured number; if none exists, mark it PROVISIONAL and put it in open decisions.
 
 ## 7. Measurement
 
@@ -76,4 +76,4 @@ A move without a mechanism or an indicator is an experiment: give it a volume, o
 
 ## 8. Open decisions
 
-Every question only the user can settle, ordered by impact, each with what it blocks and the safest assumption used meanwhile. Cost per customer and price changes go first.
+Every question only the user can settle, ordered by impact, each with what it blocks and the safest assumption used meanwhile. CAC and price changes go first.

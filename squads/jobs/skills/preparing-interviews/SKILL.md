@@ -10,7 +10,7 @@ with `verified: true`; you never invent a story, a number or a level.
 
 ## When to Use
 
-- An INTERVIEW card from the lead ("prepare me for the interview with X").
+- A `preparing-interviews` card from the lead ("prepare me for the interview with X").
 - Before the user's interview, when `analysis.json` and the company profile exist.
 
 ## Procedure
@@ -18,7 +18,7 @@ with `verified: true`; you never invent a story, a number or a level.
 1. Read `analysis.json` (requirements, priorities, hard gaps, hiring-manager lens), `opening.md`,
    `companies/<company>.md` and `achievements.yaml`.
 2. Write `interview.md`:
-   - **12 to 15 likely questions** in the interview's language, most probable first: the hiring manager's
+   - **12 to 15 likely questions** in the opening's language, most probable first: the hiring manager's
      questions from `analysis.json`, the must-haves, the hard gaps, and one about the company's product.
    - Under each: a suggested answer of 3 to 5 sentences built only from verified achievements, cited
      (`ACH-007`), and the STAR shape (situation, task, action, result) when it is a story question.
@@ -33,7 +33,6 @@ with `verified: true`; you never invent a story, a number or a level.
 
 - Never promise a skill the achievements do not support, and never coach an exaggerated claim.
 - Never invent details about the company that are not in its dated profile or the opening.
-- The interview language equals the opening's language, unless the user said otherwise.
 - Contact details never appear here beyond the name the user uses in conversation.
 
 ## Verification

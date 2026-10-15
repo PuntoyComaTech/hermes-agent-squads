@@ -3,6 +3,13 @@
 Written by the lead during the interview, in the project folder `<P>`: `profile.md`, `achievements.yaml`,
 `contact.yaml` and `application-data.yaml`.
 
+## Contents
+
+- profile.md
+- achievements.yaml
+- contact.yaml
+- application-data.yaml
+
 ## profile.md
 
 YAML front matter (read by every bot and by `start_search.py`), then free notes.
@@ -35,6 +42,7 @@ reviewer_role: "Data Lead"          # hiring-manager lens, derived from occupati
 deliverables: [cv_ats.pdf, cv.docx, cover_letter.md, answers.md]
 apply_threshold: 70                 # minimum fit score for the writer
 max_analyses_per_day: 5
+max_company_searches: 12            # page reads allowed for one company profile
 analyze_flagged: true
 auto_apply: try                     # try | never
 review_before_submit: false

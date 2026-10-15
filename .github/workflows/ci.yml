@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, v2]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -66,3 +67,18 @@ jobs:
           done < <(git ls-files 'scripts/*' 'squads/*/scripts/*' 'skills/*/scripts/*' 'squads/*/skills/*/scripts/*')
           if [ "${#files[@]}" -eq 0 ]; then echo "no shell scripts"; exit 0; fi
           shellcheck "${files[@]}"
+
+  real-hermes-smoke:
+    # `apply web` against the real hermes in a temp root (tests/test_real_hermes_apply.py). Manual
+    # trigger only: the pytest itself is skipped unless HERMES_REAL_SMOKE=1.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Hermes and test dependencies
+        run: python -m pip install hermes-agent pytest jsonschema pyyaml
+      - name: Apply web against the real hermes in a temp root
+        run: HERMES_REAL_SMOKE=1 python -m pytest tests/test_real_hermes_apply.py -q -p no:cacheprovider

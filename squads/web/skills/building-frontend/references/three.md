@@ -1,12 +1,12 @@
 # three.js and React Three Fiber
 
-3D earns its place when it shows a product, a space or an idea a photo cannot. Otherwise use a video or an image.
+3D is only for showing a product, a space or an idea a photo cannot; otherwise use a video or an image.
 
 ## Budget
 
 - Bundle: the core plus one loader helper, under ~180 kB gzipped before assets. Add a library only when it removes more code than it adds.
 - Assets: glTF/GLB compressed with Draco or Meshopt; textures as KTX2/basis when heavy, never a 4K PNG.
-- One canvas per page. Load it lazily (`client:visible`, dynamic import, IntersectionObserver) so it never delays the first render.
+- One canvas per page. Load it lazily with `client:only` (or a dynamic import) so it never delays the first render and never runs on the server.
 
 ## three.js baseline
 
@@ -43,7 +43,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 ## Quality and fallback
 
 - Lighting reads as one place: a studio setup (`Environment preset` or three lights). No default dark scene with a single point light.
-- Color: calibrated output (`SRGBColorSpace`, tone mapping `ACESFilmic`) and textures in sRGB. Check the scene on a phone at 60 fps target: if it drops to 30, cut DPR, shadows or geometry before shipping.
+- Color: calibrated output (`SRGBColorSpace`, tone mapping `THREE.ACESFilmicToneMapping`) and textures in sRGB. Check the scene on a phone at 60 fps target: if it drops to 30, cut DPR, shadows or geometry before shipping.
 - Always ship a fallback: a static rendered image (poster) shown while loading, for reduced motion, when WebGL is unavailable, or when the device reports a low tier.
 - Canvas needs an accessible name and role, and any information it carries must exist as text or an image elsewhere.
 

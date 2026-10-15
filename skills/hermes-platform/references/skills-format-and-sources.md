@@ -5,7 +5,7 @@
 - [Format](#format)
 - [Where skills live](#where-skills-live)
 - [Bundled, official and hub skills](#bundled-official-and-hub-skills)
-- [Authoring rules](#authoring-rules)
+- [Authoring](#authoring)
 
 ## Format
 
@@ -19,38 +19,35 @@
 
 ## Where skills live
 
-- Precedence for a duplicate skill name: project → local (`~/.hermes/skills/`) →
-  `skills.create_dir` → `skills.external_dirs`; the shadowed copy is hidden and
+- Precedence for a duplicate skill name: project, local (`~/.hermes/skills/`),
+  `skills.create_dir`, `skills.external_dirs`; the shadowed copy is hidden and
   logged (`website/docs/user-guide/features/skills.md`).
 - `skills.external_dirs` in config adds read-in-place skill directories;
   `skills.auto_load` lists skills loaded into every session
   (`website/docs/user-guide/features/skills.md`; `website/docs/user-guide/configuration.md`).
-- Agent-created skills are written to `~/.hermes/skills/` and modified where
-  found (`website/docs/user-guide/features/skills.md`).
+- Agent-created skills are written to `~/.hermes/skills/` (or
+  `skills.create_dir` when set) and modified where found
+  (`website/docs/user-guide/features/skills.md`).
 - Squad skills are copied, not linked, into each profile with a sha marker, so a
   repo change reaches no bot until `apply` runs (`scripts/squadctl.py`).
 
 ## Bundled, official and hub skills
 
-- Profiles seed with ~90 bundled skills unless created with `--no-skills`;
-  `hermes skills opt-out` stops future seeding and `--remove` also deletes
-  unmodified bundled skills (`website/docs/user-guide/features/skills.md`).
+- Profiles seed with the bundled catalog (58 skills in v0.22.0) unless created
+  with `--no-skills`; `hermes skills opt-out` stops future seeding and `--remove`
+  also deletes unmodified bundled skills
+  (`website/docs/user-guide/features/skills.md`).
 - Official optional skills install as `official/<category>/<name>` (verified
   identifier `official/creative/impeccable`, `hermes skills inspect`), catalog:
   `website/docs/reference/optional-skills-catalog.md`.
 - Hub skills install with `hermes skills install <identifier> --yes`; a scan
-  verdict gates the install (`--force` overrides) (`hermes skills install --help`).
+  verdict gates the install, and `--force` overrides it except a `dangerous`
+  verdict on community or trusted sources (`hermes skills install --help`).
 - `hermes skills inspect <identifier>` shows name, source, trust and the SKILL.md
   preview before anything is installed (`hermes skills inspect` output).
 - Catalogs: `website/docs/reference/skills-catalog.md`; workflow:
   `website/docs/guides/work-with-skills.md`.
 
-## Authoring rules
+## Authoring
 
-- Third-person description with the capability clause first, then "Use when ...";
-  body sections When to Use / Procedure / Pitfalls / Verification
-  (`scripts/skill_lint.py`).
-- Deterministic work ships as `scripts/` with `--help`, not as prose the model
-  rewrites (`docs/decisions.md` V-03).
-- Each skill ships 3 eval scenarios in `evals/evals.json`
-  (`docs/decisions.md` V-09).
+- `skills/authoring-skills/SKILL.md`.
