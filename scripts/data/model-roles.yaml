@@ -1,0 +1,139 @@
+# Lane -> model candidates, read by scripts/model_advisor.py. Overridden by <builder>/local/model-roles.yaml.
+# This file and local/installed.yaml are the only places where model ids may appear (skill_lint rule model-ids).
+#
+# families: model family -> provider slugs (globs over provider_models_cache.json keys) that serve it natively.
+#   A family is "present" for a user when any of its providers is authenticated.
+# candidates: ordered by preference. The advisor picks the first candidate whose `match` regex (Python re,
+#   full match) hits a model id of an authenticated provider listed in `provider_pref` (default: the family's
+#   providers, in order). `reasoning` defaults to the lane's reasoning.
+# fallback: what to do when no candidate matches. `cheapest` = the provider's cheapest model by a
+#   name heuristic (flash, mini, haiku, nano); `first-choice-provider` = the lead lane's pick.
+# Dated 2026-10. Regexes accept "-" or "." as the version separator and the [1m] context suffix, so catalog
+# renames between providers (claude-opus-5-5 vs claude-opus-5.5) do not break a lane.
+
+schema: 1
+updated: 2026-10-15
+
+families:
+  anthropic: [claude-subscription*, anthropic]
+  openai: [openai-codex, openai-api, copilot, github-copilot]
+  open-weights: [opencode-go, opencode, openrouter, nous]
+  google: [gemini, google*]
+
+lanes:
+  design:
+    why: "UI, motion and 3D quality is visibly model-bound; frontier design models first, medium effort (high burns quota without better UI)"
+    used_by: [web-frontend, marketing-producer, studio, studio-motion, studio-3d]
+    reasoning: medium
+    candidates:
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium}
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high}
+      - {family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {family: open-weights, match: 'kimi-k3', reasoning: high}
+      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
+    fallback: first-choice-provider
+
+  lead:
+    why: "Leads interview, plan and accept work; judgment and instruction following matter more than speed"
+    used_by: [web, marketing, jobs, builder]
+    reasoning: medium
+    candidates:
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium}
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium}
+      - {family: openai, match: 'gpt-5\.4', reasoning: medium}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
+      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: high}
+      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
+    fallback: cheapest
+
+  code:
+    why: "Backend work is long tool loops on tests; a cheap fast coder with high effort, escalating to the advisor lane"
+    used_by: [web-backend]
+    reasoning: high
+    candidates:
+      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {family: open-weights, match: 'kimi-k2\.7-code', reasoning: high}
+      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium}
+      - {family: openai, match: 'gpt-5\.4', reasoning: medium}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
+    fallback: first-choice-provider
+
+  advisor:
+    why: "Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations; strongest model wins"
+    used_by: [web-backend delegation]
+    reasoning: medium
+    candidates:
+      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium}
+      - {family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+    fallback: first-choice-provider
+
+  review:
+    why: "Independent review catches more when the reviewer's model family differs from the producer's"
+    used_by: [web-qa, marketing-reviewer, jobs-reviewer]
+    reasoning: xhigh
+    rule: different-family-from-producer   # skip candidates of the producer lane's family when another family is present
+    candidates:
+      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+      - {family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high}
+    fallback: first-choice-provider
+
+  copy:
+    why: "Copy, CVs and letters need voice and nuance more than tools; mid-tier writing models at medium effort"
+    used_by: [marketing-creative, jobs-writer, jobs-applier]
+    reasoning: medium
+    candidates:
+      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium}
+      - {family: openai, match: 'gpt-5\.4', reasoning: medium}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
+      - {family: open-weights, match: 'kimi-k3', reasoning: medium}
+    fallback: first-choice-provider
+
+  research:
+    why: "Web sweeps and deploy runs are high-volume and low-judgment; cheapest capable model"
+    used_by: [marketing-research, jobs-scout, web-deployer]
+    reasoning: medium
+    candidates:
+      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: medium}
+      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high}
+      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+    fallback: cheapest
+
+  digest:
+    why: "The daily upstream digest reads filtered release notes and writes JSON; cheap model, high effort"
+    used_by: [builder update cron]
+    reasoning: high
+    candidates:
+      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high}
+      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+    fallback: cheapest
+
+  aux:
+    why: "auxiliary.* slots (compression, titles, summaries) run on every session; cheapest model, low effort"
+    used_by: [all auxiliary.* slots]
+    reasoning: low
+    candidates:
+      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: low}
+      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: low}
+      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: low}
+      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: low}
+    fallback: cheapest
+
+  vision:
+    why: "auxiliary.vision for text-only main models (D-021); must accept images"
+    used_by: [auxiliary.vision]
+    reasoning: low
+    candidates:
+      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: low}
+      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: low}
+      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: low}
+      - {family: openai, match: 'gpt-5\.4', reasoning: low}
+    fallback: first-choice-provider

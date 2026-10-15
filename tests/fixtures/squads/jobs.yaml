@@ -1,0 +1,51 @@
+schema: 2
+key: jobs
+name: Jobs
+version: 3.0.0
+board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E"}
+section: {id: jobs, name: Jobs}
+lead: jobs
+bots:
+  jobs:
+    role: lead
+    title: Jobs lead
+    description: "Profile interview, digests, apply or skip decisions and tracking; holds PII, no web"
+    lane: lead
+    toolsets: [file, skills, kanban, memory, session_search, clarify, todo]
+    skills: {squad: [leading-job-search, jobs-contract], auto_load: leading-job-search}
+    memory: true
+    hidden: false
+    cron:
+      jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
+  jobs-scout:
+    role: worker
+    title: Jobs scout
+    description: "Searches openings, applies the hard filter, writes PURSUE/WATCH/REJECT analysis cards"
+    lane: research
+    toolsets: [file, skills, kanban, todo, web, browser, delegation]
+    skills: {squad: [finding-jobs, analyzing-jobs, jobs-contract], keep: [bundled:blocked-page-recovery]}
+    website_blocklist: [linkedin.com, "*.linkedin.com"]
+    hidden: true
+  jobs-writer:
+    role: worker
+    title: Jobs writer
+    description: "CV, letter and answers from verified achievements; renders PDF and DOCX"
+    lane: copy
+    toolsets: [file, skills, kanban, todo, terminal]
+    skills: {squad: [writing-applications, rendering-cv, jobs-contract], keep: [bundled:humanizer]}
+    hidden: true
+  jobs-reviewer:
+    role: worker
+    title: Jobs reviewer
+    description: "Five-lens review of every application before the digest"
+    lane: review
+    toolsets: [file, skills, kanban, todo, delegation]
+    skills: {squad: [reviewing-applications, jobs-contract]}
+    hidden: true
+chains:
+  application:
+    - {stage: analyze, assignee: jobs-scout, skill: analyzing-jobs, lane: review}
+    - {stage: write, assignee: jobs-writer, skill: writing-applications}
+    - {stage: review, assignee: jobs-reviewer, skill: reviewing-applications}
+    - {stage: digest, assignee: jobs, skill: leading-job-search}
+asks: ["set up my profile", "pause search", "apply to <id>"]
