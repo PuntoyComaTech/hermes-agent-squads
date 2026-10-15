@@ -50,7 +50,7 @@ Models come from the lanes in `scripts/data/model-roles.yaml`; the builder asks 
 | `dynamic_seo` | Catalog, shop, content site | Next.js App Router |
 | `tanstack`/`saas` | Public part plus a private app | TanStack Start |
 
-Common: Tailwind, TypeScript, pnpm, Biome, Vitest, Playwright. Pinned versions live in `stacks.yaml` and are what `scaffold_site.py` writes. Motion uses GSAP ScrollTrigger; 3D uses three.js with React Three Fiber (see `skills/building-frontend/references/`). Hosting is Cloudflare by default; a server-rendered site in production usually needs its paid plan, stated before the first deploy.
+Common: Tailwind, TypeScript, pnpm, Biome, Vitest, Playwright. Pinned versions live in `stacks.json` (`skills/building-frontend/scripts/`) and are what `scaffold_site.py` writes. Motion uses GSAP ScrollTrigger; 3D uses three.js with React Three Fiber (see `skills/building-frontend/references/`). Hosting is Cloudflare by default; a server-rendered site in production usually needs its paid plan, stated before the first deploy.
 
 ## Chain: milestone
 
@@ -86,5 +86,6 @@ flowchart LR
 | `squad.yaml` | Manifest: bots, lanes, chains, cron, keeps |
 | `souls/` | One SOUL per bot |
 | `skills/` | `leading-web`, `building-frontend`, `building-backend`, `reviewing-sites`, `deploying-sites`, `site-contract` |
-| `scripts/` | `scaffold_site.py`, `check_site.py`, `web_watch.py` |
-| `stacks.yaml` | Pinned framework and tool versions per stack |
+| `scripts/` | `web_watch.py` (cron watchdog, copied into the lead profile) |
+| `skills/building-frontend/scripts/` | `scaffold_site.py`, `stacks.json` (pinned framework and tool versions) |
+| `skills/site-contract/scripts/` | `check_site.py` |

@@ -71,7 +71,7 @@ stage produces the asset first and the motion stage imports it from `assets/`.
 
 ## Measuring
 
-- `ffprobe` and `ffmpeg` are the measuring instruments; `scripts/render_check.py` wraps them (spec,
+- `ffprobe` and `ffmpeg` are the measuring instruments; `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py` wraps them (spec,
   EBU R128 loudness, contact sheet). Never eyeball a number the check can measure.
 - Every render gets `<name>.check.json` plus a contact sheet; both go into the handoff.
 - Version drift (Node, FFmpeg, browsers) changes output: record what `npx hyperframes doctor` or the

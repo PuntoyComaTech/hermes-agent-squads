@@ -80,7 +80,8 @@ def front_matter(path: Path) -> dict:
     for line in match.group(1).splitlines():
         if ":" in line and not line.lstrip().startswith("#"):
             key, value = line.split(":", 1)
-            data[key.strip()] = value.strip().strip('"')
+            value = value.split(" #", 1)[0].strip().strip('"')
+            data[key.strip()] = value
     return data
 
 

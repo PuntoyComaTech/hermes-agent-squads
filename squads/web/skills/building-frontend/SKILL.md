@@ -17,7 +17,7 @@ Motion and scroll are in `references/motion.md`, 3D in `references/three.md`, th
 
 1. `kanban_show`. Read the card body, `spec.md`, the milestone note, `DESIGN.md` and the current `repo/`.
 2. Branch: `git -C repo switch -c web/<ID>` (or `switch` to it when the card is a fix round). Never work on `main`.
-3. First build only: `python3 squads/web/scripts/scaffold_site.py --stack <stack> --name <site> --dir repo` writes the pinned project from `stacks.yaml`. An existing repo is reused as is.
+3. First build only: `python3 "$HERMES_HOME/skills/squad-web/building-frontend/scripts/scaffold_site.py" --stack <stack> --name <site> --dir repo` writes the pinned project from `scripts/stacks.json`. An existing repo is reused as is.
 4. Design system before pages: tokens (color, type scale, spacing, radius, shadow), one component per file, and layout primitives. Follow `DESIGN.md` when it exists; otherwise apply `references/ui.md` and record the choices in `decisions.md`.
 5. Pages: one route per row of `spec.md -> Pages`; semantic landmarks, one `h1`, heading order, `alt` on every meaningful image, `lang` per language, forms with labels and a working submit path.
 6. Motion: follow `references/motion.md`. Animate `transform` and `opacity` only, keep the first render free of animation work, honor `prefers-reduced-motion`, and stop every listener, timeline and trigger on teardown.

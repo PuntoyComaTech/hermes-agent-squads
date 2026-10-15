@@ -22,15 +22,15 @@ and `studio_project.py check` read the keys; never rename them.
 
 ```yaml
 ---
-piece: 20261015-hero-loop        # <YYYYMMDD>-<slug>, lowercase, no accents
+piece: 20261015-hero-loop
 title: Hero loop for the site
-requester: web                   # web | marketing | user
-format: mp4                      # mp4 | webm | gif | png-sequence | glb | html
-duration: 5.00                   # seconds; omit for format: html
-fps: 30                          # frames per second; omit for format: html
-resolution: 1920x1080            # WxH; omit for format: html
-audio: stereo                    # none | stereo
-loudness: -23.0                  # EBU R128 integrated target in LUFS; only with audio
+requester: web
+format: mp4
+duration: 5.00
+fps: 30
+resolution: 1920x1080
+audio: stereo
+loudness: -23.0
 ---
 
 ## Objective

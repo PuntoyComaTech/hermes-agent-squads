@@ -121,6 +121,11 @@ class Checker:
         try:
             import yaml
             data = yaml.safe_load(spec.read_text(encoding="utf-8")) or {}
+        except ImportError:
+            self.record("thresholds", "site.yaml", False,
+                        "site.yaml exists but no YAML module is available; default thresholds used "
+                        "(pass --thresholds-json to pin the site's own)", "warn")
+            return dict(DEFAULT_THRESHOLDS)
         except Exception:
             return dict(DEFAULT_THRESHOLDS)
         found = ((data.get("automation") or {}).get("thresholds")) or {}

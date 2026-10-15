@@ -29,10 +29,11 @@ workflow skill with the tool names and scene recipes — read it first, then app
 
 - Stills: PNG at the brief's resolution into `renders/<piece-id>-<shot>-<NN>.png`.
 - Animation: write a clip into `renders/` at the brief's fps and resolution, then run
-  `scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; a PNG sequence
+  `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; a PNG sequence
   is stitched with FFmpeg before the check.
 - glTF for the demos: export `.glb` with materials and textures embedded, into `assets/` (or the demo
-  folder when the brief delivers it), then load it in the demo page to prove it works. Absolute texture
+  folder when the brief delivers it), then validate it with `npx gltf-validator <file>` (the demo-page
+  load is studio-motion's step). Absolute texture
   paths and missing materials are the usual causes of a broken export.
 - Contact sheets for stills: run `render_check.py` on the animation, or build a grid with FFmpeg for a
   still set; the lead reviews from the sheet.

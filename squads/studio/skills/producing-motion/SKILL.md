@@ -5,7 +5,7 @@ description: "Produces rendered motion assets and graphics. Use when a piece nee
 
 # Producing motion
 
-Turn a storyboard into rendered files, one shot at a time. A shot is done when its render passes `scripts/render_check.py` against the brief.
+Turn a storyboard into rendered files, one shot at a time. A shot is done when its render passes `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py` against the brief.
 
 ## When to Use
 
@@ -26,7 +26,7 @@ Turn a storyboard into rendered files, one shot at a time. A shot is done when i
 3. Work inside the piece folder only. Everything downloaded or generated as an input goes to `assets/` and is logged in `assets/sources.md`; a demo delivered as files lands in `renders/<piece-id>-<shot>-<NN>/`.
 4. Remotion needs a paid company licence from 4 employees: if the licence answer is not on record, `kanban_block` instead of using it.
 5. Render to `renders/<piece-id>-<shot>-<NN>.<ext>`; never overwrite a previous version.
-6. Check: `scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`, fix and rerun until it exits 0. For a `format: html` demo there is no render to probe: open it in the browser and confirm it loads without console errors before handoff.
+6. Check: `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`, fix and rerun until it exits 0. For a `format: html` demo there is no render to probe: open it in the browser and confirm it loads without console errors before handoff.
 7. Hand off: every render path, its `.check.json` report, the contact sheets, and the decisions taken (tool per shot, palette, timing changes and why).
 
 ## Pitfalls
@@ -40,7 +40,7 @@ Turn a storyboard into rendered files, one shot at a time. A shot is done when i
 
 ## Verification
 
-- `scripts/render_check.py` exits 0 for every deliverable, with the brief's duration, fps, resolution and loudness.
+- `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py` exits 0 for every deliverable, with the brief's duration, fps, resolution and loudness.
 - The contact sheet exists next to each render and shows the shots the storyboard names.
 - `assets/sources.md` has a row for every external asset the shot used.
 - The handoff lists no path that does not exist.

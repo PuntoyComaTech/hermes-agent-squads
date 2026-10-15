@@ -20,8 +20,8 @@ Blender work runs through the `blender` MCP plugin (official). The plugin execut
 3. Build or open the scene through the plugin's tools; set camera, materials and lighting from the storyboard. Follow `references/blender-workflow.md` for the stage conventions.
 4. Draft first: EEVEE or low samples for the review pass, the final engine and sample count for delivery. Render stills and turntables into `renders/`.
 5. A turntable is one clean 360-degree orbit over the brief's duration at the brief's fps: constant speed, no cuts, loops seamlessly.
-6. Export glTF (`.glb`) for the demos with materials applied, and load the file in the demo page before handoff; an export that does not load is not done.
-7. Check animated output with `scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; stills go through vision against the storyboard row.
+6. Export glTF (`.glb`) for the demos with materials applied, and validate it with `npx gltf-validator <file>` before handoff (studio-3d has no browser; the demo-page load is studio-motion's step); an export that does not validate is not done.
+7. Check animated output with `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; stills go through vision against the storyboard row.
 8. Log every external model, HDRI or texture in `assets/sources.md` with source, licence and cost before using it.
 
 ## Pitfalls
@@ -36,6 +36,6 @@ Blender work runs through the `blender` MCP plugin (official). The plugin execut
 ## Verification
 
 - Every deliverable sits in `renders/` under the studio-contract naming.
-- Animated output passes `scripts/render_check.py`; a turntable loops cleanly, stills match their storyboard row.
-- The glTF loads in the demo page without errors, with materials.
+- Animated output passes `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py`; a turntable loops cleanly, stills match their storyboard row.
+- The glTF passes `npx gltf-validator <file>` without errors, with materials.
 - `assets/sources.md` lists every external asset with its licence.

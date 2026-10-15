@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Write a pinned project skeleton for one of the squad's stacks (plan 4.1).
+"""Write a pinned project skeleton for one of the squad's stacks.
 
 Usage:
   scaffold_site.py --list
   scaffold_site.py --stack astro --name panaderia-sol --dir <site>/repo [--force] [--dry-run] [--json]
 
-Reads stacks.yaml beside this file (squads/web/stacks.yaml), so the framework, tool and test
-versions it writes are the ones the squad pinned, never "latest". It writes files only: it never
-installs packages, runs git or touches the network. Install with the package manager afterwards
-(`pnpm install`, under the site's heavy-work budget) and let the first build be the verification.
+Reads stacks.json beside this file, so the framework, tool and test versions it writes are the ones
+the squad pinned, never "latest". It writes files only: it never installs packages, runs git or
+touches the network. Install with the package manager afterwards (`pnpm install`, under the site's
+heavy-work budget) and let the first build be the verification.
 
 Exit 0 written (or dry run), 1 refused (target not empty without --force), 2 usage or data error.
 """
@@ -20,17 +20,8 @@ import re
 import sys
 from pathlib import Path
 
-try:
-    import hermes_yaml  # type: ignore[import-not-found]  # the Hermes runtime's YAML module
-    yaml = hermes_yaml
-except ImportError:  # outside the Hermes runtime (tests, CI)
-    try:
-        import yaml  # type: ignore[no-redef]
-    except ImportError:
-        yaml = None
-
 HERE = Path(__file__).resolve().parent
-STACKS_FILE = HERE.parent / "stacks.yaml"
+STACKS_FILE = HERE / "stacks.json"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 
 GITIGNORE = """node_modules/
@@ -100,11 +91,12 @@ WELCOME = "# {name}\n\nScaffolded by the web squad's `scaffold_site.py` from `st
 
 
 def load_stacks() -> dict:
-    if yaml is None:
-        raise SystemExit("error: no YAML module available (run this from the Hermes runtime or install PyYAML)")
     if not STACKS_FILE.is_file():
         raise SystemExit(f"error: {STACKS_FILE} not found next to this script")
-    data = yaml.safe_load(STACKS_FILE.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(STACKS_FILE.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise SystemExit(f"error: {STACKS_FILE} is not valid JSON: {exc}")
     if not isinstance(data, dict) or not data.get("stacks"):
         raise SystemExit(f"error: {STACKS_FILE} has no stacks: map")
     return data
@@ -212,9 +204,9 @@ def busiest(target: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="Write a pinned project skeleton for one of the squad's stacks.",
-        epilog="Reads stacks.yaml beside this script; writes files only. Exit 0 written, 1 refused, 2 usage error.",
+        epilog="Reads stacks.json beside this script; writes files only. Exit 0 written, 1 refused, 2 usage error.",
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--stack", help="astro | nextjs | tanstack (see stacks.yaml)")
+    p.add_argument("--stack", help="astro | nextjs | tanstack (see stacks.json)")
     p.add_argument("--name", help="project name (lowercase, dashes)")
     p.add_argument("--dir", default=".", help="target directory (default: current)")
     p.add_argument("--force", action="store_true", help="write into a directory that already has files")

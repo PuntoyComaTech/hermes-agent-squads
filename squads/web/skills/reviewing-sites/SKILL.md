@@ -17,7 +17,7 @@ The lens checklists are in `references/lenses.md`. You never fix what you review
 
 1. `kanban_show`. Read the card body, `spec.md`, the milestone note, `site.yaml` and the newest `deploys/<ID>-preview-*.json`. No deploy record, or `ok: false` → block immediately; never review a build that did not deploy.
 2. Run the squad's checker against the preview, from the site folder:
-   `python3 squads/web/scripts/check_site.py --site <slug> --id <ID> --round <R> --url <preview-url>`
+   `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/check_site.py" --site <slug> --id <ID> --round <R> --url <preview-url> --browser --lighthouse --repo repo`
    It writes `reviews/<ID>-r<R>/checks.json`, screenshots and the HTTP, links, meta, header and secret-scan results. Failures of the tool itself (Chrome or Lighthouse missing) are a blocker, not a finding.
 3. Look at the screenshots cold before opening the browser: mobile first, then desktop. Then open the preview with the browser (only that URL and its subpages) and walk the acceptance criteria.
 4. Five lenses, one `delegate_task` subagent each, clean context, no write access; hand each subagent the URL, the criteria and the file paths:
