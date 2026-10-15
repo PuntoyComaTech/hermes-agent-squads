@@ -185,6 +185,12 @@ def test_local_hermes_change_wakes(up, home, capsys):
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
 
 
+def test_a_new_build_suffix_of_the_same_release_is_silent(up, home, capsys):
+    """`hermes update` on a git install changes only +N.g<sha>; that is not a Hermes change to digest."""
+    seed(home, release="v0.22.1", hermes="0.22.0+1.g1111111", squads=None)
+    assert run_gate(up, home, hermes_version="0.22.0+9.gdeadbee", capsys=capsys) == {"wakeAgent": False}
+
+
 def test_local_version_parsed_from_the_hermes_binary(tmp_path):
     fake = tmp_path / "hermes"
     fake.write_text(f"#!/bin/sh\ncat {FIX / 'hermes-version.txt'}\necho 'Install directory: x'\n")

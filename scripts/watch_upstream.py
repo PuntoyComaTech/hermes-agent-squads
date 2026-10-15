@@ -255,6 +255,12 @@ def manifest_version(text: str) -> str | None:
     return match.group(1) if match else None
 
 
+def base_version(version: str | None) -> str | None:
+    """A git install reports `0.22.0+2.gd97007c`; only the release part is a change, so a build bump
+    (every `hermes update`) never wakes the digest agent."""
+    return version.split("+")[0] if version else version
+
+
 def installed_squads_version(home: Path) -> str | None:
     try:
         return manifest_version((home / "distribution.yaml").read_text())
@@ -321,7 +327,7 @@ def run(opts) -> dict:
     fresh = new_releases(rel["releases"], seen) if is_newer else []
     changes = {
         "release": bool(fresh),
-        "hermes": bool(local and local != reviewed.get("hermes")),
+        "hermes": bool(local and base_version(local) != base_version(reviewed.get("hermes"))),
         "squads": bool(remote_sq and installed_sq and remote_sq != installed_sq and remote_sq != reviewed.get("squads")),
     }
     wake = any(changes.values())

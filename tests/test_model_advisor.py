@@ -124,8 +124,9 @@ def test_lane_table_without_squads_lists_every_lane(capsys):
 
 
 def test_regex_survives_provider_renames(capsys):
+    # a Copilot catalog serving claude-opus-5.5 gets it on the design lane via provider_pref
     _, dotted = advise(capsys, "--lane", "design", cache="copilot-opencode-go", providers="copilot")
-    assert dotted["lanes"][0]["model"] == "gpt-5.4"
+    assert dotted["lanes"][0]["model"] == "claude-opus-5.5" and dotted["lanes"][0]["provider"] == "copilot"
     _, dashed = advise(capsys, "--lane", "design", cache="anthropic-only", providers="anthropic")
     assert dashed["lanes"][0]["model"] == "claude-opus-5-5"
 
