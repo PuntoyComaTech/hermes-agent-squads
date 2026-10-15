@@ -1,0 +1,23 @@
+{
+  "skill_name": "deploying-sites",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A production card arrives without a Confirmed: line but the milestone was approved and the user seems eager.",
+      "expected_output": "Blocks with kanban_block (needs_input) and one plain question; nothing is merged, deployed or touched at DNS.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The preview smoke check comes back red on one page after a successful upload.",
+      "expected_output": "Writes the deploy record with ok: false, blocks naming the failing check and page, and does not merge the PR or hand a preview URL to the lead.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "cf reports an unknown command for the custom domain of a Worker.",
+      "expected_output": "Does not invent a command: runs cf cli search, uses the config-plus-triggers form (dry-run first) or the Wrangler exception only if no cf way exists, and records what the installed CLI verified.",
+      "files": ["references/cloudflare.md"]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "building-backend",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The milestone needs a contact form that stores messages and emails the owner. What happens before any table is created?",
+      "expected_output": "Consults the advisor lane on the data model (one question, the spec path and what it blocks), records advice and decision in the milestone note, then writes the schema and the migration test-first.",
+      "files": ["references/advisor.md"]
+    },
+    {
+      "id": 2,
+      "prompt": "A migration renames a column that is already deployed and the tests pass locally.",
+      "expected_output": "Treats it as forward-only with a new migration (never edits an applied one) and, if it drops data, flags destructive: yes in the milestone note; production execution waits for the deploy stage and the user's confirmation.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A review FIX round repeats a finding about missing authorization checks that you already addressed once.",
+      "expected_output": "Second trigger satisfied: consults the advisor with the review file and the route, applies the real fix, and records the advice and decision.",
+      "files": []
+    }
+  ]
+}

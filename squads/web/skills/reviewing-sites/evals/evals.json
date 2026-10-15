@@ -1,0 +1,23 @@
+{
+  "skill_name": "reviewing-sites",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The deploy record for the preview is missing but the card says the preview URL works.",
+      "expected_output": "Blocks immediately (kanban_block) naming the missing deploy record; reviews nothing and invents no evidence.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Round 0 review finds one critical acceptance failure and the site allows 2 rounds.",
+      "expected_output": "Verdict FIX, files one fix card for the builder with parents=[the qa card], the critical list verbatim and key web:milestone:<project>:<run-id>:<stage>-r1, then completes the qa card.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A finding would need the user to change the site's tone of voice, and round 2 of 2 is done.",
+      "expected_output": "Verdict ESCALATE with kanban_block for the lead, carrying one plain question and the surviving findings; no further fix card.",
+      "files": []
+    }
+  ]
+}

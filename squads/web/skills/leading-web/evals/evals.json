@@ -1,0 +1,23 @@
+{
+  "skill_name": "leading-web",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The user says 'publish'. Write the deploy-production card right away?",
+      "expected_output": "No. Asks one closed Yes/No question first (what goes live, where, cost); only a literal yes goes into the card as Confirmed, then the chain is filed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The spec has an M2 and the qa card for M1 completed APPROVED. What happens next in this squad?",
+      "expected_output": "The accept stage posts the preview to the user; the next milestone chain is filed only after the user replies (publish, change or bug), and never while a qa card for the site is open.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A non-technical user asks which database the squad will use for their booking site.",
+      "expected_output": "Answers in one plain line with the default choice and its effect, records it in decisions.md, and never asks the user to pick a technical option.",
+      "files": []
+    }
+  ]
+}

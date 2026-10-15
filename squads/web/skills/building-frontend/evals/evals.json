@@ -1,0 +1,23 @@
+{
+  "skill_name": "building-frontend",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The spec asks for a scroll story on the landing page. The developer reaches for a window scroll listener and GSAP from CDN.",
+      "expected_output": "Uses ScrollTrigger inside a gsap.context with revert on teardown, animations on transform/opacity only, reduced-motion branch, and the package from the project's own dependencies (no CDN).",
+      "files": ["references/motion.md"]
+    },
+    {
+      "id": 2,
+      "prompt": "A hero three.js scene loads a 6 MB GLB synchronously and delays first paint.",
+      "expected_output": "Lazy-loads the canvas with a poster fallback, compresses the asset (Draco/Meshopt), clamps DPR, pauses off-screen and keeps the first render free of the 3D bundle.",
+      "files": ["references/three.md"]
+    },
+    {
+      "id": 3,
+      "prompt": "A review FIX round says the mobile menu spacing is uneven and the accent color fails contrast on the surface background.",
+      "expected_output": "Applies only the requested changes, moves the spacing to the token scale, adjusts the accent token to pass 4.5:1, and appends one History line before completing the card.",
+      "files": []
+    }
+  ]
+}
