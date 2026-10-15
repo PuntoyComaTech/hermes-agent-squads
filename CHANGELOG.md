@@ -22,6 +22,9 @@ Full redesign as a profile distribution (see `docs/decisions.md`).
 - Ten builder skills under `skills/`, including `hermes-platform` (18 verified Hermes
   reference topics with citations) (V-09).
 - New `studio` squad for rendered and standalone assets: motion, video, 3D (V-13).
+- `scripts/migrate_v1.py`: detects a v1 install (legacy profiles, `~/Hermes/projects/*`,
+  `deliver.py` crons), registers the folders as native Projects, removes the deliver crons and
+  archives the orchestrator into `local/backups/`; `--dry-run` and `--json`.
 
 ### Changed
 

@@ -20,6 +20,9 @@ hermes -p builder model        # pick the builder's model (interactive, once)
 builder chat                   # say "set me up" -> the builder runs squadctl apply --self
 ```
 
+The `--alias` wrapper is written to `~/.local/bin`; keep that directory on your `PATH` to
+use the short `builder chat` form (`hermes -p builder chat` always works).
+
 You need Hermes Agent with a connected model provider, a machine that stays on for
 automations, and (optional) a messaging platform where the leads deliver results.
 
@@ -117,7 +120,8 @@ SOUL.md  config.yaml   builder identity and minimal profile config
 builder.yaml           builder bot spec; applied by scripts/squadctl.py apply --self
 CHANGELOG.md           what shipped, read by the update watcher
 skills/                10 builder skills (hermes-platform = verified Hermes reference)
-scripts/               squadctl, model_advisor, catalog_search, skill_lint, watchers
+scripts/               squadctl, migrate_v1, model_advisor, catalog_search, skill_lint,
+                       kanban_chain, watch_upstream + gate_lib, data/ lane tables
 squads/<key>/          squad manifests, SOULs, skills, scripts (web, marketing, jobs, studio)
 squads/_schema/        squad manifest JSON schema
 docs/decisions.md      condensed decision log
