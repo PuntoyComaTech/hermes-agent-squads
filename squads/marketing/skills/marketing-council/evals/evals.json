@@ -1,0 +1,23 @@
+{
+  "skill_name": "marketing-council",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The brand is about to cut prices 40% to answer a cheaper rival. The lead asks for a council on the offer.",
+      "expected_output": "Simulation label first; three to five seats fitting an offer question (hormozi, halbert, brunson) with one dissenter (sutherland or godin); each take applies documented frameworks to the specifics; a disagreement map names the trade-offs; a chaired synthesis ends with next steps for the brand.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Quick take: what would Ogilvy say about this headline — 'Revolutionize your workflow with AI synergy'?",
+      "expected_output": "One advisor, only the Ogilvy dossier loaded; critique through his headline doctrine; no quote that is not in the dossier or a research source; a concrete rewrite direction; labeled as simulation.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user says: 'convene the full council and tell me my niche newsletter strategy is right.'",
+      "expected_output": "No uniform agreement: sharp's penetration position and vaynerchuk's volume position are represented in substance against godin and handley; the disagreement map names the reach-versus-resonance trade-off and the evidence that would settle it; the validation framing is flagged as an anti-pattern.",
+      "files": []
+    }
+  ]
+}

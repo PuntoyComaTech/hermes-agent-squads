@@ -1,0 +1,23 @@
+{
+  "skill_name": "product-marketing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Onboarding card: draft brand.md for a local restaurant. The website and Instagram exist; the only price visible is a menu photo.",
+      "expected_output": "A brand.md draft with Facts, Audience, Competitors and Voice filled from the public sources, prices marked pending, proof points unverified, status draft.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user says the brand now sells to offices instead of walk-in customers.",
+      "expected_output": "A v2 brand.md with a new Changes line stating the repositioning, the audience rewritten, and the two-line summary saying everything after this builds on the new context.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A reviewer finds a piece claiming 'the best coffee in town' with no proof point.",
+      "expected_output": "The claim is cut or returned; brand.md is checked for a verified proof point and none is added without the user's confirmation and permission.",
+      "files": []
+    }
+  ]
+}

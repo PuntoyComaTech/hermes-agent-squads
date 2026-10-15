@@ -1,0 +1,23 @@
+{
+  "skill_name": "marketing-psychology",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write the hook for a carousel aimed at an audience that does not know it has the problem yet; the offer is a coffee subscription.",
+      "expected_output": "One to three named mechanisms fitted to a problem-unaware audience (problem naming, specificity), framing in the hook, one call to action, every claim backed by a verified proof point.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The brief asks for a countdown timer on the offer, but the brand has no end date and no stock limit.",
+      "expected_output": "The countdown is dropped as a veto item (false urgency); an honest alternative is proposed (real benefit, real deadline if the brand sets one), and the change is noted for the reviewer.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A testimonial from a customer appears in a review but there is no permission line in brand.md.",
+      "expected_output": "The testimonial is not used until a proof-point row with permission exists; the card summary names what to ask the user.",
+      "files": []
+    }
+  ]
+}
