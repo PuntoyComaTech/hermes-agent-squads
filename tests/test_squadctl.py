@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -66,6 +67,9 @@ class Env:
         wrapper.chmod(0o755)
         monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
         monkeypatch.setenv("HERMES_HOME", str(self.root))
+        # A test run that happens to come from a Kanban worker carries the fence marker; boards are then the
+        # owner's errand, so clear it (and set it explicitly in the test that covers that path).
+        monkeypatch.delenv("HERMES_DELEGATED_CHILD_CONTEXT", raising=False)
         monkeypatch.setenv("FAKE_HERMES_LOG", str(self.log))
         monkeypatch.setenv("FAKE_HERMES_SRC", str(self.hsrc))
         self.models.write_text(yaml.safe_dump(models_doc()))
@@ -197,13 +201,23 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert web.config("web")["memory"]["memory_enabled"] is True
 
 
-def test_kanban_cap_is_set_once_in_the_gateway_root_not_per_bot(web, capsys):
-    """The dispatcher reads kanban.* from the gateway root config only; per-bot copies are dead keys."""
+def test_kanban_cap_is_never_written_by_a_plain_apply(web, capsys):
+    """`kanban.*` is machine-wide (the gateway owns the dispatcher): an apply reports it as an owner item only."""
     fe = web.config("web-frontend")
     assert "kanban" not in fe
+    assert not (web.root / "config.yaml").exists()
+    _, out = web.run("apply", "web", capsys=capsys)
+    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1 "
+                           "(owner confirm: apply --set-root-kanban-cap)"]
+    assert not (web.root / "config.yaml").exists()
+    assert "kanban" not in web.config("web-qa")
+
+
+def test_kanban_cap_is_set_only_with_the_root_flag(web, capsys):
+    _, out = web.run("apply", "web", "--set-root-kanban-cap", capsys=capsys)
+    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1"]
     root_cfg = yaml.safe_load((web.root / "config.yaml").read_text())
     assert root_cfg["kanban"]["max_in_progress_per_profile"] == 1
-    assert "kanban" not in web.config("web-qa")
     _, out = web.run("apply", "web", capsys=capsys)
     assert out["root"] == []  # written once, then unchanged
     assert out["summary"] == {"unchanged": 5}
@@ -212,7 +226,8 @@ def test_kanban_cap_is_set_once_in_the_gateway_root_not_per_bot(web, capsys):
 def test_plan_reports_the_root_kanban_cap_when_missing(env, capsys):
     env.squad("web")
     _, out = env.run("plan", "web", capsys=capsys)
-    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1"]
+    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1 "
+                           "(owner confirm: apply --set-root-kanban-cap)"]
     assert not (env.root / "config.yaml").exists()  # plan writes nothing
 
 
@@ -260,6 +275,70 @@ def test_plugins_mcp_cron_board_installed(web):
     installed = yaml.safe_load((web.local / "installed.yaml").read_text())
     assert installed["squads"]["web"]["bots"] == WEB_BOTS
     assert installed["lanes"]["design"]["model"] == "model-design"
+
+
+def test_board_creation_is_the_owner_errand_inside_a_kanban_worker(env, capsys, monkeypatch):
+    """Hermes refuses `kanban boards create` from a Kanban worker: skip the board, keep the profile work."""
+    monkeypatch.setenv("HERMES_DELEGATED_CHILD_CONTEXT", str(env.root))
+    env.squad("web")
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["board"] == ("pending owner action: hermes kanban boards create "
+                            + shlex.join(["web", "--name", "Web", "--icon=🌐", "--color=#2F6FEB"]))
+    assert out["summary"] == {"created": 5}
+    assert not any(c["args"][:3] == ["kanban", "boards", "create"] for c in env.calls())
+    _, st = env.run("status", "web", capsys=capsys)
+    assert st["squads"][0]["board"].startswith("pending owner action: hermes kanban boards create web")
+
+
+def test_provider_plugin_is_copied_into_the_bot_profile(env, capsys):
+    """A provider that is a user plugin of the builder is `Unknown provider` elsewhere until it is copied."""
+    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-design"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text("name: prov-design\nkind: model-provider\nversion: 1.0.0\n")
+    (plugin / "__init__.py").write_text("registered = True\n")
+    env.squad("web")
+    _, out = env.run("apply", "web", capsys=capsys)
+    fe = next(b for b in out["bots"] if b["bot"] == "web-frontend")
+    assert "provider plugin + prov-design" in fe["actions"]
+    dest = env.root / "profiles" / "web-frontend" / "plugins" / "model-providers" / "prov-design"
+    assert (dest / "__init__.py").read_text() == "registered = True\n"
+    # merged with the plugins.enable items of the spec, never replacing them
+    assert env.config("web-frontend")["plugins"]["enabled"] == [
+        "disk-cleanup", "model-providers/prov-design", "security-guidance"]
+    assert "model-providers/prov-design" not in env.config("web-qa")["plugins"]["enabled"]  # only the bots that got it
+    _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
+    assert out["bots"][0]["status"] == "unchanged"
+
+
+def test_provider_change_clears_the_stale_route(env, capsys):
+    """`model.base_url`/`api_mode` are route state of the old provider and would post the new key there."""
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    cfg = env.root / "profiles" / "web-qa" / "config.yaml"
+    data = yaml.safe_load(cfg.read_text())
+    data["model"] = {"provider": "old-prov", "default": "model-review", "base_url": "process://local",
+                     "api_mode": "chat_completions"}
+    cfg.write_text(yaml.safe_dump(data))
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert any("model.base_url" in a for a in qa["actions"])
+    data = yaml.safe_load(cfg.read_text())
+    assert (data["model"]["provider"], data["model"]["default"]) == ("prov-review", "model-review")
+    assert data["model"]["base_url"] == "" and data["model"]["api_mode"] == ""
+
+
+def test_provider_key_is_reported_as_an_owner_item_never_read(env, capsys, monkeypatch):
+    """A profile never inherits the gateway root environment; squadctl names the key and touches no file."""
+    monkeypatch.delenv("PROV_DESIGN_API_KEY", raising=False)
+    env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
+    (fe,) = out["bots"]
+    assert any("credentials PROV_DESIGN_API_KEY" in n and "web-frontend" in n for n in fe["notes"])
+    assert not (env.root / "profiles" / "web-frontend" / ".env").exists()
+    monkeypatch.setenv("PROV_DESIGN_API_KEY", "sk-value-that-must-not-print")
+    _, out = env.run("plan", "web", "--bots", "web-frontend", capsys=capsys)
+    assert not any("credentials" in n for n in out["bots"][0].get("notes", []))
+    assert "sk-value-that-must-not-print" not in json.dumps(out)
 
 
 def test_apply_is_idempotent(web, capsys):
@@ -556,18 +635,30 @@ def test_plugin_install_passes_yes_deps_so_the_plugin_ends_up_enabled(env, capsy
     assert "blender" in env.config("web-qa")["plugins"]["enabled"]
 
 
-def test_mcp_add_probe_failure_stays_pending_and_is_never_marked_done(env, capsys, monkeypatch):
-    """`mcp add` on a failed probe saves `enabled: false` after 'y'; key presence is not 'done'."""
+def test_mcp_add_fails_loudly_when_the_server_does_not_land_enabled(env, capsys, monkeypatch):
+    """`mcp add` used to end in "Cancelled." with exit 0: nothing saved, nothing reported, apply green."""
     monkeypatch.setenv("FAKE_MCP_PROBE_FAIL", "chrome-devtools")
     env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web-qa", expect=1, capsys=capsys)
+    assert "chrome-devtools" in out["error"] and "did not land enabled" in out["error"]
+    assert "hermes -p web-qa mcp add chrome-devtools" in out["error"]
+    # The server hermes did save (disabled) stays visible as an owner item on every later run.
+    mark = len(env.calls())
     _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     (qa,) = out["bots"]
-    assert any("mcp chrome-devtools" in p and "probe failed" in p for p in qa["pending"])
     assert env.config("web-qa")["mcp_servers"]["chrome-devtools"]["enabled"] is False
+    assert any("chrome-devtools" in p and "saved disabled" in p for p in qa["pending"])
+    assert "mcp add chrome-devtools" not in qa["actions"]  # a saved-disabled server is never re-added blindly
+    assert not any(c["args"][:2] == ["mcp", "add"] for c in env.calls()[mark:])
+
+
+def test_mcp_add_answers_the_auth_prompt_before_the_tool_picker(env, capsys):
+    """An HTTP server asks "requires authentication?" first, so the answers must be ordered (n, then y)."""
+    env.squad("web", lambda s: s["bots"]["web-qa"].update(mcp={"remote": {"url": "https://mcp.example.com/mcp"}}))
     _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     (qa,) = out["bots"]
-    assert qa["status"] == "unchanged"
-    assert any("mcp chrome-devtools" in p and "probe failed" in p for p in qa["pending"])
+    assert "mcp add remote" in qa["actions"]
+    assert env.config("web-qa")["mcp_servers"]["remote"]["enabled"] is True
 
 
 def test_missing_bundled_keep_is_an_error(env, capsys):
@@ -847,6 +938,27 @@ def test_doctor_reports_checks_and_never_prints_env_values(web, capsys, monkeypa
     assert checks["desktop-kanban"]["status"] == "info"
     assert checks["web:cards"]["detail"] == "no stale cards"
     assert "ghp_supersecretvalue" not in json.dumps(out)
+
+
+def test_doctor_flags_a_missing_provider_plugin_and_filters_by_squad(env, capsys):
+    """`doctor [<squad>]` answers for one squad: it loads no other squad's spec and flags a missing plugin."""
+    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-design"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text("name: prov-design\nkind: model-provider\n")
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web", capsys=capsys)  # the lead only: no copy has happened yet
+    installed = yaml.safe_load(env.local.joinpath("installed.yaml").read_text())
+    installed["squads"]["jobs"] = {"version": "1.0.0"}
+    env.local.joinpath("installed.yaml").write_text(yaml.safe_dump(installed))
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert "web-frontend:provider-plugin" in checks, sorted(checks)
+    assert "apply copies" in checks["web-frontend:provider-plugin"]["detail"]
+    assert not any(c["check"].startswith("jobs") for c in out["checks"])
+    _, all_out = env.run("doctor", expect=1, capsys=capsys)  # jobs has no spec: only the unfiltered run fails
+    assert any(c["check"] == "jobs:spec" and c["status"] == "fail" for c in all_out["checks"])
+    _, out = env.run("doctor", "nope", expect=1, capsys=capsys)
+    assert "is not installed" in out["error"]
 
 
 def test_doctor_warns_about_missing_models(env, capsys):

@@ -265,10 +265,36 @@ def main():
     elif cmd == "mcp":
         need_profile()
         assert rest[0] == "add"
+        args = rest[1:]
         cfg = load(HOME / "config.yaml", {})
-        failing = set(filter(None, (os.environ.get("FAKE_MCP_PROBE_FAIL") or "").split(",")))
-        cfg.setdefault("mcp_servers", {})[rest[1]] = {"command": opt("--command"), "url": opt("--url"),
-                                                      "enabled": rest[1] not in failing}
+        name_arg = args[0]
+        url = opt("--url")
+        failing = name_arg in set(filter(None, (os.environ.get("FAKE_MCP_PROBE_FAIL") or "").split(",")))
+        # Real prompt order and defaults (hermes_cli/mcp_config.cmd_mcp_add): only an HTTP server asks "Does this
+        # server require authentication?" (_configure_http_auth), then the tool picker's "Enable all N tools?"
+        # (_choose_tools) or a "Save config anyway?" confirm. A blank line takes the prompt's default and an
+        # exhausted stdin is EOF — the picker then prints "Cancelled." and exits 0 without writing anything, the
+        # silent failure a wrong answer sequence hides.
+        answers = sys.stdin.read().splitlines()
+
+        def ask(default: bool) -> bool:
+            val = answers.pop(0).strip().lower() if answers else ""
+            return val in {"y", "yes"} if val else default
+
+        if url and ask(True):
+            die("fake: the auth prompt was answered 'yes' (a bearer key would be asked for next)")
+        enabled = False
+        if failing:
+            if ask(False):  # "Save config anyway (you can test later)?"
+                print("Cancelled.")
+            else:
+                return
+        elif ask(True):  # "Enable all N tools?"
+            enabled = True
+        else:
+            print("Cancelled.")
+            return
+        cfg.setdefault("mcp_servers", {})[name_arg] = {"command": opt("--command"), "url": url, "enabled": enabled}
         save(HOME / "config.yaml", cfg)
     elif cmd == "plugins":
         need_profile()

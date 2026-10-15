@@ -36,6 +36,7 @@ MANAGED = {"web", "browser", "vision", "video", "image_gen", "video_gen", "deleg
 CRON_TOOLSETS = ["terminal", "file", "skills", "kanban", "todo"]
 SHA_MARK = ".squad-sha"
 STALE_SECONDS = 24 * 3600
+PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
 
 
 class Fail(Exception):
@@ -108,6 +109,7 @@ class Ctx:
         self.json = a.json
         self._runtime: tuple[str, str] | None = None
         self._vision: dict[tuple[str, str], bool] = {}
+        self._env_keys: dict[str, list[str]] = {}
         self.confirmed = set(getattr(a, "confirm", None) or [])
 
     def home(self, bot: str) -> Path:
@@ -157,6 +159,30 @@ class Ctx:
             except (OSError, subprocess.SubprocessError):
                 self._vision[key] = False
         return self._vision[key]
+
+    def provider_env_keys(self, provider: str) -> list[str]:
+        """Env var names this provider reads its API key from, in priority order (PROVIDER_REGISTRY).
+
+        The registry is the only authority: a plugin provider declares its own names (ANTHROPIC_API_KEY,
+        CLAUDE_CODE_OAUTH_TOKEN, ...), so guessing `<PROVIDER>_API_KEY` is the fallback, never the rule.
+        """
+        if provider not in self._env_keys:
+            keys: list[str] = []
+            try:
+                py, hroot = self.runtime()
+                code = ("import json, sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; "
+                        "import hermes_bootstrap; from hermes_cli.auth import PROVIDER_REGISTRY as R; "
+                        "p = R.get(sys.argv[1]); "
+                        "print(json.dumps(list(getattr(p, 'api_key_env_vars', ()) or []) if p else []))") % hroot
+                p = subprocess.run([py, "-I", "-c", code, provider], capture_output=True, text=True, timeout=60,
+                                   stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+                if p.returncode == 0 and p.stdout.strip():
+                    keys = json.loads(p.stdout.strip().splitlines()[-1])
+            except (OSError, ValueError, subprocess.SubprocessError):
+                keys = []
+            names = [k for k in keys if isinstance(k, str) and k]
+            self._env_keys[provider] = names or [f"{re.sub(r'[^A-Za-z0-9]', '_', provider).upper()}_API_KEY"]
+        return self._env_keys[provider]
 
     def apply_config(self, home: Path, payload: dict) -> None:
         """One write pass per home through Hermes's own config writer (_profile_apply.py)."""
@@ -362,6 +388,41 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+def plugin_manifest(plugin_dir: Path) -> dict:
+    for fname in PLUGIN_MANIFESTS:
+        data = read_yaml(plugin_dir / fname)
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def plugin_key(plugin_dir: Path, plugins_root: Path) -> str:
+    """Canonical `plugins.enabled` key of one plugin dir (mirrors hermes_cli.plugins_cmd._read_manifest_info):
+    a nested dir keys by its path (`model-providers/<name>`), a flat one by its manifest name."""
+    rel = plugin_dir.relative_to(plugins_root)
+    if len(rel.parts) > 1:
+        return "/".join(rel.parts)
+    return str(plugin_manifest(plugin_dir).get("name") or plugin_dir.name)
+
+
+def provider_plugins(plugins_root: Path) -> dict[str, Path]:
+    """Provider plugins installed in ONE profile home: provider directory name -> dir.
+
+    Both layouts `providers/__init__._scan_home_layer` loads: `<plugins>/model-providers/<name>/`, and a flat
+    `<plugins>/<name>/` declaring `kind: model-provider` (where `hermes plugins install` clones).
+    """
+    out: dict[str, Path] = {}
+    nested = plugins_root / "model-providers"
+    if nested.is_dir():
+        out |= {d.name: d for d in sorted(nested.iterdir()) if d.is_dir() and not d.name.startswith(("_", "."))}
+    if plugins_root.is_dir():
+        for d in sorted(plugins_root.iterdir()):
+            if (d.is_dir() and d.name != "model-providers" and not d.name.startswith(("_", "."))
+                    and plugin_manifest(d).get("kind") == "model-provider"):
+                out.setdefault(d.name, d)
+    return out
+
+
 def version_ok(req: str, have: str) -> bool:
     m = re.match(r"(>=|>|==|<=|<|~=)\s*(\d+(?:\.\d+)*)", req or "")
     if not m:
@@ -500,7 +561,8 @@ class Applier:
         m = model_for(self.models, lane)
         return {**m, "reasoning": reasoning or m.get("reasoning")} if m else None
 
-    def config_plan(self, name: str, bot: dict, extra_dirs: list[str], notes: list[str]) -> list:
+    def config_plan(self, name: str, bot: dict, extra_dirs: list[str], notes: list[str],
+                    live: dict | None = None) -> list:
         d, home = self.defaults, self.ctx.home(name)
         toolsets = list(bot["toolsets"])
         plan: list = []
@@ -509,6 +571,12 @@ class Applier:
             plan += [["model.provider", m["provider"], False], ["model.default", m["model"], False]]
             if m.get("reasoning"):
                 plan.append(["agent.reasoning_effort", m["reasoning"], True])
+            if live is not None and (live.get("model") or {}).get("provider") != m["provider"]:
+                # A provider switch re-points `model:`; base_url/api_mode are route state of the OLD provider and
+                # the runtime honours them for whatever provider the block now names, so a stale route (a
+                # `process://` base_url inherited from the gateway root config) posts the new provider's key to
+                # the old endpoint. "" = no route here, which is what the runtime resolver reads as "unset".
+                plan += [["model.base_url", "", False], ["model.api_mode", "", False]]
         else:
             notes.append(f"no model assigned for {name} (lane {bot['lane']})")
         deleg = (bot.get("delegation") or {}).get("lane")
@@ -618,7 +686,7 @@ class Applier:
         extra_dirs = [v for _, k, v in keeps if k == "dir"]
 
         # config + ui_meta
-        sets = self.config_plan(name, bot, extra_dirs, notes)
+        sets = self.config_plan(name, bot, extra_dirs, notes, live=cfg)
         diff = pa.changed_keys(cfg, sets)
         meta = self.ui_meta(bot)
         profile_yaml = read_yaml(home / "profile.yaml") if exists else None
@@ -661,6 +729,9 @@ class Applier:
 
         for env in bot.get("passthrough") or []:
             notes.append(f"passthrough {env}: {'set' if os.environ.get(env) else 'missing'}")
+        note = self.credential_note(name, bot)
+        if note:
+            notes.append(note)
         conn = (bot.get("connectors") or {}).get("suggest") or []
         if conn:
             notes.append(f"connectors suggested: {', '.join(conn)}")
@@ -772,7 +843,59 @@ class Applier:
                 acts.append(f"plugins disable {pname}")
                 if not self.dry:
                     ctx.hermes("plugins", "disable", pname, profile=name)
+        acts += self.provider_plugin(name, bot)
         return acts
+
+    def provider_plugin(self, name: str, bot: dict) -> list[str]:
+        """A provider that is a user plugin lives in the builder's profile: copy it into this bot's own home.
+
+        `providers/__init__._scan_home_layer` only loads the profile's own `<home>/plugins/model-providers/<name>/`
+        (or a flat `<home>/plugins/<name>/` declaring `kind: model-provider`), so a provider registered in the
+        builder profile is `Unknown provider` in every other bot until it is copied and listed.
+        """
+        m = self.bot_model(name, bot)
+        if not m:
+            return []
+        builder, home = self.ctx.home(self.ctx.builder), self.ctx.home(name)
+        plugins_root = builder / "plugins"
+        src = provider_plugins(plugins_root).get(m["provider"])
+        if src is None:
+            return []
+        key = plugin_key(src, plugins_root)
+        dest = home / src.relative_to(builder)
+        in_sync = dest.is_dir() and tree_sha(dest) == tree_sha(src)
+        # Read the live list, never the config scanned at the start of the run: the `plugins.enable` items above
+        # have been written since, and merging with a stale copy would drop them.
+        enabled = list((((read_yaml(home / "config.yaml") or {}).get("plugins") or {}).get("enabled")) or [])
+        if in_sync and key in enabled:
+            return []
+        acts = [f"provider plugin {'enable' if in_sync else '+' if not dest.is_dir() else '~'} {m['provider']}"]
+        if not self.dry:
+            if not in_sync:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if dest.is_dir():
+                    shutil.rmtree(dest)
+                shutil.copytree(src, dest)
+            if key not in enabled:
+                self.ctx.apply_config(home, {"set": [["plugins.enabled", sorted({*enabled, key}), False]],
+                                             "ui_meta_bots": None})
+        return acts
+
+    def credential_note(self, name: str, bot: dict) -> str:
+        """The provider key of this bot as an owner item: a profile never inherits the gateway root environment.
+
+        Only the KEY NAME is resolved (PROVIDER_REGISTRY via `provider_env_keys`); no value is ever read, printed
+        or copied and no credential file is touched (AGENTS.md "no secrets", V-10) — same treatment as the
+        `passthrough` names, one line per bot in plan, apply and status.
+        """
+        m = self.bot_model(name, bot)
+        if not m:
+            return ""
+        key = self.ctx.provider_env_keys(m["provider"])[0]
+        if os.environ.get(key):
+            return ""
+        return (f"credentials {key}: not in this environment; put it in the {name} profile (mode 600) for "
+                f"provider {m['provider']} before the first run")
 
     def mcp(self, name: str, bot: dict, cfg: dict, pending: list[str]) -> list[str]:
         have = cfg.get("mcp_servers") or {}
@@ -780,17 +903,24 @@ class Applier:
         for sname, srv in (bot.get("mcp") or {}).items():
             if sname in have:
                 if not (have.get(sname) or {}).get("enabled", True):
-                    # saved `enabled: false`: the probe failed and `y` answered "Save anyway?"
-                    pending.append(f"mcp {sname}: probe failed, server saved disabled; run `hermes -p {name} mcp test {sname}`")
+                    pending.append(f"mcp {sname}: saved disabled, the probe failed; run `hermes -p {name} mcp test {sname}`")
                 continue
             acts.append(f"mcp add {sname}")
             if not self.dry:
                 tail = ["--url", srv["url"]] if "url" in srv else ["--command", srv["command"], "--args",
                                                                      *srv.get("args", [])]
-                self.ctx.hermes("mcp", "add", sname, *tail, profile=name, stdin="y\n")
+                # The prompt order of `hermes mcp add` (hermes_cli/mcp_config.py) decides the answers: an HTTP
+                # server asks "Does this server require authentication?" first (_configure_http_auth, only for
+                # --url), then the tool picker's "Enable all N tools?" (_choose_tools); a stdio server only sees
+                # the picker. One lone `y` landed on the auth question, the picker read EOF and printed
+                # "Cancelled." with exit 0 — a server that was never written and never reported.
+                stdin = ("n\n" if "url" in srv else "") + "y\n"
+                self.ctx.hermes("mcp", "add", sname, *tail, profile=name, stdin=stdin)
                 live = (read_yaml(self.ctx.home(name) / "config.yaml") or {}).get("mcp_servers") or {}
                 if not (live.get(sname) or {}).get("enabled", True):
-                    pending.append(f"mcp {sname}: probe failed, server saved disabled; run `hermes -p {name} mcp test {sname}`")
+                    raise Fail(f"{name}: mcp add {sname} did not land enabled — the server probe failed. "
+                               f"Fix it, then run `hermes -p {name} mcp add {sname} {' '.join(tail)}` "
+                               f"(or `hermes -p {name} mcp test {sname}`)")
         return acts
 
     def cron(self, name: str, bot: dict, existed: bool, notes: list[str]) -> list[str]:
@@ -859,10 +989,19 @@ def _read(path: Path) -> str:
 
 # --- commands ---------------------------------------------------------------------------------------------------------
 
+def board_args(board: dict) -> list[str]:
+    return [board["slug"], "--name", board["name"],
+            *[f"--{k}={board[k]}" for k in ("icon", "color", "description") if board.get(k)]]
+
+
 def ensure_board(ctx: Ctx, spec: dict, dry: bool) -> str:
     board = spec.get("board")
     if not board:
         return "none"
+    if os.environ.get("HERMES_DELEGATED_CHILD_CONTEXT"):
+        # Hermes refuses board creation from inside a Kanban worker (the card's board scope is fenced to the
+        # board it runs on), and the refusal must not cost the whole apply: the board becomes the owner's errand.
+        return "pending owner action: hermes kanban boards create " + shlex.join(board_args(board))
     out = ctx.hermes("kanban", "boards", "list", "--json", check=False)
     try:
         live = {b["slug"] for b in json.loads(out) if not b.get("archived")}
@@ -871,8 +1010,7 @@ def ensure_board(ctx: Ctx, spec: dict, dry: bool) -> str:
     if board["slug"] in live:
         return "exists"
     if not dry:
-        flags = [f"--{k}={board[k]}" for k in ("icon", "color", "description") if board.get(k)]
-        ctx.hermes("kanban", "boards", "create", board["slug"], "--name", board["name"], *flags)
+        ctx.hermes("kanban", "boards", "create", *board_args(board))
     return "would-create" if dry else "created"
 
 
@@ -906,7 +1044,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
     if unassigned and not dry:
         raise Fail("; ".join(unassigned) + ". Run scripts/hpy model_advisor.py, then pass --models <file>.", 2)
     board = "none" if a.self_mode else ensure_board(ctx, spec, dry)
-    root_acts = root_kanban(ctx, dry)
+    root_acts = root_kanban(ctx, dry, bool(getattr(a, "set_root_kanban_cap", False)))
     bots = [ap.bot(n) for n in names]
     counts: dict[str, int] = {}
     for b in bots:
@@ -961,18 +1099,18 @@ def check(name: str, status: str, detail: str) -> dict:
 ROOT_KANBAN_KEY = "kanban.max_in_progress_per_profile"
 
 
-def root_kanban(ctx: Ctx, dry: bool) -> list[str]:
-    """The kanban dispatcher reads `kanban.*` from the gateway root config only (the gateway holds the
-    dispatcher lock), never from a per-bot profile: the one-card-per-profile cap is set once in
-    <root>/config.yaml. Setting it here is safe: it never spends or publishes anything."""
+def root_kanban(ctx: Ctx, dry: bool, set_cap: bool = False) -> list[str]:
+    """`kanban.*` is machine-wide (the gateway holds the dispatcher lock), so squadctl never writes the cap on its
+    own: `plan` reports it as an owner item and only `apply --set-root-kanban-cap` sets it (V-12)."""
     cfg = read_yaml(ctx.root / "config.yaml") or {}
     cur = pa.current(cfg, ROOT_KANBAN_KEY)
     if cur == 1:
         return []
-    acts = [f"set root {ROOT_KANBAN_KEY}: {pa.as_cli(cur) if cur is not None else 'unset'} -> 1"]
-    if not dry:
-        ctx.apply_config(ctx.root, {"set": [[ROOT_KANBAN_KEY, 1, False]], "ui_meta_bots": None})
-    return acts
+    act = f"set root {ROOT_KANBAN_KEY}: {pa.as_cli(cur) if cur is not None else 'unset'} -> 1"
+    if dry or not set_cap:
+        return [f"{act} (owner confirm: apply --set-root-kanban-cap)"]
+    ctx.apply_config(ctx.root, {"set": [[ROOT_KANBAN_KEY, 1, False]], "ui_meta_bots": None})
+    return [act]
 
 
 def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
@@ -994,8 +1132,13 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
         out.append(check("root:kanban", "ok", f"{ROOT_KANBAN_KEY} = 1"))
     installed = load_installed(ctx)
     _i, models = effective_models(ctx, None)
+    keys = sorted(installed["squads"])
+    if getattr(a, "squad", None):
+        if a.squad not in installed["squads"]:
+            raise Fail(f"squad {a.squad!r} is not installed; installed: {', '.join(keys) or 'none'}")
+        keys = [a.squad]
     now = time.time()
-    for key in sorted(installed["squads"]):
+    for key in keys:
         try:
             spec = load_spec(ctx, key)
         except Fail as e:
@@ -1005,6 +1148,12 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
         for name, bot in spec["bots"].items():
             miss = ap.missing_models(name)
             out.append(check(f"{name}:models", "warn" if miss else "ok", "; ".join(miss) or "assigned"))
+            m = ap.bot_model(name, bot)
+            src = provider_plugins(ctx.home(ctx.builder) / "plugins").get(m["provider"]) if m else None
+            if m and src and not (ctx.home(name) / src.relative_to(ctx.home(ctx.builder))).is_dir():
+                out.append(check(f"{name}:provider-plugin", "warn",
+                                 f"provider {m['provider']} is a user plugin of {ctx.builder}: "
+                                 f"apply copies {src} into this profile"))
             for env in bot.get("passthrough") or []:
                 out.append(check(f"{name}:{env}", "ok" if os.environ.get(env) else "warn",
                                  "set" if os.environ.get(env) else "missing in this environment"))
@@ -1158,6 +1307,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="install this keep or plugin that needs the user's OK (repeatable)")
         sp.add_argument("--yes", action="store_true",
                         help="non-interactive run (squadctl never prompts; confirm items still need --confirm)")
+        sp.add_argument("--set-root-kanban-cap", action="store_true",
+                        help="also write the machine-wide kanban.max_in_progress_per_profile=1 into the gateway "
+                             "root config (never set silently)")
     sp = sub.add_parser("plan", parents=[common], help="show what apply would change (reads only)")
     apply_args(sp)
     sp.set_defaults(fn=lambda c, a: cmd_apply(c, a, True), dry_run=True)
@@ -1169,6 +1321,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_status)
     sp = sub.add_parser("doctor", parents=[common], help="check hermes, gateway, apps, models, passthrough, stale cards")
+    sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_doctor)
     sp = sub.add_parser("uninstall", parents=[common], help="export, remove cron, delete profiles, archive the board")
     sp.add_argument("squad", help="squad key")
