@@ -18,6 +18,10 @@ description: "Proposes fixes upstream with the user's OK. Use when a defect or i
 1. Write the note to `local/upstream-notes/<date>-<slug>.yaml` with keys
    `file`, `problem`, `evidence`, `fix`. A note is about the repository; the
    user's preferences stay local.
+   Never publish local fleets: no names, paths, skills, examples or data from
+   squads or bots the repo did not ship (list them in
+   `local/private-terms.txt`; `release.py` blocks any match). Generalize the fix
+   or keep it local.
 2. Explain the finding in plain language and ask: "Should I open a PR to the
    community repository?" Nothing is sent without an explicit yes for that PR
    (`docs/decisions.md` D-029).

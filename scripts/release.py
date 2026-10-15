@@ -140,6 +140,24 @@ def gate_schema(py: str | None = None) -> tuple[str, bool, str]:
     return ("schema", not bad, "; ".join(bad[:3]) if bad else "builder.yaml and every squads/<key>/squad.yaml valid")
 
 
+def gate_private(py: str | None = None) -> tuple[str, bool, str]:
+    """Block publishing local-only names. Terms come from the maintainer's private list,
+    never from the repo: $SQUADS_PRIVATE_TERMS or <builder profile>/local/private-terms.txt (one per line)."""
+    src = os.environ.get("SQUADS_PRIVATE_TERMS") or str(Path.home() / ".hermes/profiles/builder/local/private-terms.txt")
+    f = Path(src)
+    if not f.is_file():
+        return "private", True, f"no private-terms list at {f} (skipped)"
+    terms = [t.strip() for t in f.read_text().splitlines() if t.strip() and not t.startswith("#")]
+    if not terms:
+        return "private", True, "private-terms list empty"
+    out = subprocess.run(["git", "grep", "-n", "-i", "-F", *sum((["-e", t] for t in terms), [])],
+                         capture_output=True, text=True)
+    hits = [l for l in out.stdout.splitlines() if not l.startswith("tests/fixtures/upstream/")]
+    if hits:
+        return "private", False, f"{len(hits)} local-only reference(s): " + "; ".join(hits[:5])
+    return "private", True, f"0 hits for {len(terms)} private terms"
+
+
 def gate_plan(py: str) -> tuple[str, bool, str]:
     """`squadctl plan` for every squad plus --self against a temporary HERMES_HOME."""
     plans = [["plan", "--self", "--json"], *[["plan", key, "--json"] for key in squad_keys()]]
@@ -200,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     checks = [clean_check(), *meta_checks(new, old, (SRC / "CHANGELOG.md").read_text(), a.remote, error)]
     py = pick_python(a.python)
     for name, fn in (("pytest", lambda: gate_pytest(py)), ("skill_lint", lambda: gate_skill_lint(py)),
-                     ("schema", lambda: gate_schema(py)), ("plan", lambda: gate_plan(py))):
+                     ("schema", lambda: gate_schema(py)), ("plan", lambda: gate_plan(py)), ("private", lambda: gate_private(py))):
         if a.only and name not in a.only:
             continue
         try:
