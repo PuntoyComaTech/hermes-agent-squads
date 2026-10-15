@@ -1,0 +1,23 @@
+{
+  "skill_name": "managing-projects",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The web squad will build a site in ~/work/acme-site. Register it properly.",
+      "expected_output": "squadctl project add web 'Acme Site' ~/work/acme-site so the project exists in the lead and every worker, verified with hermes -p <bot> project list.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The lead sees the project but web-frontend says 'No projects yet'.",
+      "expected_output": "Explains that Project state is per profile and runs the create for the missing worker profiles, then verifies.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Move the project into a new folder layout for me.",
+      "expected_output": "Uses hermes project add-folder / set-primary on each profile holding the project; does not hand-edit the project database.",
+      "files": []
+    }
+  ]
+}

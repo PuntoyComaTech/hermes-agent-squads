@@ -1,0 +1,23 @@
+{
+  "skill_name": "finding-capabilities",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We need scroll-driven animation for a landing page. What can we install?",
+      "expected_output": "Runs catalog_search.py with scroll-related queries, inspects candidates, proposes bundled/official options first and hub ones only after author and licence review.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Install this community plugin, it looks perfect.",
+      "expected_output": "Reads the catalog entry, quotes its disclosure and licence to the user, and installs only after an explicit OK; declares it with confirm semantics in the manifest.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A video plugin needs a non-commercial licence. Put it on every bot so anyone can use it.",
+      "expected_output": "Raises the licence question first, then scopes the plugin to the single bot whose role needs it, with a confirm entry in the manifest.",
+      "files": []
+    }
+  ]
+}

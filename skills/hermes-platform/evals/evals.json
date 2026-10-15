@@ -1,0 +1,23 @@
+{
+  "skill_name": "hermes-platform",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Which flag keeps a new worker profile from inheriting ~90 bundled skills, and where is it verified?",
+      "expected_output": "--no-skills on hermes profile create, cited to website/docs/reference/profile-commands.md or the create --help output.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "How do I pin just one kanban card to another model without editing the profile?",
+      "expected_output": "Per-task model override: --model/--provider at card creation or hermes kanban set-model, cited to website/docs/user-guide/features/kanban.md.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Does the Desktop profile rail have a per-profile hide setting?",
+      "expected_output": "No: the rail lists every profile; hiding a Bot affects only the Bots roster, with a citation to apps/desktop/src/app/chat/sidebar/profile-switcher.tsx or the reference file.",
+      "files": []
+    }
+  ]
+}

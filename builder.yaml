@@ -1,0 +1,33 @@
+# The builder bot (squad-bot schema, squads/_schema/squad.schema.json). Applied by `scripts/squadctl apply --self`.
+# The profile itself comes from `hermes profile install`; apply --self sets the model, aux lanes, skills, plugins,
+# ui_meta and the builder-watch cron. No board: the builder files no cards of its own.
+schema: 2
+key: builder
+name: Builder
+description: "Creates, edits and maintains local Hermes squads"
+version: 2.0.0
+hermes_requires: ">=0.22.0"
+section: {id: base, name: Base}
+lead: builder
+defaults: {aux_lane: aux, vision_lane: vision}
+bots:
+  builder:
+    role: lead
+    title: Builder
+    description: "Creates, edits and maintains local Hermes squads through squadctl"
+    lane: lead
+    toolsets: [file, skills, kanban, memory, session_search, clarify, todo, terminal, cronjob]
+    skills:
+      squad: [hermes-platform, designing-squads, installing-squads, assigning-models, managing-projects,
+              changing-bots, authoring-skills, finding-capabilities, tracking-updates, contributing-upstream]
+      auto_load: hermes-platform
+      keep: [bundled:hermes-agent, bundled:hermes-agent-skill-authoring]
+    plugins: {enable: [disk-cleanup]}
+    memory: true
+    hidden: false
+    cron:
+      builder-watch:
+        schedule: "0 7 * * *"
+        script: watch_upstream.py
+        agent: {lane: digest, skill: tracking-updates, reasoning: high}
+asks: ["set me up", "add a squad", "change a bot", "what changed upstream"]

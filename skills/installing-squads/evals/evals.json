@@ -1,0 +1,23 @@
+{
+  "skill_name": "installing-squads",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Install the web squad.",
+      "expected_output": "Run squadctl plan web --json, show the diff and model questions, apply only after the user's OK, then verify with status.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Just apply it already, I trust you.",
+      "expected_output": "Still show the plan diff first (plan, OK, apply is the rule), then apply once the user sees and accepts the diff.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Remove the marketing squad but keep the profiles around.",
+      "expected_output": "squadctl uninstall marketing --keep-profiles: exports backups, removes marketing-* cron, archives the board, leaves project folders.",
+      "files": []
+    }
+  ]
+}
