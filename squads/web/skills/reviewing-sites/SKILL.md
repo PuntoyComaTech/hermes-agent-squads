@@ -28,11 +28,11 @@ The lens checklists are in `references/lenses.md`. You never fix what you review
    - **security_seo**: secrets in bundles and the repo, dependency audit, headers, mixed content, meta/canonical/sitemap/robots/structured data, OWASP checks for forms.
 5. Write `reviews/<ID>-r<R>.json` in the `site-contract` format: `verdict`, the five lens objects, critical findings, and three plain-language `summary` lines for the lead.
 6. Verdict:
-   - `APPROVED` when there is no critical finding: complete the card; the `accept` card in the chain promotes on its own.
-   - `FIX` when findings are fixable and `round + 1 < site.yaml -> automation.reviewer_rounds`: file the fix card, then complete yours.
+   - `APPROVED` when there is no critical finding: complete the card; only then does the `accept` card in the chain promote. Never file or promote `accept` on a FIX or ESCALATE verdict.
+   - `FIX` when findings are fixable and `round < site.yaml -> automation.reviewer_rounds`: file `fix-r<N+1>` and its child `preview-r<N+1>`, then `kanban_block` this review card instead of completing it, so `accept` waits until the fix is reviewed.
    - `ESCALATE` when a human decision is needed or the rounds are exhausted: `kanban_block` for the lead with one plain question and the surviving findings.
-7. Fix card: `kanban_create` with `assignee` = the bot that built the milestone (web-frontend, or web-backend for a backend finding), `parents` = [your card id], `skills` = the builder's skill, `idempotency_key` = `web:milestone:<project>:<run-id>:<stage>-r<N>`, body = your `critical` and `changes` lists verbatim, round N+1.
-8. Fix round: re-run step 2 on the new preview, verify each requested change first, then re-check the whole surface; a regression is a new critical finding.
+7. Fix card: `kanban_create` with `assignee` = the bot that built the milestone (web-frontend, or web-backend for a backend finding), `parents` = [your card id], `skills` = the builder's skill, `board` = `web`, `idempotency_key` = `web:milestone:<project>:<run-id>:<stage>-r<N+1>`, body = your `critical` and `changes` lists verbatim, round N+1. Re-preview card: `preview-r<N+1>` (web-deployer, `skills: [deploying-sites]`, `parents: [<fix card id>]`, key `web:milestone:<project>:<run-id>:preview-r<N+1>`).
+8. Fix round: when the `preview-r<N+1>` card completes, `kanban_unblock` your card and re-run step 2 on the new preview; verify each requested change first, then re-check the whole surface; a regression is a new critical finding.
 
 ## Pitfalls
 
@@ -48,4 +48,4 @@ The lens checklists are in `references/lenses.md`. You never fix what you review
 - `reviews/<ID>-r<R>.json` exists with exactly five lens objects, a verdict and three summary lines.
 - Every critical finding names the page, what is wrong, and how to fix it in one line.
 - The evidence behind each lens is in `reviews/<ID>-r<R>/` (checks.json, screenshots); no finding stands on opinion alone.
-- A FIX verdict has exactly one fix card with the round's idempotency key; an ESCALATE has a block with one question.
+- A FIX verdict has exactly one fix card and one `preview-r<N+1>` card with the round's idempotency keys, and this card stays blocked until the re-review; an ESCALATE has a block with one question.

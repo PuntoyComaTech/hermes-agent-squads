@@ -19,6 +19,7 @@ emoji: "🥐"
 active: false            # true after the user approves the spec
 type: static             # static | dynamic_seo | saas
 stack: astro             # astro | nextjs | tanstack
+backend: false           # true when the site needs the api stage (milestone chain `when backend`)
 provider: cloudflare     # cloudflare | vercel
 languages: [es, en]
 design:
@@ -45,6 +46,7 @@ automation:
     lighthouse_mobile_ssr: {performance: 80}   # overrides performance for dynamic_seo and saas
     axe_max: {critical: 0, serious: 0}
     broken_internal_links: 0
+    core_web_vitals: {lcp_ms: 2500, cls: 0.1, inp_ms: 200}
 live:
   url: null              # the dev server URL while a BUILD runs, in the card body
 ```
