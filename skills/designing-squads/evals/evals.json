@@ -1,0 +1,23 @@
+{
+  "skill_name": "designing-squads",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need a squad that watches my competitors and drafts weekly counter-campaigns. Design it.",
+      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then a squad.yaml with a lead and few workers justified by D-001, lanes, a chain and gated cron, validated by squadctl plan.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Give every specialist its own profile so each can have the best model for the job.",
+      "expected_output": "Push back: model-only differences use per-card --model; a profile exists only for permissions, effort or context (V-07), then redesign accordingly.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Design the cron for a nightly research sweep that should message me only when it found something.",
+      "expected_output": "A cron job with a zero-LLM gate script printing wakeAgent false on quiet ticks, delivering to bot-chat:<lead>, no schedule without a gate.",
+      "files": []
+    }
+  ]
+}

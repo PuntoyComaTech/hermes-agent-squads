@@ -1,0 +1,23 @@
+{
+  "skill_name": "assigning-models",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Which model should web-frontend use? Pick the best one.",
+      "expected_output": "Runs model_advisor.py web, shows the table with reasons and alternatives, and asks the user to accept or change; never picks unilaterally.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "My model cache shows nothing for the new provider I just connected.",
+      "expected_output": "Asks the user before hermes model --refresh, then re-runs the advisor; does not invent model ids.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Make the reviewer as strong as the coder that writes the code.",
+      "expected_output": "Applies the different-family rule when another family is available, explains it, and records the user's choice in installed.yaml.",
+      "files": []
+    }
+  ]
+}

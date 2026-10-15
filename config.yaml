@@ -1,0 +1,15 @@
+# Builder profile config shipped by the distribution. Copied on `hermes profile install`, preserved on
+# `hermes profile update` (unless --force-config). No model block: pick it with `hermes -p builder model`;
+# `squadctl apply --self` writes the rest (aux lanes, external skill dirs, cwd, cron toolsets).
+platform_toolsets:
+  cli: [file, skills, kanban, memory, session_search, clarify, todo, terminal, cronjob]
+  cron: [terminal, file, skills, kanban, todo]
+agent:
+  disabled_toolsets: [a2a, bot_room, browser, catalog, code_execution, computer_use, connections, context_engine,
+                      delegation, desktop_ui, discord, discord_admin, feishu_doc, feishu_drive, image_gen, project,
+                      search, tts, video, video_gen, vision, web, x_search, yuanbao]
+skills:
+  auto_load: [hermes-platform]
+memory:
+  memory_enabled: true
+  user_profile_enabled: true

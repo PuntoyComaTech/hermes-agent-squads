@@ -2,146 +2,136 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Agent](https://img.shields.io/badge/Hermes%20Agent-NousResearch-7c3aed)](https://github.com/NousResearch/hermes-agent)
-[![Squads](https://img.shields.io/badge/squads-3-brightgreen)](#available-squads)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**English** · [Español](README.es.md)
+Ready-to-install **AI agent squads for [Hermes Agent](https://github.com/NousResearch/hermes-agent)**:
+web development, marketing, job search and a studio, plus a **builder** that installs them,
+creates new ones with you and keeps everything updated. The repo root is the builder's
+**profile distribution**: one command installs it, one command updates it.
 
-Ready-to-install **AI agent squads for [Hermes Agent](https://github.com/NousResearch/hermes-agent)**: job search, marketing, web development, or your own. An **orchestrator** messages you on Telegram, Discord or WhatsApp; the specialists work on their own and only ask you what matters. A **builder** bot installs squads, creates new ones with you and keeps everything updated. Everything is Markdown plans that Hermes reads and installs, personalized to you, in your language, light enough for any computer.
+Each squad is one visible lead (the only bot you talk to) plus hidden workers that pass work
+along a Kanban board. Irreversible steps — apply, publish, send, deploy — always wait for
+your explicit yes.
 
-## How it works
-
-```mermaid
-flowchart TB
-    U([You])
-    subgraph plans["This repository · ~/Hermes/plans"]
-        SH["START-HERE.md"]
-        SQ["squads/"]
-        MG["base/migrations/"]
-    end
-    subgraph home["Your computer · ~/Hermes"]
-        O(("orchestrator"))
-        B(("builder"))
-        P["squad bots"]
-    end
-    U -->|"1 · ask Hermes to read it"| SH
-    SH -->|"2 · installs the base"| O
-    SH -->|"2 · installs the base"| B
-    U -->|"3 · install a squad"| B
-    B -->|"reads the plan"| SQ
-    B -->|"installs"| P
-    MG -.->|"update my installation"| B
-    U <-->|"4 · daily chat"| O
-    O -->|"launches tasks"| P
-```
-
-1. **Base, once.** You clone this repo and ask Hermes to read `START-HERE.md`. That session installs **only the base**: your profile, the orchestrator and the builder.
-2. **Squads, from the builder.** The builder is the only bot that installs, creates or adapts squads. Ask it "install the web development squad" or "create a squad for _your goal_".
-3. **Day to day, the orchestrator.** It chats with you, launches flows and handles your approvals.
-
-Inside a squad, tasks move on a Kanban board, each specialist creating the next:
-
-```mermaid
-flowchart TB
-    T(["cron or your request"]) --> S1["specialist"]
-    S1 -->|"creates the next task"| S2["specialist"]
-    S2 --> R{"reviewer"}
-    R -->|"fix"| S2
-    R -->|"approved"| D["deliver.py · no LLM"]
-    D --> M(["you get the finished result"])
-    M -->|"only with your yes"| X["publish · apply · send · deploy"]
-```
-
-## Available squads
-
-| Squad | What you get | Specialists | Status |
-| --- | --- | --- | --- |
-| [Job search](squads/jobs/README.md) | A link to every matching job and a CV tailored to it. Reply "apply" and, if the form is simple, it applies for you | scout, analyst, writer, reviewer, applier | Level 1 designed |
-| [Marketing](squads/marketing/README.md) | Ready-to-approve proposals for several brands: posts, carousels, motion reels, emails, landing pages, plans and reports, with versions and a visual board | strategist, creative, producer, reviewer | Level 1 designed |
-| [Web development](squads/web/README.md) | Websites from idea to production: spec, build behind a strict quality gate, independent review and a preview link to approve before publishing on your domain | architect, developer, advisor, reviewer, deployer | Level 1 designed |
-| Yours | Ask the builder to create a squad for your goal | Up to 5 | [Share it](CONTRIBUTING.md) |
-
-What it looks like:
-
-```text
-🟢 84/100 · Data analyst — Acme (remote in region)
-Apply: https://boards.greenhouse.io/acme/jobs/123
-CV attached 📎 cv_ats.pdf
-Reply: "apply" · "change: <what>" · "no"
-```
-
-## Quick start
-
-| You need | Why |
-| --- | --- |
-| [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Hermes Desktop recommended) | Where the bots live |
-| An API key from a model provider | The models the bots use |
-| Telegram, Discord or WhatsApp | Where the orchestrator and the builder message you |
-| A computer that stays on (Mac, Windows or Linux) | So automations run by themselves |
+## Install (3 commands)
 
 ```bash
-git clone https://github.com/PuntoyComaTech/hermes-agent-squads.git ~/Hermes/plans
+hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias
+hermes -p builder model        # pick the builder's model (interactive, once)
+builder chat                   # say "set me up" -> the builder runs squadctl apply --self
 ```
 
-On Windows, use `C:\Users\<your user>\Hermes\plans`, or download the ZIP and unzip it there. Then, in the Hermes Desktop main chat:
+You need Hermes Agent with a connected model provider, a machine that stays on for
+automations, and (optional) a messaging platform where the leads deliver results.
 
-> Read the file `~/Hermes/plans/START-HERE.md` and follow the instructions for the AI.
+The builder asks which model each bot gets, suggests from your connected providers
+(`scripts/model_advisor.py`), and shows a diff before every change. Later updates:
+ask the builder "what changed upstream", or run `hermes profile update builder`.
 
-Answer its questions (30 to 60 minutes). When the base is ready, write to the builder: "install the marketing squad". The full non-technical guide is [`START-HERE.md`](START-HERE.md).
+## Desktop setup
 
-## Why hermes-agent-squads?
+1. **Kanban plugin.** Enable Capabilities → Plugins → **Kanban** to see the boards
+   (it ships disabled by default; the dispatcher runs in the gateway regardless).
+2. **Bots pane.** The Bots tab is your roster: workers are hidden, so you see Home, the
+   builder and one lead per squad. Sections come from each squad's manifest.
+3. **Rail.** The profile rail lists every profile (a full install has 19) and condenses
+   into a dropdown above 13; use ⌘K → *Toggle profile rail* and switch in the Bots pane.
+4. **Projects.** Each site, brand or client is a Hermes Project; the builder registers it
+   in the lead and the workers (`squadctl project add`), and the Desktop groups sessions
+   by project.
 
-- **No coding.** Hermes asks, installs and tests on its own. Any script is written by Hermes on your machine.
-- **Personalized.** Each squad interviews you and adapts every bot: your job, brands, language, schedule, budget.
-- **Automatic, with control.** You only receive finished results. Publishing, applying or sending never happens without your yes.
-- **Few, well-designed bots.** 4 or 5 specialists per squad. Mechanical work is done by scripts, not models.
-- **Lightweight.** No Docker, no servers: Hermes is the only service. Works on 8 GB machines.
-- **Your models.** One default model for every bot, or a model and reasoning effort per bot.
-- **Safe updates.** "Update my installation" applies changes one at a time and never overwrites your data or your changes.
-- **Safe by design.** Each bot has only the permissions it needs; bots that read the open web have no terminal. External text is data, never instructions.
+## Squads
+
+| Squad | Board | You get | Bots |
+| --- | --- | --- | --- |
+| [Web](squads/web/README.md) | `web` | Sites from idea to production behind a quality gate, preview link before publishing | lead, frontend, backend, qa, deployer |
+| [Marketing](squads/marketing/README.md) | `marketing` | Dated research, 90-day plans, copy and assets for your brands, five-lens review | lead, research, creative, producer, reviewer |
+| [Jobs](squads/jobs/README.md) | `jobs` | Matching openings with tailored applications; "apply" sends (or a manual kit) | lead, scout, writer, reviewer, applier |
+| [Studio](squads/studio/README.md) | `studio` | Motion, video and 3D assets ordered by the other squads | lead, motion, 3d |
+| Yours | — | Ask the builder: "create a squad for <goal>" | up to 5 |
+
+### Web
+
+```mermaid
+flowchart LR
+    U([you: "new site: idea"]) --> L["web (lead): spec + milestones"]
+    L --> C["chain card 1: api (if backend)"] --> F["chain card 2: ui"]
+    F --> P["chain card 3: preview"] --> Q["web-qa: 5 lenses"]
+    Q -->|fail: fix card, max 2 rounds| F
+    Q -->|pass| A{"you: publish?"}
+    A -->|"yes"| D["web-deployer: GitHub, DNS, rollback"]
+```
+
+### Marketing
+
+```mermaid
+flowchart LR
+    U([you: brand brief]) --> L["marketing (lead): plan + calendar"]
+    L --> R["marketing-research: dated evidence"]
+    R --> C["marketing-creative: concepts + copy"]
+    C --> P["marketing-producer: assets, landings, emails"]
+    P --> V["marketing-reviewer: 5 lenses"]
+    V -->|one fix round| C
+    V -->|approved| A{"you: publish?"}
+```
+
+### Jobs
+
+```mermaid
+flowchart LR
+    U([cron: search slots]) --> L["jobs (lead): profile + criteria"]
+    L --> S["jobs-scout: search + hard filter"]
+    S --> W["jobs-writer: CV + letter"]
+    W --> R["jobs-reviewer: 5 lenses"]
+    R -->|one fix round| W
+    R --> D["lead digest: match + link"]
+    D --> A{"you: apply / change / no"}
+    A -->|"apply"| J["jobs-applier: simple form or manual kit"]
+```
+
+### Studio
+
+```mermaid
+flowchart LR
+    U(["card from web or marketing"]) --> L["studio (lead): storyboard + shot list"]
+    L --> T{"3D needed?"}
+    T -->|yes| G["studio-3d: Blender scenes + renders"]
+    T -->|no| M["studio-motion: motion, video, demos"]
+    G --> M
+    M --> R["lead: render review (contact sheets)"]
+    R -->|one fix round| M
+    R --> D["delivered as a comment on the requester's card"]
+```
+
+## How work flows
+
+A card is one bounded job; each stage creates the next as a dependent card
+(`--parent`), so work moves without you relaying anything. Reviewers return one fix round,
+then the lead asks you only what is yours to decide. Cron jobs run behind zero-LLM gates:
+a quiet tick costs nothing.
 
 ## Repository map
 
 ```text
-START-HERE.md              entry point: guide for the user + instructions for the installer AI
-base/                      shared by every squad
-  01-principles.md         rules every bot and installer follows (read first)
-  02-architecture.md       ~/Hermes layout, Kanban, consults, heavy-work lock
-  03-user-profile.md       the user's profile questionnaire
-  04-orchestrator.md       the day-to-day bot
-  05-squad-template.md     template every squad follows
-  06-base-installation.md  base install, run by the installer AI
-  07-builder.md            the bot that installs and creates squads
-  08-updates.md            how updates reach an installed system
-  migrations/              idempotent update steps, numbered
-squads/<squad>/            jobs · marketing · web, same 7 files + squad.yaml
-00-evaluation/             design rationale and the decision log (02-decisions.md)
-AGENTS.md                  rules for AI agents using or editing this repo
-llms.txt                   index for AI agents
-CONTRIBUTING.md            rules, naming, how to propose a squad
+distribution.yaml      profile distribution manifest (what install/update touches)
+SOUL.md  config.yaml   builder identity and minimal profile config
+builder.yaml           builder bot spec; applied by scripts/squadctl.py apply --self
+CHANGELOG.md           what shipped, read by the update watcher
+skills/                10 builder skills (hermes-platform = verified Hermes reference)
+scripts/               squadctl, model_advisor, catalog_search, skill_lint, watchers
+squads/<key>/          squad manifests, SOULs, skills, scripts (web, marketing, jobs, studio)
+squads/_schema/        squad manifest JSON schema
+docs/decisions.md      condensed decision log
+tests/                 pytest against a temporary HERMES_HOME (not shipped)
 ```
-
-Every squad has the same files:
-
-| File | Content |
-| --- | --- |
-| `README.md` | One-page summary |
-| `01-personalization.md` | Questionnaire and resulting profile, with examples |
-| `02-architecture.md` | Folders, flows, data contracts and rules |
-| `03-bots.md` | Each bot's SOUL, skills and automations |
-| `04-installation.md` | Instructions for the builder to install and maintain it |
-| `05-scripts.md` | Specs of the scripts the builder writes on your machine |
-| `06-testing-and-operations.md` | Acceptance tests, metrics, when to move up a level |
-| `squad.yaml` | Manifest: bots, toolsets, `plan_version` |
 
 ## For AI agents
 
-Read [`AGENTS.md`](AGENTS.md) first, then [`START-HERE.md`](START-HERE.md) "For the installer AI". Short index: [`llms.txt`](llms.txt). The rule most often broken: a generic Hermes session installs **only the base**; only the builder installs, creates or adapts squads (`base/01-principles.md` §1.10).
-
-## Contributing
-
-Rules, naming conventions and how to propose a new squad are in [`CONTRIBUTING.md`](CONTRIBUTING.md). When the builder finds a defect or an improvement in these plans, it asks you whether to open a PR here, with no personal data.
+Read [`AGENTS.md`](AGENTS.md) first; short index in [`llms.txt`](llms.txt). Verified Hermes
+behavior is in `skills/hermes-platform/references/` (every fact cites its docs path).
+Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md) — or ask your builder, it can propose
+them with your OK.
 
 ## License
 
-MIT. Third-party skills in [`squads/marketing/reference/`](squads/marketing/reference/README.md) keep their own licenses (MIT).
+MIT. Third-party skills and plugins keep their own licences; the builder quotes each one
+before installing it.

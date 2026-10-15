@@ -1,0 +1,23 @@
+{
+  "skill_name": "authoring-skills",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write a skill for our PDF rendering step.",
+      "expected_output": "A skill dir with SKILL.md (third-person description, Use when clause, four body sections), scripts with --help for rendering, and 3 evals; passes skill_lint.py.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Here is a 250-line skill with a nested references/references folder and my favorite model named in it.",
+      "expected_output": "Flags the ref-depth and model-ids violations, trims to budget, cites model-roles.yaml instead, re-lints to green.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The procedure is deterministic, so just describe the steps in prose and the bot will run them.",
+      "expected_output": "Refuses prose scripts (V-03) and ships a real script with --help and verification instead.",
+      "files": []
+    }
+  ]
+}
