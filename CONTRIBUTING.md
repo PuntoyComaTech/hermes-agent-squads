@@ -41,6 +41,21 @@
 | YAML and JSON keys | `snake_case` | `approval_mode` |
 | Statuses | `lowercase_snake_case` | `in_review` |
 
+## Testing an install locally
+
+`hermes profile install` accepts a local directory, so a change can be exercised end to end before it is
+pushed — always against a throwaway root, never the real `~/.hermes`:
+
+```bash
+T=$(mktemp -d)
+HERMES_HOME=$T hermes profile install . --name builder-test -y   # local dir source, no alias
+HERMES_HOME=$T hermes profile update builder-test -y             # after an edit
+HERMES_HOME=$T $T/profiles/builder-test/scripts/squadctl plan --self --builder builder-test
+```
+
+`apply <key>` needs a models file (`--models fixture.yaml`, the shape in `tests/fixtures`); keep the tree clean
+before the install, and delete `$T` when done.
+
 ## Proposing a new squad
 
 1. Open an *issue* with the purpose in two lines, what reaches the user (for example, in jobs: "the link to the
