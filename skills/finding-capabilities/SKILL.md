@@ -12,7 +12,7 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
 
 ## Procedure
 
-1. Search first: `python3 scripts/catalog_search.py "<query>" ... [--kind
+1. Search first: `scripts/hpy catalog_search.py "<query>" ... [--kind
    plugin|skill|mcp|connector] [--hub] [--json]`. It covers the plugin catalog,
    official optional skills, bundled skills, MCP and connector names
    (`scripts/catalog_search.py`).

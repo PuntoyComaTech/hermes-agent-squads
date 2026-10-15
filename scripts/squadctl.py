@@ -63,7 +63,7 @@ def _yaml():
         try:
             import yaml as y
         except ImportError:
-            raise Fail("no YAML module: run scripts/squadctl (Hermes runtime) or install PyYAML") from None
+            raise Fail("no YAML module: run scripts/hpy squadctl.py or scripts/squadctl (Hermes runtime) or install PyYAML") from None
     return y
 
 

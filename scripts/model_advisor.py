@@ -25,11 +25,6 @@ import time
 from fnmatch import fnmatch
 from pathlib import Path
 
-try:
-    import hermes_yaml as yaml
-except ImportError:
-    import yaml
-
 SCRIPTS = Path(__file__).resolve().parent
 BUILDER = SCRIPTS.parent
 STALE_SECONDS = 7 * 86400
@@ -50,6 +45,19 @@ class AdvisorError(Exception):
     pass
 
 
+def _yaml():
+    """YAML module on first use, never at import: `--help` must work without PyYAML (scripts/hpy provides
+    hermes_yaml; a bare python3 falls back to PyYAML when a command actually reads YAML)."""
+    try:
+        import hermes_yaml as y  # the Hermes runtime's YAML module
+    except ImportError:
+        try:
+            import yaml as y
+        except ImportError:
+            raise AdvisorError("no YAML module: run scripts/hpy model_advisor.py (Hermes runtime) or install PyYAML") from None
+    return y
+
+
 # --- paths ------------------------------------------------------------------------------------------------------
 
 def hermes_home() -> Path:
@@ -68,8 +76,8 @@ def default_cache_path() -> Path:
 
 def load_yaml(path: Path):
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except (OSError, ValueError) as exc:
+        return _yaml().safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # a malformed roles file must give one clear line, never a traceback
         raise AdvisorError(f"cannot read {path.name}: {exc}") from exc
 
 
@@ -135,9 +143,11 @@ def probe_auth_list() -> list[dict] | None:
         out = subprocess.run(["hermes", "auth", "list"], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
         return None
-    # Only the "<slug> (N credentials):" header lines are read; credential lines are never parsed.
-    slugs = re.findall(r"^(\S+) \(\d+ credentials?\):", out.stdout, re.M)
-    return [{"slug": s, "models": []} for s in slugs] or None
+    # Provider header lines only ("<slug> (N credentials):", "<slug>: <label>", "<slug> (...):", as in
+    # `nous: Free tier` or `bedrock (...)`); credential rows are indented and never parsed.
+    slugs = re.findall(r"^([a-z0-9][a-z0-9._-]*)(?: \([^)]*\))?:", out.stdout, re.M)
+    slugs = [s for s in slugs if s not in {"note", "error", "warning", "usage", "hint"}]
+    return [{"slug": s, "models": []} for s in dict.fromkeys(slugs)] or None
 
 
 def detect_providers(mode: str, cache: dict) -> tuple[list[dict], str]:

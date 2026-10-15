@@ -30,9 +30,9 @@ Active only when `local/maintainer.yaml` exists and `gh auth status` shows an
 account with push rights on the repository:
 
 1. Work in the local clone on a branch; keep the diff to the item at hand.
-2. Run the gates, in order: `python3 scripts/skill_lint.py` on touched skill
+2. Run the gates, in order: `scripts/hpy skill_lint.py` on touched skill
    dirs, `pytest -q` in the test environment, and a temp-root
-   `HERMES_HOME=$(mktemp -d) python3 scripts/squadctl.py plan --self --json`.
+   `HERMES_HOME=$(mktemp -d) scripts/hpy squadctl.py plan --self --json`.
 3. Bump `version` in the touched manifest and add a `CHANGELOG.md` entry.
 4. **Push to main only with every check green.** A red check opens a PR instead
    of landing on main; a failing gate is never overridden or retried blindly.

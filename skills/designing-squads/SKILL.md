@@ -37,8 +37,8 @@ description: "Turns a user need into a local squad.yaml. Use when creating, scal
    (`docs/decisions.md` V-14).
 9. Write `souls/<bot>.md` (≤ 6 lines each), the squad skills and a README of at
    most 120 lines.
-10. Validate: `python3 scripts/squadctl.py plan <key> --json`, then
-    `python3 scripts/skill_lint.py squads/<key>/skills`.
+10. Validate: `scripts/hpy squadctl.py plan <key> --json`, then
+    `scripts/hpy skill_lint.py squads/<key>/skills`.
 
 ## Pitfalls
 

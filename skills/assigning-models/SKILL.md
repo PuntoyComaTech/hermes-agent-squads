@@ -12,7 +12,7 @@ description: "Assigns a model per bot from connected providers. Use when a squad
 
 ## Procedure
 
-1. Run `python3 scripts/model_advisor.py <squad> --json` (no argument gives the
+1. Run `scripts/hpy model_advisor.py <squad> --json` (no argument gives the
    lane table). It reads the authenticated providers' model cache and
    `scripts/data/model-roles.yaml`, and returns per bot: lane, model, provider,
    reasoning effort, two alternatives and a one-line reason.

@@ -23,7 +23,7 @@
 - **Plan → user OK → apply** for anything that touches a profile; `profile export` before any prune or uninstall.
 - **Community plugins and hub skills** install only after quoting their disclosure and licence and getting an
   explicit OK.
-- **Tests and lint must stay green**: `python3 -m pytest` and `python3 scripts/skill_lint.py skills squads`.
+- **Tests and lint must stay green**: `python3 -m pytest` and `scripts/hpy skill_lint.py skills squads`.
 - **Keep the tree clean before a local install**: `hermes profile install <path>` copies everything inside the
   distribution-owned paths (`skills/`, `scripts/`, `squads/`), `__pycache__` included; run `git clean -Xd` first.
 
