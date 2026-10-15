@@ -35,7 +35,8 @@ def _yaml():
 RULES = {
     "frontmatter-required": "SKILL.md has no YAML frontmatter with name and description",
     "name-kebab": "name is not lowercase kebab-case",
-    "name-gerund": "first token of name does not end in -ing (exempt: *-contract, hermes-platform, allowlist)",
+    "name-gerund": "first token of name does not end in -ing (exempt: *-contract, hermes-platform, "
+                   "hermes-local-notes, marketing-*)",
     "name-dir-mismatch": "frontmatter name differs from the skill directory name",
     "name-length": "name longer than 40 characters",
     "desc-third-person": "description does not open with a third-person verb",
@@ -71,7 +72,10 @@ EVALS_COUNT = 3
 HELP_TIMEOUT = 20
 
 INDEX_SKILL = "hermes-platform"
-GERUND_ALLOWLIST = {INDEX_SKILL, "marketing-plan", "product-marketing", "marketing-council", "marketing-psychology"}
+# Names the Hermes platform itself requires (the `hermes-platform` index, the local notes skill every profile
+# installs) do not follow the verb-ing shape; the vetted marketing skills are exempt too (C-08).
+GERUND_ALLOWLIST = {INDEX_SKILL, "hermes-local-notes", "marketing-plan", "product-marketing", "marketing-council",
+                    "marketing-psychology"}
 ALLOWED_CHILDREN = {"references", "scripts", "templates", "assets", "evals"}
 IGNORED = {".DS_Store", "__pycache__"}
 SKIP_DIRS = {".git", "node_modules", "tests", "docs", "__pycache__", "_schema", ".github"}

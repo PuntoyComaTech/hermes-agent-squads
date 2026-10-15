@@ -127,8 +127,8 @@ def test_index_budget_applies_to_hermes_platform(tmp_path, capsys):
     assert rules_of(lint(capsys, skill)[1]) == {"index-lines"}
 
 
-@pytest.mark.parametrize("name", ["site-contract", "jobs-contract", "hermes-platform", "marketing-plan",
-                                  "product-marketing", "marketing-council", "marketing-psychology"])
+@pytest.mark.parametrize("name", ["site-contract", "jobs-contract", "hermes-platform", "hermes-local-notes",
+                                  "marketing-plan", "product-marketing", "marketing-council", "marketing-psychology"])
 def test_gerund_exemptions(name, tmp_path, capsys):
     assert lint(capsys, make_skill(tmp_path, name=name))[0] == 0
 
