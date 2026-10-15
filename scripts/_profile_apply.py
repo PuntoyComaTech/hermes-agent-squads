@@ -76,7 +76,7 @@ def main() -> int:
     for key, _old, value, force in changed_keys(cfg, plan.get("set", [])):
         sink = io.StringIO()
         try:
-            with contextlib.redirect_stdout(sink):
+            with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
                 set_config_value(key, as_cli(value), force=force)
         except SystemExit as exc:
             print(f"FAILED {key}: {sink.getvalue().strip() or exc}")

@@ -193,9 +193,27 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert fe["terminal"]["cwd"] == str(web.root / "profiles" / "web-frontend" / "workspace")
     assert Path(fe["terminal"]["cwd"]).is_absolute()
     assert fe["memory"]["memory_enabled"] is False
-    assert fe["kanban"]["max_in_progress_per_profile"] == 1
     assert fe["skills"]["external_dirs"] == [str(web.hsrc / "skills" / "cat" / "claude-design")]
     assert web.config("web")["memory"]["memory_enabled"] is True
+
+
+def test_kanban_cap_is_set_once_in_the_gateway_root_not_per_bot(web, capsys):
+    """The dispatcher reads kanban.* from the gateway root config only; per-bot copies are dead keys."""
+    fe = web.config("web-frontend")
+    assert "kanban" not in fe
+    root_cfg = yaml.safe_load((web.root / "config.yaml").read_text())
+    assert root_cfg["kanban"]["max_in_progress_per_profile"] == 1
+    assert "kanban" not in web.config("web-qa")
+    _, out = web.run("apply", "web", capsys=capsys)
+    assert out["root"] == []  # written once, then unchanged
+    assert out["summary"] == {"unchanged": 5}
+
+
+def test_plan_reports_the_root_kanban_cap_when_missing(env, capsys):
+    env.squad("web")
+    _, out = env.run("plan", "web", capsys=capsys)
+    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1"]
+    assert not (env.root / "config.yaml").exists()  # plan writes nothing
 
 
 def test_delegation_lane_and_passthrough(web):
@@ -484,6 +502,31 @@ def test_plain_plugin_that_is_not_bundled_is_refused(env, capsys):
     shutil.rmtree(env.hsrc / "plugins" / "community-thing")
     _, out = env.run("apply", "web", expect=1, capsys=capsys)
     assert "community-thing" in out["error"] and "confirm" in out["error"]
+
+
+def test_plugin_install_passes_yes_deps_so_the_plugin_ends_up_enabled(env, capsys):
+    def gate(spec):
+        spec["bots"]["web-qa"]["plugins"]["enable"].append(
+            {"name": "blender", "confirm": "Runs arbitrary Python inside Blender; needs the user's OK"})
+    env.squad("web", gate)
+    env.run("apply", "web", "--bots", "web-qa", "--confirm", "blender", capsys=capsys)
+    installs = [c["args"] for c in env.calls() if c["args"][:2] == ["plugins", "install"]]
+    assert ["plugins", "install", "blender", "--enable", "--yes-deps"] in installs
+    assert "blender" in env.config("web-qa")["plugins"]["enabled"]
+
+
+def test_mcp_add_probe_failure_stays_pending_and_is_never_marked_done(env, capsys, monkeypatch):
+    """`mcp add` on a failed probe saves `enabled: false` after 'y'; key presence is not 'done'."""
+    monkeypatch.setenv("FAKE_MCP_PROBE_FAIL", "chrome-devtools")
+    env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert any("mcp chrome-devtools" in p and "probe failed" in p for p in qa["pending"])
+    assert env.config("web-qa")["mcp_servers"]["chrome-devtools"]["enabled"] is False
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert qa["status"] == "unchanged"
+    assert any("mcp chrome-devtools" in p and "probe failed" in p for p in qa["pending"])
 
 
 def test_missing_bundled_keep_is_an_error(env, capsys):
