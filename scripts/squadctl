@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# squadctl shim: run squadctl.py under the Hermes runtime interpreter, so hermes_yaml replaces a PyYAML dependency.
+# SQUADCTL_PYTHON overrides the interpreter (tests, development). Without Hermes it falls back to python3, which is
+# enough for --help; commands that read YAML then need PyYAML.
+set -euo pipefail
+
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  [[ "$src" != /* ]] && src="$dir/$src"
+done
+here="$(cd -P "$(dirname "$src")" && pwd)"
+
+if [ -n "${SQUADCTL_PYTHON:-}" ]; then
+  exec "$SQUADCTL_PYTHON" "$here/squadctl.py" "$@"
+fi
+
+runtime=""
+if command -v hermes >/dev/null 2>&1; then
+  runtime="$(env -u HERMES_HOME hermes --print-runtime-command 2>/dev/null || true)"
+fi
+py="$(printf '%s' "$runtime" | sed -nE 's/^\["([^"]+)".*/\1/p')"
+root="$(printf '%s' "$runtime" | sed -nE "s/.*sys\\.path\\.insert\\(0, '([^']+)'\\).*/\\1/p")"
+
+if [ -n "$py" ] && [ -n "$root" ] && [ -x "$py" ]; then
+  boot="import os, sys, runpy; os.environ.pop('PYTHONHOME', None); os.environ.pop('PYTHONPATH', None); sys.path.insert(0, '$root'); sys._hermes_pin_default_home = True; import hermes_bootstrap; runpy.run_path('$here/squadctl.py', run_name='__main__')"
+  exec "$py" -I -c "$boot" "$@"
+fi
+
+exec python3 "$here/squadctl.py" "$@"
