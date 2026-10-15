@@ -31,7 +31,7 @@ Shared rules of the web squad. File and card formats live in `references/file-fo
 | `PAUSE` | web (lead) | read |
 
 3. Ids: work item `<slug>-<YYYYMMDD>-<kind>-<nn>` (kind `build`, `change`, `bug`, `domain`, `rollback`); milestone `M<n>`; branch `web/<ID>`; deploy record `<ID>-<env>-<n>`; review `<ID>-r<R>`.
-4. File the next stage with `kanban_create`: `assignee`, `skills`, `parents` = [your card id], plus the site project. `idempotency_key` = `<squad>:<chain>:<project>:<run-id>:<stage>` — the same key `squadctl chain` and `kanban_chain.py` derive, so a pre-filed chain never duplicates. A fix round appends `-r<N>`.
+4. File the next stage with `kanban_create`: `assignee`, `skills: [<skill>]`, `parents: [your card id]`, `board: "web"`, the site `project`, and `workspace_kind: dir` with `workspace_path: <site>`. `idempotency_key` = `<squad>:<chain>:<project>:<run-id>:<stage>` — the same key `squadctl chain` and `kanban_chain.py` derive, so a pre-filed chain never duplicates. A fix round appends `-r<N>`. There is no `paths` or `inputs` card field: put paths in the body (step 5) or in `workspace_*`, and pass `board` on every kanban tool call.
 5. Card body carries: ID, site, stage, milestone, branch, round, input and output paths, stack, provider, languages, the user's literal request, `Confirmed:` only when the stage needs it, and the next stage.
 6. Finish with `kanban_complete` (files in `metadata.changed_files`, verification commands in `metadata.verification`) or `kanban_block` with the reason. Never leave a card `running`.
 7. The lead is the only bot that messages the user. Workers report through the card.
