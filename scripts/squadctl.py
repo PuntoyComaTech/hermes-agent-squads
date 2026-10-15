@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """squadctl: plan, apply, inspect and remove Hermes squads. Idempotent: read state, diff, write only the difference.
 
-  squadctl plan|apply <squad>|--self [--bots a,b] [--models f] [--dry-run] [--skip-skills] [--confirm id]
+  squadctl plan|apply <squad>|--self [--bots a,b] [--models f] [--dry-run] [--skip-skills] [--confirm id] [--yes]
   squadctl status [squad]          installed.yaml and the live profiles
   squadctl doctor                  hermes, gateway, apps, models, passthrough, stale cards
-  squadctl uninstall <squad> [--keep-profiles] [--dry-run]
+  squadctl uninstall <squad> [--keep-profiles] [--dry-run] [--yes]
   squadctl project add <squad> <name> <path>
   squadctl chain <squad> <chain> --project <slug> --title <t> [--when a,b] [--dry-run]
+
+`--yes` marks an explicitly non-interactive run, for scripts and the builder; squadctl never prompts anyway, and
+licence or disclosure items still need `--confirm <id>` (or they stay pending).
 
 Reads squads/<key>/squad.yaml (builder.yaml for --self), the overlay local/squads/<key>/squad.yaml and the models
 chosen in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning, written by the builder after
@@ -229,6 +232,16 @@ def available_squads(ctx: Ctx) -> list[str]:
     return sorted(keys)
 
 
+def rename_builder_bot(spec: dict, name: str) -> dict:
+    """The builder's profile is whatever `--builder` names (`hermes profile install --name X`); builder.yaml names
+    the bot `builder`, so the bot key and the lead follow the profile name. The squad key stays `builder`."""
+    lead = spec.get("lead")
+    bots = spec.get("bots") or {}
+    if lead and lead in bots and lead != name:
+        return {**spec, "lead": name, "bots": {name if b == lead else b: v for b, v in bots.items()}}
+    return spec
+
+
 def load_spec(ctx: Ctx, key: str) -> dict:
     repo = ctx.src / ("builder.yaml" if key == "builder" else f"squads/{key}/squad.yaml")
     base = read_yaml(repo)
@@ -236,6 +249,8 @@ def load_spec(ctx: Ctx, key: str) -> dict:
     if base is None and over is None:
         raise Fail(f"unknown squad {key!r}; available: {', '.join(available_squads(ctx)) or 'none'}")
     spec = deep_merge(base, over) if base is not None and over is not None else (base or over)
+    if key == "builder":
+        spec = rename_builder_bot(spec, ctx.builder)
     problems = validate_spec(ctx, spec, key)
     if problems:
         raise Fail(f"invalid squad {key}: " + "; ".join(p[:160] for p in problems[:6])
@@ -438,7 +453,7 @@ class Applier:
         plan += [["delegation.provider", dm["provider"] if dm else "", False],
                  ["delegation.model", dm["model"] if dm else "", False],
                  ["delegation.reasoning_effort", (dm or {}).get("reasoning") or "", False]]
-        plan += [["platform_toolsets.cli", toolsets, False],
+        plan += [["platform_toolsets.cli", sorted(toolsets), False],  # hermes tools enable stores sorted(union)
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],
                  ["agent.disabled_toolsets", sorted(set(self.always) | (MANAGED - set(toolsets))), False]]
         for use, lane in (("aux", d.get("aux_lane", "aux")), ("vision", d.get("vision_lane", "vision"))):
@@ -1030,6 +1045,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--skip-skills", action="store_true", help="config only; leave the skills dirs alone")
         sp.add_argument("--confirm", action="append", metavar="ID",
                         help="install this keep or plugin that needs the user's OK (repeatable)")
+        sp.add_argument("--yes", action="store_true",
+                        help="non-interactive run, never prompt (confirm-gated items still need --confirm)")
     sp = sub.add_parser("plan", parents=[common], help="show what apply would change (reads only)")
     apply_args(sp)
     sp.set_defaults(fn=lambda c, a: cmd_apply(c, a, True), dry_run=True)
@@ -1046,6 +1063,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("squad")
     sp.add_argument("--keep-profiles", action="store_true")
     sp.add_argument("--dry-run", action="store_true")
+    sp.add_argument("--yes", action="store_true",
+                    help="non-interactive run, never prompt (confirm-gated items still need --confirm)")
     sp.set_defaults(fn=cmd_uninstall)
     sp = sub.add_parser("project", parents=[common], help="project commands")
     psub = sp.add_subparsers(dest="pcmd", required=True, metavar="action")

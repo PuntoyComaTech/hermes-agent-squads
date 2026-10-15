@@ -234,6 +234,12 @@ def main():
             save(HOME / "config.yaml", cfg)
     elif cmd == "tools":
         need_profile()
+        # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union).
+        if rest[:1] == ["enable"]:
+            cfg = load(HOME / "config.yaml", {})
+            have = set((cfg.get("platform_toolsets") or {}).get("cli") or [])
+            cfg.setdefault("platform_toolsets", {})["cli"] = sorted(have | set(rest[1:]))
+            save(HOME / "config.yaml", cfg)
     else:
         die(f"fake hermes: unsupported command {argv}")
 
