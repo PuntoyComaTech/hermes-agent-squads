@@ -1,0 +1,7 @@
+name: builder
+version: 2.1.0
+description: "Creates, edits and maintains local Hermes squads"
+hermes_requires: ">=0.22.0"
+author: PuntoyComaTech
+license: MIT
+distribution_owned: [SOUL.md, config.yaml, distribution.yaml, skills, scripts, squads]
