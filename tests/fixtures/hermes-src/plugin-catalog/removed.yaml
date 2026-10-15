@@ -1,0 +1,4 @@
+removed:
+- name: or-picker
+  reason: "Folded into another plugin."
+  date: "2026-09-28"

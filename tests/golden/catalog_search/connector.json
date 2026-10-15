@@ -1,0 +1,50 @@
+{
+  "counts": {
+    "plugin": 4,
+    "skill": 6,
+    "mcp": 2
+  },
+  "queries": [
+    {
+      "query": "neon_mcp",
+      "total": 1,
+      "results": [
+        {
+          "kind": "mcp",
+          "id": "mcp:neon",
+          "name": "neon",
+          "tier": "official",
+          "source": "optional-mcps",
+          "description": "Neon serverless Postgres: projects, branches, and SQL.",
+          "env": [],
+          "connector": "neon_mcp",
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "hermes mcp install neon",
+          "score": 30
+        }
+      ]
+    },
+    {
+      "query": "context7",
+      "total": 1,
+      "results": [
+        {
+          "kind": "mcp",
+          "id": "mcp:context7",
+          "name": "context7",
+          "tier": "official",
+          "source": "optional-mcps",
+          "description": "Up-to-date, version-specific library docs and code examples.",
+          "env": [],
+          "connector": null,
+          "disclosure": "",
+          "needs_ok": false,
+          "install": "hermes mcp install context7",
+          "score": 100
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

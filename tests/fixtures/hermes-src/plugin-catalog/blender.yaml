@@ -1,0 +1,11 @@
+name: blender
+repo: https://github.com/NousResearch/hermes-official-plugins
+sha: 0000000000000000000000000000000000000001
+subdir: blender
+version: "0.2.0"
+description: "Official Blender Lab MCP server over stdio with a Blender workflow skill. Requires Blender 5.1+, its MCP add-on and uv. Disclosure - tools execute arbitrary Python in Blender with your privileges; first start downloads the server and its dependencies with uv."
+title: Blender
+maintainer: NousResearch
+tier: official
+category: tools
+capabilities: {provides_tools: [], provides_hooks: [], provides_middleware: [], requires_env: []}

@@ -1,0 +1,9 @@
+name: blender-render-helper
+repo: https://github.com/example/blender-render-helper
+sha: 0000000000000000000000000000000000000002
+description: "Community helper that queues Blender renders from chat."
+title: Blender Render Helper
+maintainer: example
+tier: community
+category: tools
+capabilities: {provides_tools: [queue_render], provides_hooks: [], provides_middleware: [], requires_env: []}

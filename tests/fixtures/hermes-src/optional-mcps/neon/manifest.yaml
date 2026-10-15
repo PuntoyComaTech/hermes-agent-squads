@@ -1,0 +1,7 @@
+manifest_version: 1
+name: neon
+connector_slug: neon_mcp
+description: 'Neon serverless Postgres: projects, branches, and SQL.'
+transport: {type: http, url: "https://mcp.neon.tech/mcp"}
+auth: {type: oauth}
+suggest: {keywords: [neon, postgres], hosts: [neon.tech]}

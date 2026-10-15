@@ -1,0 +1,6 @@
+manifest_version: 1
+name: context7
+description: Up-to-date, version-specific library docs and code examples.
+transport: {type: http, url: "https://mcp.context7.com/mcp"}
+auth: {type: none}
+suggest: {keywords: [context7, library docs], hosts: [context7.com]}

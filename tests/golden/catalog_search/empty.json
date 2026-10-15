@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "plugin": 4,
+    "skill": 6,
+    "mcp": 2
+  },
+  "queries": [
+    {
+      "query": "remotion",
+      "total": 0,
+      "results": []
+    },
+    {
+      "query": "or-picker",
+      "total": 0,
+      "results": []
+    }
+  ],
+  "warnings": []
+}

@@ -1,0 +1,9 @@
+name: cloudflare-pages
+repo: https://github.com/example/cloudflare-pages
+sha: 0000000000000000000000000000000000000004
+description: "Deploy static sites to Cloudflare Pages."
+title: Cloudflare Pages
+maintainer: example
+tier: community
+category: devops
+capabilities: {provides_tools: [pages_deploy], provides_hooks: [], provides_middleware: [], requires_env: [CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID]}

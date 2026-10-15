@@ -1,0 +1,421 @@
+{
+  "roles": [
+    "base"
+  ],
+  "providers": {
+    "authenticated": [
+      {
+        "slug": "opencode-go",
+        "family": "open-weights",
+        "models": 45
+      }
+    ],
+    "families": [
+      "open-weights"
+    ],
+    "source": "cache",
+    "stale": []
+  },
+  "squads": [
+    {
+      "key": "web",
+      "bots": [
+        {
+          "bot": "web",
+          "role": "lead",
+          "lane": "lead",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "lead lane, candidate 5/6 (open-weights): Leads interview, plan and accept work",
+          "extras": []
+        },
+        {
+          "bot": "web-frontend",
+          "role": "worker",
+          "lane": "design",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane, candidate 5/6 (open-weights): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "web-backend",
+          "role": "worker",
+          "lane": "code",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "kimi-k2.7-code",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            },
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "code lane, candidate 1/6 (open-weights): Backend work is long tool loops on tests",
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "advisor",
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh",
+              "alternatives": [],
+              "reason": "advisor lane, candidate 4/4 (open-weights): Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations"
+            }
+          ]
+        },
+        {
+          "bot": "web-qa",
+          "role": "worker",
+          "lane": "review",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "xhigh",
+          "alternatives": [],
+          "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "extras": []
+        },
+        {
+          "bot": "web-deployer",
+          "role": "worker",
+          "lane": "research",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "medium",
+          "alternatives": [],
+          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps and deploy runs are high-volume and low-judgment",
+          "extras": []
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    },
+    {
+      "key": "marketing",
+      "bots": [
+        {
+          "bot": "marketing",
+          "role": "lead",
+          "lane": "lead",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "lead lane, candidate 5/6 (open-weights): Leads interview, plan and accept work",
+          "extras": []
+        },
+        {
+          "bot": "marketing-research",
+          "role": "worker",
+          "lane": "research",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "medium",
+          "alternatives": [],
+          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps and deploy runs are high-volume and low-judgment",
+          "extras": []
+        },
+        {
+          "bot": "marketing-creative",
+          "role": "worker",
+          "lane": "copy",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "medium",
+          "alternatives": [],
+          "reason": "copy lane, candidate 4/4 (open-weights): Copy, CVs and letters need voice and nuance more than tools",
+          "extras": []
+        },
+        {
+          "bot": "marketing-producer",
+          "role": "worker",
+          "lane": "design",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane, candidate 5/6 (open-weights): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "marketing-reviewer",
+          "role": "worker",
+          "lane": "review",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "xhigh",
+          "alternatives": [],
+          "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "extras": []
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    },
+    {
+      "key": "jobs",
+      "bots": [
+        {
+          "bot": "jobs",
+          "role": "lead",
+          "lane": "lead",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "lead lane, candidate 5/6 (open-weights): Leads interview, plan and accept work",
+          "extras": []
+        },
+        {
+          "bot": "jobs-scout",
+          "role": "worker",
+          "lane": "research",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "medium",
+          "alternatives": [],
+          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps and deploy runs are high-volume and low-judgment",
+          "extras": [
+            {
+              "use": "chain:application/analyze",
+              "lane": "review",
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh",
+              "alternatives": [],
+              "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers"
+            }
+          ]
+        },
+        {
+          "bot": "jobs-writer",
+          "role": "worker",
+          "lane": "copy",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "medium",
+          "alternatives": [],
+          "reason": "copy lane, candidate 4/4 (open-weights): Copy, CVs and letters need voice and nuance more than tools",
+          "extras": []
+        },
+        {
+          "bot": "jobs-reviewer",
+          "role": "worker",
+          "lane": "review",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "xhigh",
+          "alternatives": [],
+          "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "extras": []
+        }
+      ],
+      "shared": []
+    },
+    {
+      "key": "studio",
+      "bots": [
+        {
+          "bot": "studio",
+          "role": "lead",
+          "lane": "design",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane, candidate 5/6 (open-weights): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "studio-motion",
+          "role": "worker",
+          "lane": "design",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane, candidate 5/6 (open-weights): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "studio-3d",
+          "role": "worker",
+          "lane": "design",
+          "model": "kimi-k3",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane, candidate 5/6 (open-weights): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    },
+    {
+      "key": "builder",
+      "bots": [
+        {
+          "bot": "builder",
+          "role": "lead",
+          "lane": "lead",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "glm-5.3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "lead lane, candidate 5/6 (open-weights): Leads interview, plan and accept work",
+          "extras": [
+            {
+              "use": "cron:builder-watch",
+              "lane": "digest",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "high",
+              "alternatives": [],
+              "reason": "digest lane, candidate 2/4 (open-weights): The daily upstream digest reads filtered release notes and writes JSON"
+            }
+          ]
+        }
+      ],
+      "shared": [
+        {
+          "use": "aux",
+          "lane": "aux",
+          "model": "deepseek-v4.1-flash",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+        },
+        {
+          "use": "vision",
+          "lane": "vision",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "low",
+          "alternatives": [],
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+        }
+      ]
+    }
+  ],
+  "lanes": []
+}
