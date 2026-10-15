@@ -4,7 +4,9 @@
 Hermes runs a cron --script BEFORE the agent. The last non-empty stdout line decides:
   {"wakeAgent": false}                    the tick ends, no model call
   {"wakeAgent": true, "context": {...}}   the agent runs
-Anything else (no JSON, empty output) wakes the agent, so a gate must print exactly one line.
+Any other output (non-JSON) wakes the agent and the full stdout is prepended as `## Script Output`;
+empty stdout skips the agent entirely (no output, no model call). A gate therefore prints exactly
+one line: the JSON gate line, which is also the wake decision.
 
 Import it from a gate script:  from gate_lib import changed, emit, guarded, fingerprint
 Or use it from the shell on JSON read from stdin:

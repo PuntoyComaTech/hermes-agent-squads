@@ -2,9 +2,13 @@
 """Migrate a v1 install to v2: legacy profile layout, project folders, deliver crons and the orchestrator.
 
 A v1 install is recognised by any of (all three are reported, never guessed):
-  1. profiles named `orchestrator` or `jobs-*` / `marketing-*` / `web-*` (the v1 bot layout);
+  1. profiles with a v1-only bot name: `orchestrator`, `jobs-analyst`, `marketing-strategist`, `web-architect`,
+     `web-developer`, `web-advisor` or `web-reviewer` (the v1 bot layout);
   2. `~/Hermes/projects/<key>/` folders (the fixed work layout v2 replaces with native Projects);
   3. cron jobs that run `deliver.py` (the v1 outbox delivery, replaced by kanban notify + `bot-chat`).
+
+Profiles whose names the v2 squads also use (`jobs-*`, `marketing-*`, `web-*`, `studio-*` workers) are reported
+separately as "kept by v2" and are never listed for deletion.
 
 What it does, in order:
   1. registers every `~/Hermes/projects/<key>/` folder as a native Hermes Project through
@@ -34,7 +38,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import squadctl  # noqa: E402  (TOON output + the HERMES_HOME/root rule, so both tools agree)
 
-LEGACY_PROFILE_RE = re.compile(r"^(?:orchestrator|(?:jobs|marketing|web)-[a-z0-9][a-z0-9-]*)$")
+LEGACY_PROFILE_RE = re.compile(
+    r"^(?:orchestrator|jobs-analyst|marketing-strategist|web-architect|web-developer|web-advisor|web-reviewer)$")
+# Names the v2 squads use for their own workers: after a v2 install these are NOT v1 leftovers.
+V2_KEPT_RE = re.compile(r"^(?:jobs|marketing|web|studio)-[a-z0-9][a-z0-9-]*$")
 DELIVER_NAME_RE = re.compile(r"^deliver(?:-|$)", re.I)
 ORCHESTRATOR = "orchestrator"
 
@@ -59,17 +66,27 @@ def is_deliver(job: dict) -> bool:
 
 
 def detect(root: Path, legacy: Path) -> dict:
-    """The three v1 markers, then `v1` is true when at least one of them is present."""
-    profiles = {}
+    """The three v1 markers, then `v1` is true when at least one of them is present. Only v1-only profile
+    names count as legacy; shared v2 names are reported as kept, and a `deliver.py` cron is a marker whatever
+    the profile is called."""
+    profiles, kept = {}, {}
+    deliver_crons: list[dict] = []
     pdir = root / "profiles"
     for entry in sorted(pdir.iterdir()) if pdir.is_dir() else []:
-        if entry.is_dir() and LEGACY_PROFILE_RE.match(entry.name):
-            profiles[entry.name] = {"deliver_crons": [j for j in read_jobs(entry) if is_deliver(j)]}
+        if not entry.is_dir():
+            continue
+        crons = [j for j in read_jobs(entry) if is_deliver(j)]
+        if LEGACY_PROFILE_RE.match(entry.name):
+            profiles[entry.name] = {"deliver_crons": crons}
+        elif V2_KEPT_RE.match(entry.name):
+            kept[entry.name] = {}
+        deliver_crons += [{"profile": entry.name, "id": j.get("id"), "name": j.get("name"), "script": j.get("script")}
+                          for j in crons]
     projects = sorted(p.name for p in legacy.iterdir() if p.is_dir()) if legacy.is_dir() else []
     return {
         "profiles": profiles,
-        "deliver_crons": [{"profile": n, "id": j.get("id"), "name": j.get("name"), "script": j.get("script")}
-                          for n, row in profiles.items() for j in row["deliver_crons"]],
+        "kept_by_v2": sorted(kept),
+        "deliver_crons": deliver_crons,
         "v1_projects": projects,
         "legacy_projects_dir": str(legacy),
         "outbox": str(legacy.parent / "outbox") if (legacy.parent / "outbox").is_dir() else None,
@@ -129,7 +146,7 @@ def run(args) -> dict:
     root = resolve_root(args.hermes_root)
     legacy = Path(args.v1_projects).expanduser().absolute() if args.v1_projects else Path.home() / "Hermes" / "projects"
     found = detect(root, legacy)
-    v1 = bool(found["profiles"]) or bool(found["v1_projects"])
+    v1 = bool(found["profiles"]) or bool(found["deliver_crons"]) or bool(found["v1_projects"])
     local = Path(args.local).expanduser().absolute() if args.local else root / "profiles" / args.builder / "local"
     shim = Path(args.squadctl).expanduser().absolute() if args.squadctl else HERE / "squadctl"
     actions: list[dict] = []
@@ -188,8 +205,10 @@ def run(args) -> dict:
         notes.append(f"v1 outbox found at {found['outbox']}: v2 replaces it with bot-chat delivery; left untouched")
     if found["profiles"]:
         names = ", ".join(sorted(found["profiles"]))
-        notes.append(f"v1-shaped profiles: {names}. `squadctl apply <key>` reconciles the names v2 keeps; "
-                     "the rest can be deleted one by one")
+        notes.append(f"v1-only profiles: {names}. Export each, then remove it with `hermes profile delete <name>`")
+    if found["kept_by_v2"]:
+        notes.append("profiles kept by v2: " + ", ".join(found["kept_by_v2"])
+                     + ". These are the v2 squad bots; never delete them as v1 leftovers")
     if not v1:
         notes.append("no v1 install found: nothing to migrate")
 

@@ -30,44 +30,44 @@
           "bot": "web",
           "role": "lead",
           "lane": "lead",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "mimo-v2.6-pro",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "medium"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 3/6 (openai): Leads interview, plan and accept work",
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
           "extras": []
         },
         {
           "bot": "web-frontend",
           "role": "worker",
           "lane": "design",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "high",
+          "reasoning": "medium",
           "alternatives": [
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
               "reasoning": "high"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
+              "model": "gpt-5.4",
+              "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 3/6 (openai): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
           "extras": []
         },
         {
@@ -94,17 +94,22 @@
             {
               "use": "delegation",
               "lane": "advisor",
-              "model": "gpt-5.4",
+              "model": "claude-opus-5.5",
               "provider": "copilot",
-              "reasoning": "high",
+              "reasoning": "medium",
               "alternatives": [
+                {
+                  "model": "gpt-5.4",
+                  "provider": "copilot",
+                  "reasoning": "high"
+                },
                 {
                   "model": "mimo-v2.6-pro",
                   "provider": "opencode-go",
                   "reasoning": "xhigh"
                 }
               ],
-              "reason": "advisor lane, candidate 2/4 (openai): Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations"
+              "reason": "advisor lane, candidate 1/4 (anthropic): Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations"
             }
           ]
         },
@@ -117,12 +122,17 @@
           "reasoning": "high",
           "alternatives": [
             {
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
+            },
+            {
               "model": "mimo-v2.6-pro",
               "provider": "opencode-go",
               "reasoning": "xhigh"
             }
           ],
-          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; every available family is used by a producer, least shared one chosen",
+          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers",
           "extras": []
         },
         {
@@ -133,6 +143,11 @@
           "provider": "opencode-go",
           "reasoning": "medium",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
+            },
             {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
@@ -152,6 +167,11 @@
           "reasoning": "low",
           "alternatives": [
             {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
+            {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
               "reasoning": "low"
@@ -166,6 +186,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
@@ -183,22 +208,22 @@
           "bot": "marketing",
           "role": "lead",
           "lane": "lead",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "mimo-v2.6-pro",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "medium"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 3/6 (openai): Leads interview, plan and accept work",
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
           "extras": []
         },
         {
@@ -209,6 +234,11 @@
           "provider": "opencode-go",
           "reasoning": "medium",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
+            },
             {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
@@ -222,56 +252,66 @@
           "bot": "marketing-creative",
           "role": "worker",
           "lane": "copy",
-          "model": "gpt-5.4",
+          "model": "claude-sonnet-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
+            {
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "medium"
+            },
             {
               "model": "kimi-k3",
               "provider": "opencode-go",
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane, candidate 2/4 (openai): Copy, CVs and letters need voice and nuance more than tools",
+          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
           "extras": []
         },
         {
           "bot": "marketing-producer",
           "role": "worker",
           "lane": "design",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "high",
+          "reasoning": "medium",
           "alternatives": [
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
               "reasoning": "high"
             },
-            {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
-              "reasoning": "high"
-            }
-          ],
-          "reason": "design lane, candidate 3/6 (openai): UI, motion and 3D quality is visibly model-bound",
-          "extras": []
-        },
-        {
-          "bot": "marketing-reviewer",
-          "role": "worker",
-          "lane": "review",
-          "model": "mimo-v2.6-pro",
-          "provider": "opencode-go",
-          "reasoning": "xhigh",
-          "alternatives": [
             {
               "model": "gpt-5.4",
               "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; every available family is used by a producer, least shared one chosen",
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "extras": []
+        },
+        {
+          "bot": "marketing-reviewer",
+          "role": "worker",
+          "lane": "review",
+          "model": "gpt-5.4",
+          "provider": "copilot",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
+            },
+            {
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers",
           "extras": []
         }
       ],
@@ -283,6 +323,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
@@ -298,6 +343,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
@@ -315,22 +365,22 @@
           "bot": "jobs",
           "role": "lead",
           "lane": "lead",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "mimo-v2.6-pro",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "medium"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 3/6 (openai): Leads interview, plan and accept work",
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
           "extras": []
         },
         {
@@ -342,6 +392,11 @@
           "reasoning": "medium",
           "alternatives": [
             {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "high"
+            },
+            {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
               "reasoning": "high"
@@ -352,17 +407,22 @@
             {
               "use": "chain:application/analyze",
               "lane": "review",
-              "model": "mimo-v2.6-pro",
-              "provider": "opencode-go",
-              "reasoning": "xhigh",
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "high",
               "alternatives": [
                 {
-                  "model": "gpt-5.4",
+                  "model": "mimo-v2.6-pro",
+                  "provider": "opencode-go",
+                  "reasoning": "xhigh"
+                },
+                {
+                  "model": "claude-sonnet-5.5",
                   "provider": "copilot",
                   "reasoning": "high"
                 }
               ],
-              "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; every available family is used by a producer, least shared one chosen"
+              "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers"
             }
           ]
         },
@@ -370,34 +430,44 @@
           "bot": "jobs-writer",
           "role": "worker",
           "lane": "copy",
-          "model": "gpt-5.4",
+          "model": "claude-sonnet-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
+            {
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "medium"
+            },
             {
               "model": "kimi-k3",
               "provider": "opencode-go",
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane, candidate 2/4 (openai): Copy, CVs and letters need voice and nuance more than tools",
+          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
           "extras": []
         },
         {
           "bot": "jobs-reviewer",
           "role": "worker",
           "lane": "review",
-          "model": "mimo-v2.6-pro",
-          "provider": "opencode-go",
-          "reasoning": "xhigh",
+          "model": "gpt-5.4",
+          "provider": "copilot",
+          "reasoning": "high",
           "alternatives": [
             {
-              "model": "gpt-5.4",
+              "model": "mimo-v2.6-pro",
+              "provider": "opencode-go",
+              "reasoning": "xhigh"
+            },
+            {
+              "model": "claude-sonnet-5.5",
               "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 1/4 (open-weights): Independent review catches more when the reviewer's model family differs from the producer's; every available family is used by a producer, least shared one chosen",
+          "reason": "review lane, candidate 2/4 (openai): Independent review catches more when the reviewer's model family differs from the producer's; family differs from the producers",
           "extras": []
         }
       ],
@@ -410,66 +480,66 @@
           "bot": "studio",
           "role": "lead",
           "lane": "design",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "high",
+          "reasoning": "medium",
           "alternatives": [
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
               "reasoning": "high"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
+              "model": "gpt-5.4",
+              "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 3/6 (openai): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
           "extras": []
         },
         {
           "bot": "studio-motion",
           "role": "worker",
           "lane": "design",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "high",
+          "reasoning": "medium",
           "alternatives": [
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
               "reasoning": "high"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
+              "model": "gpt-5.4",
+              "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 3/6 (openai): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
           "extras": []
         },
         {
           "bot": "studio-3d",
           "role": "worker",
           "lane": "design",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
-          "reasoning": "high",
+          "reasoning": "medium",
           "alternatives": [
             {
-              "model": "kimi-k3",
-              "provider": "opencode-go",
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
               "reasoning": "high"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
+              "model": "gpt-5.4",
+              "provider": "copilot",
               "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 3/6 (openai): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
           "extras": []
         }
       ],
@@ -481,6 +551,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
@@ -496,6 +571,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",
@@ -513,37 +593,42 @@
           "bot": "builder",
           "role": "lead",
           "lane": "lead",
-          "model": "gpt-5.4",
+          "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "mimo-v2.6-pro",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "claude-sonnet-5.5",
+              "provider": "copilot",
+              "reasoning": "medium"
             },
             {
-              "model": "glm-5.3",
-              "provider": "opencode-go",
-              "reasoning": "high"
+              "model": "gpt-5.4",
+              "provider": "copilot",
+              "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 3/6 (openai): Leads interview, plan and accept work",
+          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
           "extras": [
             {
               "use": "cron:builder-watch",
               "lane": "digest",
-              "model": "deepseek-v4.1-flash",
-              "provider": "opencode-go",
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
               "reasoning": "high",
               "alternatives": [
+                {
+                  "model": "deepseek-v4.1-flash",
+                  "provider": "opencode-go",
+                  "reasoning": "high"
+                },
                 {
                   "model": "gpt-5.4-mini",
                   "provider": "copilot",
                   "reasoning": "high"
                 }
               ],
-              "reason": "digest lane, candidate 2/4 (open-weights): The daily upstream digest reads filtered release notes and writes JSON"
+              "reason": "digest lane, candidate 1/4 (anthropic): The daily upstream digest reads filtered release notes and writes JSON"
             }
           ]
         }
@@ -556,6 +641,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4-mini",
               "provider": "copilot",
@@ -571,6 +661,11 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [
+            {
+              "model": "claude-haiku-5.5",
+              "provider": "copilot",
+              "reasoning": "low"
+            },
             {
               "model": "gpt-5.4",
               "provider": "copilot",

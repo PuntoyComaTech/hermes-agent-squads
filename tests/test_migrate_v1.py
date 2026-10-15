@@ -130,6 +130,9 @@ def test_detects_profiles_deliver_crons_and_project_folders(env, capsys):
     assert out["v1"] is True
     found = out["found"]
     assert "orchestrator" in found["profiles"] and "web-architect" in found["profiles"]
+    # v2 worker names are never v1 leftovers: reported as kept, not as deletable
+    assert "jobs-scout" not in found["profiles"] and "jobs-scout" in found["kept_by_v2"]
+    assert {"jobs-scout", "jobs-writer", "web-frontend", "web-deployer"} <= set(found["kept_by_v2"])
     assert [r["profile"] for r in found["deliver_crons"]] == ["jobs-scout", "orchestrator", "web-architect"]
     assert found["v1_projects"] == ["jobs", "misc", "web"]
     assert found["outbox"].endswith("outbox")
@@ -139,7 +142,15 @@ def test_legacy_profile_names_alone_are_reported_as_v1(env, capsys):
     env.profile("web-architect")  # the v1 web squad's own bot names
     out = env.run(capsys=capsys)
     assert out["v1"] is True and out["actions"] == []
-    assert any("v1-shaped profiles: web-architect" in n for n in out["notes"])
+    assert any("v1-only profiles: web-architect" in n for n in out["notes"])
+
+
+def test_v2_worker_names_alone_are_not_a_v1_install(env, capsys):
+    for name in ("jobs", "jobs-scout", "web-frontend", "marketing-research"):
+        env.profile(name)
+    out = env.run(capsys=capsys)
+    assert out["v1"] is False
+    assert any("profiles kept by v2" in n and "never delete" in n for n in out["notes"])
 
 
 def test_is_deliver_matches_script_and_name():
