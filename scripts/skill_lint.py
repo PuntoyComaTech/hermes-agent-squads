@@ -16,13 +16,21 @@ import sys
 import tempfile
 from pathlib import Path
 
-try:
-    import hermes_yaml as yaml
-except ImportError:
-    import yaml
-
 SCRIPTS_DIR = Path(__file__).resolve().parent
 DEFAULT_ROLES = SCRIPTS_DIR / "data" / "model-roles.yaml"
+
+
+def _yaml():
+    """YAML module on first use, never at import: `--help` must work without PyYAML (scripts/hpy provides
+    hermes_yaml; a bare python3 falls back to PyYAML when a command actually reads YAML)."""
+    try:
+        import hermes_yaml as y  # the Hermes runtime's YAML module
+    except ImportError:
+        try:
+            import yaml as y
+        except ImportError:
+            raise SystemExit("error: no YAML module: run scripts/hpy skill_lint.py (Hermes runtime) or install PyYAML") from None
+    return y
 
 RULES = {
     "frontmatter-required": "SKILL.md has no YAML frontmatter with name and description",
@@ -106,7 +114,7 @@ class Linter:
     def _model_regex(roles_path: Path) -> re.Pattern:
         parts = [GENERIC_MODEL_RE]
         if roles_path.is_file():
-            roles = yaml.safe_load(roles_path.read_text(encoding="utf-8")) or {}
+            roles = _yaml().safe_load(roles_path.read_text(encoding="utf-8")) or {}
             for lane in (roles.get("lanes") or {}).values():
                 parts += [c["match"] for c in lane.get("candidates", []) if c.get("match")]
         return re.compile(r"(?<![\w.-])(?:" + "|".join(parts) + r")(?![\w.])", re.I)
@@ -185,7 +193,7 @@ class Linter:
         if not match:
             return None
         try:
-            meta = yaml.safe_load(match.group(1))
+            meta = _yaml().safe_load(match.group(1))
         except Exception:
             return None
         if isinstance(meta, dict) and all(isinstance(meta.get(k), str) and meta[k].strip() for k in ("name", "description")):
@@ -227,7 +235,7 @@ class Linter:
         if container.parent.name != "squads" or not manifest.is_file():
             return WORKER_LINES
         try:
-            bots = (yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}).get("bots") or {}
+            bots = (_yaml().safe_load(manifest.read_text(encoding="utf-8")) or {}).get("bots") or {}
             roles = [b.get("role") for b in bots.values() if name in ((b.get("skills") or {}).get("squad") or [])]
         except Exception:
             return WORKER_LINES

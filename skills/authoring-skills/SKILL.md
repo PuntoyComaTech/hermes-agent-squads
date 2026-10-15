@@ -31,7 +31,7 @@ description: "Writes skills to the format budgets. Use when a squad or the build
    shape).
 7. Cite every platform fact with its docs path; run
    `hermes skills inspect <id>` before referencing any skill identifier.
-8. Gate: `python3 scripts/skill_lint.py <skill-dir>` must exit 0.
+8. Gate: `scripts/hpy skill_lint.py <skill-dir>` must exit 0.
 
 ## Pitfalls
 

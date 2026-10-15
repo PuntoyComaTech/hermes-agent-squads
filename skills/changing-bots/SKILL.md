@@ -19,7 +19,7 @@ description: "Edits one bot's tools, skills or schedule. Use when a bot needs a 
    `local/squads/<key>/squad.yaml` with just the changed fields; merge order is
    repo manifest < local overlay < `local/installed.yaml`
    (`scripts/squadctl.py`).
-3. Run `python3 scripts/squadctl.py plan <key> --json`, show the diff, and
+3. Run `scripts/hpy squadctl.py plan <key> --json`, show the diff, and
    apply only after the user's explicit OK.
 4. `apply` reconciles config keys, `ui_meta`, skills (copied with a sha
    marker), plugins, MCP, SOUL and cron in one pass

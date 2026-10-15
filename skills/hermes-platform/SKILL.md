@@ -59,5 +59,5 @@ not be verified are marked UNVERIFIED and must not be relied on.
 ## Verification
 
 - Each reference line carries a citation to `website/docs/...` or a source file.
-- `python3 scripts/skill_lint.py skills/hermes-platform` exits 0.
+- `scripts/hpy skill_lint.py skills/hermes-platform` exits 0.
 - A claim the reference cannot cite is deleted or marked UNVERIFIED.

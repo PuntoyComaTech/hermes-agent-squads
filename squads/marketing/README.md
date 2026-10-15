@@ -87,7 +87,7 @@ Keeps installed beside the squad skills: `official:creative/social-media-content
 
 ```sh
 scripts/squadctl plan marketing        # read-only diff: profiles, skills, plugins, cron, board
-scripts/squadctl apply marketing --models <file from scripts/model_advisor.py>
+scripts/squadctl apply marketing --models <file from scripts/hpy model_advisor.py>
 ```
 
 `apply` creates the five profiles with `--no-skills`, copies the squad skills, enables the plugins

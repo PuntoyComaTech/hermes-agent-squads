@@ -20,11 +20,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-try:
-    import hermes_yaml as yaml
-except ImportError:
-    import yaml
-
 DESC_MAX = 220
 DISCLOSURE_MAX = 600
 TIER_RANK = {"official": 0, "bundled": 1, "community": 2}
@@ -33,6 +28,19 @@ KINDS = ("plugin", "skill", "mcp")
 
 class SearchError(Exception):
     pass
+
+
+def _yaml():
+    """YAML module on first use, never at import: `--help` must work without PyYAML (scripts/hpy provides
+    hermes_yaml; a bare python3 falls back to PyYAML when a command actually reads YAML)."""
+    try:
+        import hermes_yaml as y  # the Hermes runtime's YAML module
+    except ImportError:
+        try:
+            import yaml as y
+        except ImportError:
+            raise SearchError("no YAML module: run scripts/hpy catalog_search.py (Hermes runtime) or install PyYAML") from None
+    return y
 
 
 # --- source tree ------------------------------------------------------------------------------------------------
@@ -62,14 +70,16 @@ def find_source(explicit: Path | None) -> Path:
 
 
 def read_yaml(path: Path) -> dict:
+    y = _yaml()
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8-sig"))
+        data = y.safe_load(path.read_text(encoding="utf-8-sig"))
     except Exception:  # a malformed entry must not stop a search
         return {}
     return data if isinstance(data, dict) else {}
 
 
 def frontmatter(path: Path) -> dict:
+    y = _yaml()
     try:
         text = path.read_text(encoding="utf-8-sig")
     except OSError:
@@ -78,7 +88,7 @@ def frontmatter(path: Path) -> dict:
     if not match:
         return {}
     try:
-        data = yaml.safe_load(match.group(1))
+        data = y.safe_load(match.group(1))
     except Exception:  # malformed frontmatter must not stop a search
         return {}
     return data if isinstance(data, dict) else {}

@@ -10,8 +10,9 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
 
 ## Rules
 
-- **Use the tools**: `squadctl.py` applies changes, `skill_lint.py` gates skills, `model_advisor.py` assigns
-  models, `kanban_chain.py` builds chains. Do not reimplement them.
+- **Use the tools** through `scripts/hpy <tool>.py` (the Hermes runtime interpreter): `squadctl.py` applies
+  changes, `skill_lint.py` gates skills, `model_advisor.py` assigns models, `kanban_chain.py` builds chains.
+  Do not reimplement them.
 - **English only** in repo content; bots speak the user's language at runtime.
 - **Model ids only** in `scripts/data/model-roles.yaml` and `local/installed.yaml` (enforced).
 - **Real scripts, never prose scripts**: Python for YAML/JSON/HTTP work with `--help` on every script; bash only

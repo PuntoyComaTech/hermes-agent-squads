@@ -117,7 +117,7 @@ a quiet tick costs nothing.
 ```text
 distribution.yaml      profile distribution manifest (what install/update touches)
 SOUL.md  config.yaml   builder identity and minimal profile config
-builder.yaml           builder bot spec; applied by scripts/squadctl.py apply --self
+builder.yaml           builder bot spec; applied by scripts/hpy squadctl.py apply --self
 CHANGELOG.md           what shipped, read by the update watcher
 skills/                10 builder skills (hermes-platform = verified Hermes reference)
 scripts/               squadctl, migrate_v1, model_advisor, catalog_search, skill_lint,

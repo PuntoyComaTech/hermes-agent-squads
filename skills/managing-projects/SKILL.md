@@ -14,7 +14,7 @@ description: "Registers Hermes Projects across lead and workers. Use when a squa
 
 1. Collect the project name and its real folder path; never impose a fixed
    layout (`docs/decisions.md` V-04).
-2. Run `python3 scripts/squadctl.py project add <squad> <name> <path>`. It runs
+2. Run `scripts/hpy squadctl.py project add <squad> <name> <path>`. It runs
    `hermes project create` in the lead and in every worker of the squad,
    because Project state is per profile
    (`skills/hermes-platform/references/projects.md`).
