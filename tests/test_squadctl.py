@@ -181,7 +181,7 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert (fe["model"]["provider"], fe["model"]["default"]) == ("prov-design", "model-design")
     assert fe["agent"]["reasoning_effort"] == "medium"
     assert web.config("web-backend")["agent"]["reasoning_effort"] == "medium"
-    assert fe["platform_toolsets"]["cli"] == ["file", "skills", "kanban", "todo", "terminal", "vision", "browser"]
+    assert fe["platform_toolsets"]["cli"] == ["browser", "file", "kanban", "skills", "terminal", "todo", "vision"]
     assert fe["platform_toolsets"]["cron"] == ["terminal", "file", "skills", "kanban", "todo"]
     disabled = fe["agent"]["disabled_toolsets"]
     assert set(ALWAYS) <= set(disabled)
@@ -365,7 +365,7 @@ def test_local_overlay_changes_one_bot_and_can_remove_one(env, capsys):
     _, out = env.run("plan", "web", capsys=capsys)
     assert [b["bot"] for b in out["bots"]] == ["web", "web-frontend", "web-backend", "web-qa"]
     env.run("apply", "web", capsys=capsys)
-    assert env.config("web-qa")["platform_toolsets"]["cli"] == ["file", "skills", "kanban", "todo"]
+    assert env.config("web-qa")["platform_toolsets"]["cli"] == ["file", "kanban", "skills", "todo"]
     assert "browser" in env.config("web-qa")["agent"]["disabled_toolsets"]
 
 
@@ -468,6 +468,17 @@ def test_confirm_gated_keep_and_plugin(env, capsys):
     assert "blender" in env.config("web-qa")["plugins"]["enabled"]
 
 
+def test_yes_is_accepted_and_never_bypasses_confirm_gates(env, capsys):
+    def gate(spec):
+        spec["bots"]["web-qa"]["plugins"]["enable"].append(
+            {"name": "blender", "confirm": "Runs arbitrary Python inside Blender; needs the user's OK"})
+    env.squad("web", gate)
+    _, out = env.run("apply", "web", "--yes", capsys=capsys)
+    qa = next(b for b in out["bots"] if b["bot"] == "web-qa")
+    assert len(qa["pending"]) == 1 and "blender" in qa["pending"][0]
+    assert not any(c["args"][:2] == ["plugins", "install"] for c in env.calls())
+
+
 def test_plain_plugin_that_is_not_bundled_is_refused(env, capsys):
     env.squad("web", lambda s: s["bots"]["web-qa"]["plugins"]["enable"].append("community-thing"))
     shutil.rmtree(env.hsrc / "plugins" / "community-thing")
@@ -557,6 +568,26 @@ def test_apply_self_needs_the_installed_profile(env, capsys):
     assert "hermes profile install" in out["error"]
 
 
+def test_apply_self_uses_the_profile_name_from_the_builder_flag(env, capsys):
+    """`hermes profile install <src> --name builder-test` is a supported install; builder.yaml names the bot
+    `builder`, so `--builder builder-test` must reconcile that profile, not create one named `builder`."""
+    env.squad("builder")
+    home = env.root / "profiles" / "builder-test"
+    (home / "skills").mkdir(parents=True)
+    (home / "config.yaml").write_text("model: {default: seed}\n")
+    argv = ["apply", "--self", "--builder", "builder-test", "--json", "--hermes-root", str(env.root),
+            "--src", str(env.src), "--local", str(env.local), "--models", str(env.models)]
+    assert squadctl.main(argv) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert [b["bot"] for b in out["bots"]] == ["builder-test"] and out["summary"] == {"changed": 1}
+    assert (home / "skills" / "hermes-platform" / "SKILL.md").is_file()
+    assert not (env.root / "profiles" / "builder" / "config.yaml").exists()  # no profile was created there
+    (job,) = env.jobs("builder-test")
+    assert (job["name"], job["deliver"]) == ("builder-watch", "bot-chat:builder-test")
+    assert env.config("builder-test")["terminal"]["cwd"] == str(home)
+    assert not any(c["args"][:2] == ["profile", "create"] for c in env.calls())
+
+
 # --- uninstall --------------------------------------------------------------------------------------------------
 
 def test_uninstall_backs_up_removes_cron_deletes_profiles_archives_board(web, capsys):
@@ -582,6 +613,12 @@ def test_uninstall_keep_profiles_removes_cron_only(web, capsys):
     assert web.jobs("web") == []
     assert len(list((web.local / "backups").glob("*.tar.gz"))) == 5
     assert not any(c["args"][:2] == ["profile", "delete"] for c in web.calls())
+
+
+def test_uninstall_yes_flag_is_accepted(web, capsys):
+    _, out = web.run("uninstall", "web", "--keep-profiles", "--yes", capsys=capsys)
+    assert len(list((web.root / "profiles").glob("web*"))) == 5
+    assert web.jobs("web") == []
 
 
 def test_uninstall_dry_run_changes_nothing(web, capsys):
