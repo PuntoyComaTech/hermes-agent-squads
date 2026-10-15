@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I need a squad that watches my competitors and drafts weekly counter-campaigns. Design it.",
-      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then a squad.yaml with a lead and few workers justified by D-001, lanes, a chain and gated cron, validated by squadctl plan.",
+      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then local/squads/<key>/squad.yaml with a lead and few workers justified by D-001, lanes, a chain and gated cron, validated by squadctl plan and skill_lint.",
       "files": []
     },
     {

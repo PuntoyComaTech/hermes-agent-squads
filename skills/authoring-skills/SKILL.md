@@ -12,33 +12,28 @@ description: "Writes skills that pass skill_lint.py. Use when a squad or the bui
 
 ## Procedure
 
-1. Read `skills/hermes-platform/references/skills-format-and-sources.md` and the
-   upstream authoring guide (`website/docs/developer-guide/creating-skills.md`
-   in the local Hermes tree).
-2. Structure: progressive disclosure. `SKILL.md` holds the procedure; detail
-   lives one level down in `references/*.md`; deterministic work lives in
-   `scripts/` with `--help`.
-3. Pass the `name-*`, `desc-*`, `*-lines`, `language-english` rules
-   (`scripts/hpy skill_lint.py --rules`).
-4. Body sections in order: When to Use, Procedure, Pitfalls, Verification.
-5. Ship exactly 3 eval scenarios in `evals/evals.json` (`evals-count`).
-6. Cite every platform fact with its docs path; run
-   `hermes skills inspect <id>` before referencing any skill identifier.
-7. `scripts/hpy skill_lint.py <skill-dir>` must exit 0.
+1. Load the bundled skill `hermes-agent-skill-authoring` and read
+   `skills/hermes-platform/references/skills-format-and-sources.md`.
+2. Layout: `SKILL.md` holds the procedure; detail lives one level down in
+   `references/*.md`, each linked from the step that needs it; deterministic
+   work lives in `scripts/` with parameters and `--help`.
+3. Rules: `scripts/hpy skill_lint.py --rules` (name, description, line budgets,
+   body sections When to Use, Procedure, Pitfalls, Verification, English only).
+4. Ship exactly 3 scenarios in `evals/evals.json`: the happy path, a failure,
+   and a refusal or escalation.
+5. Cite every platform fact with its docs or source path. Run
+   `hermes skills inspect <id>` before naming any skill identifier.
+6. Run `scripts/hpy skill_lint.py <skill-dir>`.
 
 ## Pitfalls
 
 - Model ids in any file of the skill: they belong only in
   `scripts/data/model-roles.yaml` and `local/installed.yaml`.
-- Prose scripts: a script the model rewrites per machine is not deterministic
+- A prose script, which the model rewrites per machine: ship a real script
   (`docs/decisions.md` V-03).
-- Nested reference folders or a second skill inside a skill directory: both
-  fail lint rules `ref-depth` and `children-allowed`.
-- Spanish or mixed-language text: files are English only (`language-english`).
 
 ## Verification
 
 - `scripts/hpy skill_lint.py <skill-dir>` exits 0.
-- Every deterministic step has a script that runs with `--help` and does the
+- Every deterministic step calls a script that answers `--help` and does the
   job end to end.
-- The 3 evals cover the happy path, a failure and a refusal or escalation case.

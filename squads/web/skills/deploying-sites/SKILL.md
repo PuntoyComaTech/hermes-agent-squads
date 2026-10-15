@@ -5,37 +5,32 @@ description: "Moves a site between repo, GitHub and the provider. Use when a car
 
 # Deploying a site
 
-GitHub steps are in `references/github-flow.md`, provider steps in `references/cloudflare.md`. You hold the only credentials.
-
 ## When to Use
 
-- A `repo` card (site onboarding), a `preview` card, or a `deploy-production` card.
-- The user asks to connect a domain, or to roll back.
+- A `repo`, `preview`, `preview-r<N>`, `production`, `domain` or `rollback` card.
 - A provider build fails after passing locally, or a smoke check comes back red.
 
 ## Procedure
 
-1. `kanban_show`. Read the card body, `site.yaml`, the milestone note and the newest deploy record. Identify the stage: `repo`, `preview`, `production`, `domain` or `rollback`.
-2. Confirm the credentials before acting: `gh auth status` shows the token user, and the platform CLI answers one read command (`cf auth whoami`, or the Vercel equivalent). Missing or wrong token -> block with the exact command and what it returned.
-3. **repo**: follow `references/github-flow.md`. Create the private repo, or verify the user's empty repo is reachable; push `main`; then set `site.yaml -> repo.created: true` and record what the token can do. If neither path works, block with the click-by-click steps for the user.
-4. **preview**: run the smoke pass first against a local build, then push the branch, open or update the PR, upload a preview version, and run `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/check_site.py" --smoke --url <preview-url> --site <slug> --id <ID>`. Write `deploys/<ID>-preview-<n>.json` with commit, PR, version id, URL and `ok`. Red smoke -> block naming the failing check; no PR merge, no preview message.
-5. **production**: require a `Confirmed:` line with the user's literal answer in the card body. Merge the open PRs for the milestone in order with a **merge commit** (never squash), deploy `main`, smoke it, write `deploys/<ID>-production-<n>.json` with `confirmed`, `previous_version_id` and the merge commit. Then hand the live URL to the lead.
-6. **domain**: the DOMAIN CHECK phase collects the current records and the planned ones, writes them into the card, and blocks for the user's yes. The APPLY phase runs only with the `Confirmed:` line; verify with a DNS lookup and HTTPS before completing.
-7. **rollback**: require the `Confirmed:` line. Bring the previous `version_id` back on the provider, verify it answers, then `git revert` the merge on `main`. Record the new state in the deploy record.
-8. Provider commands: never guess. Find them with `cf cli search "<task>"` (or the provider's own help) and use the form `references/cloudflare.md` records. Wrangler only for the two documented exceptions.
-9. Any failure that is not a provider misconfiguration gets a support card to the builder with the command, the verbatim error and the branch. Do not retry in a loop; two attempts, then block.
-10. Complete with `kanban_complete`: the deploy record path in `metadata.changed_files`, the commands run in `metadata.verification`.
+1. `kanban_show`. Read the card body, `site.yaml`, the milestone note and the newest deploy record. The stage is the last segment of the card's idempotency key.
+2. Check credentials: `gh auth status`, then `cf auth whoami` (or `vercel whoami` when `site.yaml -> provider: vercel`). Missing or wrong: `kanban_block(kind="capability", reason="<command>: <its output>")`.
+3. **repo**: follow `references/github-flow.md`, then set `site.yaml -> repo.mode` and `repo.created: true`. Neither mode works: `kanban_block(kind="needs_input", reason="<the click-by-click steps for the user>")`.
+4. **preview**: for a `static` site, smoke the local build first: `pnpm -C repo build`, then `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/check_site.py" --smoke --dir repo/dist --site <slug> --id <ID> --round <R>` (`R` = the `-r<N>` of the stage, else 0). Push the branch, open or update the PR, upload a preview version (`references/cloudflare.md`), and run the same command with `--url <preview-url>` instead of `--dir`. Write `deploys/<ID>-preview-<n>.json`. `all_ok: false`: `ok: false` in the record and `kanban_block(kind="needs_input", reason="smoke failed: <critical lines>")`.
+5. **production**: needs the `Confirmed:` line. Merge the milestone's PRs in order with a merge commit, deploy `main`, smoke it with `--url <live-url>`, and write `deploys/<ID>-production-<n>.json` with `confirmed`, `previous_version_id` and the merge commit.
+6. **domain**: first run: read the zone and write the current and planned records into a `kanban_comment`, then `kanban_block(kind="needs_input", reason="DNS change needs the user's yes")`. Resumed run with the `Confirmed:` line: apply, then verify with a DNS lookup and an HTTPS request.
+7. **rollback**: needs the `Confirmed:` line. Restore the previous `version_id`, verify it answers 200, then `git revert` the merge on `main` (`references/github-flow.md`). Write a deploy record with `env: production`.
+8. Provider commands: `references/cloudflare.md`.
+9. A failure that is not a provider misconfiguration: after two attempts, file a card for the bot that built the milestone (`skills: [<its skill>]`, body: command, verbatim error, branch) and wait on it (site-contract step 6).
+10. `kanban_complete`: the deploy record path in `metadata.changed_files`, the commands run in `metadata.verification`.
 
 ## Pitfalls
 
-- Secrets, force-push, repository deletion, zone or record deletion, account or payment changes, named-login commands: the Never lists in `references/github-flow.md` and `references/cloudflare.md`; they win.
-- Never leave a preview URL in a card without its deploy record; the reviewer needs both.
-- Never squash-merge stacked milestone branches: the order of the merges is the release order.
+- The Never lists in `references/github-flow.md` and `references/cloudflare.md` win over any card.
+- Never leave a preview URL in a card without its deploy record.
 
 ## Verification
 
-- The deploy record exists with `ok: true`, the commit it deployed, and `previous_version_id` for production.
-- The live URL answers 200 and the smoke pass is green before the lead tells the user anything.
-- `site.yaml -> production` matches the newest production deploy record.
-- A rollback restores the previous version and leaves a revert commit on `main`.
-- No secret appears in any file, card, comment or log produced by this stage.
+- The deploy record exists with `ok: true`, the deployed commit, and `previous_version_id` for production.
+- The smoke JSON for the deployed URL has `all_ok: true` before the card completes.
+- A rollback leaves the previous version live and a revert commit on `main`.
+- No secret appears in any file, card, comment or log from this stage.

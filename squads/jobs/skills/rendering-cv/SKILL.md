@@ -15,7 +15,7 @@ Run the script; never edit it.
 
 ## Procedure
 
-1. Run the script (from the writer profile, `$HERMES_HOME` is that profile):
+1. Run the script:
 
    ```bash
    python3 "$HERMES_HOME/skills/squad-jobs/rendering-cv/scripts/render_cv.py" \
@@ -54,12 +54,8 @@ Section headings follow `language` (English and Spanish; anything else uses Engl
 ## Pitfalls
 
 - Never edit `cv_content.json` to raise keyword coverage with a claim no achievement supports.
-- Keep the ATS file one column, no icons, no tables, real clickable links.
-- Never write contact data into a card, comment or file outside `application/`.
 
 ## Verification
 
 - `render_report.json` -> `files` matches what is on disk; defects cover every file the card requires.
 - `pages_actual` equals `pages_expected` when the card sets one.
-- `cv_ats.txt` section order equals `cv_content.json` order.
-- The reviewer's card quotes the report's numbers, not yours.

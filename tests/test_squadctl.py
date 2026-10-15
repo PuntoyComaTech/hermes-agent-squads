@@ -371,6 +371,47 @@ def test_models_file_accepts_model_advisor_json(env, capsys):
     assert env.config("web-frontend")["model"]["default"] == "adv-design"
 
 
+def test_plan_self_resolves_lanes_from_the_real_model_advisor_json(env, capsys):
+    """The builder's first run: `model_advisor.py builder --json > f`, then `plan --self --models f`."""
+    import model_advisor
+    env.squad("builder")
+    env.seed_builder()
+    assert model_advisor.main([str(env.src / "builder.yaml"), "--json", "--providers", "cache",
+                               "--cache", str(FIX / "caches" / "anthropic-only.json"),
+                               "--local-roles", str(FIX / "nonexistent.yaml")]) == 0
+    advice = capsys.readouterr().out
+    assert "squads" in json.loads(advice)  # the advisor nests bots under squads[]
+    env.models.write_text(advice)
+    _, out = env.run("plan", "--self", capsys=capsys)
+    (bot,) = out["bots"]
+    assert not [n for n in bot.get("notes", []) if n.startswith("no model assigned")], bot
+    assert any(a.startswith("set model.default") and "claude" in a for a in bot["actions"]), bot["actions"]
+
+
+def test_vision_capable_main_model_gets_no_auxiliary_vision(env, capsys):
+    """An explicit auxiliary.vision turns native images into text descriptions in `auto` mode
+    (agent/image_routing.py), so only text-only main models get one (D-021)."""
+    env.squad("web")
+    doc = models_doc()
+    doc["lanes"]["design"]["model"] = "model-native-design"  # the fake image_routing calls it vision-capable
+    env.models.write_text(yaml.safe_dump(doc))
+    env.run("apply", "web", capsys=capsys)
+    vision = (env.config("web-frontend").get("auxiliary") or {}).get("vision") or {}
+    assert not vision.get("provider") and not vision.get("model")
+    assert env.config("web")["auxiliary"]["vision"] == {"provider": "prov-vision", "model": "model-vision"}
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["summary"] == {"unchanged": 5}
+
+
+def test_a_vision_model_switch_clears_a_stale_auxiliary_vision(web, capsys):
+    assert web.config("web-frontend")["auxiliary"]["vision"]["model"] == "model-vision"
+    doc = models_doc()
+    doc["lanes"]["design"]["model"] = "model-native-design"
+    web.models.write_text(yaml.safe_dump(doc))
+    web.run("apply", "web", capsys=capsys)
+    assert web.config("web-frontend")["auxiliary"]["vision"] == {"provider": "", "model": ""}
+
+
 # --- overlay and validation ---------------------------------------------------------------------------------------
 
 def test_local_overlay_changes_one_bot_and_can_remove_one(env, capsys):
@@ -578,6 +619,16 @@ def test_cron_args_get_a_wrapper(env, capsys):
     wrapper = env.root / "profiles" / "web" / "scripts" / "web-watch.sh"
     assert wrapper.read_text() == '#!/usr/bin/env bash\nexec python3 "$(dirname "$0")/web_watch.py" --board web --quiet\n'
     assert os.access(wrapper, os.X_OK)
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["summary"] == {"unchanged": 5}
+
+
+def test_a_gate_that_imports_gate_lib_gets_it_beside_it(env, capsys):
+    env.squad("web")
+    (env.src / "squads" / "web" / "scripts" / "web_watch.py").write_text("import gate_lib\nprint('{}')\n")
+    env.run("apply", "web", capsys=capsys)
+    scripts = env.root / "profiles" / "web" / "scripts"
+    assert (scripts / "gate_lib.py").read_text() == (SCRIPTS / "gate_lib.py").read_text()
     _, out = env.run("apply", "web", capsys=capsys)
     assert out["summary"] == {"unchanged": 5}
 
@@ -804,6 +855,28 @@ def test_doctor_warns_about_missing_models(env, capsys):
     env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"web": {"version": "3.0.0"}}}))
     _, out = env.run("doctor", capsys=capsys)
     assert any(c["status"] == "warn" and "no model assigned" in c["detail"] for c in out["checks"])
+
+
+def test_doctor_reports_the_jobs_project_and_profile_md(env, tmp_path, capsys):
+    """start_search.py is silent without a project or profile.md; doctor is where that gap shows."""
+    env.squad("jobs")
+    env.local.mkdir(parents=True, exist_ok=True)
+    env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"jobs": {"version": "1.0.0"}}}))
+    _, out = env.run("doctor", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["jobs:project"]["status"] == "warn" and "project add jobs" in checks["jobs:project"]["detail"]
+    folder = tmp_path / "search"
+    folder.mkdir()
+    env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({
+        "squads": {"jobs": {"version": "1.0.0"}},
+        "projects": {"search": {"name": "Search", "path": str(folder), "squads": ["jobs"]}}}))
+    _, out = env.run("doctor", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["jobs:project"]["status"] == "ok"
+    assert checks["jobs:profile.md"]["status"] == "warn" and str(folder) in checks["jobs:profile.md"]["detail"]
+    (folder / "profile.md").write_text("---\nsearch: active\n---\n")
+    _, out = env.run("doctor", capsys=capsys)
+    assert {c["check"]: c for c in out["checks"]}["jobs:profile.md"]["status"] == "ok"
 
 
 # --- units, output, shim ----------------------------------------------------------------------------------------

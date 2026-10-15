@@ -10,7 +10,11 @@ gh api user --jq .login                 # who it is
 gh api user/repos --paginate --jq '.[].full_name'   # which repos it sees
 ```
 
-Whether it can create repositories, without creating one: a deliberately invalid create request must come back `422` (it can) or `403 Resource not accessible by personal access token` (it cannot). Any other answer counts as "cannot".
+Whether it can create repositories, without creating one:
+
+```bash
+gh api -X POST user/repos -f name= 2>&1 | tail -1   # HTTP 422: it can; HTTP 403 or anything else: it cannot
+```
 
 ## Repo modes
 
@@ -22,7 +26,7 @@ gh repo create <owner>/<slug> --private --source repo --remote origin --push   #
 gh repo view <owner>/<slug> --json name,visibility,isEmpty                      # user_creates
 ```
 
-Write `site.yaml -> repo.created: true` and what the token could do.
+Then set `site.yaml -> repo.mode` and `repo.created: true`.
 
 ## Branches and pull requests
 
@@ -48,7 +52,7 @@ gh pr merge <n> --repo <owner>/<slug> --merge          # merge commit: never --s
 git -C repo revert -m 1 <merge-commit> && git -C repo push origin main   # rollback after the provider step
 ```
 
-Stacked milestones merge in order. A conflicted PR is a consultation with the builder, never a force push.
+Stacked milestones merge in order. A conflicted PR: file a card for the bot that built it (deploying-sites step 9), never a force push.
 
 ## Rules
 

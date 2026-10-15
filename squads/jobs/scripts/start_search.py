@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""File one search card per slot on the jobs board, unless the search is paused (cron --no-agent).
+"""File one search card per slot on the jobs board, unless the search is paused (cron, no agent).
 
-Reads `$HERMES_HOME` for the Hermes root, asks the lead profile for its project when --project is absent, pauses
-when `<project>/profile.md` says `search: paused`, resolves the review-lane model from the builder's
-`local/installed.yaml` and files the card through `hermes -p <lead> kanban --board <board> create` with a per-slot
-idempotency key.
+The project is --project or the lead's active project. The search pauses while `<project>/profile.md` says
+`search: paused`. The review-lane model comes from the builder's `local/installed.yaml`. The card is filed with
+`hermes -p <lead> kanban --board <board> create` and a per-slot idempotency key.
 
-stdout is exactly what the cron delivers, and every setup state stays silent: a filed card, a paused search, a
-missing project or a missing `profile.md` all exit 0. Only a hermes failure prints (exit 1); 2 is a usage error.
-No network beyond the local hermes CLI.
+stdout is what the cron delivers. A filed card, a paused search, a missing project and a missing `profile.md`
+print nothing and exit 0 (`squadctl doctor` reports the setup gaps). A hermes failure prints and exits 1.
 """
 from __future__ import annotations
 
@@ -179,12 +177,10 @@ def card_title(now: datetime) -> str:
 
 
 def card_body(slug: str, folder: str, now: datetime, lane: tuple[str, str] | None) -> str:
-    lines = [f"Mode: {'SEARCH'}.", f"Date: {now.strftime('%Y-%m-%d %H:%M')}. Slot: {slot_id(now)}.",
+    lines = ["Mode: SEARCH", f"Date: {now.strftime('%Y-%m-%d %H:%M')}. Slot: {slot_id(now)}.",
              f"Project: {slug} ({folder})"]
     if lane:
-        lines.append(f"Analysis cards: pin --model {lane[0]} --provider {lane[1]} (review lane).")
-    else:
-        lines.append("Analysis cards: no review-lane model on record; file them without --model.")
+        lines.append(f"Analysis cards: model {lane[0]}" + (f", provider {lane[1]}" if lane[1] else "") + " (review lane).")
     lines.append(f"File follow-up cards with project {slug} and workspace dir:{folder}.")
     return "\n".join(lines)
 
@@ -232,7 +228,6 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         print(f"error: --now must be 'YYYY-MM-DD HH:MM', got {args.now!r}", file=sys.stderr)
         return 2
-    note = ""
     try:
         slug, folder = resolve_project(args.hermes_bin, args.lead, args.project)
         state = search_state(Path(folder) / "profile.md")

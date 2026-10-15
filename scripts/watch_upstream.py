@@ -16,7 +16,9 @@ On a change the full release bodies go to <state>/releases/<tag>.md and a keywor
 The filtered output of one run is capped at --max-chars (default 15000) in total.
 
 State: $HERMES_HOME/local/state/watch.json (override with --state-dir). First run seeds the baseline from the
-local Hermes and the installed squads version. Use --dry-run to check without writing state or files.
+local Hermes and the installed squads version. A wake only marks the change `pending`: it becomes `reviewed` once a
+digest file (<state>/digests/*.json, skill tracking-updates) is newer than the wake, so a failed digest turn wakes
+the agent again on the next run. Use --dry-run to check without writing state or files.
 """
 from __future__ import annotations
 
@@ -291,10 +293,20 @@ def changelog_excerpt(opts, version: str, limit: int = 1500) -> str:
 
 # --- run --------------------------------------------------------------------------------------------------------
 
+def digest_written_since(sdir: Path, since: float) -> bool:
+    """True when the digest agent wrote <state>/digests/*.json at or after `since` (epoch seconds)."""
+    digests = sdir / "digests"
+    return digests.is_dir() and any(p.stat().st_mtime >= since for p in digests.glob("*.json"))
+
+
 def run(opts) -> dict:
     sdir = gate_lib.state_dir(opts.state_dir)
     state = gate_lib.load_state("watch", sdir)
     errors: list[str] = []
+    pending = state.pop("pending", None)
+    if isinstance(pending, dict) and digest_written_since(sdir, float(pending.get("since") or 0)):
+        # the digest of the last wake exists: what that wake reported is now reviewed
+        state["reviewed"] = pending.get("reviewed") or state.get("reviewed")
 
     local = opts.hermes_version or local_hermes_version(opts.hermes_bin)
     installed_sq = installed_squads_version(Path(opts.home))
@@ -362,41 +374,47 @@ def run(opts) -> dict:
     elif errors:
         context["errors"] = errors
 
+    advanced = {
+        "release": newest if changes["release"] else reviewed.get("release"),
+        "hermes": local or reviewed.get("hermes"),
+        "squads": remote_sq if changes["squads"] else reviewed.get("squads"),
+    }
+    now = int(time.time())
     new_state = {
         **state,
         "etag": rel["etag"],
         "latest_tag": newest or cached_latest,
-        "checked_at": int(time.time()),
+        "checked_at": now,
         "error_count": error_count,
-        "reviewed": {
-            "release": newest if changes["release"] else reviewed.get("release"),
-            "hermes": local or reviewed.get("hermes"),
-            "squads": remote_sq if changes["squads"] else reviewed.get("squads"),
-        },
+        # a reported change stays unreviewed until its digest exists (see digest_written_since)
+        "reviewed": {k: reviewed.get(k) if changes[k] else v for k, v in advanced.items()},
     }
+    if any(changes.values()):
+        new_state["pending"] = {"since": now, "reviewed": advanced}
     if not opts.dry_run:
         gate_lib.save_state("watch", new_state, sdir)
     report = {"wake": wake, "source": rel["source"], "not_modified": rel["not_modified"], "newest": newest,
-              "reviewed": reviewed, "local": local, "squads_installed": installed_sq, "squads_remote": remote_sq,
+              "reviewed": reviewed, "pending": new_state.get("pending"), "local": local, "squads_installed": installed_sq, "squads_remote": remote_sq,
               "changes": changes, "errors": errors, "first_run": first_run, "dry_run": opts.dry_run}
     return {"wake": wake, "context": context, "report": report}
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], epilog=__doc__,
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], epilog=__doc__.split("\n\n", 1)[1],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", action="store_true", help="add a `report` object to the gate line")
     ap.add_argument("--dry-run", action="store_true", help="check only: write no state and no files")
     ap.add_argument("--force", action="store_true", help="ignore the stored ETag")
     ap.add_argument("--home", default=str(gate_lib.default_home()), help="builder profile home (default $HERMES_HOME)")
     ap.add_argument("--state-dir", help="state directory (default <home>/local/state)")
-    ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"))
+    ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"),
+                    help="hermes executable (default: $HERMES_BIN, else hermes)")
     ap.add_argument("--hermes-version", help="use this local version instead of running `hermes --version`")
-    ap.add_argument("--releases-url", default=RELEASES_URL)
-    ap.add_argument("--atom-url", default=ATOM_URL)
+    ap.add_argument("--releases-url", default=RELEASES_URL, help="GitHub releases API URL (tests)")
+    ap.add_argument("--atom-url", default=ATOM_URL, help="releases.atom fallback URL (tests)")
     ap.add_argument("--squads-url", default=SQUADS_RAW, help="raw base URL of the squads repo main branch")
     ap.add_argument("--max-chars", type=int, default=15000, help="cap for the filtered output of one run")
-    ap.add_argument("--timeout", type=int, default=20)
+    ap.add_argument("--timeout", type=int, default=20, help="HTTP timeout in seconds (default 20)")
     return ap
 
 

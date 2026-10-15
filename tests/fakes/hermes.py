@@ -219,7 +219,7 @@ def main():
                 if key not in cards:
                     cards[key] = {"id": f"t_{len(cards) + 1:04d}", "title": args[0], "assignee": opt("--assignee"),
                                   "parent": opt("--parent"), "project": opt("--project"),
-                                  "status": "todo", "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                                  "status": "todo", "created_at": int(time.time())}  # epoch int, as kanban list --json
                     store.write_text(json.dumps(cards))
                 print(json.dumps({"id": cards[key]["id"]}))
             else:
@@ -245,7 +245,9 @@ def main():
         store = HOME / "projects.txt"
         lines = store.read_text().splitlines() if store.is_file() else []
         if sub == "list":
-            print("\n".join(f"  {ln}" for ln in lines) or "No projects yet.")
+            # real shape (projects_cmd.py): "<*| > <slug:<24> <name>  [N folder(s)]"
+            print("\n".join(f"  {ln.split()[0]:<24} {ln.split()[1]}  [1 folder(s)]" for ln in lines)
+                  or "No projects yet.")
         elif sub == "show":
             row = next((ln for ln in lines if ln.split()[:1] == [args[0]]), None)
             if row is None:

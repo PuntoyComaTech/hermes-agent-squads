@@ -5,41 +5,34 @@ description: "Builds APIs, data, auth and tests in the site repo. Use when a mil
 
 # Building the backend
 
-Data and auth rules are in `references/data-and-auth.md`; the advisor consultation is in `references/advisor.md`.
-
 ## When to Use
 
-- A card needs server routes, data storage, authentication, a third-party integration or a migration.
-- A frontend card needs a contract (endpoint, payload, error shape) before it can consume it.
-- A review FIX round names a backend finding.
+- An `api` card: server routes, data storage, authentication, a third-party integration or a migration.
+- A `fix-r<N>` card with a backend finding.
 
 ## Procedure
 
-1. `kanban_show`. Read the card body, `spec.md`, the milestone note, `decisions.md` and the current `repo/`.
-2. Branch: `git -C repo switch -c web/<ID>` (or `switch` to it on a fix round). Never work on `main`.
-3. Contract first: write the route or function signature, the request and response shape, and the error cases as tests (`scripts/stacks.json -> commands.test`). Red tests before implementation.
-4. Data: define the schema and one migration per change, forward-only. Read `references/data-and-auth.md` before choosing a model; consult the advisor first (step 8) if the model is not obvious.
-5. Implementation: one module per concern. Validate every external input at the boundary.
-6. Auth, when the milestone includes it: sessions or tokens per `references/data-and-auth.md`, passwords hashed with the platform's primitive, nothing custom.
-7. Secrets and bindings: names documented in the milestone note, values supplied by the deployer's environment. Never in the repo, never in `.env` committed, never in a test fixture that ships.
-8. Advisor triggers: `references/advisor.md`. One question per consultation; record question, advice and the decision you took.
-9. Run the full local check before committing: typecheck, lints, unit tests, and the integration path the milestone needs (a local database or the platform's dev runtime, never production).
-10. Migrations that drop or rewrite data are destructive: flag `destructive: yes` in the milestone note with what changes and how it can be rolled back. The deploy stage will not run it without the user's confirmation.
-11. Commit on `web/<ID>`, fill the milestone note (Done, tests, assumptions, env var and binding names, migrations), set `status: built`.
-12. Complete your card with `kanban_complete` and the changed files. The `ui` or `preview` card waits on it; never push or deploy.
-13. Fix round: apply exactly the review's `changes`, append one History line, complete again.
+1. `kanban_show`. Read the card body, `spec.md`, the milestone note, `decisions.md` and `repo/`.
+2. Branch: `git -C repo switch -c web/<ID>`, or `git -C repo switch web/<ID>` when it exists. Never work on `main`.
+3. Contract first: the route or function signature, request and response shapes, and error cases as failing tests (`pnpm -C repo test`), then the implementation.
+4. Data, auth, integrations and secrets: `references/data-and-auth.md`.
+5. Advisor: on a trigger in `references/advisor.md`, consult before deciding.
+6. Validate every external input at the boundary, one module per concern.
+7. Before the commit: `pnpm -C repo check`, `pnpm -C repo test`, `pnpm -C repo lint`, and the milestone's integration path against a local database or the platform's local runtime, never production.
+8. Commit on `web/<ID>`. Fill the milestone note (Done, Tests run, Assumptions, Env vars and bindings, Migrations with `destructive: yes|no`) and set `status: built`.
+9. `kanban_complete` with the changed files. Never push or deploy.
+10. Fix card: apply exactly the findings in its body, append one History line, `kanban_complete`.
 
 ## Pitfalls
 
-- Never log request bodies, tokens, cookies or personal data; log identifiers and outcomes.
-- Never trust client input, including a value that "cannot" be wrong, and never compare secrets with `==` on strings when the platform offers a constant-time helper.
-- Never run a destructive migration against a live database from a build card; that is a deploy-stage action with a backup and a confirmation.
-- Never introduce a service, queue or database the spec did not choose; prefer what the platform already provides.
-- Never leave a failing test disabled: fix it or block and say why.
-- Never change an existing API's response shape for a new consumer; add a field or a route.
+- Never log request bodies, tokens, cookies or personal data; log ids and outcomes.
+- Compare secrets with the platform's constant-time helper, never `==`.
+- Never add a service, queue or database the spec did not choose.
+- Never disable a failing test: fix it, or `kanban_block(kind="needs_input", reason="<test>: <why it cannot pass>")`.
+- Never change an existing response shape: add a field or a route.
 
 ## Verification
 
-- Every acceptance criterion that touches the backend is exercised by an automated test, not a manual curl.
-- Migrations apply cleanly on a fresh database and on a copy of the current one.
+- Every backend acceptance criterion has an automated test.
+- Migrations apply on a fresh database and on a copy of the current one.
 - The milestone note names every env var and binding the site now needs.

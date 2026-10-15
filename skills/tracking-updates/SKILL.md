@@ -7,30 +7,21 @@ description: "Digests upstream changes and proposes each to the user. Use when H
 
 ## When to Use
 
-- The `builder-watch` gate reports a change (new Hermes release, local version
-  bump, new squads version).
+- The `builder-watch` cron wakes the builder with a `## Script Output` block.
 - The user asks what changed upstream or what to apply.
 
 ## Procedure
 
 ### Digest mode (cron)
 
-The `builder-watch` cron runs daily on the builder
-(`builder.yaml -> bots.builder.cron`):
+`builder-watch` (`builder.yaml` -> `bots.builder.cron.builder-watch`) runs the
+gate `scripts/watch_upstream.py` (`--help` lists the signals). A quiet tick
+prints `{"wakeAgent": false}` and no agent runs. On a change Hermes prepends
+the gate's stdout to this turn as `## Script Output`.
 
-1. The zero-LLM gate `scripts/watch_upstream.py` compares Hermes releases, the
-   local `hermes --version` and the raw `distribution.yaml` on the squads repo
-   against `local/state/watch.json`. No change: it prints
-   `{"wakeAgent": false}` and the tick costs zero tokens.
-2. On change it prints `{"wakeAgent": true, "context": {...}}` with the tags,
-   the filtered release notes (`scripts/hpy watch_upstream.py --help`) and the
-   squads version delta.
-3. The agent runs on the `digest` lane
-   (`builder.yaml` -> `bots.builder.cron.builder-watch.agent`) with this skill,
-   reads only the filtered files and writes the digest JSON below. It posts at
-   most 5 lines to `bot-chat:builder` and edits nothing.
-
-Digest JSON (`local/state/digests/<date>.json`):
+1. Read only the files listed in `context.filtered`, plus `context.squads`
+   (version delta and changelog excerpt).
+2. Write `local/state/digests/<date>.json`:
 
 ```json
 {
@@ -49,28 +40,32 @@ Digest JSON (`local/state/digests/<date>.json`):
 }
 ```
 
+3. Reply with at most 5 lines (cron delivers them to `bot-chat:builder`).
+   Edit nothing else.
+
 ### Apply mode (builder)
 
-1. Propose each item to the user one by one ("vX.Y.Z adds X; your web squad can
-   use it for Y; apply?"). Never apply silently.
-2. Knowledge updates go to `skills/hermes-local-notes/` (not shipped), so a
-   distribution update keeps them.
-3. Squad changes go to the overlay `local/squads/<key>/squad.yaml`, then
-   `plan`, user OK, `apply`.
-4. A new squads version: suggest `hermes profile update builder`, which never
-   touches `local/`, memories, sessions or `.env`
-   (`skills/hermes-platform/references/profiles-and-distributions.md`).
+1. Propose each item to the user one by one ("vX.Y.Z adds X; your web squad
+   can use it for Y; apply?"). Apply only after an explicit yes.
+2. A Hermes fact: record it as `skills/hermes-platform` step 2 says.
+3. A squad change: write the overlay (`skills/changing-bots`), then `plan`,
+   user OK, `apply`.
+4. A new squads version: suggest `hermes profile update builder`; it keeps
+   `local/`, memories, sessions and `.env`
+   (`skills/hermes-platform/references/profiles-and-distributions.md`). Then
+   `skills/installing-squads` step 6.
 
 ## Pitfalls
 
-- Summarizing from the unfiltered release body: only the filtered file may
-  reach the digest model.
-- Acting on a `confidence: low` item: research first or drop it.
+- Acting on a `confidence: low` item: research it first or drop it.
+- Skipping the digest file: a change stays pending until
+  `local/state/digests/<date>.json` is newer than the wake, so the next tick
+  wakes again.
 
 ## Verification
 
-- The digest file exists, matches the JSON shape and every `evidence` points at
-  a real file or URL.
+- The digest file matches the JSON shape and every `evidence` points at a real
+  file or URL.
 - No repository file changed in digest mode.
-- Applied items appear in the overlay or `hermes-local-notes/` with the user's
-  OK recorded.
+- Applied items appear in the overlay or `skills/hermes-local-notes/` after
+  the user's yes.

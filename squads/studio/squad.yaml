@@ -22,12 +22,14 @@ bots:
     plugins: {enable: [disk-cleanup]}
     memory: true
     hidden: false
+    cron:
+      studio-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
   studio-motion:
     role: worker
     title: Studio motion
     description: "Remotion, HyperFrames, GSAP, three.js/R3F, Manim and p5.js renders, checked with render_check.py"
     lane: design
-    toolsets: [file, skills, kanban, todo, terminal, vision, browser, video]
+    toolsets: [file, skills, kanban, todo, terminal, vision, browser, video, image_gen, delegation]
     skills:
       squad: [producing-motion, studio-contract]
       auto_load: producing-motion

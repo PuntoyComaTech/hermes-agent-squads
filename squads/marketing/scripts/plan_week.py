@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
 """Weekly calendar gate for the marketing squad (cron marketing-plan-week, --no-agent).
 
-Files one CALENDAR card on the marketing board only when an active brand has no calendar file for the
-coming week. The card's idempotency key `marketing-plan-week:<project>:<YYYY>-W<WW>` makes repeated
-runs safe, so the gate can run daily and still file one card per project and week.
-
-For every project of the marketing profile:
-  - skip when the primary folder has no `brand.md` or its frontmatter `status` is not `active`;
-  - skip when the folder holds a `PAUSE` file;
-  - skip when `calendar/<YYYY>-W<WW>.md` already exists for the coming week;
-  - otherwise create the card, assigned to the lead, with skill `leading-marketing`.
-
-Silent when there is nothing to file and when a card is filed; exit 1 on a real error so the cron
-surfaces it.
-
-Examples:
-  plan_week.py --dry-run                 # show what would be filed, write nothing
-  plan_week.py --week 2026-W42           # evaluate a specific target week
+Files one CALENDAR card, assigned to the lead, for every project whose primary folder holds an `active`
+brand.md, no PAUSE file and no calendar/<YYYY>-W<WW>.md for the coming week. Idempotency key:
+marketing-plan-week:<project>:<YYYY>-W<WW>. Prints nothing unless --dry-run or --json.
 """
 from __future__ import annotations
 
@@ -84,7 +71,7 @@ def brand_is_active(folder: Path) -> bool:
         return False
     text = brand.read_text(encoding="utf-8", errors="replace")
     block = re.match(r"---\s*\n(.*?)\n---", text, re.S)
-    return bool(block and re.search(r"^\s*status:\s*active\s*$", block.group(1), re.M))
+    return bool(block and re.search(r"^\s*status:\s*active\s*(#.*)?$", block.group(1), re.M))
 
 
 def target_week(override: str | None) -> tuple[int, int]:
@@ -97,24 +84,18 @@ def target_week(override: str | None) -> tuple[int, int]:
     return y, w
 
 
-def card_body(slug: str, folder: Path, year: int, week: int) -> str:
+def card_body(folder: Path, year: int, week: int) -> str:
     monday = date.fromisocalendar(year, week, 1)
     sunday = monday + timedelta(days=6)
     return (
-        f"Mode: CALENDAR (weekly planning).\n"
-        f"Brand: {slug} - project folder {folder}.\n"
-        f"Target week: {year}-W{week:02d} ({monday} to {sunday}).\n"
-        f"Input: plan/90-day.md, brand.md, preferences.md, calendar/ of the previous weeks, research/.\n"
-        f"Output: calendar/{year}-W{week:02d}.md from templates/calendar.md, then one `piece` chain per "
-        f"planned piece (research stage only when the brief needs it).\n"
-        f"Rules: quota and channels from brand.md; every hook from a verified proof point; the squad "
-        f"publishes nothing without the user's explicit OK."
+        f"Mode: CALENDAR, week {year}-W{week:02d} ({monday} to {sunday}).\n"
+        f"Brand folder: {folder}.\n"
+        f"Follow leading-marketing step 4."
     )
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=SUMMARY,
-                                 epilog="Exit 0 clean (silent when nothing to file), 1 error.")
+    ap = argparse.ArgumentParser(description=SUMMARY, epilog="Exit 0 done, 1 error (stderr).")
     ap.add_argument("--profile", help="marketing profile name (default: from HERMES_HOME)")
     ap.add_argument("--board", default="marketing", help="kanban board slug (default: marketing)")
     ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"),
@@ -145,12 +126,12 @@ def main(argv: list[str] | None = None) -> int:
             if calendar.exists():
                 skipped.append({"project": slug, "reason": f"calendar {year}-W{week:02d} exists"})
                 continue
-            title = f"CALENDAR \u00b7 {slug} \u00b7 {year}-W{week:02d}"
+            title = f"CALENDAR - {slug} - {year}-W{week:02d}"
             key = f"marketing-plan-week:{slug}:{year}-W{week:02d}"
             cmd = [hermes, "-p", profile, "kanban", "--board", a.board, "create", title,
                    "--assignee", profile, "--created-by", profile, "--project", slug,
                    "--idempotency-key", key, "--skill", "leading-marketing",
-                   "--body", card_body(slug, folder, year, week)]
+                   "--body", card_body(folder, year, week)]
             if a.workspace == "dir":
                 cmd += ["--workspace", f"dir:{folder}"]
             if not a.dry_run:

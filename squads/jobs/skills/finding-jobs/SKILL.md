@@ -5,8 +5,7 @@ description: "Searches job boards and applies the hard filter. Use when a search
 
 # Finding jobs
 
-Your card says SEARCH (scheduled or on demand) or URL (the user pasted one or more links). You find real openings,
-save their full text, apply the hard filter and hand every PASS opening to analysis.
+Your card body says `Mode: SEARCH` (scheduled or on demand) or `Mode: URL` (links the user pasted).
 
 ## When to Use
 
@@ -32,17 +31,14 @@ save their full text, apply the hard filter and hand every PASS opening to analy
 7. **Hand off** each PASS (and each FLAG when `analyze_flagged: true`), best apparent fit first, up to
    `max_analyses_per_day` analyses that day: `kanban_create` for jobs-scout with `skills: [analyzing-jobs]`,
    `parents: [<your card id>]`, `idempotency_key` `jobs:application:<project>:<ID>:analyze`, the project,
-   `workspace_kind: dir` with `workspace_path` = the project folder, and `model`/`provider` from the "Analysis
-   cards" line of your card body (they pin the review lane for the analysis). Without that line, file it without
-   them.
+   `workspace_kind: dir` with `workspace_path` = the project folder, and `model` and `provider` from the
+   `Analysis cards:` line of your card body when it has one.
 8. `kanban_complete` with the counts (found, PASS, FLAG, DISCARD, cards filed). If no source responds or the
-   project files are missing, `kanban_block` and say exactly what is missing.
+   project files are missing, `kanban_block(kind="capability", reason="<what is missing>")`.
 
 ## Pitfalls
 
-- Do not repost the same opening under a second id because the URL changed: canonicalize and deduplicate first.
 - Never solve a CAPTCHA or mass-extract a site whose terms forbid it.
-- A DISCARD row never gets an analyze card.
 
 ## Verification
 

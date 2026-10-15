@@ -23,7 +23,7 @@ never a guess.
 
 | Text in the opening | Assumed CEFR |
 |---|---|
-| native, bilingual, nativo, bilingüe | C2 |
+| native, bilingual, nativo, bilingue | C2 |
 | fluent, advanced, proficient, C1, C2 | C1 |
 | upper-intermediate, B2, business, professional working proficiency, "daily meetings with clients" | B2 |
 | intermediate, conversational, B1, "reading documentation" | B1 |

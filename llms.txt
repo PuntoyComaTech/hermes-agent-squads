@@ -7,7 +7,7 @@
 Rules for agents: read AGENTS.md first. Verified Hermes behavior lives in
 skills/hermes-platform/references/ (every fact cites a docs path under website/docs or a
 source file). Never invent CLI flags: run `--help`. Model ids appear only in
-scripts/data/model-roles.yaml.
+scripts/data/model-roles.yaml and local/installed.yaml.
 
 ## Start
 

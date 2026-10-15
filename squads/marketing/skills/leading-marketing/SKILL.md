@@ -5,38 +5,42 @@ description: "Runs brand onboarding, planning, briefs and reports. Use when a ma
 
 # Leading marketing
 
-Lead procedure; conventions in `brand-contract`. You onboard brands, plan 90 days and weeks, brief pieces, file the `piece` chain, present finished pieces for approval and report results. Workers produce; you decide with the user's input.
+Lead procedure; conventions in `brand-contract`. Workers produce; you brief, file cards and take the user's decisions.
 
 ## When to Use
 
 - A card from `marketing-plan-week`, `marketing-report`, an onboarding or a user request lands in your profile.
-- The `approve` stage of a `piece` chain becomes ready: a finished piece waits for the user.
+- The `approve` stage of a `piece` chain becomes ready.
 - The user replies to a piece or a calendar: `approve 2`, `change 2: ...`, `no to 4`, `published <link>`.
 - The user asks for a plan, a calendar, a report, ideas or status.
 
 ## Procedure
 
-1. Read the card (`kanban_show`), then `brand.md`, `preferences.md` and the file the card names. Work only inside that brand's project folder.
-2. **Brand onboarding.** Follow `references/onboarding.md`. Confirm the project from the card workspace (`kanban_show`); when it is missing, ask the user to run `scripts/squadctl project add marketing "<Brand>" <path>`. File one `research` card for public sources, then draft `brand.md` and ask the required questions, recording each answer. `brand.md` keeps `status: draft` until the user approves it; only then set `status: active`.
-3. **90-day plan** (`marketing-plan`): write `plan/90-day.md`, present the three bets and the roadmap in five lines, and wait for changes before calling it approved.
-4. **Weekly calendar**: read the plan, the previous calendar and the key dates; write `calendar/<YYYY>-W<WW>.md` from `templates/calendar.md`; then file one `piece` chain per planned piece, a card per stage of `squad.yaml -> chains.piece`, each child of the previous one with `board: "marketing"`, `research` only when the brief has `Needs research: yes`. Give every card the project and the idempotency key `marketing:piece:<project>:<piece-id>:<stage>`. The user can file the same chain with `scripts/squadctl chain marketing piece --project <slug> --title "<piece title>" --run-id <piece-id> [--when research]`.
-5. **Briefs**: write `pieces/<piece-id>/brief.md` from `templates/brief.md` before briefing: one objective, one call to action, the proof points to use, sizes, and `Needs research: yes | no`.
-6. **Approvals**: present the piece to the user in their chat in two lines plus the cover asset path. On `approve`, hand over the ready-to-post package from `pieces/<piece-id>/` (copy and assets per channel); the user publishes it and their `published <link>` reply is logged in `preferences.md`. `change` files a fix card assigned to the stage that owns it with the user's literal request; `no` completes it as discarded. Add one `preferences.md` log line for every reply. At Level 2 only, a `publish` card follows approval after the user confirms that specific action.
-7. **Reports.** Read the analytics exports in `data/inbox/`; write `reports/<YYYY-MM>.md`: what worked, what did not and why, matched per piece where the UTM allows it, closing with three numbered suggested decisions. With no new data, say so and name the missing export.
-8. **Blocked cards**: answer with `kanban_unblock` and the user's literal reply; keep the question and the answer on the card.
-9. **Pause**: `pause <brand>` creates `PAUSE` in the brand folder (remove it on resume). It stops the automatic calendar and report gates, not a running chain.
+1. Read the card (`kanban_show`), then `brand.md`, `preferences.md` and the file the card names. The card workspace is the brand folder.
+2. **Onboarding**: follow `references/onboarding.md`. When the brand has no project, ask the user to run `scripts/squadctl project add marketing "<Brand>" <path>` and wait.
+3. **90-day plan**: run `marketing-plan`; present the three bets and the roadmap in five lines; the plan is approved only when the user says so.
+4. **Weekly calendar**: read the plan, the previous calendar and the key dates; write `calendar/<YYYY>-W<WW>.md` from `templates/calendar.md`. For each planned piece, write `pieces/<piece-id>/brief.md` from `templates/brief.md`, then file one card per stage of the `piece` chain (research, copy, asset, review, approve), each with `parents: [<previous stage id>]`, per `brand-contract` steps 4-5. File `research` only when the brief says `Needs research: yes`.
+5. **Approvals**: on the `approve` card, `kanban_block(kind="needs_input", reason="<two-line summary> <cover asset path>")`. When the user replies, `kanban_comment` the literal reply, `kanban_unblock`, and on the re-run:
+   - `approve`: complete with the absolute paths of `copy.md` and every file in `assets/` in `artifacts`; that is the ready-to-post package.
+   - `change`: file a `-c<N>` card for the owning stage with the literal request (a copy change also files `asset-c<N>` as its child), then `review-c<N>` and `approve-c<N>`, each a child of the previous; complete this card.
+   - `no`: complete this card with `summary` "discarded: <reason>".
+   Add one `preferences.md` log line per reply, including `published <link>`.
+6. **Publishing**: with `brand.md -> publishing: manual` the user posts the package. When `publishing` names a connector and the user sends `publish <n>` for that piece, file `publish` (assignee marketing, key suffix `publish`) with the user's literal confirmation in the body.
+7. **Reports**: read the exports in `data/inbox/`; write `reports/<YYYY-MM>.md`: what worked, what did not and why, matched per piece through `utm_content`, closing with three numbered decisions. Judge with `marketing-mindset`. With no new data, say so and name the missing export. Then `kanban_block(kind="needs_input", reason="<report path> + the three decisions")` so the user sees it (step 8).
+8. **Blocked cards**: a board run cannot message the user; a `needs_input` block reaches your Bot Chat (the `marketing-watch` cron posts it when no chat filed the chain). Show the user its reason, `kanban_comment` the literal answer, then `kanban_unblock`.
+9. **Pause**: `pause <brand>` creates `PAUSE` in the brand folder; `resume <brand>` deletes it. It stops the weekly and monthly gates, not a running chain.
 
 ## Pitfalls
 
-- Filing a chain without an approved brief, or a `when: research` stage without `Needs research: yes`.
-- Editing copy, assets or `brand.md` wording yourself instead of briefing the worker that owns it.
-- Presenting a piece before the `review` stage completes with an approve verdict.
-- Writing to the user without a name for the brand when the message could be about two of them.
-- Treating a crowded calendar as progress: quota and channels come from `brand.md`.
+- Filing a chain without a brief, or a `research` card without `Needs research: yes`.
+- Editing copy, assets or `brand.md` wording yourself instead of filing a card to the worker that owns it.
+- Presenting a piece before the `review` card completes with `approve`.
+- A message about a brand that does not name the brand.
+- More pieces than `brand.md -> weekly_quota`, or channels outside `brand.md -> channels`.
 
 ## Verification
 
-- Every card you file carries `board: "marketing"`, the project slug and a `marketing:piece:<project>:<piece-id>:<stage>` key; each stage card is a `parents` child of the previous one.
-- `brand.md` is `active` only after the user approved it; a `PAUSE` file stops the gates on the next run.
-- Every approval reply has one `preferences.md` log line and one completed or re-created card.
-- The report names its data window and states the sample size behind every rate.
+- Every card you file follows `brand-contract` steps 4-5; each stage card is a `parents` child of the previous one.
+- `brand.md` is `active` only after the user approved it.
+- Every user reply has one `preferences.md` log line and one completed or new card.
+- The report names its data window and the sample size behind every rate.

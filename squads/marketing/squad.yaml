@@ -4,7 +4,7 @@ name: Marketing
 description: "Brand onboarding, 90-day plans, weekly calendars and reviewed marketing pieces for several brands"
 version: 3.0.0
 hermes_requires: ">=0.22.0"
-board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F"}
+board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F", description: "Brand plans, weekly calendars and reviewed pieces"}
 section: {id: marketing, name: Marketing}
 lead: marketing
 defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [file, skills, kanban, todo]}
@@ -26,6 +26,7 @@ bots:
     cron:
       marketing-plan-week: {schedule: "0 8 * * 1", script: plan_week.py, agent: false}
       marketing-report: {schedule: "0 8 1 * *", script: report_gate.py, agent: false}
+      marketing-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
   marketing-research:
     role: worker
     title: Marketing research

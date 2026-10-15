@@ -217,7 +217,8 @@ def run(args) -> dict:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0], epilog=__doc__,
+    doc = __doc__ or ""
+    ap = argparse.ArgumentParser(description=doc.split("\n\n")[0], epilog=doc.split("\n\n", 1)[-1],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", action="store_true", help="JSON output instead of TOON")
     ap.add_argument("--dry-run", action="store_true", help="report only: no project, cron or profile change")
@@ -227,7 +228,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--builder", default="builder", help="builder profile name (default: builder)")
     ap.add_argument("--src", help="distribution root holding squads/ (default: this checkout)")
     ap.add_argument("--squadctl", help="squadctl shim to call (default: scripts/squadctl here)")
-    ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"))
+    ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"),
+                    help="hermes executable (default: $HERMES_BIN, else hermes)")
     ap.add_argument("--delete-orchestrator", action="store_true",
                     help="after the export succeeds, delete the orchestrator profile")
     return ap

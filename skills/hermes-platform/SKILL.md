@@ -5,10 +5,6 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 
 # Hermes platform
 
-Every fact in `references/` cites a
-`website/docs/...` path or a source file in the Hermes tree; facts that could
-not be verified are marked UNVERIFIED and must not be relied on.
-
 ## When to Use
 
 - Before writing or editing a `squad.yaml`, a SOUL, a skill or a profile config.
@@ -18,13 +14,18 @@ not be verified are marked UNVERIFIED and must not be relied on.
 
 ## Procedure
 
-1. Pick the topic from the index below and read that reference file.
-2. Act only on cited facts. When the reference and the live Hermes disagree,
-   the live Hermes wins: run the CLI (`hermes <cmd> --help`), record the fact
-   in `skills/hermes-local-notes/` and propose it upstream
-   (`skills/contributing-upstream`).
-3. For anything deeper, read the cited docs path in the local Hermes tree
-   (`website/docs/...` inside the Hermes install).
+1. Read `skills/hermes-local-notes/SKILL.md` when it exists; its facts win
+   over `references/`.
+2. Pick the topic from the index below and read that reference file. Act only
+   on cited facts.
+3. When a reference and the live Hermes disagree (`hermes <cmd> --help`), the
+   live Hermes wins. Append `<topic>: <fact> (<source path>, <date>)` to
+   `skills/hermes-local-notes/SKILL.md`, creating it with frontmatter
+   `name: hermes-local-notes` and `description: "Lists local Hermes facts that
+   override hermes-platform. Use when a reference and live Hermes disagree."`.
+   Then propose the fix upstream (`skills/contributing-upstream`).
+4. For anything deeper, read the cited `website/docs/...` path under the Hermes
+   source root (the `sys.path` entry in `hermes --print-runtime-command`).
 
 ## Reference index
 
@@ -51,8 +52,7 @@ not be verified are marked UNVERIFIED and must not be relied on.
 
 ## Pitfalls
 
-- Never trust a memory of a flag or config key; re-read the reference or run
-  `--help`.
+- A flag or config key from memory: re-read the reference or run `--help`.
 - Desktop-internal facts (rail, Bots pane) cite `apps/desktop/src/...` source
   files and change without a docs update.
 - UNVERIFIED notes are hypotheses, not behavior.

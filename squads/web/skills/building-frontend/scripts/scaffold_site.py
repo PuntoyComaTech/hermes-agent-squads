@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-"""Write a pinned project skeleton for one of the squad's stacks.
+"""Write a pinned project skeleton for one of the squad's stacks, from stacks.json beside this script.
 
-Usage:
-  scaffold_site.py --list
-  scaffold_site.py --stack astro --name panaderia-sol --dir <site>/repo [--force] [--dry-run] [--json]
-
-Reads stacks.json beside this file, so the framework, tool and test versions it writes are the ones
-the squad pinned, never "latest". It writes files only: it never installs packages, runs git or
-touches the network. Install with the package manager afterwards (`pnpm install`, under the site's
-heavy-work budget) and let the first build be the verification.
-
-Exit 0 written (or dry run), 1 refused (target not empty without --force), 2 usage or data error.
+Writes files only: no package install, no git, no network. Exit 0 written or dry run, 1 target not empty
+without --force, 2 usage or data error.
 """
 from __future__ import annotations
 
@@ -72,7 +64,8 @@ TSCONFIG = """{
 PLAYWRIGHT = """import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./tests",
+  testDir: "./e2e",
+  testMatch: "**/*.e2e.ts",
   use: { baseURL: process.env.PREVIEW_URL ?? "http://127.0.0.1:4321" },
   reporter: [["list"]],
 });
@@ -87,7 +80,7 @@ test("home page answers with a title", async ({ page }) => {
 });
 """
 
-WELCOME = "# {name}\n\nScaffolded by the web squad's `scaffold_site.py` from `stacks.yaml`.\n"
+WELCOME = "# {name}\n\nScaffolded by the web squad's `scaffold_site.py` from `stacks.json`.\n"
 
 
 def load_stacks() -> dict:
@@ -104,30 +97,15 @@ def load_stacks() -> dict:
 
 def package_json(stacks: dict, stack: str, name: str) -> str:
     spec = stacks["stacks"][stack]
-    packages: dict = dict(spec["packages"])
-    commands: dict = dict(spec["commands"])
-    dev: dict = {}
-    for key in ("typescript", "vitest", "@playwright/test", "@biomejs/biome", "@astrojs/check",
-                "@tailwindcss/vite", "@tailwindcss/postcss", "tailwindcss"):
-        if key in packages:
-            dev[key] = packages.pop(key)
-    scripts = {
-        "dev": commands["dev"].removeprefix("pnpm "),
-        "build": commands["build"].removeprefix("pnpm "),
-        "preview": commands["preview"].removeprefix("pnpm "),
-        "test": commands["test"].removeprefix("pnpm "),
-        "check": commands["check"].removeprefix("pnpm "),
-        "lint": "biome check .",
-        "format": "biome format --write .",
-        "e2e": "playwright test",
-    }
+    scripts = {**spec["scripts"], "test": "vitest run --passWithNoTests", "e2e": "playwright test",
+               "lint": "biome check .", "format": "biome format --write ."}
     doc = {
         "name": name,
         "private": True,
         "type": "module",
         "scripts": scripts,
-        "dependencies": dict(sorted(packages.items())),
-        "devDependencies": dict(sorted(dev.items())),
+        "dependencies": dict(sorted(spec["dependencies"].items())),
+        "devDependencies": dict(sorted({**stacks["devDependencies"], **spec["devDependencies"]}.items())),
     }
     return json.dumps(doc, indent=2) + "\n"
 
@@ -142,7 +120,7 @@ def files_for(stacks: dict, stack: str, name: str) -> dict[str, str]:
         "biome.json": BIOME_JSON,
         "tsconfig.json": TSCONFIG,
         "playwright.config.ts": PLAYWRIGHT,
-        "tests/home.spec.ts": TEST_SPEC,
+        "e2e/home.e2e.ts": TEST_SPEC,
         "package.json": package_json(stacks, stack, name),
         "README.md": WELCOME.format(name=name),
     }
@@ -174,13 +152,30 @@ def files_for(stacks: dict, stack: str, name: str) -> dict[str, str]:
     elif stack == "tanstack":
         files["vite.config.ts"] = (
             "import { defineConfig } from \"vite\";\nimport tailwindcss from \"@tailwindcss/vite\";\n"
-            "import { tanstackStart } from \"@tanstack/react-start/plugin/vite\";\n\n"
-            "export default defineConfig({ plugins: [tailwindcss(), tanstackStart()] });\n"
+            "import { tanstackStart } from \"@tanstack/react-start/plugin/vite\";\n"
+            "import viteReact from \"@vitejs/plugin-react\";\n\n"
+            "export default defineConfig({ plugins: [tailwindcss(), tanstackStart(), viteReact()] });\n"
+        )
+        files["src/router.tsx"] = (
+            "import { createRouter } from \"@tanstack/react-router\";\nimport { routeTree } from \"./routeTree.gen\";\n\n"
+            "export function getRouter() {\n  return createRouter({ routeTree, scrollRestoration: true });\n}\n"
         )
         files["src/styles/app.css"] = "@import \"tailwindcss\";\n"
+        files["src/routes/__root.tsx"] = (
+            "/// <reference types=\"vite/client\" />\n"
+            "import { HeadContent, Outlet, Scripts, createRootRoute } from \"@tanstack/react-router\";\n"
+            "import appCss from \"../styles/app.css?url\";\n\n"
+            "export const Route = createRootRoute({\n  head: () => ({\n"
+            "    meta: [{ charSet: \"utf-8\" }, { name: \"viewport\", content: \"width=device-width, initial-scale=1\" }, "
+            "{ title: \"" + name + "\" }],\n    links: [{ rel: \"stylesheet\", href: appCss }],\n  }),\n"
+            "  component: RootComponent,\n});\n\n"
+            "function RootComponent() {\n  return (\n    <html lang=\"en\">\n      <head>\n        <HeadContent />\n      </head>\n"
+            "      <body>\n        <Outlet />\n        <Scripts />\n      </body>\n    </html>\n  );\n}\n"
+        )
         files["src/routes/index.tsx"] = (
-            "import \"../styles/app.css\";\n\n"
-            "export default function Home() {\n  return (\n    <main>\n      <h1>" + name + "</h1>\n"
+            "import { createFileRoute } from \"@tanstack/react-router\";\n\n"
+            "export const Route = createFileRoute(\"/\")({ component: Home });\n\n"
+            "function Home() {\n  return (\n    <main>\n      <h1>" + name + "</h1>\n"
             "      <p>Replace this skeleton with the milestone's pages.</p>\n    </main>\n  );\n}\n"
         )
     return files
@@ -204,8 +199,7 @@ def busiest(target: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="Write a pinned project skeleton for one of the squad's stacks.",
-        epilog="Reads stacks.json beside this script; writes files only. Exit 0 written, 1 refused, 2 usage error.",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        epilog="Exit 0 written or dry run, 1 target not empty without --force, 2 usage or data error.")
     p.add_argument("--stack", help="astro | nextjs | tanstack (see stacks.json)")
     p.add_argument("--name", help="project name (lowercase, dashes)")
     p.add_argument("--dir", default=".", help="target directory (default: current)")
@@ -218,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     stacks = load_stacks()
     if args.list:
         rows = [{"stack": key, "type": spec.get("type"), "why": spec.get("why"),
-                 "packages": spec.get("packages")} for key, spec in sorted(stacks["stacks"].items())]
+                 "dependencies": spec.get("dependencies")} for key, spec in sorted(stacks["stacks"].items())]
         print(json.dumps(rows, indent=2) if args.json else "\n".join(f"  {r['stack']}: {r['type']} - {r['why']}" for r in rows))
         return 0
     if not args.stack or not args.name:
@@ -240,10 +234,10 @@ def main(argv: list[str] | None = None) -> int:
     files = files_for(stacks, args.stack, args.name)
     written = write_tree(target, files, args.dry_run)
     result = {"stack": args.stack, "name": args.name, "dir": str(target), "dry_run": args.dry_run,
-              "files": written, "next": ["pnpm install", stacks["stacks"][args.stack]["commands"]["build"]]}
+              "files": written, "next": ["pnpm install", "pnpm build"]}
     print(json.dumps(result, indent=2) if args.json else
           "\n".join([f"{'would write' if args.dry_run else 'wrote'} {rel}" for rel in written])
-          + f"\nnext: pnpm install && {stacks['stacks'][args.stack]['commands']['build']}")
+          + "\nnext: pnpm install && pnpm build")
     return 0
 
 

@@ -1,6 +1,6 @@
 # Claude Hopkins (1866-1932)
 
-**Lens:** Advertising is salesmanship multiplied and measured, every claim, headline, and dollar must justify itself with traceable response data.
+**Lens:** Advertising is salesmanship multiplied and measured: every claim, headline, and dollar must justify itself with traceable response data.
 
 ## Core frameworks
 
@@ -26,7 +26,7 @@
 - "What specific, provable claim can we make that no competitor has made, even if they could?"
 - "Would a good salesman say this line to a buyer's face?"
 - "Can we let the product prove itself with a sample or free trial?"
-- "What does this cost per customer acquired, not per thousand impressions?"
+- "What is the CAC of this, not the CPM?"
 
 ## Best for / blind spots
 

@@ -1,36 +1,31 @@
 # Toolsets
 
-## Contents
+## Toolsets and config
 
-- [What a toolset is](#what-a-toolset-is)
-- [Enabling and disabling](#enabling-and-disabling)
-- [Tool discovery notes](#tool-discovery-notes)
+- A toolset is a named group of tools; the full table is
+  `website/docs/reference/toolsets-reference.md`.
+- `platform_toolsets.cli` lists the toolsets of CLI, TUI and Desktop chats;
+  `platform_toolsets.cron` those of agent cron runs
+  (`website/docs/user-guide/features/kanban.md`;
+  `website/docs/user-guide/features/cron.md`). Dispatcher-spawned kanban
+  workers get their lifecycle tools automatically.
+- `agent.disabled_toolsets` applies after `platform_toolsets` and removes a
+  toolset everywhere (`website/docs/user-guide/configuration.md`, "Global
+  Toolset Disable").
+- `hermes -p <bot> tools enable <names...>` enables toolsets for the `cli`
+  platform (`--platform` picks another) (`hermes tools enable --help`).
 
-## What a toolset is
+## Squad usage
 
-- A toolset is a named group of tools; the full table of toolsets and their
-  tools is `website/docs/reference/toolsets-reference.md`.
+- Squad tooling sets `agent.disabled_toolsets` to `always_disabled + (MANAGED -
+  bot.toolsets)`, so a bot never gains a toolset its manifest does not declare
+  (`scripts/squadctl.py`). The list and the reasons are in the header of
+  `scripts/data/always-disabled.yaml` (`docs/decisions.md` C-07).
 
-## Enabling and disabling
+## Notes
 
-- `platform_toolsets.cli` lists the toolsets enabled for interactive sessions;
-  `platform_toolsets.cron` for cron agent runs
-  (`website/docs/user-guide/configuration.md`; `scripts/squadctl.py`).
-- `agent.disabled_toolsets` removes toolsets; squad tooling sets it to
-  `always_disabled + (MANAGED - bot.toolsets)` so a bot can never gain a toolset
-  the manifest does not declare (`scripts/squadctl.py`;
-  `scripts/data/always-disabled.yaml`).
-- The always-disabled list for squad bots, the reason per name and the registry
-  check are in the header of `scripts/data/always-disabled.yaml`
-  (`tests/test_contracts.py`; `docs/decisions.md` C-07).
-- `hermes tools enable <names...> --profile <bot>` toggles the toolset registry
-  alongside the config keys (`scripts/squadctl.py`).
-
-## Tool discovery notes
-
-- `catalog` (plugin catalog search) exists only in desktop-app sessions and can
-  be removed with `agent.disabled_toolsets: [catalog]`
+- `catalog` (plugin catalog search) exists only in desktop-app sessions;
+  `agent.disabled_toolsets: [catalog]` removes it
   (`website/docs/reference/toolsets-reference.md`).
-- `web_search` deliberately does not belong to the `browser` toolset, so
-  disabling `browser` cannot strip it
-  (`website/docs/reference/toolsets-reference.md`).
+- `web_search` belongs to `web` and `search`, not `browser`, so disabling
+  `browser` cannot strip it (`website/docs/reference/toolsets-reference.md`).

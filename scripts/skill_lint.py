@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Format gate for skills and SOUL files (plan section 2.4).
+"""Format gate for skills and SOUL files.
 
 Checks every skill dir (SKILL.md plus references/, scripts/, templates/, assets/, evals/) and every SOUL file
-against the budgets in docs/decisions.md. Rule ids are listed by --rules and match tests/fixtures/skills/bad/.
+against RULES (`--rules` lists every rule id and its budget).
 
 Exit codes: 0 clean, 1 findings, 2 usage error.
 """
@@ -90,7 +90,7 @@ nosotros ustedes ellos ellas usted nuestro nuestra vuestro tus sus
 aunque sino mientras ademas incluso antes despues
 puede pueden debe deben hacer hace hacen
 """.split())
-WORD_RE = re.compile(r"[a-zA-ZÀ-ÿ]{2,}")
+WORD_RE = re.compile(r"[a-zA-Z\u00c0-\u00ff]{2,}")
 FENCE_RE = re.compile(r"^(```|~~~).*?^\1\s*$", re.M | re.S)
 GENERIC_MODEL_RE = (
     r"claude-(?:opus|sonnet|haiku|fable)-\d[\w.\[\]-]*|gpt-\d[\w.-]*|gemini-\d[\w.-]*|deepseek-v\d[\w.-]*"
@@ -393,7 +393,7 @@ def discover(root: Path) -> dict[str, list[Path]]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="skill_lint.py",
-        description="Lint skills and SOUL files against the plan 2.4 size and format budget.",
+        description="Lint skills and SOUL files against the size and format rules (--rules).",
         epilog="Exit 0 clean, 1 findings, 2 usage error.",
     )
     parser.add_argument("paths", nargs="*", type=Path,

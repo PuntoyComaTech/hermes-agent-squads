@@ -1,46 +1,38 @@
 ---
 name: producing-assets
-description: "Produces statics, carousels, landings and documents. Use when an asset stage asks for the rendered files at the channel's exact sizes, with sources and previews."
+description: "Produces statics, carousels, landings, emails and PDFs. Use when an asset stage asks for the rendered files at the channel's exact sizes, with sources and previews."
 ---
 
 # Producing assets
 
-You build HTML and CSS with the brand's tokens, rendered at exact sizes, checked before the reviewer sees them. Complex motion, video and 3D belong to the studio squad, say so in the handoff instead of forcing a clip out.
+HTML and CSS with the brand's tokens, rendered at exact sizes and checked before review. Long video, complex motion and 3D belong to the studio squad. Conventions: `brand-contract`.
 
 ## When to Use
 
-- An `asset` stage card names `copy.md` and asks for the piece's production files.
-- A fix card asks for a visual, size or rendering change.
-- A document or an email needs the brand's identity applied.
+- An `asset` stage card names `copy.md` and asks for the piece's files.
+- An `asset-r<N>` or `asset-c<N>` card asks for a visual, size or rendering change.
+- A document or an email needs the brand's identity.
 
 ## Procedure
 
-1. Read the card, `concept.md`, `copy.md`, `DESIGN.md` and `preferences.md`. Missing `DESIGN.md` or missing copy means `kanban_block(kind=needs_input)`, not an invented palette or a rewritten line.
-2. Compose with the brand's tokens (`DESIGN.md`) and the layout rule: background and scene, one hero, movement. Write source files under `source/` so the piece can be rendered again.
-3. Work per type at the exact size, and verify each file's real dimensions before calling it done:
-   - post and carousel: 1080x1350 or 1080x1080, one file per slide;
-   - story and reel cover: 1080x1920 with safe zones;
-   - ad: each placement's size (1080x1080, 1080x1350, 1080x1920, 1200x628);
-   - email: 600 px wide HTML in MJML, plain-text version, unsubscribe placeholder;
-   - landing: responsive static page, meta and OG tags, the form wired to a provider or service, UTM on links;
-   - document: `document.md` to a branded PDF (A4 or letter per the brand's country), tables inside the margins.
-4. Images, in order: the brand's own from `identity/`; stock with a commercial licence, downloaded and logged; then generated images within the monthly cap in `brand.md`. AI never produces the final logo, and generated faces or voices are never presented as real customers.
-5. Copy every external asset into `assets/`, named `<piece-id>-<channel>-<NN>.<ext>`, and log origin, licence and cost in `sources.md` with the piece's claims. Unlicensed or unknown means unusable.
-6. Render with the local tools, then look at every output with vision: legibility on a phone width (390 px), contrast, crop, safe zones. Fix and re-render within three attempts; if it still fails, block explaining exactly what fails.
-7. For a short HyperFrames clip: load the `hyperframes` skill, keep it under the length the brief asks for, and keep heavy 3D, long video or complex motion for the studio squad, note it in the handoff.
-8. Hand off with `kanban_complete`, every file in `metadata.changed_files`, and the checks you ran.
+1. Read the card, `concept.md`, `copy.md`, `DESIGN.md` and `preferences.md`. Missing `DESIGN.md` or copy: block per `brand-contract` step 7. Never invent a palette or rewrite a line.
+2. Compose with the `DESIGN.md` tokens and the `brand-contract -> Formats` layout. Write source files under `source/` so the piece renders again.
+3. Render each type at its `brand-contract -> Formats` spec and the brief's sizes; check each file's real dimensions.
+4. Images, in this order: the brand's own from `identity/`; stock with a commercial licence; generated images up to `brand.md -> generated_images` per month. Never generate the final logo. Never present a generated face or voice as a real customer.
+5. Copy every external asset into `assets/` as `<piece-id>-<channel>-<NN>.<ext>` and log origin, licence and cost in `sources.md`.
+6. Check every output with `vision_analyze`: legibility at 390 px width, contrast, crop, safe zones. Fix and re-render at most three times; then `kanban_block(kind="needs_input", reason="<what still fails>")`.
+7. Short clip: load `hyperframes` and keep it within the brief's length. Long video, complex motion or 3D: state in the handoff that the studio squad owns it.
+8. Hand off per `brand-contract` step 6, with the checks you ran in `metadata.checks`.
 
 ## Pitfalls
 
-- Shipping a size that is almost right: crop or letterbox before the reviewer sees it.
-- Text baked at untested sizes; check at 390 px, not only at full width.
-- An AI image's general aspect ratio used as-is instead of recomposed for the exact canvas.
-- Changing the meaning, the price or the call to action of the copy to make a layout fit, adjust the minimum or block.
-- Publishing anything: you produce, the user decides, the lead delivers.
+- A size that is almost right: crop or letterbox to the exact canvas.
+- An AI image used at its native aspect ratio instead of recomposed for the canvas.
+- Changing the meaning, price or call to action of the copy to fit a layout: adjust the layout or block.
 
 ## Verification
 
-- Every output file exists, is at the exact requested size and opens without error.
-- `sources.md` lists every external asset with licence, origin and cost; generated images are labeled.
-- A mobile preview exists for landings and emails; contrast and safe zones checked.
-- The handoff names the checks that ran; nothing went out of the piece folder except its own files.
+- Every output file exists, opens, and has the exact requested size.
+- `sources.md` lists every external asset with origin, licence and cost; generated images are labeled.
+- Landings and emails have a mobile preview at 390 px.
+- Every written file is inside the piece folder.

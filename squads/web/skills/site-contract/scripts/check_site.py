@@ -1,29 +1,21 @@
 #!/usr/bin/env python3
-"""Check a preview or a local build of one site and write the review evidence as JSON.
+"""Check a site preview or a local build and write the review evidence as JSON.
 
-Usage:
-  check_site.py --site <slug> --id <ID> --round <R> --url <https://preview> [--pages /,/menu]
-                [--smoke] [--browser] [--lighthouse] [--repo <path>] [--root <site folder>]
+Writes `reviews/<ID>-r<R>/checks.json` (`smoke.json` with --smoke) below --root, plus `screenshots/` and
+`lighthouse/` beside it. The browser pass and Lighthouse run from the site repo (--repo, default
+<root>/repo): Node, Chrome, and the repo's `@playwright/test`, `axe-core` and `lighthouse` devDependencies.
 
-Run by web-qa (full) and web-deployer (--smoke). Writes `reviews/<ID>-r<R>/checks.json`
-(and `smoke.json` in smoke mode) below --root, which defaults to the current directory, the site's
-project folder. Evidence goes beside it: `screenshots/` and, when Lighthouse ran, its raw reports.
-
-Checks: reachability, redirect chains, internal and external links, meta and SEO tags, forms,
-security headers, mixed content, and secret patterns in served HTML/JS and in the repo when
---repo is given. Lighthouse and the browser pass (axe, screenshots, console) run only when asked
-for; a missing tool with --browser is exit 2, never a silent pass.
-
-Exit 0 checks ran (read all_ok in the JSON), 1 the site could not be reached or the spec is
-missing, 2 a requested tool (Chrome, Lighthouse) could not run.
+Exit 0 checks ran (read `all_ok`), 1 site unreachable, 2 usage error or a requested tool could not run.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import re
+import statistics
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -33,7 +25,13 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 DEFAULT_THRESHOLDS = {"lighthouse_mobile": {"performance": 90, "accessibility": 95, "best_practices": 90, "seo": 95},
-                      "axe_max": {"critical": 0, "serious": 0}, "broken_internal_links": 0}
+                      "axe_max": {"critical": 0, "serious": 0}, "broken_internal_links": 0,
+                      "core_web_vitals": {"lcp_ms": 2500, "cls": 0.1, "inp_ms": 200}}
+SSR_TYPES = ("dynamic_seo", "saas")  # site.yaml types where lighthouse_mobile_ssr overrides lighthouse_mobile
+LH_CATEGORIES = {"performance": "performance", "accessibility": "accessibility", "best-practices": "best_practices",
+                 "seo": "seo"}
+LH_AUDITS = {"largest-contentful-paint": "lcp_ms", "cumulative-layout-shift": "cls", "total-blocking-time": "tbt_ms"}
+AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]
 MAX_URLS = 200
 TIMEOUT = 20
 UA = "hermes-web-qa/1.0 (+site check)"
@@ -45,6 +43,82 @@ SECRET_PATTERNS = (
     ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("jwt-near-secret", re.compile(r"(?i)secret[^\n]{0,40}eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
 )
+
+
+BROWSER_JS = r"""
+import { createRequire } from "node:module";
+import { join } from "node:path";
+const [repo, base, pagesJson, shots, tagsJson] = process.argv.slice(2);
+const require = createRequire(join(repo, "package.json"));
+const { chromium } = require("@playwright/test");
+const axePath = require.resolve("axe-core/axe.min.js");
+const out = [];
+const browser = await chromium.launch({ channel: "chrome" });
+try {
+  for (const path of JSON.parse(pagesJson)) {
+    const name = path.replace(/^\/+|\/+$/g, "").replaceAll("/", "-") || "home";
+    for (const [label, viewport] of [["mobile", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+      const page = await browser.newPage({ viewport, bypassCSP: true });
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(String(e)));
+      await page.goto(base + path, { waitUntil: "networkidle", timeout: 45000 });
+      await page.screenshot({ path: join(shots, `${label}-${name}.png`), fullPage: true });
+      await page.addScriptTag({ path: axePath });
+      const violations = await page.evaluate(async (tags) =>
+        (await window.axe.run(document, { runOnly: { type: "tag", values: tags } })).violations
+          .map((v) => ({ id: v.id, impact: v.impact || "minor", nodes: v.nodes.length })), JSON.parse(tagsJson));
+      out.push({ path, label, errors, violations });
+      await page.close();
+    }
+  }
+} finally {
+  await browser.close();
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def _number(text: str):
+    text = text.strip().strip("\"'")
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            return float(text)
+        except ValueError:
+            return text or None
+
+
+def read_site_yaml(text: str) -> dict:
+    """site.yaml with PyYAML when present, else the subset this script reads: `type` and `automation.thresholds`
+    in the site-contract file-formats.md shape (2-space indent, flow maps for nested thresholds)."""
+    try:
+        import yaml  # type: ignore[import-untyped]
+        return yaml.safe_load(text) or {}
+    except ImportError:
+        pass
+    out: dict = {}
+    thresholds: dict = {}
+    path: list[str] = []
+    for raw in text.splitlines():
+        line = raw.split(" #", 1)[0].rstrip()
+        if not line.strip() or line.lstrip().startswith("#") or ":" not in line:
+            continue
+        depth = (len(line) - len(line.lstrip())) // 2
+        key, _, value = line.strip().partition(":")
+        path = path[:depth] + [key]
+        value = value.strip()
+        if path == ["type"]:
+            out["type"] = _number(value)
+        elif path[:2] == ["automation", "thresholds"] and len(path) == 3 and value:
+            if value.startswith("{"):
+                pairs = (item.partition(":") for item in value.strip("{}").split(",") if ":" in item)
+                thresholds[key] = {k.strip(): _number(v) for k, _, v in pairs}
+            else:
+                thresholds[key] = _number(value)
+    if thresholds:
+        out["automation"] = {"thresholds": thresholds}
+    return out
 
 
 class Page(HTMLParser):
@@ -73,6 +147,8 @@ class Page(HTMLParser):
         elif tag == "a" and a.get("href"):
             self.links.append(a["href"] or "")
         elif tag in {"script", "link", "img"}:
+            if tag == "link" and (a.get("rel") or "").lower() == "canonical":
+                self.canonical = a.get("href") or ""
             url = a.get("src") or a.get("href")
             if url and tag != "img":
                 self.assets.append(url)
@@ -82,8 +158,6 @@ class Page(HTMLParser):
             key = (a.get("name") or a.get("property") or "").lower()
             if key:
                 self.meta[key] = (a.get("content") or "").strip()
-        elif tag == "link" and (a.get("rel") or "").lower() == "canonical":
-            self.canonical = a.get("href") or ""
         elif tag == "form":
             self.forms += 1
         elif tag == "label":
@@ -109,7 +183,9 @@ class Checker:
         self.checks: list[dict] = []
         self.scores: dict = {}
         self.root = Path(args.root).expanduser().resolve()
+        self.repo = Path(args.repo).expanduser().resolve() if args.repo else self.root / "repo"
         self.base = (args.url or "").rstrip("/")
+        self.site_type = None
         self.thresholds = args.thresholds_json and json.loads(args.thresholds_json) or self.thresholds_from_site()
 
     # --- helpers ---------------------------------------------------------------------------------
@@ -119,15 +195,12 @@ class Checker:
         if not spec.is_file():
             return dict(DEFAULT_THRESHOLDS)
         try:
-            import yaml
-            data = yaml.safe_load(spec.read_text(encoding="utf-8")) or {}
-        except ImportError:
-            self.record("thresholds", "site.yaml", False,
-                        "site.yaml exists but no YAML module is available; default thresholds used "
-                        "(pass --thresholds-json to pin the site's own)", "warn")
+            data = read_site_yaml(spec.read_text(encoding="utf-8"))
+        except Exception as exc:  # unreadable site.yaml: defaults, and say so
+            self.record("thresholds", "site.yaml", False, f"site.yaml unreadable ({type(exc).__name__}); defaults used",
+                        "warn")
             return dict(DEFAULT_THRESHOLDS)
-        except Exception:
-            return dict(DEFAULT_THRESHOLDS)
+        self.site_type = data.get("type")
         found = ((data.get("automation") or {}).get("thresholds")) or {}
         return {**DEFAULT_THRESHOLDS, **found}
 
@@ -155,14 +228,14 @@ class Checker:
             return []
         page = Page()
         page.feed(body)
-        found: list[str] = []
+        found: list[str] = ["/"]
         for href in page.links:
             url = urljoin(self.base + "/", href)
             if urlparse(url).netloc == urlparse(self.base).netloc and not urlparse(url).path.endswith((".pdf", ".xml")):
                 path = urlparse(url).path or "/"
                 if path not in found:
                     found.append(path)
-        return (found or ["/"])[:10]
+        return found[:10]
 
     def check_pages(self, pages: list[str]) -> dict[str, str]:
         bodies: dict[str, str] = {}
@@ -257,7 +330,7 @@ class Checker:
             self.record(f"seo-{name}", path, status == 200, f"HTTP {status or 'no answer'}", "warn")
 
     def check_repo(self) -> None:
-        repo = Path(self.args.repo).expanduser().resolve()
+        repo = self.repo
         if not repo.is_dir():
             self.record("repo-scan", str(repo), False, "not a directory", "critical")
             return
@@ -281,75 +354,79 @@ class Checker:
         self.record("repo-committed-env", str(repo), not leaked, "no committed .env/.dev.vars in history", "critical")
 
     def check_browser(self, pages: list[str]) -> int:
-        try:
-            from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
-        except ImportError:
-            print("error: --browser needs playwright installed in the site's environment", file=sys.stderr)
-            return 2
         shots = self.root / "reviews" / self.evidence_name() / "screenshots"
         shots.mkdir(parents=True, exist_ok=True)
-        axe_violations: list[str] = []
-        try:
-            with sync_playwright() as pw:
-                browser = pw.chromium.launch(channel="chrome")
-                for path in pages:
-                    shot = path.strip("/").replace("/", "-") or "home"
-                    for label, size in (("mobile", {"width": 390, "height": 844}), ("desktop", {"width": 1440, "height": 900})):
-                        page = browser.new_page(viewport=size)
-                        errors: list[str] = []
-                        page.on("pageerror", lambda exc: errors.append(str(exc)))
-                        page.goto(self.base + path, wait_until="networkidle", timeout=45_000)
-                        page.screenshot(path=str(shots / f"{label}-{shot}.png"), full_page=True)
-                        if not errors:
-                            axe = page.evaluate("() => window.axe ? true : false")
-                            if axe:
-                                result = page.evaluate(
-                                    "async () => (await axe.run(document, { runOnly: { type: 'tag', values: ['wcag22aa'] } })).violations")
-                                axe_violations += [f"{v['impact']}: {v['id']} ({path})" for v in result
-                                                   if v.get("impact") in ("critical", "serious")]
-                        self.record("console-errors", f"{path} ({label})", not errors,
-                                    "; ".join(errors[:3]) or "none", "warn")
-                        page.close()
-                    if path == pages[0]:
-                        self.record("axe-wcag22aa", path, not axe_violations,
-                                    "; ".join(sorted(set(axe_violations))[:5]) or "no critical or serious violation",
-                                    "critical")
-                browser.close()
-        except Exception as exc:  # browser could not start
-            print(f"error: browser check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "browser_pass.mjs"
+            script.write_text(BROWSER_JS, encoding="utf-8")
+            try:
+                run = subprocess.run(["node", str(script), str(self.repo), self.base, json.dumps(pages), str(shots),
+                                      json.dumps(AXE_TAGS)], capture_output=True, text=True, timeout=1200)
+            except (OSError, subprocess.SubprocessError) as exc:
+                print(f"error: browser pass could not start: {exc}", file=sys.stderr)
+                return 2
+        if run.returncode != 0:
+            print(f"error: browser pass failed (needs node, Chrome, and @playwright/test plus axe-core installed in "
+                  f"{self.repo}): {run.stderr.strip()[-300:]}", file=sys.stderr)
             return 2
+        limits = self.thresholds.get("axe_max") or {}
+        for item in json.loads(run.stdout or "[]"):
+            where = f"{item['path']} ({item['label']})"
+            self.record("console-errors", where, not item["errors"], "; ".join(item["errors"][:3]) or "none", "warn")
+            counts: dict[str, int] = {}
+            for v in item["violations"]:
+                counts[v["impact"]] = counts.get(v["impact"], 0) + 1
+            over = [i for i, n in counts.items() if i in limits and n > limits[i]]
+            ids = ", ".join(f"{v['impact']}: {v['id']}" for v in item["violations"][:6]) or "none"
+            self.record("axe", where, not over, ids, "critical" if over else "warn")
         return 0
 
     def check_lighthouse(self, pages: list[str]) -> int:
         report_dir = self.root / "reviews" / self.evidence_name() / "lighthouse"
         report_dir.mkdir(parents=True, exist_ok=True)
-        keys = {"performance": "performance", "accessibility": "accessibility",
-                "best-practices": "best_practices", "seo": "seo"}
         try:
-            version = subprocess.run(["npx", "--no-install", "lighthouse", "--version"],
+            version = subprocess.run(["npx", "--no-install", "lighthouse", "--version"], cwd=self.repo,
                                      capture_output=True, text=True, timeout=60)
         except (OSError, subprocess.SubprocessError) as exc:
-            print(f"error: lighthouse could not start: {exc}", file=sys.stderr)
+            print(f"error: lighthouse could not start in {self.repo}: {exc}", file=sys.stderr)
             return 2
         if version.returncode != 0:
-            print("error: lighthouse is not installed in this project (pnpm add -D lighthouse)", file=sys.stderr)
+            print(f"error: lighthouse is not installed in {self.repo} (pnpm add -D lighthouse)", file=sys.stderr)
             return 2
-        thresholds = {**self.thresholds.get("lighthouse_mobile", {})}
+        minimums = {**self.thresholds.get("lighthouse_mobile", {})}
+        if self.site_type in SSR_TYPES:
+            minimums.update(self.thresholds.get("lighthouse_mobile_ssr") or {})
+        cwv = self.thresholds.get("core_web_vitals") or {}
         for path in pages:
-            out = report_dir / f"{path.strip('/').replace('/', '-') or 'home'}.json"
-            run = subprocess.run(["npx", "--no-install", "lighthouse", self.base + path, "--quiet",
-                                  "--chrome-flags=--headless=new", "--output=json", f"--output-path={out}"],
-                                 capture_output=True, text=True, timeout=300)
-            if run.returncode != 0 or not out.is_file():
-                print(f"error: lighthouse failed on {path}: {(run.stderr or '').strip()[-200:]}", file=sys.stderr)
-                return 2
-            data = json.loads(out.read_text(encoding="utf-8"))
-            for category, key in keys.items():
-                score = round((data["categories"].get(category, {}).get("score") or 0) * 100)
-                self.scores.setdefault(path, {})[key] = score
-                minimum = thresholds.get(key)
-                if minimum is not None:
-                    self.record("lighthouse", path, score >= minimum, f"{key} {score} (min {minimum})", "critical")
+            name = path.strip("/").replace("/", "-") or "home"
+            samples: dict[str, list[float]] = {}
+            for n in range(1, max(1, self.args.lighthouse_runs) + 1):
+                out = report_dir / f"{name}-{n}.json"
+                run = subprocess.run(["npx", "--no-install", "lighthouse", self.base + path, "--quiet",
+                                      "--chrome-flags=--headless=new", "--output=json", f"--output-path={out}"],
+                                     cwd=self.repo, capture_output=True, text=True, timeout=300)
+                if run.returncode != 0 or not out.is_file():
+                    print(f"error: lighthouse failed on {path}: {(run.stderr or '').strip()[-200:]}", file=sys.stderr)
+                    return 2
+                data = json.loads(out.read_text(encoding="utf-8"))
+                for category, key in LH_CATEGORIES.items():
+                    score = (data["categories"].get(category) or {}).get("score") or 0
+                    samples.setdefault(key, []).append(round(score * 100))
+                for audit, key in LH_AUDITS.items():
+                    value = ((data.get("audits") or {}).get(audit) or {}).get("numericValue")
+                    if value is not None:
+                        samples.setdefault(key, []).append(value)
+            scores = {key: round(statistics.median(vals), 3) for key, vals in samples.items()}
+            self.scores[path] = scores
+            for key, minimum in minimums.items():
+                if key in scores:
+                    self.record("lighthouse", path, scores[key] >= minimum, f"{key} {scores[key]:g} (min {minimum})",
+                                "critical")
+            for key in ("lcp_ms", "cls"):
+                if key in scores and cwv.get(key) is not None:
+                    self.record("core-web-vitals", path, scores[key] <= cwv[key],
+                                f"{key} {scores[key]:g} (max {cwv[key]}, lab median of {self.args.lighthouse_runs})",
+                                "critical")
         return 0
 
     # --- output ----------------------------------------------------------------------------------
@@ -409,18 +486,19 @@ class Checker:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="Check a site preview or local build and write reviews/<ID>-r<R>/checks.json.",
-        epilog="Exit 0 checks ran, 1 site unreachable, 2 a requested tool could not run.",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        epilog="Exit 0 checks ran (read all_ok), 1 site unreachable, 2 usage error or a requested tool could not run.")
     p.add_argument("--site", required=True, help="site slug")
     p.add_argument("--id", required=True, help="work item id (<slug>-<YYYYMMDD>-<kind>-<nn>)")
     p.add_argument("--round", type=int, default=0, help="review round")
     p.add_argument("--url", help="deployed preview URL")
     p.add_argument("--dir", help="local build folder to serve instead of --url")
     p.add_argument("--pages", help="comma-separated paths (default: same-origin pages linked from /)")
-    p.add_argument("--smoke", action="store_true", help="the deployer's pass: reachability and secrets only")
-    p.add_argument("--browser", action="store_true", help="Playwright pass: axe, screenshots, console errors")
-    p.add_argument("--lighthouse", action="store_true", help="Lighthouse pass against the site thresholds")
-    p.add_argument("--repo", help="site repo path to scan for secrets and committed env files")
+    p.add_argument("--smoke", action="store_true",
+                   help="the deployer's pass: status, meta, headers and served secrets; no crawl, Lighthouse or repo scan")
+    p.add_argument("--browser", action="store_true", help="Playwright pass: axe (WCAG 2.2 AA), screenshots, console errors")
+    p.add_argument("--lighthouse", action="store_true", help="Lighthouse mobile pass: scores, LCP, CLS, TBT against thresholds")
+    p.add_argument("--lighthouse-runs", type=int, default=1, help="Lighthouse runs per page; the median is judged (default: 1)")
+    p.add_argument("--repo", help="site repo: secret scan target and where node tools run (default: <root>/repo)")
     p.add_argument("--root", default=".", help="site project folder (default: current directory)")
     p.add_argument("--thresholds-json", help="override site.yaml automation.thresholds")
     p.add_argument("--json", action="store_true", help="print the whole result")
@@ -438,7 +516,10 @@ def main(argv: list[str] | None = None) -> int:
         if not Path(directory).is_dir():
             print(f"error: --dir {directory} is not a directory", file=sys.stderr)
             return 2
-        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=directory)
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *_args) -> None:
+                pass
+        handler = functools.partial(Quiet, directory=directory)
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         args.url = f"http://127.0.0.1:{server.server_address[1]}"

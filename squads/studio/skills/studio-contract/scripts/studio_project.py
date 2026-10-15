@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 """Create or verify the folder layout of one studio piece.
 
-A piece lives in <project>/studio/<piece-id>/ and holds brief.md, storyboard.md, assets/ and renders/.
-The formats are documented in the studio-contract skill (references/project-files.md).
-
-  studio_project.py init <folder> [--piece ID] [--title T] [--requester BOT] [--format mp4]
-                       [--duration SECONDS] [--fps N] [--resolution WxH] [--audio none|stereo]
-                       [--loudness LUFS] [--overwrite] [--json]
-  studio_project.py check <folder> [--json]
-
-init creates whatever is missing and never rewrites an existing brief.md or storyboard.md without
---overwrite. check verifies the layout and the brief front matter, and exits 1 when something is missing.
+A piece lives in <project>/studio/<piece-id>/ and holds brief.md, storyboard.md, assets/ and renders/
+(formats: studio-contract references/project-files.md). init creates whatever is missing and rewrites an
+existing brief.md or storyboard.md only with --overwrite. check verifies the layout and the brief front matter.
 
 Exit codes: 0 ok, 1 incomplete (check), 2 usage error.
 """
@@ -24,8 +17,9 @@ from pathlib import Path
 
 DIRS = ("assets", "renders")
 REQUIRED_KEYS = ("piece", "title", "format")
-MEDIA_KEYS = ("duration", "fps", "resolution")
-FORMATS = ("mp4", "webm", "gif", "png-sequence", "glb", "html")
+FORMATS = ("mp4", "webm", "gif", "png", "png-sequence", "glb", "html")
+TIMED = ("mp4", "webm", "gif", "png-sequence")  # need duration and fps
+UNSIZED = ("glb", "html")  # need no resolution
 DEFAULT_LUFS = -23.0
 
 BRIEF = """---
@@ -53,9 +47,9 @@ STORYBOARD = """# Storyboard - {title}
 One row per shot; time is seconds from the start. Tools: HyperFrames, Remotion, three.js/R3F, GSAP,
 Manim, p5.js or Blender (studio-motion and studio-3d skills).
 
-| # | Shot | Start | Duration | Tool | Assets | Acceptance |
-|---|---|---|---|---|---|---|
-| 1 |  | 0.0 |  |  |  |  |
+| # | Shot | Start | Duration | Tool | Assets | Samples | Acceptance |
+|---|---|---|---|---|---|---|---|
+| 1 |  | 0.0 |  |  |  | - |  |
 
 ## Notes
 
@@ -144,9 +138,11 @@ def cmd_check(a: argparse.Namespace) -> int:
             missing.append(f"{directory}/")
     brief = front_matter(folder / "brief.md") if (folder / "brief.md").is_file() else {}
     missing_keys = [key for key in REQUIRED_KEYS if not brief.get(key)]
-    if brief.get("format") != "html":
-        missing_keys += [key for key in MEDIA_KEYS if brief.get(key) in (None, "", "-")
-                         or (key in ("duration", "fps") and (as_number(brief.get(key)) or 0) <= 0)]
+    fmt = brief.get("format")
+    if fmt in TIMED:
+        missing_keys += [key for key in ("duration", "fps") if (as_number(brief.get(key)) or 0) <= 0]
+    if fmt not in UNSIZED and brief.get("resolution") in (None, "", "-"):
+        missing_keys.append("resolution")
     ok = not missing and not missing_keys
     result = {"folder": str(folder), "ok": ok, "missing": missing, "missing_keys": missing_keys, "brief": brief}
     if a.json:
@@ -177,7 +173,8 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--fps", type=int, default=0, help="target frames per second")
     init.add_argument("--resolution", default="", help="target resolution, WxH (for example 1920x1080)")
     init.add_argument("--audio", default="none", choices=["none", "stereo"], help="audio tracks in the deliverable")
-    init.add_argument("--loudness", type=float, help=f"EBU R128 integrated target in LUFS (default: {DEFAULT_LUFS})")
+    init.add_argument("--loudness", type=float,
+                      help=f"EBU R128 integrated target in LUFS (default with --audio stereo: {DEFAULT_LUFS})")
     init.add_argument("--overwrite", action="store_true", help="rewrite an existing brief.md and storyboard.md")
     init.add_argument("--json", action="store_true", help="machine-readable output")
     init.set_defaults(fn=cmd_init)

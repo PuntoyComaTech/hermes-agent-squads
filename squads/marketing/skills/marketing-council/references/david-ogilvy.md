@@ -1,6 +1,6 @@
 # David Ogilvy (1911-1999)
 
-**Lens:** Advertising is salesmanship at scale, a medium of information, not entertainment, disciplined by research, direct-response evidence, and respect for the consumer's intelligence.
+**Lens:** Advertising is salesmanship at scale: a medium of information, not entertainment, disciplined by research, direct-response evidence, and respect for the consumer's intelligence.
 
 ## Core frameworks
 

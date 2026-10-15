@@ -1,12 +1,10 @@
 # Squad: Jobs
 
-Job search that runs on its own: `jobs` interviews the user, the cron starts searches, the chain filters, analyzes,
-writes, reviews and delivers a CV with its link. The user replies `apply`, `change: <what>` or `no` in the lead's
-Bot Chat and nothing else is asked of them.
+`jobs` interviews the user, the cron starts searches, the chain filters, analyzes, writes, reviews and delivers a
+CV with its link. The user replies `apply`, `change: <what>` or `no` in the lead's Bot Chat.
 
-Board `jobs` (💼). One squad serves one search: a Hermes Project (created by the builder with
-`squadctl project add jobs <name> <path>`) holds `profile.md`, `achievements.yaml`, `contact.yaml`,
-`application-data.yaml`, `openings/`, `companies/` and `searches/`. Formats: skill `jobs-contract`.
+Board `jobs`. One search is one Hermes Project (`scripts/squadctl project add jobs <name> <path>`); its folder
+holds the files of skill `jobs-contract`.
 
 ## Bots
 
@@ -18,8 +16,8 @@ Board `jobs` (💼). One squad serves one search: a Hermes Project (created by t
 | `jobs-reviewer` | review | Five independent lenses (truthfulness, ATS, recruiter, hiring manager, writing) and the verdict |
 | `jobs-applier` | copy | Submits a simple form only after the user's explicit apply; otherwise writes a manual kit. Optional |
 
-Only `jobs-writer` (CV header) and `jobs-applier` (forms) read `contact.yaml`; only `jobs-applier` reads
-`application-data.yaml`. The scout never sees contact data, and `linkedin.com` is on its website blocklist.
+Only `jobs-writer` and `jobs-applier` read `contact.yaml`. `linkedin.com` is on the scout and applier website
+blocklists.
 
 ## Flow
 
@@ -34,9 +32,7 @@ flowchart LR
   digest -->|user says apply| applier["jobs-applier: submit or manual kit"]
 ```
 
-Every card carries the opening id (`JOB-YYYYMMDD-company-role`), the project and paths, and an idempotency key
-(`jobs:application:<project>:<ID>:<stage>`), so a rerun never duplicates a stage. Each opening ends in
-`openings/<ID>/status.json`, append only.
+Card fields and idempotency keys: skill `jobs-contract` step 4.
 
 ## Files
 
@@ -50,18 +46,15 @@ Every card carries the opening id (`JOB-YYYYMMDD-company-role`), the project and
 
 ## Cron
 
-`jobs-search` runs `start_search.py` on the lead (`squad.yaml` -> `bots.jobs.cron.jobs-search`); it files one
-search card per slot and pauses while `profile.md` says `search: paused`. Retime it in the builder's local
-overlay (`local/squads/jobs/squad.yaml` -> `bots.jobs.cron.jobs-search.schedule`).
+Retime `jobs-search` in the builder's local overlay (`local/squads/jobs/squad.yaml` ->
+`bots.jobs.cron.jobs-search.schedule`). It files nothing until the project and `profile.md` exist.
 
 ## Install notes
 
-- The builder installs the squad and asks for the models per lane; nothing here hard-codes one.
 - `jobs-applier` is optional: leave it out (`scripts/squadctl apply jobs --bots jobs,jobs-scout,jobs-writer,jobs-reviewer`)
   and "apply" answers with the link plus the ready answers instead of a submission.
-- Rendering needs no dependency for HTML and text; PDF takes WeasyPrint (`pip install weasyprint`) or
-  Chromium/Chrome, DOCX takes python-docx, and `pdfinfo` (poppler) lets the report enforce `--pages`. Without an
-  engine the report says so and the writer reports it: nothing is installed behind the user's back.
+- PDF needs WeasyPrint (`pip install weasyprint`) or Chromium/Chrome, DOCX needs python-docx, and `--pages`
+  needs `pdfinfo` (poppler). Without them the writer reports the gap; nothing is installed for the user.
 - The community `job-search` plugin is searchable (`scripts/hpy catalog_search.py job-search`) and stays off by default.
 
 ## Rules

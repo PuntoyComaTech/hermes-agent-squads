@@ -5,14 +5,13 @@ description: "Runs a simulated council of documented marketers. Use when a big d
 
 # Marketing council
 
-A simulated board of marketing advisors: each seat applies the documented frameworks and positions of a well-known marketer to the brand's specific question. Every take is grounded in what the advisor actually wrote (see Grounding rules) and labeled as simulation.
+A simulated board: each seat applies one marketer's documented frameworks and positions to the brand's question, per the Grounding rules.
 
 ## When to Use
 
 - A decision with real stakes needs conflicting lenses: positioning, offer, pricing, a channel shift, a launch.
 - The user asks "what would <advisor> say", "get multiple perspectives" or "run it by the council".
 - A plan or report has two defensible directions and the lead must argue both before recommending.
-- Not for execution work: the council decides direction, then the normal chain produces.
 
 ## The Bench
 
@@ -35,8 +34,8 @@ Dossiers: [godin](references/seth-godin.md), [ogilvy](references/david-ogilvy.md
 
 ## Procedure
 
-1. Read `brand.md` first; the council decides for this brand, not in general.
-2. Restate the question and the stakes in two lines. Quick take: one advisor. Council session (default): three to five. Full council: all twelve, only for major decisions.
+1. Read `brand.md`.
+2. Restate the question and the stakes in two lines. Pick the mode: quick take (one advisor), session (three to five, the default) or full council (all twelve, for decisions that change the plan).
 3. Seat by question type:
 
 | Question type | Seats |
@@ -52,11 +51,11 @@ Dossiers: [godin](references/seth-godin.md), [ogilvy](references/david-ogilvy.md
 | channels | vaynerchuk, sharp, halbert |
 | launch | brunson, godin, halbert |
 
-   Honor explicit requests, and always seat at least one designated dissenter whose documented position conflicts with where the question leans. A custom advisor is written from `references/advisor-template.md` into the brand's `research/council/` and seats like the built-ins.
-4. Load only the seated advisors' dossiers, then research if the question is recent or the user wants citations: prefer primary sources (books, essays, interviews, talks) over roundups; a finding that contradicts a dossier wins and the dossier is corrected with one line, `dossier corrected: <source>`.
-5. Each take, 2-4 paragraphs: apply the advisor's signature questions and frameworks to the specifics, no generic advice with a name attached, no strawmen, the strongest version of their view.
+   Seat any advisor the user names. Seat at least one dissenter whose documented position conflicts with where the question leans. A custom advisor is written from [advisor-template.md](references/advisor-template.md) into the brand's `research/council/` and is seated like the built-ins.
+4. Load only the seated advisors' dossiers. Research when the question is recent or the user wants citations: primary sources (books, essays, interviews, talks) over roundups. A finding that contradicts a dossier wins; note `dossier corrected: <source>` in the output.
+5. Each take, 2-4 paragraphs: apply the advisor's signature questions and frameworks to the brand's specifics, in the strongest version of their view.
 6. Disagreement map: two to four genuine conflicts; for each, the underlying trade-off and what evidence would settle it.
-7. Synthesis: the recommendation that fits this brand's stage and constraints, the tripwire to watch, and the skill handoffs.
+7. Synthesis: the recommendation for this brand's stage and constraints, the tripwire to watch, and the skill handoffs. Write the session to `research/<YYYY-MM-DD>-council-<topic>.md`.
 
 ## Grounding rules
 
@@ -84,9 +83,9 @@ Dossiers: [godin](references/seth-godin.md), [ogilvy](references/david-ogilvy.md
 
 ## Pitfalls
 
-- The agreeing council: five takes that bless the existing plan, re-seat with a real dissenter.
+- Five takes that agree with the current plan: re-seat with a dissenter.
 - Quote soup: famous one-liners instead of the method behind them.
-- Running the council for execution work or for a headline; match the bench to the stakes.
+- A council for execution work or a single headline: use a quick take or none.
 - Presenting the simulation as if the real people reviewed the brand.
 
 ## Verification

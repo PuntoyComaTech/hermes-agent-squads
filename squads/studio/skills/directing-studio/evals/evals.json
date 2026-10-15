@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Card: the web squad orders a 6 s hero loop for the site landing page, 1920x1080.",
-      "expected_output": "brief.md and storyboard.md with measurable specs, the piece chain filed under stage keys studio:piece:<project>:<piece-id>:<stage>, and delivery as a comment on the requester's card after a passing review.",
+      "expected_output": "brief.md and storyboard.md with measurable specs, the piece chain filed under stage keys studio:piece:<project>:<piece-id>:<stage>, and the ordering card completed with the deliverable paths after a passing review.",
       "files": []
     },
     {

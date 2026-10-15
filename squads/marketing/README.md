@@ -1,67 +1,38 @@
 # Squad: Marketing
 
-A lead and four workers that run a brand's marketing cycle end to end: onboarding, a 90-day plan,
-a weekly calendar, briefed and reviewed pieces, and a monthly report. Everything is filed as kanban
-cards on the `marketing` board; the user approves, requests changes or discards from the lead's chat.
-The squad never publishes, sends, schedules or spends without an explicit OK for that action.
+A lead and four workers that run a brand's marketing cycle: onboarding, a 90-day plan, a weekly calendar, reviewed pieces and a monthly report. Every card goes on the `marketing` board; the user approves, requests changes or discards from the lead's chat. The squad never publishes, sends, schedules or spends without the user's explicit OK for that action.
 
-## Bots
-
-One visible lead (`marketing`) and four hidden workers (`marketing-research`, `marketing-creative`, `marketing-producer`, `marketing-reviewer`); lanes, skills and keeps: `squad.yaml`. Only the lead talks to the user.
+Bots, lanes, skills, keeps, crons and the `piece` chain: `squad.yaml`. Only the visible lead (`marketing`) talks to the user. File layout, card fields, keys and rules: skill `brand-contract`. Licences: [skills/LICENSES.md](skills/LICENSES.md).
 
 ## The piece chain
 
-`scripts/squadctl chain marketing piece --project <slug> --title "<piece title>" --run-id <piece-id> [--when research]` files a
-chain of dependent cards, the lead files the same cards with the kanban tools:
+`research` (only when the brief says `Needs research: yes`) -> `copy` -> `asset` -> `review` -> `approve`.
 
-`research` (only when the brief needs it) -> `copy` -> `asset` -> `review` (one fix round) -> `approve`.
+- The reviewer returns `approve`, `fix` (up to `brand.md -> reviewer_rounds` rounds, then a re-review of the same card) or `escalate`.
+- The lead presents an approved piece; a change request starts a `-c<N>` round with the user's literal wording. Every reply is logged in `preferences.md`.
+- A `publish` card exists only when `brand.md -> publishing` names a connector and the user confirmed that piece.
 
-- Every card carries the project, the stage skill and the key `marketing:piece:<project>:<piece-id>:<stage>`.
-- The reviewer returns `approve`, `fix` (one round, back to the owning stage, then a re-review) or `escalate`.
-- The lead presents an approved piece in the user's chat; a change request starts a new round with the
-  user's literal wording; discards and approvals are logged in `preferences.md`.
-- A `publish` card exists only at Level 2, after the user confirms the specific action.
+The user can file a chain by hand:
 
-## Crons (lead, zero-LLM gates)
+```sh
+scripts/squadctl chain marketing piece --project <slug> --title "<piece title>" --run-id <piece-id> [--when research]
+```
 
-`marketing-plan-week` and `marketing-report`: schedules, scripts and delivery in `squad.yaml`. Each files at most one card per brand and period (`<job>:<project>:<period>`) and stays silent otherwise.
+## Crons
 
-## Brand files
-
-One brand is one Hermes Project; the project slug is the brand slug. File layout, rules and handoffs: `skills/brand-contract`. `brand.md` stays `draft` until the user approves the onboarding; only `active` brands are planned and reported.
-
-## Skills
-
-| Skill | Bot |
-| --- | --- |
-| `leading-marketing` | lead |
-| `marketing-plan` | lead |
-| `product-marketing` | lead |
-| `marketing-council` | lead |
-| `marketing-mindset` | lead |
-| `researching-markets` | research |
-| `writing-copy` | creative |
-| `marketing-psychology` | creative |
-| `producing-assets` | producer |
-| `reviewing-marketing` | reviewer |
-| `brand-contract` | all |
-
-Licences and provenance: [skills/LICENSES.md](skills/LICENSES.md).
+`marketing-plan-week` (Mondays) files one calendar card per active brand without next week's calendar. `marketing-report` (the 1st) files one report card per active brand whose `data/inbox/` changed. Both print nothing on success and skip brands with a `PAUSE` file.
 
 ## Install
 
 ```sh
-scripts/squadctl plan marketing        # read-only diff: profiles, skills, plugins, cron, board
-scripts/squadctl apply marketing --models <file from scripts/hpy model_advisor.py>
+scripts/squadctl plan marketing
+scripts/hpy model_advisor.py marketing --json > models.json
+scripts/squadctl apply marketing --models models.json
+scripts/squadctl project add marketing "<Brand>" <path>
 ```
 
-`apply` creates the five profiles with `--no-skills`, copies the squad skills, enables the plugins
-(`disk-cleanup`; `security-guidance` on the producer), creates the board and the two cron jobs; add
-each brand with `squadctl project add marketing "<Brand>" <path>`.
+One brand is one Hermes Project. `brand.md` stays `draft` until the user approves onboarding; only `active` brands get calendars and reports.
 
 ## Scope
 
-- What it does not do: publish, send, schedule, deploy or spend (the user does, or Level 2 adds it);
-  full websites (web squad); long or 3D video (studio squad).
-- Ad accounts, pixels and connectors are added per brand later; `connectors.suggest` in `squad.yaml`
-  lists the connectors the squad can offer the user.
+Not included: publishing, sending, scheduling or ad spend (the user does it); full websites (web squad); long video or 3D (studio squad). Ad accounts, pixels and connectors are added per brand.

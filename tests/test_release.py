@@ -17,6 +17,24 @@ def cp(stdout="", code=0, stderr=""):
     return subprocess.CompletedProcess([], code, stdout, stderr)
 
 
+def git(main="version: 1.0.0\n", status="", ls_remote=0):
+    """Fake run_cmd for the git calls of main(): remote main with `main` as distribution.yaml."""
+    def run(argv, env=None, **kw):
+        if argv[:2] == ["git", "status"]:
+            return cp(status)
+        if argv[:2] == ["git", "ls-remote"]:
+            return cp("", code=ls_remote, stderr="fatal: unreachable" if ls_remote not in (0, 2) else "")
+        return cp(main)
+    return run
+
+
+def green(monkeypatch):
+    monkeypatch.setattr(release, "gate_pytest", lambda py: ("pytest", True, "338 passed"))
+    monkeypatch.setattr(release, "gate_skill_lint", lambda py: ("skill_lint", True, "ok"))
+    monkeypatch.setattr(release, "gate_schema", lambda py=None: ("schema", True, "ok"))
+    monkeypatch.setattr(release, "gate_plan", lambda py: ("plan", True, "ok"))
+
+
 # --- bump and changelog ----------------------------------------------------------------------------------------------
 
 def test_bump_and_changelog_green():
@@ -114,11 +132,8 @@ def test_plan_gate_reports_the_failing_plan(monkeypatch):
 # --- push vs PR -------------------------------------------------------------------------------------------------------
 
 def test_green_checks_push_to_main(monkeypatch, capsys):
-    monkeypatch.setattr(release, "run_cmd", lambda *a, **k: cp("version: 1.0.0\n"))
-    monkeypatch.setattr(release, "gate_pytest", lambda py: ("pytest", True, "338 passed"))
-    monkeypatch.setattr(release, "gate_skill_lint", lambda py: ("skill_lint", True, "ok"))
-    monkeypatch.setattr(release, "gate_schema", lambda: ("schema", True, "ok"))
-    monkeypatch.setattr(release, "gate_plan", lambda py: ("plan", True, "ok"))
+    monkeypatch.setattr(release, "run_cmd", git())
+    green(monkeypatch)
     pushed, pr = [], []
     monkeypatch.setattr(release, "push_to_main", lambda remote: (pushed.append(remote), (True, ""))[1])
     monkeypatch.setattr(release, "open_pr", lambda remote, checks: (pr.append(checks), (True, ""))[1])
@@ -127,11 +142,9 @@ def test_green_checks_push_to_main(monkeypatch, capsys):
 
 
 def test_red_checks_open_a_pr_and_never_push(monkeypatch, capsys):
-    monkeypatch.setattr(release, "run_cmd", lambda *a, **k: cp("version: 1.0.0\n"))
+    monkeypatch.setattr(release, "run_cmd", git())
+    green(monkeypatch)
     monkeypatch.setattr(release, "gate_pytest", lambda py: ("pytest", False, "1 failed"))
-    monkeypatch.setattr(release, "gate_skill_lint", lambda py: ("skill_lint", True, "ok"))
-    monkeypatch.setattr(release, "gate_schema", lambda: ("schema", True, "ok"))
-    monkeypatch.setattr(release, "gate_plan", lambda py: ("plan", True, "ok"))
     pushed, pr = [], []
     monkeypatch.setattr(release, "push_to_main", lambda remote: (pushed.append(remote), (True, ""))[1])
     monkeypatch.setattr(release, "open_pr", lambda remote, checks: (pr.append(checks), (True, ""))[1])
@@ -141,11 +154,62 @@ def test_red_checks_open_a_pr_and_never_push(monkeypatch, capsys):
 
 
 def test_dry_run_neither_pushes_nor_opens_a_pr(monkeypatch):
-    monkeypatch.setattr(release, "run_cmd", lambda *a, **k: cp("version: 1.0.0\n"))
-    for name in ("gate_pytest", "gate_skill_lint"):
-        monkeypatch.setattr(release, name, lambda py: ("x", True, "ok"))
-    monkeypatch.setattr(release, "gate_schema", lambda: ("schema", True, "ok"))
-    monkeypatch.setattr(release, "gate_plan", lambda py: ("plan", True, "ok"))
+    monkeypatch.setattr(release, "run_cmd", git())
+    green(monkeypatch)
     monkeypatch.setattr(release, "push_to_main", lambda remote: pytest.fail("pushed"))
     monkeypatch.setattr(release, "open_pr", lambda remote, checks: pytest.fail("pr"))
     assert release.main(["--dry-run"]) == 0
+
+
+def no_release(monkeypatch):
+    monkeypatch.setattr(release, "push_to_main", lambda remote: pytest.fail("pushed"))
+    monkeypatch.setattr(release, "open_pr", lambda remote, checks: pytest.fail("pr"))
+
+
+def test_only_skips_gates_and_never_pushes(monkeypatch, capsys):
+    """A partial run must not release: the skipped gates were never checked."""
+    monkeypatch.setattr(release, "run_cmd", git())
+    green(monkeypatch)
+    no_release(monkeypatch)
+    assert release.main(["--only", "pytest"]) == 0
+    assert "nothing pushed" in capsys.readouterr().out
+
+
+def test_dirty_tree_is_red(monkeypatch, capsys):
+    monkeypatch.setattr(release, "run_cmd", git(status=" M scripts/squadctl.py\n"))
+    green(monkeypatch)
+    pr = []
+    monkeypatch.setattr(release, "push_to_main", lambda remote: pytest.fail("pushed"))
+    monkeypatch.setattr(release, "open_pr", lambda remote, checks: (pr.append(checks), (True, ""))[1])
+    assert release.main([]) == 1
+    assert [n for n, ok, _d in pr[0] if not ok] == ["clean"]
+
+
+def test_unreachable_remote_is_red_never_a_first_release(monkeypatch, capsys):
+    monkeypatch.setattr(release, "run_cmd", git(ls_remote=128))
+    green(monkeypatch)
+    no_release(monkeypatch)
+    assert release.main(["--dry-run"]) == 1
+    assert "RED   bump: cannot read origin/main" in capsys.readouterr().out
+
+
+def test_no_main_on_the_remote_is_a_first_release(monkeypatch, capsys):
+    monkeypatch.setattr(release, "run_cmd", git(ls_remote=2))
+    green(monkeypatch)
+    no_release(monkeypatch)
+    assert release.main(["--dry-run"]) == 0
+    assert "first release" in capsys.readouterr().out
+
+
+def test_schema_gate_runs_under_the_given_interpreter():
+    import sys
+    name, ok, detail = release.gate_schema(sys.executable)
+    assert name == "schema" and ok, detail
+    name, ok, detail = release.gate_schema("/nonexistent/python")
+    assert not ok
+
+
+def test_pytest_gate_names_the_venv_when_pytest_is_missing(monkeypatch):
+    monkeypatch.setattr(release, "run_cmd", lambda argv, **k: cp("", code=1, stderr="No module named pytest"))
+    name, ok, detail = release.gate_pytest("/hermes/runtime/python")
+    assert name == "pytest" and not ok and "--python .venv/bin/python" in detail

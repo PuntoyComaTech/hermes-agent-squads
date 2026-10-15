@@ -95,6 +95,13 @@ def state(home):
     return json.loads((home / "local" / "state" / "watch.json").read_text())
 
 
+def digest(home):
+    """What the tracking-updates agent writes after a wake; it confirms the pending change as reviewed."""
+    d = home / "local" / "state" / "digests"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "2026-10-15.json").write_text('{"date": "2026-10-15", "tags": [], "items": []}')
+
+
 # --- gate contract ----------------------------------------------------------------------------------------------
 
 def test_same_tag_does_not_wake(up, home, capsys):
@@ -115,7 +122,8 @@ def test_new_tag_wakes_with_a_filtered_file_under_the_cap(up, home, capsys):
     assert len(text) <= 15000 < len(full.read_text())
     assert re.search(r"kanban", text, re.I) and re.search(r"cron", text, re.I)
     assert "(https://" not in text  # commit links are stripped
-    assert state(home)["reviewed"]["release"] == "v0.22.1"
+    assert state(home)["reviewed"]["release"] == "v0.22.0"  # reviewed only once the digest exists
+    assert state(home)["pending"]["reviewed"]["release"] == "v0.22.1"
 
 
 def test_two_new_tags_share_the_cap(up, home, capsys):
@@ -125,10 +133,30 @@ def test_two_new_tags_share_the_cap(up, home, capsys):
     assert sum(len(Path(p).read_text()) for p in ctx["filtered"]) <= 15000
 
 
-def test_second_run_after_a_wake_is_silent(up, home, capsys):
+def test_second_run_after_a_digest_is_silent(up, home, capsys):
     seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
     assert run_gate(up, home, capsys=capsys)["wakeAgent"] is True
+    digest(home)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
+    assert state(home)["reviewed"]["release"] == "v0.22.1" and "pending" not in state(home)
+
+
+def test_a_failed_digest_turn_wakes_again(up, home, capsys):
+    """No digest file after a wake (the agent turn failed): the change is not lost, the next run reports it."""
+    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    assert run_gate(up, home, capsys=capsys)["wakeAgent"] is True
+    again = run_gate(up, home, capsys=capsys)
+    assert again["wakeAgent"] is True and again["context"]["tags"] == ["v0.22.1"]
+    assert state(home)["reviewed"]["release"] == "v0.22.0"
+
+
+def test_a_digest_older_than_the_wake_does_not_confirm_it(up, home, capsys):
+    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    digest(home)
+    old = home / "local" / "state" / "digests" / "2026-10-15.json"
+    os.utime(old, (1, 1))
+    assert run_gate(up, home, capsys=capsys)["wakeAgent"] is True
+    assert run_gate(up, home, capsys=capsys)["wakeAgent"] is True
 
 
 def test_etag_gives_304_and_stored_etag_survives(up, home, capsys):
@@ -182,6 +210,7 @@ def test_local_hermes_change_wakes(up, home, capsys):
     seed(home, release="v0.22.1", hermes="0.21.7", squads=None)
     out = run_gate(up, home, capsys=capsys)
     assert out["context"]["changed"] == ["hermes"] and out["context"]["hermes"] == {"from": "0.21.7", "to": LOCAL}
+    digest(home)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
 
 
@@ -206,6 +235,7 @@ def test_squads_version_on_main_wakes_once(up, home, capsys):
     sq = out["context"]["squads"]
     assert sq["from"] == "2.0.0" and sq["to"] == "2.1.0" and "studio" in sq["changelog_excerpt"]
     assert "2.0.0 - 2026-10-15" not in sq["changelog_excerpt"]
+    digest(home)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # reviewed, not installed: no daily nagging
 
 
@@ -222,7 +252,8 @@ def test_squads_not_published_or_not_installed_is_silent(up, home, capsys):
 def test_first_run_baseline_is_the_local_version(up, home, capsys):
     out = run_gate(up, home, capsys=capsys)  # local 0.22.0, newest final v0.22.1
     assert out["context"]["tags"] == ["v0.22.1"] and out["context"]["release_from"] == "v0.22.0"
-    assert state(home)["reviewed"] == {"release": "v0.22.1", "hermes": LOCAL, "squads": None}
+    assert state(home)["reviewed"] == {"release": "v0.22.0", "hermes": LOCAL, "squads": None}
+    assert state(home)["pending"]["reviewed"] == {"release": "v0.22.1", "hermes": LOCAL, "squads": None}
 
 
 def test_first_run_with_a_local_build_ahead_of_the_release_is_silent(up, home, capsys):

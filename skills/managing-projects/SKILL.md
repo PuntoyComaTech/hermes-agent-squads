@@ -12,27 +12,23 @@ description: "Registers Hermes Projects across lead and workers. Use when a squa
 
 ## Procedure
 
-1. Collect the project name and its real folder path; never impose a fixed
-   layout (`docs/decisions.md` V-04).
-2. Run `scripts/hpy squadctl.py project add <squad> <name> <path>`. It runs
-   `hermes project create` in the lead and in every worker of the squad.
-3. Cards then carry `--project <slug>` for a deterministic worktree and branch
-   (`hermes kanban create --help`).
-4. Selecting a project in a bot: `hermes -p <bot> project use <slug>`.
-5. Later changes (`add-folder`, `rename`, `archive`): run
-   `hermes -p <bot> project <action>` in the lead and every worker.
+1. Collect the project name and its real folder path; never impose a layout
+   (`docs/decisions.md` V-04).
+2. Run `scripts/hpy squadctl.py project add <key> "<name>" <path> --dry-run`,
+   show it, then run it without `--dry-run`. It runs `hermes project create`
+   with the squad board in the lead and every worker.
+3. Cards then take `--project <slug>` (`hermes kanban create --help`).
+4. Later changes (`add-folder`, `set-primary`, `rename`, `archive`): run
+   `hermes -p <bot> project <action> ...` for the lead and every worker.
 
 ## Pitfalls
 
-- Creating the project in the lead only: workers then report "no projects yet"
-  and their sessions cannot join the project's grouping.
-- Hand-writing project rows into a database: always use the CLI
+- Creating the project in the lead only: Project state is per profile
+  (`hermes project --help`), so workers report "no projects yet".
+- Writing project rows into a database by hand: use the CLI
   (`hermes_cli/projects_cmd.py` owns the state).
-- Expecting Projects to be shared across profiles or machines: state is
-  per-profile (`hermes project --help`).
 
 ## Verification
 
 - `hermes -p <bot> project list` shows the project in the lead and each worker.
-- A test card with `--project <slug>` anchors its worktree under the project's
-  primary folder.
+- `local/installed.yaml` -> `projects.<slug>.squads` lists the squad.

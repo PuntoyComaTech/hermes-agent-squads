@@ -1,47 +1,43 @@
 # Brand onboarding
 
-The lead runs onboarding once per brand. Research first, ask second: only ask what the research could not settle and no brand file already answers. Questions go to the user in rounds of five at most.
+Ask only what research and the brand files leave open.
 
 ## Procedure
 
-1. Get the name and whatever exists: website, social profiles, Google Maps, product documents, files the user sent (note their paths).
-2. File one `research` card first (stage `research`): public sources only, and hand it a short brief. Ask it for: website facts, colors and typefaces as seen (HEX), active social accounts, review themes with verbatim quotes, and three competitors with what they run today.
-3. Draft `brand.md` from `templates/brand.md`: Facts, Audience, Competitors and Voice filled from the research; Proof points marked `unverified` until the user confirms each; `status: draft`.
-4. Ask the required questions below in rounds of five; write each answer into `brand.md` as it arrives and show the change.
-5. On the user's explicit approval of `brand.md` (and `DESIGN.md` once the producer exists): set `status: active`, add a `Changes` line `v<N> <date> approved`, and offer the 90-day plan.
-
-The research stage returns files under `research/` with a URL and a date per claim. Anything without a source is not used.
+1. Get the brand name and what exists: website, social profiles, Google Maps listing, product documents, files the user sent (note their paths).
+2. File one `research` card (marketing-research, `skills: [researching-markets]`, key per `brand-contract` step 5). Ask for: website facts, colors (HEX) and typefaces as seen, active social accounts, review themes with verbatim quotes, and three competitors with what they run today. Every claim comes back with a URL and a date; a claim without both is not used.
+3. Draft `brand.md` from `templates/brand.md` with `product-marketing`: Facts, Audience, Competitors and Voice from the research; every proof point `Verified: no` until the user confirms it; `status: draft`.
+4. Ask the Required questions below, five per message at most. Write each answer into `brand.md` as it arrives and show the change.
+5. When the user approves `brand.md` (and `DESIGN.md` once the producer has written it): set `status: active`, add the `Changes` line `v<N> <date> approved`, and offer the 90-day plan.
 
 ## Required (10)
 
 1. Name and what it does, in one sentence. -> Facts.
 2. What it sells, and at what price. -> Facts.
 3. Who it is for, and who it is not for. -> Audience.
-4. Country, city and markets; language, form of address (`brand.md -> address`: informal or formal), currency and timezone. -> frontmatter.
-5. Website and social profiles, if any. -> Facts.
-6. The main goal for the next 90 days, and how the user will know it was achieved. -> Facts.
-7. Two or three competitors or alternatives, and how each falls short. -> Competitors.
-8. How the brand speaks: three adjectives, banned words, emojis and call-to-action rules. -> Voice.
+4. Country, city and markets; language, form of address (informal or formal), currency and timezone. -> frontmatter.
+5. Website and social profiles. -> Facts.
+6. The main goal for the next 90 days, and the number that shows it was reached. -> Facts.
+7. Two or three competitors or alternatives, and where each falls short. -> Competitors.
+8. How the brand speaks: three adjectives, banned words, emoji use and call-to-action rules. -> Voice.
 9. Logo, colors and typefaces (files), or permission to propose them. -> `DESIGN.md`.
 10. Monthly budget for ads and tools; "zero" is a valid answer. -> Facts.
 
 ## Recommended
 
-- Channels used today, what works, and how often the user wants to post on each. -> frontmatter `channels` + `weekly_quota`.
-- What was already done that is worth keeping.
-- Customers' literal phrases; testimonials with permission. -> Audience + Proof points (`Permission to use: yes`).
+- Channels used today, what works, and posts per week per channel. -> frontmatter `channels`, `weekly_quota`.
+- Past work worth keeping.
+- Customers' literal phrases; testimonials with permission. -> Audience, Proof points (`Permission to use: yes`).
 - Objections heard and the answers. -> Audience.
 - Legal or industry restrictions (health, finance, alcohol, minors). -> Restrictions.
 - Who approves, when the brand is a client. -> frontmatter `approver`.
 - What to ignore this quarter. -> Restrictions.
 - Key dates: seasons, launches, local holidays. -> Restrictions.
-- How bold the brand can be: conservative, balanced or bold. -> Restrictions.
-- Available assets: photos, videos, products to photograph, licensed music.
+- Creative risk: conservative, balanced or bold. -> Restrictions.
+- Available assets: photos, videos, products to photograph, licensed music. -> `identity/`.
 
-## Only if applicable
-
-B2B, SaaS or e-commerce with data:
+## Only for B2B, SaaS or e-commerce with data
 
 - Buyer personas and decision roles.
-- Funnel numbers (visits, leads, orders, CAC, repeat purchases).
+- Funnel numbers: sessions, leads, orders, CAC, repeat purchase rate.
 - Connected tools: Google Analytics, Search Console, CRM, email provider.

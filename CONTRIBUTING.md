@@ -1,16 +1,16 @@
 # How to contribute
 
-> Rules for changing this repository. They apply to people and to any AI that edits the files. Read
-> `AGENTS.md` first; its Rules apply here.
+Read `AGENTS.md` first; its Rules apply here, to people and to AI agents.
 
 ## Rules
 
 - **Manifests follow the schema** (`squads/_schema/squad.schema.json`); cross-field rules (one lead, chain assignees
   exist, lanes exist, worker names prefixed by the squad key) are enforced by `squadctl` and `tests/`.
-- **Tests and lint must stay green**: `python3 -m pytest` and `scripts/hpy skill_lint.py skills squads`.
+- **Tests and lint must stay green**: `.venv/bin/python -m pytest` (a venv with `pytest`, `PyYAML`, `jsonschema`)
+  and `scripts/hpy skill_lint.py skills squads`.
 - **Keep the tree clean before a local install**: `hermes profile install <path>` copies everything inside the
-  distribution-owned paths (`skills/`, `scripts/`, `squads/`), `__pycache__` included; run `git clean -nXd` to
-  preview, then `git clean -fXd`.
+  distribution-owned paths (`skills/`, `scripts/`, `squads/`), `__pycache__` included; run
+  `git clean -nXd skills scripts squads` to preview, then `git clean -fXd skills scripts squads`.
 
 ## Naming conventions
 
@@ -38,18 +38,18 @@ HERMES_HOME=$T hermes profile update builder-test -y             # after an edit
 HERMES_HOME=$T $T/profiles/builder-test/scripts/squadctl plan --self --builder builder-test
 ```
 
-`apply <key>` needs a models file (`--models fixture.yaml`, the shape in `tests/fixtures`); keep the tree clean
-before the install, and delete `$T` when done.
+`apply <key>` needs `--models <file>` in the `local/installed.yaml` shape (`bots:` and `lanes:` maps of `provider`,
+`model`, `reasoning`). Delete `$T` when done.
 
 ## Proposing a new squad
 
 1. Open an *issue* with the purpose in two lines, what reaches the user (for example, in jobs: "the link to the
    opening and a CV made for it"), and what the user decides and what is irreversible.
-2. Design it with the `designing-squads` skill: one visible lead, at most 5 bots (D-001), each with a reason
-   to exist (a permission boundary, independence, another reasoning effort or context size), a chain and a
-   board. The builder can open the PR for you.
-3. Add its row to the squads table in `README.md`, its decisions to `docs/decisions.md`, and run the lint and the
-   tests.
+2. Design it with the builder (`skills/designing-squads`), which writes `local/squads/<key>/`. Copy that
+   directory to `squads/<key>/` in your clone and add a `README.md`; the builder can open the PR for you
+   (`skills/contributing-upstream`).
+3. Add its row to the squads table in `README.md` and its decisions to `docs/decisions.md`, then run the lint
+   and the tests.
 
 ## Improving an existing squad
 

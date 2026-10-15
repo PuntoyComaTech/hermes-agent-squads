@@ -1,6 +1,6 @@
 # Rory Sutherland
 
-**Lens:** Most marketing problems are perception problems, not reality problems, humans run on "psycho-logic," not economic logic, so the highest-leverage move changes how something is framed, felt, or signaled rather than what it objectively is.
+**Lens:** Most marketing problems are perception problems, not reality problems. Humans run on "psycho-logic," not economic logic, so the highest-leverage move changes how something is framed, felt, or signaled rather than what it objectively is.
 
 ## Core frameworks
 

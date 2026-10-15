@@ -1,12 +1,10 @@
 # three.js and React Three Fiber
 
-3D is only for showing a product, a space or an idea a photo cannot; otherwise use a video or an image.
-
 ## Budget
 
 - Bundle: the core plus one loader helper, under ~180 kB gzipped before assets. Add a library only when it removes more code than it adds.
 - Assets: glTF/GLB compressed with Draco or Meshopt; textures as KTX2/basis when heavy, never a 4K PNG.
-- One canvas per page. Load it lazily with `client:only` (or a dynamic import) so it never delays the first render and never runs on the server.
+- One canvas per page, loaded after the first render and never on the server: Astro `client:only="react"`, Next.js and TanStack Start a dynamic import in a client component.
 
 ## three.js baseline
 
@@ -31,19 +29,18 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 - `useFrame` for per-frame work; keep the callback trivial (a few property writes) and read scroll progress from a shared ref, not from React state.
 - drei helpers (`Environment`, `useTexture`, `ScrollControls`, `OrbitControls`, `AdaptiveDpr`) are preferred over hand-written equivalents.
 - Dispose: drei handles loaded assets, but a manually created geometry/material in a `useMemo` must be disposed in `useEffect` cleanup.
-- Mount the canvas with `client:only` in Astro and inside a client component in Next; never render WebGL on the server.
 
 ## Scroll-driven scenes
 
 - Prefer driving the scene from DOM scroll: read a normalized progress in `useFrame` from a GSAP `ScrollTrigger` (`trigger.scroll()`) or a scroll progress ref, and map it to camera position, uniforms or a clip's `mixer.setTime`. Keep the DOM the source of truth for accessibility and pinning.
-- `ScrollControls` (drei) is fine for a self-contained canvas page; it wraps its own scroller.
+- `ScrollControls` (drei) only for a page that is one canvas; it brings its own scroller.
 - Camera move: interpolate with `damp`/`lerp` (frame-rate independent), never set the camera from a raw scroll listener.
 - Reduced motion: replace scroll-driven camera moves with a single static framing.
 
 ## Quality and fallback
 
-- Lighting reads as one place: a studio setup (`Environment preset` or three lights). No default dark scene with a single point light.
-- Color: calibrated output (`SRGBColorSpace`, tone mapping `THREE.ACESFilmicToneMapping`) and textures in sRGB. Check the scene on a phone at 60 fps target: if it drops to 30, cut DPR, shadows or geometry before shipping.
+- Lighting: drei `<Environment preset="studio" />` or three lights; never a single point light on a dark scene.
+- Color: `renderer.toneMapping = THREE.ACESFilmicToneMapping`, color textures with `colorSpace = THREE.SRGBColorSpace`. On a phone below 60 fps, cut DPR, then shadows, then geometry.
 - Always ship a fallback: a static rendered image (poster) shown while loading, for reduced motion, when WebGL is unavailable, or when the device reports a low tier.
 - Canvas needs an accessible name and role, and any information it carries must exist as text or an image elsewhere.
 

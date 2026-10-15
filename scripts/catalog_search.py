@@ -121,7 +121,7 @@ def load_plugins(src: Path) -> list[dict]:
         if not name or name in removed:
             continue
         desc = str(data.get("description") or "")
-        disclosure = re.search(r"Disclosure\s*[—:-]+\s*(.*)", " ".join(desc.split()))
+        disclosure = re.search(r"Disclosure\s*[\u2014:-]+\s*(.*)", " ".join(desc.split()))
         caps = data.get("capabilities") or {}
         tier = "official" if data.get("tier") == "official" else "community"
         out.append(entry(

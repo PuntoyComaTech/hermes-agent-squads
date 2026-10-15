@@ -26,9 +26,9 @@ use the short `builder chat` form (`hermes -p builder chat` always works).
 You need Hermes Agent with a connected model provider, a machine that stays on for
 automations, and (optional) a messaging platform where the leads deliver results.
 
-The builder asks which model each bot gets, suggests from your connected providers
-(`scripts/model_advisor.py`), and shows a diff before every change. Later updates:
-ask the builder "what changed upstream", or run `hermes profile update builder`.
+The install creates one profile, `builder`. The builder suggests a model per bot from your
+connected providers and shows a diff before every change. Updates: ask the builder "what
+changed upstream", or run `hermes profile update builder`.
 
 ## Desktop setup
 
@@ -109,9 +109,9 @@ flowchart LR
 ## How work flows
 
 A card is one bounded job; each stage creates the next as a dependent card
-(`--parent`), so work moves without you relaying anything. Reviewers return one fix round,
-then the lead asks you only what is yours to decide. Cron jobs run behind zero-LLM gates:
-a quiet tick costs nothing.
+(`--parent`), so work moves without you relaying anything. Reviewers send fixable findings
+back as fix cards (rounds per squad in the diagrams above), then the lead asks you only what
+is yours to decide. Cron jobs run behind zero-LLM gates: a quiet tick costs nothing.
 
 ## For AI agents
 

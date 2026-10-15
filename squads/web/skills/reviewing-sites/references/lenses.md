@@ -1,6 +1,6 @@
 # The five lenses
 
-One subagent per lens, clean context, no writes. Each finding: page, what is wrong, how to fix it, one line each. Severity `critical` blocks `APPROVED`; everything else is a `note`.
+One subagent per lens, clean context, no writes. Each finding: page, what is wrong, the fix, one line each. Severity `critical` blocks `APPROVED`; everything else is a `note`. Thresholds: `site.yaml -> automation.thresholds`, as applied in `checks.json -> thresholds`.
 
 ## Contents
 
@@ -12,46 +12,43 @@ One subagent per lens, clean context, no writes. Each finding: page, what is wro
 
 ## 1. Acceptance
 
-- Walk each criterion of `spec.md -> Milestones` for this milestone on mobile (390 px) and desktop: page, action, expected result.
-- Forms: submit with valid data (arrives where it should), invalid data (clear error, nothing lost), and empty data.
+- Walk each criterion of `spec.md -> Milestones` for this milestone at 390 px and 1440 px: page, action, expected result.
+- Forms: submit valid data (arrives), invalid data (error shown, input kept) and empty data.
 - Navigation: every menu entry, the 404 path, the language switch keeping the current page, a deep link.
-- Content: every page has the content the spec promised; drafted copy is still marked; no placeholder text.
-- Copy the exact criterion text into the finding so the fixer knows what failed.
+- Content: every page has what the spec promised; drafted copy is still marked; no placeholder text.
+- Quote the criterion text in the finding.
 
 ## 2. Visual
 
-- Cold look at the screenshots first: does the page read as deliberate at 390 px before any zooming?
-- Hierarchy: one dominant element per viewport; type steps visibly different; nothing competing with the main action.
-- Spacing: rhythm from one scale; no cramped section next to a generous one by accident.
-- Typography: measure 45-75 characters, no orphans in headings, weights consistent.
-- Mobile: tap targets, overflow, sticky elements not covering content, cookie/consent strip not blocking the CTA.
-- Against `DESIGN.md` when present: palette, fonts, tone. Note generic patterns: template hero, mismatched icon set, default accent color.
-- Dark/light or theme variations only when the spec asked for them.
+- Screenshots first: at 390 px the page has one dominant element per viewport and nothing competes with the main action.
+- Type steps visibly different; spacing from one scale; measure 45-75 characters; no orphans in headings.
+- Mobile: tap targets, no horizontal overflow, sticky elements and the consent strip never cover content or the CTA.
+- Against `DESIGN.md`: palette, fonts, tone. Note template patterns: template hero, mixed icon sets, default accent color.
 
 ## 3. WCAG 2.2 AA
 
-- axe-core results from `checks.json`: any `critical` or `serious` is critical; `moderate` is a note.
-- Keyboard: full path through the page, logical order, visible focus (`:focus-visible`), no trap, skip link works.
-- Contrast: 4.5:1 body, 3:1 large and UI components; check the accent color on each background it appears on.
-- Text alternatives: `alt` on meaningful images, empty on decoration, accessible names on icon buttons.
-- Structure: `lang` set, headings in order, landmarks present, form fields labeled, errors tied to fields.
-- Target size 24x24 px minimum (2.5.8), no drag-only interaction, no autoplay over 5 s without a control.
-- Reduced motion: with `prefers-reduced-motion: reduce`, content is complete and nothing loops.
+- `checks.json` axe results (`axe` checks): `critical` or `serious` is critical; `moderate` is a note.
+- Keyboard: full path, logical order, visible focus (SC 2.4.7), focus not obscured (SC 2.4.11), no trap (SC 2.1.2), skip link works.
+- Contrast: SC 1.4.3 (4.5:1, large text 3:1) and SC 1.4.11 (3:1); check the accent color on every background it appears on.
+- Text alternatives (SC 1.1.1): `alt` on meaningful images, empty on decoration, accessible names on icon buttons.
+- Structure: `lang` set (SC 3.1.1), headings in order, landmarks, labeled fields (SC 3.3.2), errors tied to fields (SC 3.3.1).
+- Target size at least 24x24 px (SC 2.5.8); no drag-only interaction (SC 2.5.7); autoplay over 5 s has a control (SC 2.2.2).
+- `prefers-reduced-motion: reduce`: content complete, nothing loops.
 
 ## 4. Core Web Vitals
 
-- Compare against `site.yaml -> automation.thresholds` (`lighthouse_mobile`, or `lighthouse_mobile_ssr` for `dynamic_seo` and `saas`) using the numbers in `checks.json`, never a remembered score.
-- LCP under 2.5 s: what is the element, is it preloaded, is it an image with the right size and format.
-- CLS under 0.1: images and embeds have dimensions; fonts do not shift layout; no banner inserted after load.
-- INP under 200 ms: no long task over 50 ms on the critical path; third-party scripts justified.
-- Weight: JS budget for the page, image bytes above the fold, render-blocking CSS and fonts.
+- LCP and CLS: `checks.json -> scores.<page>.lcp_ms` and `.cls` against `core_web_vitals`; the Lighthouse scores against `lighthouse_mobile` (`lighthouse_mobile_ssr` overrides it for `dynamic_seo` and `saas`).
+- INP has no lab value in Lighthouse. Record a performance trace with the chrome-devtools MCP while using the main action on mobile emulation, and compare its INP to `core_web_vitals.inp_ms`; `scores.<page>.tbt_ms` over 200 is a note.
+- LCP over budget: name the LCP element, whether it is preloaded, and its size and format.
+- CLS over budget: images and embeds without dimensions, font swaps, content inserted after load.
+- Weight: JS per page, image bytes above the fold, render-blocking CSS and fonts.
 
-## 5. Security and SEO hygiene
+## 5. Security and SEO
 
-- Secrets: `check_site.py` scan of loaded bundles and HTML plus the repo and the branch history; any key shape is critical and stops the chain.
-- Dependencies: known high or critical vulnerabilities listed; a fresh lockfile; no unexpected postinstall.
-- Headers: at least `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` or CSP `frame-ancestors`, HSTS on https; a CSP or a written reason why not.
-- Mixed content: no `http://` asset on an https page; cookies set with `secure` and `SameSite=Lax` or `Strict` if any.
-- Forms: no sensitive data in the URL; POST over https; honeypot or rate limit on public forms; server-side validation evidenced by the backend lens' checks.
-- SEO: title and description unique per page, canonical, sitemap, robots, Open Graph image, structured data where the type fits, headings match the page purpose.
-- Privacy: no third-party tracker beyond what the spec and the site's legal pages declare.
+- Secrets: any `secret-*`, `repo-secrets` or `repo-committed-env` failure in `checks.json` is critical and stops the chain.
+- Dependencies: `pnpm -C repo audit --audit-level high` lists none; no unexpected `postinstall`.
+- Headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` or CSP `frame-ancestors`, HSTS on https; a CSP or a written reason why not.
+- Mixed content: no `http://` asset on an https page; cookies `Secure` and `SameSite=Lax` or `Strict`.
+- Forms: no sensitive data in the URL; POST over https; honeypot or rate limit on public forms.
+- SEO: unique title and description per page, canonical, sitemap, robots, Open Graph image, structured data where the type fits.
+- Privacy: no third-party tracker beyond what the spec and the legal pages declare.

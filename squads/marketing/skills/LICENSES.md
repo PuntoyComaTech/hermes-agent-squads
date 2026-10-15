@@ -1,6 +1,6 @@
 # Third-party licences
 
-Copyright and licence notices for the third-party skills moved into this directory. The skills were adapted to this squad's contracts; the notices below are kept as each licence requires.
+Licence notices for the third-party skills adapted in this directory, kept as each licence requires.
 
 ## coreyhaines31/marketingskills
 
@@ -33,7 +33,7 @@ SOFTWARE.
 
 ## axelfreeman/marketing-mindset
 
-Skill: `marketing-mindset` (adapted; only SKILL.md and references/ were moved).
+Skill: `marketing-mindset` (adapted).
 Source: https://github.com/axelfreeman/marketing-mindset
 
 ```text
