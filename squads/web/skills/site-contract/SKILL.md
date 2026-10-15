@@ -5,7 +5,7 @@ description: "Defines the web squad's files, ids, gates and handoffs. Use when a
 
 # Site contract
 
-Shared rules of the web squad. File and card formats live in `references/file-formats.md`. The squad's scripts live in the distribution's `squads/web/scripts/`; the cron script `web_watch.py` is also copied into the lead profile's `scripts/` when the squad is applied.
+Shared rules of the web squad. File and card formats live in `references/file-formats.md`. The squad's worker scripts ship inside the skills (`site-contract/scripts/check_site.py`, `building-frontend/scripts/scaffold_site.py`); `web_watch.py` ships in `squads/web/scripts/` and is copied into the lead profile's `scripts/` when the squad is applied.
 
 ## When to Use
 

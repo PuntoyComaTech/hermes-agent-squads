@@ -34,7 +34,7 @@ so a rerun or a builder-filed chain (`squadctl chain studio piece --project <slu
 | Script | Where | Does |
 |---|---|---|
 | `studio_project.py` | `skills/studio-contract/scripts/` | `init` creates or completes the layout; `check` verifies it and the brief front matter (`--json`) |
-| `render_check.py` | `skills/producing-motion/scripts/` | ffprobe spec, EBU R128 loudness via `ffmpeg ebur128`, contact sheet, duration/fps/resolution vs the brief (`--json`) |
+| `render_check.py` | `skills/studio-contract/scripts/` | ffprobe spec, EBU R128 loudness via `ffmpeg ebur128`, contact sheet, duration/fps/resolution vs the brief (`--json`); writes `<name>.check.json` per file |
 
 Both are Python 3 with `--help`; `render_check.py` needs `ffprobe`/`ffmpeg` on PATH.
 

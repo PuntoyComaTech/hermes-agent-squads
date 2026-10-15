@@ -7,7 +7,8 @@
 
 Reads the expectations from the brief front matter (duration, fps, resolution, format, loudness) and lets
 each flag override one of them. Uses ffprobe for the spec, `ffmpeg -af ebur128` for loudness and ffmpeg
-`fps,scale,tile` for the contact sheet. Writes the contact sheet only when asked.
+`fps,scale,tile` for the contact sheet. Writes the contact sheet only when asked. Every file gets a
+`<name>.check.json` report next to it (studio-contract); `--json` prints the whole run to stdout.
 
 Exit codes: 0 pass, 1 a deliverable violates the brief, 2 ffprobe/ffmpeg missing or bad usage.
 """
@@ -39,7 +40,8 @@ def front_matter(path: Path) -> dict:
     for line in match.group(1).splitlines():
         if ":" in line and not line.lstrip().startswith("#"):
             key, value = line.split(":", 1)
-            data[key.strip()] = value.strip().strip('"')
+            value = value.split(" #", 1)[0].strip().strip('"')
+            data[key.strip()] = value
     return data
 
 
@@ -197,6 +199,13 @@ def main(argv: list[str] | None = None) -> int:
             errors.append({"file": str(path), "error": str(exc)})
     ok = not errors and all(not entry["violations"] for entry in results)
     result = {"ok": ok, "brief": str(args.brief) if args.brief else None, "files": results, "errors": errors}
+    for entry in results:
+        report = Path(entry["file"]).with_suffix(".check.json")
+        report.write_text(json.dumps({**entry, "ok": not entry["violations"]}, indent=2) + "\n", encoding="utf-8")
+    for entry in errors:
+        report = Path(entry["file"]).with_suffix(".check.json")
+        report.write_text(json.dumps({"file": entry["file"], "ok": False, "error": entry["error"]}, indent=2) + "\n",
+                          encoding="utf-8")
     if args.json:
         print(json.dumps(result, indent=2))
     else:
