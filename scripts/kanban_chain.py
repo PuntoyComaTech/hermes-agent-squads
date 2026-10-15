@@ -26,16 +26,24 @@ import subprocess
 import sys
 from pathlib import Path
 
-try:
-    import hermes_yaml as yaml
-except ImportError:  # outside the Hermes runtime (tests, CI)
-    import yaml
-
 SCRIPTS = Path(__file__).resolve().parent
 
 
 class ChainError(Exception):
     pass
+
+
+def _yaml():
+    """YAML module on first use, never at import: `--help` must work without PyYAML (scripts/hpy provides
+    hermes_yaml; a bare python3 falls back to PyYAML when a command actually reads YAML)."""
+    try:
+        import hermes_yaml as y  # the Hermes runtime's YAML module
+    except ImportError:
+        try:
+            import yaml as y
+        except ImportError:
+            raise ChainError("no YAML module: run scripts/hpy kanban_chain.py (Hermes runtime) or install PyYAML") from None
+    return y
 
 
 def slugify(text: str) -> str:
@@ -55,7 +63,7 @@ def deep_merge(base: dict, over: dict) -> dict:
 
 
 def load_yaml(path: Path) -> dict:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = _yaml().safe_load(path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
 
 
@@ -129,8 +137,31 @@ def task_id(out: str) -> str:
         return out.split()[-1]
 
 
+def project_primary(hermes_bin: str, root: Path, lead: str, project: str) -> str | None:
+    """Primary folder of the project (`hermes project show` prints a `primary:` line). With a project and no
+    explicit workspace, kanban_db turns a `scratch` card into a git worktree of that repo; a plain folder is
+    not a repo, so cards default to `dir:<primary>` instead."""
+    try:
+        proc = subprocess.run([hermes_bin, "-p", lead, "project", "show", project], capture_output=True, text=True,
+                              timeout=120, env={**os.environ, "HERMES_HOME": str(root)})
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    match = re.search(r"^\s*primary:\s*(\S.*?)\s*$", proc.stdout, re.M)
+    return match.group(1) if match else None
+
+
 def create(result: dict, hermes_bin: str, root: Path, workspace: str | None) -> None:
     env = {**os.environ, "HERMES_HOME": str(root)}
+    if not workspace:
+        primary = project_primary(hermes_bin, root, result["lead"], result["project"])
+        if primary:
+            workspace = f"dir:{primary}"
+        else:
+            result["warnings"].append(
+                f"project {result['project']}: primary path unknown; pass --workspace dir:<folder> "
+                "(the CLI default turns a project card into a git worktree)")
     prev = None
     for card in result["cards"]:
         proc = subprocess.run(card_command(hermes_bin, result, card, prev, workspace), capture_output=True, text=True,
@@ -162,7 +193,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--body", default="")
     ap.add_argument("--when", default="", help="comma list of conditions that enable `when:` stages")
     ap.add_argument("--run-id", help="idempotency run id (default: slug of the title)")
-    ap.add_argument("--workspace", help="pass --workspace to every card (default: the project's)")
+    ap.add_argument("--workspace", help="pin every card's workspace (default: dir:<project primary path>, so a "
+                                       "project card is never created as a git worktree)")
     ap.add_argument("--squads-dir", type=Path, default=SCRIPTS.parent / "squads")
     ap.add_argument("--home", type=Path, default=Path(os.environ.get("HERMES_HOME") or Path.home() / ".hermes" / "profiles" / "builder"),
                     help="builder profile home holding local/ (default $HERMES_HOME)")

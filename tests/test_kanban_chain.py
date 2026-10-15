@@ -20,6 +20,13 @@ argv = sys.argv[1:]
 db = os.environ["FAKE_KANBAN_DB"]
 state = json.load(open(db)) if os.path.exists(db) else {{"tasks": [], "calls": []}}
 state["calls"].append({{"argv": argv, "hermes_home": os.environ.get("HERMES_HOME")}})
+json.dump(state, open(db, "w"))
+cmd = argv[2:] if argv[:1] == ["-p"] else argv
+if cmd[:2] == ["project", "show"]:
+    print("Project: demo")
+    print("   primary: " + os.environ["FAKE_PROJECT_PRIMARY"])
+    print("   * " + os.environ["FAKE_PROJECT_PRIMARY"])
+    raise SystemExit(0)
 flags = {{}}
 i = argv.index("create") + 1
 title = argv[i]
@@ -53,6 +60,7 @@ def env(tmp_path, monkeypatch):
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
     db = tmp_path / "kanban.json"
     monkeypatch.setenv("FAKE_KANBAN_DB", str(db))
+    monkeypatch.setenv("FAKE_PROJECT_PRIMARY", str(tmp_path / "project"))
     monkeypatch.setenv("HERMES_HOME", str(home))
     return {"home": home, "squads": squads, "fake": fake, "db": db, "tmp": tmp_path}
 
@@ -89,9 +97,10 @@ def test_cards_are_chained_with_skill_key_project_and_lead(env):
     assert first["flags"]["--skill"] == "building-backend" and first["flags"]["--assignee"] == "web-backend"
     assert first["flags"]["--project"] == "demo" and first["flags"]["--created-by"] == "web"
     assert first["key"] == "web:milestone:demo:landing-page:api"
-    argv = db(env)["calls"][0]["argv"]
+    creates = [c for c in db(env)["calls"] if "create" in c["argv"]]
+    argv = creates[0]["argv"]
     assert argv[:5] == ["-p", "web", "kanban", "--board", "web"]
-    assert db(env)["calls"][0]["hermes_home"] == str(env["home"].parent.parent)  # root, not the builder profile
+    assert creates[0]["hermes_home"] == str(env["home"].parent.parent)  # root, not the builder profile
     out = json.loads(proc.stdout)
     assert [c["id"] for c in out["cards"]] == ["t_01", "t_02", "t_03", "t_04", "t_05"]
 
@@ -100,7 +109,8 @@ def test_rerun_is_idempotent(env):
     first = json.loads(run(env, "web", "milestone", "--json", "--when", "backend").stdout)
     second = json.loads(run(env, "web", "milestone", "--json", "--when", "backend").stdout)
     assert [c["id"] for c in first["cards"]] == [c["id"] for c in second["cards"]]
-    assert len(db(env)["tasks"]) == 5 and len(db(env)["calls"]) == 10
+    creates = lambda: [c for c in db(env)["calls"] if "create" in c["argv"]]  # noqa: E731
+    assert len(db(env)["tasks"]) == 5 and len(creates()) == 10
     third = json.loads(run(env, "web", "milestone", "--json", "--when", "backend", "--run-id", "second").stdout)
     assert len(db(env)["tasks"]) == 10 and third["cards"][0]["id"] == "t_06"
 
@@ -119,6 +129,36 @@ def test_lane_without_a_recorded_model_warns_and_omits_flags(env):
     out = json.loads(run(env, "jobs", "application", "--json").stdout)
     assert "lane 'review'" in out["warnings"][0]
     assert "--model" not in db(env)["tasks"][0]["flags"]
+
+
+def test_workspace_defaults_to_the_project_primary_folder(env):
+    """A project card must not fall into the CLI's git-worktree default; kanban_chain pins dir:<primary>."""
+    out = json.loads(run(env, "jobs", "application", "--json").stdout)
+    primary = env["tmp"] / "project"
+    assert all(t["flags"]["--workspace"] == f"dir:{primary}" for t in db(env)["tasks"])
+    assert not any("primary path unknown" in w for w in out["warnings"])
+
+
+def test_explicit_workspace_overrides_the_default(env):
+    run(env, "jobs", "application", "--json", "--workspace", "dir:/somewhere/else")
+    assert all(t["flags"]["--workspace"] == "dir:/somewhere/else" for t in db(env)["tasks"])
+
+
+def test_unresolvable_primary_warns_and_files_without_workspace(env):
+    stub = env["tmp"] / "hermes-show-fails"
+    stub.write_text(f"#!{sys.executable}\n"
+                    "import json, os, sys\n"
+                    "argv = sys.argv[1:]\n"
+                    "if argv[:2] == ['project', 'show']:\n"
+                    "    raise SystemExit(1)\n"
+                    "print(json.dumps({'id': 't_01'}))\n")
+    stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+    proc = subprocess.run([sys.executable, str(SCRIPT), "jobs", "application", "--project", "demo", "--title", "T",
+                           "--json", "--squads-dir", str(env["squads"]), "--home", str(env["home"]),
+                           "--hermes-bin", str(stub)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout
+    out = json.loads(proc.stdout)
+    assert any("primary path unknown" in w for w in out["warnings"])
 
 
 def test_local_override_adds_a_chain(env):
