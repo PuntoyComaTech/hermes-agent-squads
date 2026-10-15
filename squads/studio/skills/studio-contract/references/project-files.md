@@ -17,8 +17,8 @@ Formats used by every studio bot. A piece folder is `<project>/studio/<piece-id>
 
 ## brief.md
 
-YAML front matter at line 1, flat `key: value` lines (no nesting), then free notes. `render_check.py`
-and `studio_project.py check` read the keys; never rename them.
+YAML front matter at line 1, flat `key: value` lines (no nesting, `# comments` allowed), then free notes.
+`render_check.py` and `studio_project.py check` read the keys.
 
 ```yaml
 ---
@@ -43,8 +43,10 @@ One paragraph: where the piece is used and what it must communicate.
 - [ ] Text stays legible at 320 px wide.
 ```
 
-`duration`, `fps` and `resolution` must be positive numbers; `-` counts as unset. `loudness` is checked
-with a 0.5 LU tolerance by `render_check.py` unless a flag overrides it.
+`format`: mp4, webm, gif, png, png-sequence, glb or html. `duration` and `fps` are positive numbers for
+mp4, webm, gif and png-sequence; `resolution` (`WxH`) is required except for glb and html; `-` counts as
+unset. `loudness` (LUFS) requires an audio track and is checked with a 0.5 LU tolerance
+(`render_check.py --tolerance-lufs`).
 
 ## storyboard.md
 
@@ -60,8 +62,8 @@ Blender shot (`-` when it does not apply).
 
 ## assets/sources.md
 
-Append one row per external asset before it is used. `Licence` is a concrete identifier
-(`CC0-1.0`, `CC-BY-4.0`, `owned`, vendor name); an empty or unknown licence means the asset is unusable.
+One row per external asset (studio-contract step 4). `Licence` is a concrete identifier (`CC0-1.0`,
+`CC-BY-4.0`, `owned`, vendor name).
 
 | File | Source | Licence | Cost | Added by |
 |---|---|---|---|---|
@@ -70,8 +72,9 @@ Append one row per external asset before it is used. `Licence` is a concrete ide
 ## renders/ and the check report
 
 - Deliverables: `<piece-id>-<shot>-<NN>.<ext>`, `NN` counting from `01`; a new version is a new `NN`.
-- `render_check.py FILE --brief brief.md --contact-sheet auto --json` writes `<name>.check.json` next to
-  the render and exit 0 means the spec, the EBU R128 loudness and the contact sheet all passed.
+- `render_check.py FILE --brief brief.md --contact-sheet auto --json` writes `<name>.check.json` and
+  `<name>.contact.png` next to the render; exit 0 means the spec, the EBU R128 loudness and the contact
+  sheet all passed.
 - The report holds `duration`, `fps`, `resolution`, `loudness.integrated_lufs` and `violations`; hand the
   path to the lead in `metadata.paths`.
 - Interactive deliverables with `format: html` live in `renders/<piece-id>-<shot>-<NN>/` and are verified

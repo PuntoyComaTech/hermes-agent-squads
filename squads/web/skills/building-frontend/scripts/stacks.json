@@ -1,101 +1,94 @@
 {
   "_comment": "Pins scaffold_site.py writes. A bump needs a decisions.md line.",
-  "schema": 1,
+  "schema": 2,
   "updated": "2026-10-15",
-  "common": {
-    "node": ">=22",
-    "package_manager": "pnpm",
+  "node": ">=22",
+  "package_manager": "pnpm",
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "typescript": "7.0.2",
-    "lint_format": "@biomejs/biome 2.5.15",
-    "tests": "vitest 5.0.4",
-    "e2e": "@playwright/test 1.64.1"
+    "vitest": "5.0.4",
+    "@playwright/test": "1.64.1",
+    "lighthouse": "13.5.0",
+    "axe-core": "4.14.0"
   },
   "stacks": {
     "astro": {
       "type": "static",
       "why": "Almost no JavaScript on the wire, content in Markdown.",
-      "packages": {
-        "astro": "7.3.8",
-        "tailwindcss": "4.3.3",
-        "@tailwindcss/vite": "4.3.3",
-        "@astrojs/check": "0.9.10",
-        "@biomejs/biome": "2.5.15",
-        "typescript": "7.0.2",
-        "vitest": "5.0.4",
-        "@playwright/test": "1.64.1"
+      "dependencies": {
+        "astro": "7.3.8"
       },
-      "commands": {
-        "dev": "pnpm dev",
-        "build": "pnpm build",
-        "preview": "pnpm preview",
-        "test": "pnpm vitest run",
-        "check": "pnpm astro check"
+      "devDependencies": {
+        "@astrojs/check": "0.9.10",
+        "tailwindcss": "4.3.3",
+        "@tailwindcss/vite": "4.3.3"
+      },
+      "scripts": {
+        "dev": "astro dev",
+        "build": "astro build",
+        "preview": "astro preview",
+        "check": "astro check"
       },
       "output": "dist",
-      "entry": "src/pages/index.astro",
       "notes": "Static output by default; add an adapter only when a page needs a server."
     },
     "nextjs": {
       "type": "dynamic_seo",
       "why": "Server rendering and metadata for pages that must be indexed.",
-      "packages": {
+      "dependencies": {
         "next": "16.4.1",
         "react": "19.3.1",
-        "react-dom": "19.3.1",
-        "tailwindcss": "4.3.3",
-        "@tailwindcss/postcss": "4.3.3",
-        "@biomejs/biome": "2.5.15",
-        "typescript": "7.0.2",
-        "vitest": "5.0.4",
-        "@playwright/test": "1.64.1"
+        "react-dom": "19.3.1"
       },
-      "commands": {
-        "dev": "pnpm dev",
-        "build": "pnpm build",
-        "preview": "pnpm start",
-        "test": "pnpm vitest run",
-        "check": "pnpm tsc --noEmit"
+      "devDependencies": {
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "tailwindcss": "4.3.3",
+        "@tailwindcss/postcss": "4.3.3"
+      },
+      "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "preview": "next start",
+        "check": "tsc --noEmit"
       },
       "output": ".next",
-      "entry": "src/app/page.tsx",
       "notes": "Server components by default; a Cloudflare deploy goes through the provider's own Next adapter."
     },
     "tanstack": {
       "type": "saas",
       "why": "Public pages rendered on the server plus a fast private app.",
-      "packages": {
+      "dependencies": {
         "@tanstack/react-start": "1.169.2",
         "@tanstack/react-router": "1.170.44",
         "react": "19.3.1",
-        "react-dom": "19.3.1",
-        "tailwindcss": "4.3.3",
-        "@tailwindcss/vite": "4.3.3",
-        "@biomejs/biome": "2.5.15",
-        "typescript": "7.0.2",
-        "vitest": "5.0.4",
-        "@playwright/test": "1.64.1"
+        "react-dom": "19.3.1"
       },
-      "commands": {
-        "dev": "pnpm dev",
-        "build": "pnpm build",
-        "preview": "pnpm start",
-        "test": "pnpm vitest run",
-        "check": "pnpm tsc --noEmit"
+      "devDependencies": {
+        "vite": "8.3.4",
+        "@vitejs/plugin-react": "6.1.2",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "tailwindcss": "4.3.3",
+        "@tailwindcss/vite": "4.3.3"
+      },
+      "scripts": {
+        "dev": "vite dev",
+        "build": "vite build",
+        "preview": "vite preview",
+        "check": "tsc --noEmit"
       },
       "output": "dist",
-      "entry": "src/routes/index.tsx",
       "notes": "Public routes server-rendered for search engines; the private app is client-first."
     }
   },
   "motion": {
     "gsap": "3.15.0",
+    "@gsap/react": "2.1.2",
     "three": "0.186.1",
     "@react-three/fiber": "9.8.2",
     "@react-three/drei": "10.7.9",
-    "notes": "Installed only when the spec asks for motion or 3D; see building-frontend/references."
-  },
-  "audit": {
-    "lighthouse": "13.5.0",
-    "axe_core": "4.14.0"
+    "notes": "Added only when the spec asks for motion or 3D: pnpm add <name>@<pin>."
   }
 }

@@ -1,6 +1,6 @@
 # Current-state rubric
 
-Score each area 0-5, using only materials that exist. Write "scored from materials" in the section header when the score was not measured with the user.
+Score each area 0-5 from existing materials only. Write "scored from materials" in the section header when the user did not confirm the score.
 
 ## Scale
 
@@ -15,32 +15,32 @@ Score each area 0-5, using only materials that exist. Write "scored from materia
 
 ## Areas
 
-1. **Offer clarity**, can a stranger say what is sold, for whom and at what price in one line?
-2. **Audience**, ideal customer, who it is not for, and the job the offer is hired for.
-3. **Positioning**, why this instead of the alternatives, in the customer's words.
-4. **Brand voice**, adjectives, vocabulary rules, samples the user approved.
-5. **Visual identity**, logo, palette, typefaces, template set; usable by a producer without asking.
-6. **Website or landing**, loads fast, one clear action, contact path that works.
-7. **Social presence**, accounts exist, are active, and say the same thing as the offer.
-8. **Content rhythm**, a calendar with quotas that survives a busy week.
-9. **Social proof**, reviews, testimonials and results with permission and a source.
-10. **Local presence**, maps listing, hours, phone, address correct (when the brand is local).
-11. **Analytics**, which numbers exist, in which tool, exported how, refreshed how often.
-12. **Response loop**, how customer messages and reviews are answered, and how fast.
-13. **Budget and tools**, what is spent monthly, on what, and what it buys.
-14. **Ads readiness**, pixel or measurement in place, creative inventory, an explicit cap (only when ads are planned).
+1. **Offer clarity**: a stranger can say what is sold, to whom and at what price in one line.
+2. **Audience**: ideal customer, who it is not for, and the job the offer is hired for.
+3. **Positioning**: why this instead of the alternatives, in the customer's words.
+4. **Brand voice**: adjectives, vocabulary rules, voice samples the user approved.
+5. **Visual identity**: logo, palette, typefaces and templates a producer can use without asking.
+6. **Website or landing**: loads fast, one clear call to action, a working contact path.
+7. **Social presence**: accounts exist, post regularly and match the offer.
+8. **Content rhythm**: a calendar with quotas that holds in a busy week.
+9. **Social proof**: reviews, testimonials and results with permission and a source.
+10. **Local presence** (local brands only): maps listing with correct hours, phone and address.
+11. **Analytics**: which numbers exist, in which tool, how they are exported and how often.
+12. **Response loop**: how and how fast customer messages and reviews are answered.
+13. **Budget and tools**: monthly spend, on what, and what it buys.
+14. **Ads readiness** (only when ads are planned): pixel or conversion tracking, creative inventory, a spend cap.
 
 ## Reading the scores
 
-- The binding constraint is rarely the lowest score; it is the lowest score that blocks the next step. Say why.
+The binding constraint is the lowest-scored area that blocks the next step, which is not always the lowest score. State why it blocks.
 
 ## What each score implies for the plan
 
 | Score | Do next |
 | --- | --- |
-| 0-1 in offer, audience or positioning | Fix before planning content; pieces built on a fuzzy offer waste the quota |
-| 0-1 in identity or templates | Producer job first; every piece is cheaper after it |
-| 0-2 in rhythm or social proof | Build the weekly machine and the review ask before adding channels |
-| 0-2 in analytics | Pick one number to record weekly before any optimization |
-| 3 anywhere | Measure it or stop claiming it works |
-| 4-5 | Protect it, then spend the marginal effort on the area below it |
+| 0-1 in offer, audience or positioning | Fix before planning content |
+| 0-1 in identity or templates | Producer work first |
+| 0-2 in rhythm or social proof | Build the weekly rhythm and the review request before adding channels |
+| 0-2 in analytics | Record one number weekly before any optimization |
+| 3 anywhere | Measure it, or stop reporting it as working |
+| 4-5 | Keep it; spend extra effort on the next-lowest area |

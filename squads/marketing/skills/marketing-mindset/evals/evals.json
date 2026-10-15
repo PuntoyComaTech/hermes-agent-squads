@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "The user asks why the squad will not copy a competitor's tactic seen in a six-month-old case study.",
-      "expected_output": "The reasoning names the freshness rule and the source hierarchy (brand numbers, active competitors, customer words), and proposes checking what that competitor does today instead.",
+      "expected_output": "The reasoning names the source ranking (brand numbers, active competitors, customer words), and proposes checking what that competitor does today instead.",
       "files": []
     }
   ]

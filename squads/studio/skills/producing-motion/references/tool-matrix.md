@@ -1,7 +1,6 @@
 # Tool matrix
 
-Which tool produces which shot, and the commands each kept skill documents. The skills named here are
-installed into the profile (keeps in squad.yaml).
+Which tool produces which shot, and the commands each kept skill documents.
 
 ## Contents
 
@@ -41,14 +40,13 @@ stage produces the asset first and the motion stage imports it from `assets/`.
 
 - React project; `npx remotion studio [--no-open]` for the interactive preview, `npx remotion render`
   to write the file (the remotion-best-practices skill routes to its render reference for flags).
-- The keep is confirm-gated in squad.yaml: no licence answer, no Remotion renders.
 - Keep the project in `assets/remotion/` (or `renders/<...>/src` for a delivered demo) and pin the
   Remotion version in `package.json`.
 
 ## GSAP, three.js and R3F
 
-- The libraries come from npm (or a CDN for single-file demos). GSAP's ScrollTrigger and three.js have no
-  pinned community skill yet; the kept skills (hyperframes, auteur, dream-loop) carry the techniques.
+- The libraries come from npm (or a CDN for single-file demos). The kept skills hyperframes, auteur and
+  dream-loop carry the techniques.
 - A standalone demo is a small static page (plus its libraries) delivered under
   `renders/<piece-id>-<shot>-<NN>/`; verify it in the browser, at the brief's viewport.
 - A three.js scene built as video output follows the HyperFrames path (capture the page) or renders
@@ -70,8 +68,7 @@ stage produces the asset first and the motion stage imports it from `assets/`.
 
 ## Measuring
 
-- `ffprobe` and `ffmpeg` are the measuring instruments; `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py` wraps them (spec,
-  EBU R128 loudness, contact sheet). Never eyeball a number the check can measure.
-- Every render gets `<name>.check.json` plus a contact sheet; both go into the handoff.
+- `render_check.py` wraps `ffprobe` and `ffmpeg` (spec, EBU R128 loudness, contact sheet). Never eyeball a
+  number the check can measure.
 - Version drift (Node, FFmpeg, browsers) changes output: record what `npx hyperframes doctor` or the
   preview reports when a render is first in a piece.

@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "An INTERVIEW card arrives for JOB-20260925-acme-data-analyst with analysis.json listing a hard gap on dbt.",
+      "prompt": "A preparing-interviews card arrives for JOB-20260925-acme-data-analyst with analysis.json listing a hard gap on dbt.",
       "expected_output": "interview.md has a gap-preparation line for dbt grounded in a verified adjacent achievement, plus questions to ask the company.",
       "files": []
     },

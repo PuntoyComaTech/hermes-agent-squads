@@ -21,6 +21,7 @@ bots:
     hidden: false
     cron:
       jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
+      jobs-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
   jobs-scout:
     role: worker
     title: Jobs scout
@@ -59,6 +60,7 @@ bots:
     toolsets: [file, skills, kanban, todo, browser]
     skills: {squad: [submitting-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
+    website_blocklist: [linkedin.com]
     hidden: true
 chains:
   application:

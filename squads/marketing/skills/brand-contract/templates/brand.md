@@ -8,8 +8,10 @@ address: <informal|formal>
 timezone: <Area/City>
 currency: <MXN>
 approver: user           # user | client
-publishing: manual       # manual: the squad hands over a ready-to-post package
+publishing: manual       # manual (the user posts the package) or the connector that publishes
 weekly_quota: 4          # pieces per week, at most
+generated_images: 10     # AI-generated images per month, at most
+reviewer_rounds: 1       # fix rounds before the reviewer escalates
 channels:
   - {network: instagram, formats: [carousel, reel, story], per_week: 3, times: ["tue 09:00", "thu 18:00"]}
 ---

@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "The lead sees the project but web-frontend says 'No projects yet'.",
-      "expected_output": "Explains that Project state is per profile and runs the create for the missing worker profiles, then verifies.",
+      "expected_output": "Explains that Project state is per profile and re-runs squadctl project add, which creates the project only in the profiles that lack it, then verifies with project list.",
       "files": []
     },
     {

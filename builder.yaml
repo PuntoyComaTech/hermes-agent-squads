@@ -1,6 +1,6 @@
 # The builder bot (squad-bot schema, squads/_schema/squad.schema.json). Applied by `scripts/squadctl apply --self`.
-# The profile itself comes from `hermes profile install`; apply --self sets the model, aux lanes, skills, plugins,
-# ui_meta and the builder-watch cron. No board: the builder files no cards of its own.
+# The profile itself comes from `hermes profile install`; apply --self sets the model and lanes (from
+# local/installed.yaml), skills, plugins, ui_meta and the builder-watch cron. No board: the builder files no cards.
 schema: 2
 key: builder
 name: Builder

@@ -10,17 +10,17 @@
 
 ## 1. `site.yaml`
 
-Written by the lead at onboarding, updated as the site moves. Names only, never secret values.
+Names only, never secret values.
 
 ```yaml
-name: "Panadería Sol"
+name: "Panaderia Sol"
 slug: panaderia-sol
-emoji: "🥐"
 active: false            # true after the user approves the spec
-type: static             # static | dynamic_seo | saas
-stack: astro             # astro | nextjs | tanstack
-backend: false           # true when the site needs the api stage (milestone chain `when backend`)
+type: static             # static: content pages | dynamic_seo: indexed pages built from data | saas: users sign in
+stack: astro             # follows type: static astro, dynamic_seo nextjs, saas tanstack
+backend: false           # true enables the milestone chain's api stage
 provider: cloudflare     # cloudflare | vercel
+provider_profile: null   # cf named login for a client account; null = the deployer's passthrough token
 languages: [es, en]
 design:
   source: own            # own (DESIGN.md here) | marketing (read the brand, never write)
@@ -33,14 +33,14 @@ repo:
   owner: "<github owner>"
   name: panaderia-sol
   visibility: private
+  mode: null             # bot_creates | user_creates (deploying-sites references/github-flow.md)
   created: false         # true once the deployer created or verified it
 production:
   url: null
   version_id: null       # live version id
   deployed_at: null
 automation:
-  reviewer_rounds: 2
-  auto_advance: true
+  reviewer_rounds: 2      # fix rounds before ESCALATE
   thresholds:
     lighthouse_mobile: {performance: 90, accessibility: 95, best_practices: 90, seo: 95}
     lighthouse_mobile_ssr: {performance: 80}   # overrides performance for dynamic_seo and saas
@@ -80,7 +80,7 @@ Each criterion is testable: page, action, expected result.
 ## Out of scope
 ## Open questions (at most 5)
 ## Changes
-- v2 · 2026-10-12 · "add a gallery" -> M4
+- v2, 2026-10-12, "add a gallery" -> M4
 ```
 
 ## 3. `milestones/<ID>.md`
@@ -113,7 +113,7 @@ Names only. Secrets the user must provide.
 ## Migrations
 File, destructive yes/no, what it changes.
 ## History
-- 2026-10-05 10:12 · building (web-frontend)
+- 2026-10-05 10:12, building (web-frontend)
 ```
 
 Every stage appends one History line; the building bot is the only one that edits the other sections after `built`.
@@ -139,7 +139,7 @@ Every stage appends one History line; the building bot is the only one that edit
 }
 ```
 
-`verdict`: `APPROVED`, `FIX` or `ESCALATE`. A critical finding is an unmet acceptance criterion, an axe `critical` or `serious` result, a score under `thresholds`, a broken internal link, a leaked secret, a missing security header, or invented content presented as fact. `summary` is three plain-language lines for the lead to reuse.
+`verdict`: `APPROVED`, `FIX` or `ESCALATE`. A critical finding is an unmet acceptance criterion, an axe `critical` or `serious` result, a value outside `thresholds`, a broken internal link, a leaked secret, a missing security header, or invented content presented as fact. `summary` is three plain-language lines for the lead to reuse.
 
 ## 5. `deploys/<ID>-<env>-<n>.json`
 
@@ -157,7 +157,7 @@ Every stage appends one History line; the building bot is the only one that edit
   "previous_version_id": null,
   "confirmed": null,
   "ok": true,
-  "smoke": {"status": 200, "checks": "reviews/.../smoke.json"},
+  "smoke": {"all_ok": true, "checks": "reviews/panaderia-sol-20261005-build-01-r0/smoke.json"},
   "notes": []
 }
 ```

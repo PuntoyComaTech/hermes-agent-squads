@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "A review FIX round repeats a finding about missing authorization checks that you already addressed once.",
-      "expected_output": "Second trigger satisfied: consults the advisor with the review file and the route, applies the real fix, and records the advice and decision.",
+      "expected_output": "Advisor trigger 5 (repeated finding): consults the advisor with the review file and the route, applies the real fix, and records the advice and decision.",
       "files": []
     }
   ]

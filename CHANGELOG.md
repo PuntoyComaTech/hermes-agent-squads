@@ -3,7 +3,7 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
-## 2.0.0 — 2026-10-15
+## 2.0.0 - 2026-10-15
 
 Full redesign as a profile distribution (see `docs/decisions.md`).
 
@@ -12,11 +12,15 @@ Full redesign as a profile distribution (see `docs/decisions.md`).
 - The repo root is the builder's profile distribution: `hermes profile install ... --name
   builder --alias`, updated with `hermes profile update builder` (V-01).
 - `squadctl` (`plan`, `apply`, `uninstall`, `status`, `doctor`, `project`, `chain`) with an
-  idempotent plan → OK → apply flow (V-10).
+  idempotent plan, OK, apply flow (V-10).
 - `model_advisor.py` (lane table per bot from the user's providers), `catalog_search.py`
   (plugins, skills, MCP, connectors), `skill_lint.py` (format gate), `kanban_chain.py`
-  (chain → dependent cards), `gate_lib.py` (wakeAgent helpers), `watch_upstream.py` (daily
+  (chain to dependent cards), `gate_lib.py` (wakeAgent helpers), `watch_upstream.py` (daily
   zero-LLM update gate) (V-08, V-09, V-14).
+- `scripts/hpy` runs every tool under the Hermes runtime interpreter (no PyYAML needed);
+  `scripts/release.py` gates maintainer pushes to main.
+- `scripts/board_watch.py`: a `<key>-watch` cron on every lead posts blocked and stale cards
+  to the lead's Bot Chat (V-05).
 - Squad manifests schema 2 (`squads/_schema/squad.schema.json`) with bots, chains, cron
   gates and per-card lanes.
 - Ten builder skills under `skills/`, including `hermes-platform` (18 verified Hermes

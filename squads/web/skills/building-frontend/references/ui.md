@@ -1,7 +1,5 @@
 # Design rail
 
-The rule of the squad: tokens, not one-off values; hierarchy, not decoration.
-
 ## Tokens first
 
 Everything visual comes from custom properties on `:root`:
@@ -28,8 +26,8 @@ Two font families maximum. Fluid sizes with `clamp()`. A component that needs a 
 - Type scale with real contrast between steps (1.25 ratio or more). Weights: 400 body, 500-600 labels, 700 display.
 - Measure: 45-75 characters per line for prose; `max-width` on the text container, not the page.
 - Spacing rhythm from the token scale; sections separated by one `--space-16`-and-up step, not by borders everywhere.
-- Layout: a container (`--maxw`) plus an asymmetric grid where the content wants it. Centered everything is the generic default; break it deliberately.
-- Breakpoints to verify: 390, 768, 1440. Design mobile first, then let the grid breathe.
+- Layout: a container (`--maxw`) plus an asymmetric grid where the content allows; not everything centered.
+- Breakpoints to verify: 390, 768, 1440 px, mobile first.
 
 ## Components
 
@@ -43,7 +41,7 @@ Two font families maximum. Fluid sizes with `clamp()`. A component that needs a 
 
 - Body text contrast per WCAG 2.2 SC 1.4.3 (4.5:1, large 3:1), UI components per SC 1.4.11 (3:1); check the accent color on both backgrounds.
 - `:focus-visible` outline everywhere, never removed; skip link to the main landmark.
-- Hit targets at least 24x24 px (WCAG 2.2, 2.5.8), 44 px on touch-first actions.
+- Targets at least 24x24 px (WCAG 2.2 SC 2.5.8), 44x44 px on touch-first actions.
 - Every image has `alt` (empty for decoration); icon-only buttons carry an accessible name.
 - Form fields have a visible `label`, an error message tied to the field, and no placeholder-as-label.
 - `lang` on `<html>` and on any foreign-language passage; page title describes the page, not the site twice.
@@ -64,4 +62,3 @@ Reject before committing: default framework blue or a violet gradient hero, a ce
 - Screenshots at 390 and 1440 for every page of the milestone; the hierarchy holds at both.
 - Contrast, keyboard path and alt text verified, not assumed.
 - No hard-coded color, font size or spacing outside the token set.
-- The page reads as this brand's, not as a template swap.

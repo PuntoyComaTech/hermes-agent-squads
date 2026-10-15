@@ -19,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-FORMAT_EXT = {"mp4": {"mp4", "m4v", "mov"}, "webm": {"webm"}, "gif": {"gif"}}
+FORMAT_EXT = {"mp4": {"mp4", "m4v", "mov"}, "webm": {"webm"}, "gif": {"gif"}, "png": {"png"}}
 IMAGE_CODECS = {"png", "jpeg", "jpg", "mjpeg", "bmp", "tiff", "webp", "apng"}
 
 
@@ -123,8 +123,12 @@ def check_file(ffprobe: str, ffmpeg: str | None, path: Path, expect: dict, args:
 
     loudness = None
     want_lufs = as_float(expect.get("loudness")) if args.target_lufs is None else args.target_lufs
+    if want_lufs is not None and kind == "media" and not audio:
+        violations.append(f"no audio track; the brief sets loudness {want_lufs:.1f} LUFS")
     if audio and ffmpeg:
         loudness = measure_loudness(ffmpeg, path)
+        if loudness is None and want_lufs is not None:
+            violations.append("loudness not measurable (no EBU R128 integrated value)")
         if loudness and want_lufs is not None:
             measured = loudness["integrated_lufs"]
             loudness["target_lufs"], loudness["ok"] = want_lufs, abs(measured - want_lufs) <= args.tolerance_lufs
@@ -174,15 +178,14 @@ def main(argv: list[str] | None = None) -> int:
     if not ffprobe:
         print("error: ffprobe not found on PATH (install ffmpeg)", file=sys.stderr)
         return 2
-    need_ffmpeg = args.contact_sheet or args.target_lufs is not None
-    if need_ffmpeg and not ffmpeg:
-        print("error: ffmpeg not found on PATH (needed for loudness and contact sheets)", file=sys.stderr)
-        return 2
     expect = front_matter(args.brief) if args.brief else {}
     for key, value in (("duration", args.duration), ("fps", args.fps), ("resolution", args.resolution),
                        ("loudness", args.target_lufs)):
         if value is not None:
             expect[key] = value
+    if (args.contact_sheet or as_float(expect.get("loudness")) is not None) and not ffmpeg:
+        print("error: ffmpeg not found on PATH (needed for loudness and contact sheets)", file=sys.stderr)
+        return 2
     missing = [str(p) for p in args.files if not p.is_file()]
     if missing:
         print("error: no such file: " + ", ".join(missing), file=sys.stderr)

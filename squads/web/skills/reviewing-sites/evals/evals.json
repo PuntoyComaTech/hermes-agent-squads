@@ -4,19 +4,19 @@
     {
       "id": 1,
       "prompt": "The deploy record for the preview is missing but the card says the preview URL works.",
-      "expected_output": "Blocks immediately (kanban_block) naming the missing deploy record; reviews nothing and invents no evidence.",
+      "expected_output": "Blocks immediately: kanban_block(kind=needs_input, reason naming the missing deploy record); reviews nothing and invents no evidence.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "Round 0 review finds one critical acceptance failure and the site allows 2 rounds.",
-      "expected_output": "Verdict FIX: files one fix card for the builder (parents=[the qa card], skills=[the builder's skill], key web:milestone:<project>:<run-id>:<stage>-r1) plus its preview-r1 child, then kanban_blocks the qa card instead of completing it; accept waits for the re-review.",
+      "expected_output": "Verdict FIX: files fix-r1 for the builder with no parents (skills=[the builder's skill], key web:milestone:<project>:<run-id>:fix-r1), then preview-r1 with parents=[fix-r1], kanban_link(parent_id=preview-r1, child_id=the qa card) and kanban_block(kind=dependency, reason=...); accept waits for the re-review.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "A finding would need the user to change the site's tone of voice, and round 2 of 2 is done.",
-      "expected_output": "Verdict ESCALATE with kanban_block for the lead, carrying one plain question and the surviving findings; no further fix card.",
+      "expected_output": "Verdict ESCALATE: kanban_block(kind=needs_input) with a reason carrying one plain question and the surviving findings; no further fix card.",
       "files": []
     }
   ]

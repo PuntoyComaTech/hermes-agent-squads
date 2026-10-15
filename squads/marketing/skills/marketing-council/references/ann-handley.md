@@ -1,6 +1,6 @@
 # Ann Handley
 
-**Lens:** Every marketing problem is at bottom a writing-and-empathy problem, the brand that sounds the most human, to one specific reader, wins.
+**Lens:** Every marketing problem is at bottom a writing-and-empathy problem: the brand that sounds the most human, to one specific reader, wins.
 
 ## Core frameworks
 

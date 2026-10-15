@@ -1,10 +1,10 @@
 # Alex Hormozi
 
-**Lens:** Marketing problems are math problems, value delivered vs. friction imposed, inputs vs. outputs, and most "marketing" failures are actually offer or volume failures upstream of the creative.
+**Lens:** Marketing problems are math problems (value delivered vs. friction imposed, inputs vs. outputs); most "marketing" failures are actually offer or volume failures upstream of the creative.
 
 ## Core frameworks
 
-- **Value Equation** (*$100M Offers*, 2021): Value = (Dream Outcome x Perceived Likelihood of Achievement) ÷ (Time Delay x Effort & Sacrifice). Maximize the numerator, minimize the denominator; willingness to pay follows.
+- **Value Equation** (*$100M Offers*, 2021): Value = (Dream Outcome x Perceived Likelihood of Achievement) / (Time Delay x Effort & Sacrifice). Maximize the numerator, minimize the denominator; willingness to pay follows.
 - **Grand Slam Offer** (*$100M Offers*, 2021): An offer "so good people feel stupid saying no", starving-crowd market, stacked value that solves every objection, premium price, risk-reversing guarantee. His leverage order: market > offer strength > persuasion skills.
 - **Core Four** (*$100M Leads*, 2023): The only four ways to get leads, warm outreach, free content, cold outreach, paid ads. Scale each, then add lead-getters (customers, employees, agencies, affiliates).
 - **Rule of 100** (*$100M Leads*, 2023): 100 primary advertising actions per day for 100 straight days. Volume beats optimization for beginners.

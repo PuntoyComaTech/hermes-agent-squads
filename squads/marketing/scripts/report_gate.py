@@ -1,28 +1,16 @@
 #!/usr/bin/env python3
 """Monthly report gate for the marketing squad (cron marketing-report, --no-agent).
 
-Files one REPORT card on the marketing board only when a brand's analytics exports changed since the
-last run. State is a fingerprint per project in `<profile>/local/state/gate_*.json`, via
-scripts/gate_lib.py; the card's idempotency key `marketing-report:<project>:<YYYY-MM>` makes repeated
-runs in the same month safe.
-
-For every project of the marketing profile:
-  - skip when the primary folder has no `brand.md` or its frontmatter `status` is not `active`;
-  - skip when the folder holds a `PAUSE` file;
-  - skip when `data/inbox/` holds no files (nothing to report yet);
-  - skip when the fingerprint of `data/inbox/` equals the last one stored;
-  - otherwise create the card, assigned to the lead, with skill `leading-marketing`.
-
-Silent when there is nothing to file and when a card is filed; exit 1 on a real error so the cron
-surfaces it.
-
-Examples:
-  report_gate.py --dry-run                # show what would be filed, write nothing
-  report_gate.py --month 2026-09          # evaluate a specific reported month
+Files one REPORT card, assigned to the lead, for every project whose primary folder holds an `active`
+brand.md, no PAUSE file, and files in data/inbox/ that changed since the last filed card. The fingerprint
+per project lives in $HERMES_HOME/local/state/gate_marketing_report_<project>.json and is saved only after
+the card exists. Idempotency key: marketing-report:<project>:<YYYY-MM>. Prints nothing unless --dry-run
+or --json.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -48,26 +36,24 @@ def profile_from_home(profile_arg: str | None) -> str:
     raise SystemExit("error: pass --profile: HERMES_HOME is not a profile home")
 
 
-def gate_lib():
-    """gate_lib.py beside this script (squadctl copies it next to each cron script) or in a scripts/ dir."""
+def fingerprint(obj) -> str:
+    """Same digest as scripts/gate_lib.py, so state files stay compatible."""
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def load_fp(path: Path) -> str | None:
     try:
-        import gate_lib as mod  # type: ignore[import-not-found]
-        return mod
-    except ImportError:
-        pass
-    h = home()
-    root = h.parent.parent if h.parent.name == "profiles" else h
-    here = Path(__file__).resolve()
-    cands = [h / "scripts", here.parent, root / "scripts"]
-    if len(here.parents) > 3:
-        cands.append(here.parents[3] / "scripts")  # a repo checkout
-    for cand in cands:
-        if (cand / "gate_lib.py").is_file():
-            sys.path.insert(0, str(cand))
-            import gate_lib as mod  # type: ignore[import-not-found]
-            return mod
-    raise RuntimeError("gate_lib.py not found (looked in the profile scripts dir, beside this script, "
-                       "in the hermes root and in the checkout's scripts dir)")
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    return data.get("fp") if isinstance(data, dict) else None
+
+
+def save_fp(path: Path, fp: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps({"fp": fp}, indent=2, sort_keys=True) + "\n")
+    os.replace(tmp, path)
 
 
 def run(argv: list[str]) -> str:
@@ -108,7 +94,7 @@ def brand_is_active(folder: Path) -> bool:
         return False
     text = brand.read_text(encoding="utf-8", errors="replace")
     block = re.match(r"---\s*\n(.*?)\n---", text, re.S)
-    return bool(block and re.search(r"^\s*status:\s*active\s*$", block.group(1), re.M))
+    return bool(block and re.search(r"^\s*status:\s*active\s*(#.*)?$", block.group(1), re.M))
 
 
 def exports_fingerprint(folder: Path) -> list[list]:
@@ -131,22 +117,17 @@ def report_month(override: str | None) -> str:
     return (date.today().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
 
 
-def card_body(slug: str, folder: Path, month: str) -> str:
+def card_body(folder: Path, month: str) -> str:
     return (
-        f"Mode: REPORT (month {month}).\n"
-        f"Brand: {slug} - project folder {folder}.\n"
-        f"Input: data/inbox/ analytics exports (new since the previous report), calendar/ and the "
-        f"pieces of {month}, published results.\n"
-        f"Output: reports/{month}.md: what worked, what did not and why, matched per piece where the "
-        f"UTM allows it; close with three numbered suggested decisions.\n"
-        f"Rules: no conclusion from insufficient volume, state the window; name a missing export "
-        f"instead of guessing; nothing is published or sent."
+        f"Mode: REPORT, month {month}.\n"
+        f"Brand folder: {folder}.\n"
+        f"Follow leading-marketing step 7."
     )
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=SUMMARY,
-                                 epilog="Exit 0 clean (silent when nothing to file), 1 error.")
+                                 epilog="Exit 0 done, 1 error (stderr).")
     ap.add_argument("--profile", help="marketing profile name (default: from HERMES_HOME)")
     ap.add_argument("--board", default="marketing", help="kanban board slug (default: marketing)")
     ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"),
@@ -160,7 +141,6 @@ def main(argv: list[str] | None = None) -> int:
     try:
         profile = profile_from_home(a.profile)
         hermes = a.hermes_bin
-        gate = gate_lib()
         state_dir = home() / "local" / "state"
         month = report_month(a.month)
         filed, skipped = [], []
@@ -179,23 +159,22 @@ def main(argv: list[str] | None = None) -> int:
             if not exports:
                 skipped.append({"project": slug, "reason": "no exports in data/inbox"})
                 continue
-            name = f"marketing_report_{slug}"
-            fp = gate.fingerprint(exports)
-            if not gate.changed(name, fp, save=False, directory=state_dir):
+            state = state_dir / f"gate_marketing_report_{slug}.json"
+            fp = fingerprint(exports)
+            if load_fp(state) == fp:
                 skipped.append({"project": slug, "reason": "exports unchanged"})
                 continue
-            title = f"REPORT \u00b7 {slug} \u00b7 {month}"
+            title = f"REPORT - {slug} - {month}"
             key = f"marketing-report:{slug}:{month}"
             cmd = [hermes, "-p", profile, "kanban", "--board", a.board, "create", title,
                    "--assignee", profile, "--created-by", profile, "--project", slug,
                    "--idempotency-key", key, "--skill", "leading-marketing",
-                   "--body", card_body(slug, folder, month)]
+                   "--body", card_body(folder, month)]
             if a.workspace == "dir":
                 cmd += ["--workspace", f"dir:{folder}"]
             if not a.dry_run:
                 run(cmd + ["--json"])
-                # Saved only after the card exists, so a failed create is retried on the next run.
-                gate.save_state(f"gate_{name}", {"fp": fp}, directory=state_dir)
+                save_fp(state, fp)  # only after the card exists: a failed create retries next run
             filed.append({"project": slug, "month": month, "key": key, "title": title})
         if a.json:
             print(json.dumps({"filed": filed, "skipped": skipped, "dry_run": a.dry_run}, indent=2))

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """File one squad chain as dependent kanban cards in one command (zero LLM).
 
-Usage: kanban_chain.py <squad> <chain> --project <slug> --title <title> [--body TEXT] [--when a,b] [--dry-run] [--json]
-
 Reads squads/<squad>/squad.yaml (deep-merged with <home>/local/squads/<squad>/squad.yaml when present) and creates
 one card per stage on the squad's board, through the lead's profile:
   hermes -p <lead> kanban --board <slug> create ... --assignee <bot> --skill <skill> --parent <previous card>
-        --project <slug> --idempotency-key <squad>:<chain>:<project>:<run>:<stage> [--model M --provider P]
+        --project <slug> --idempotency-key <squad>:<chain>:<project>:<run>:<stage> --workspace dir:<primary>
+        [--model M --provider P]
 
 - Each stage waits for the previous stage (--parent). A stage with `when: x` is skipped unless --when x is given.
 - A stage with `lane: L` pins that lane's model on the card (--model/--provider). The model comes from
@@ -184,22 +183,24 @@ def render(result: dict, dry_run: bool) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], epilog=__doc__,
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], epilog=__doc__.split("\n\n", 1)[1],
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("squad")
-    ap.add_argument("chain")
+    ap.add_argument("squad", help="squad key")
+    ap.add_argument("chain", help="chain name in squad.yaml -> chains")
     ap.add_argument("--project", required=True, help="project slug (exists in the lead's profile)")
-    ap.add_argument("--title", required=True)
-    ap.add_argument("--body", default="")
+    ap.add_argument("--title", required=True, help="title prefix of every card")
+    ap.add_argument("--body", default="", help="text appended to every card body")
     ap.add_argument("--when", default="", help="comma list of conditions that enable `when:` stages")
     ap.add_argument("--run-id", help="idempotency run id (default: slug of the title)")
     ap.add_argument("--workspace", help="pin every card's workspace (default: dir:<project primary path>, so a "
                                        "project card is never created as a git worktree)")
-    ap.add_argument("--squads-dir", type=Path, default=SCRIPTS.parent / "squads")
+    ap.add_argument("--squads-dir", type=Path, default=SCRIPTS.parent / "squads",
+                    help="directory holding <squad>/squad.yaml (default: the squads/ beside scripts/)")
     ap.add_argument("--home", type=Path, default=Path(os.environ.get("HERMES_HOME") or Path.home() / ".hermes" / "profiles" / "builder"),
                     help="builder profile home holding local/ (default $HERMES_HOME)")
     ap.add_argument("--hermes-root", type=Path, help="Hermes root for `-p` (default: $HERMES_HOME without /profiles/<name>)")
-    ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"))
+    ap.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"),
+                    help="hermes executable (default: $HERMES_BIN, else hermes)")
     ap.add_argument("--dry-run", action="store_true", help="print the cards, create nothing")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     return ap

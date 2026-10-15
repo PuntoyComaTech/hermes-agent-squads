@@ -2,8 +2,8 @@
 
 Rendered and standalone assets for the other squads: motion graphics, MP4/WebM clips, 3D renders, glTF
 assets and WebGL hero demos. The web and marketing leads order a piece by card on the `studio` board;
-the studio lead turns it into a brief and a storyboard, files the `piece` chain, reviews what comes back
-and delivers it as a comment on the requester's card.
+the studio lead writes the brief and storyboard, files the `piece` chain, reviews the renders and
+completes the ordering card with the deliverables.
 
 The split with the web squad: `web-frontend` owns interactive code inside a site; studio owns files that
 render or ship as standalone assets. Complex motion, video and 3D never run inside the marketing
@@ -19,14 +19,11 @@ producer profile.
 
 ## Chain `piece`
 
-Stages: `squad.yaml` -> `chains.piece`. `squadctl chain studio piece --project <slug> --title <piece-id>
-[--when needs_3d]` files them, and stage keys are `studio:piece:<project>:<piece-id>:<stage>`, so a rerun
-creates nothing twice. No cron.
+Stages: `squad.yaml` -> `chains.piece`; the lead files them (skill `directing-studio` step 5). No cron.
 
 ## Piece folder
 
-`<project>/studio/<piece-id>/` with `brief.md`, `storyboard.md`, `assets/` and `renders/`; formats in
-`skills/studio-contract/references/project-files.md`. Renders are checked before handoff.
+`<project>/studio/<piece-id>/`; layout and formats in `skills/studio-contract/references/project-files.md`.
 
 ## Scripts
 
@@ -37,25 +34,13 @@ creates nothing twice. No cron.
 
 Both are Python 3 with `--help`; `render_check.py` needs `ffprobe`/`ffmpeg` on PATH.
 
-## Skills
+## Skills, keeps and plugins
 
-| Skill | Used by | Covers |
-|---|---|---|
-| `directing-studio` | `studio` (lead) | Brief, storyboard, chain, review, delivery |
-| `studio-contract` | all three | Piece layout, formats, handoffs |
-| `producing-motion` | `studio-motion` | Tool choice and the render check loop |
-| `rendering-3d` | `studio-3d` | Blender conventions per shot |
-
-## Keeps and plugins
-
-`squad.yaml` -> `bots.*.skills.keep` and `bots.*.plugins`.
+`squad.yaml` -> `bots.*.skills` and `bots.*.plugins`.
 
 ## Install notes
 
 Licence and disclosure asks are the `confirm` items in `squad.yaml`; the builder quotes them and installs
 only after the user's explicit OK.
 
-## Operations
-
-Bot visibility, lanes and per-card pins come from `squad.yaml`; `scripts/squadctl plan studio` lists what
-an install or change would do.
+`scripts/squadctl plan studio` lists what an install or change would do.

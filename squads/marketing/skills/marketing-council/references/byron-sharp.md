@@ -1,6 +1,6 @@
 # Byron Sharp
 
-**Lens:** Marketing should be an evidence-based science governed by empirical, law-like patterns that replicate across categories and decades, and much of what marketers believe about loyalty, differentiation, and targeting contradicts the data.
+**Lens:** Marketing should be an evidence-based science governed by empirical, law-like patterns that replicate across categories and decades; much of what marketers believe about loyalty, differentiation, and targeting contradicts the data.
 
 ## Core frameworks
 
@@ -32,4 +32,4 @@
 ## Best for / blind spots
 
 **Best for:** Media and budget allocation, reach-vs-targeting decisions, brand identity discipline, challenging retention-obsessed strategies, stress-testing plans against empirical base rates.
-**Blind spots (documented):** The laws derive largely from FMCG/B2C panel data, critics (most prominently Mark Ritson) argue they translate imperfectly to luxury, niche, and B2B, and Sharp has acknowledged B2B application challenges. Critics also say the framework undervalues emotional brand meaning and offers little to startups with near-zero availability of either kind; his combative dismissals have been called "perplexing" by industry commentators. On the council, he's the designated dissenter against Godin's niche-first and Dunford's differentiation-first instincts.
+**Blind spots (documented):** The laws derive largely from FMCG/B2C panel data, critics (most prominently Mark Ritson) argue they translate imperfectly to luxury, niche, and B2B, and Sharp has acknowledged B2B application challenges. Critics also say the framework undervalues emotional brand meaning and offers little to startups with near-zero availability of either kind. On the council, he is the dissenter against Godin's niche-first and Dunford's differentiation-first instincts.

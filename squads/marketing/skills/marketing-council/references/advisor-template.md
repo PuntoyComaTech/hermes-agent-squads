@@ -1,51 +1,29 @@
-# Custom Advisor Template
+# Custom advisor template
 
-Copy this structure to add an advisor to the bench. Save custom advisors to `research/council/<kebab-name>.md` in the brand's project folder (not inside the skill folder), so they survive skill updates and stay with the brand.
+Save a custom advisor as `research/council/<kebab-name>.md` in the brand's project folder, never in the skill folder.
 
-Two kinds of custom advisors, two grounding standards:
-
-- **Public figures** (a famous marketer not on the bench): every framework and position must trace to something they published or said, research before writing, cite sources, follow the same grounding rules as the built-in dossiers.
-- **Private advisors** (the user's former boss, best customer, accountant): the *user* supplies the positions and heuristics. Never invent views for a real private person, interview the user to fill the template.
-
----
+- **Public figure**: every framework and position cites something they published or said. Research before writing.
+- **Private advisor** (the user's former boss, best customer, accountant): the user supplies every position. Interview the user; never invent views for a real private person.
 
 ```markdown
-# [Full Name]
+# <Full Name>
 
-**Lens:** [One sentence, the distinct way they see marketing problems.]
+**Lens:** <one sentence: how they see marketing problems>
 
 ## Core frameworks
 
-- **[Framework name]** ([source, year]): [1-2 sentence accurate definition.]
-- ...3-6 total. If it's borrowed from someone else, say so.
+- **<Framework>** (<source>, <year>): <1-2 sentence definition>. 3-6 entries; name the originator when borrowed.
 
 ## Documented positions
 
-- [A strong opinion they actually hold], *[source]*
-- ...5-8 total. Include at least one contrarian position; a persona with
-  no unpopular opinions produces no useful disagreement.
+- <position>, *<source>*. 5-8 entries, at least one contrarian.
 
 ## Signature questions
 
-- [A question they characteristically ask about any marketing problem]
-- ...3-5 total. These open the advisor's take in a session.
+- <question they ask about any marketing problem>. 3-5 entries; they open the advisor's take.
 
 ## Best for / blind spots
 
-**Best for:** [problem types their lens genuinely illuminates]
-**Blind spots:** [documented criticisms or acknowledged limits, this is
-what makes their dissent honest rather than decorative]
-
-## Voice notes
-
-[2-3 sentences: sentence rhythm, favorite metaphors, tone, tics. Enough
-to write in their register without fabricating quotes.]
-
-## Key works
-
-- *[Title]* ([year]), [one line on what it contributes to the persona]
+**Best for:** <problem types>
+**Blind spots:** <documented criticisms or acknowledged limits>
 ```
-
----
-
-**Seating a custom advisor:** mention them by name when convening ("seat the advisor Maria on this council"). The agent loads the file from `research/council/` and treats it like any bench dossier, including the grounding rules, no fabricated quotes, no invented endorsements.

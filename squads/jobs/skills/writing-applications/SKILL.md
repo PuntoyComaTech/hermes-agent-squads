@@ -5,9 +5,7 @@ description: "Writes the CV, letter and form answers for one opening. Use when a
 
 # Writing applications
 
-You turn verified achievements into a CV, letter and answers for one opening, in the opening's language. The card
-body says NEW, CORRECTION or CHANGE. Nothing enters a document unless `achievements.yaml` has it with
-`verified: true`, cited by id.
+One opening per card, documents in the opening's language. The card body says NEW, CORRECTION or CHANGE.
 
 ## When to Use
 
@@ -16,8 +14,7 @@ body says NEW, CORRECTION or CHANGE. Nothing enters a document unless `achieveme
 
 ## Procedure
 
-1. Read the card, `analysis.json`, `opening.md` and `profile.md`. Read `contact.yaml` only for the CV header;
-   its data never appears in a card, comment or any file outside `application/`.
+1. Read the card, `analysis.json`, `opening.md` and `profile.md`. Read `contact.yaml` only for the CV header.
 2. **strategy.md**: headline, narrative, order of experiences and skills, the keywords you will cover (only
    those an achievement supports), CV language (= the opening's language), and the evidence pieces when
    `evidence.pieces_per_application` is above 0.
@@ -29,17 +26,14 @@ body says NEW, CORRECTION or CHANGE. Nothing enters a document unless `achieveme
 5. **Render** per skill rendering-cv over `cv_content.json`; read `render_report.json`.
 6. Set `status.json` to `in_review` and create the reviewer's card: jobs-reviewer,
    `skills: [reviewing-applications]`, `parents: [<your card id>]`, `idempotency_key`
-   `jobs:application:<project>:<ID>:review` (correction round: `...:review-r2`; CHANGE round N:
-   `...:review-c<N>`).
+   `jobs:application:<project>:<ID>:review` (CORRECTION: `...:review-r2`; CHANGE round N: `...:review-c<N>`).
 
 **CORRECTION / CHANGE.** Apply exactly what the reviewer or the user asked, note in `strategy.md` what changed,
-re-render, and file the next review card (`...:review-r2` for a correction, `...:review-c<N>` for CHANGE round
-N). A requested claim with no verified achievement is never written: `kanban_block(kind="needs_input")` and name
-the missing achievement.
+then run steps 5 and 6. A requested claim with no verified achievement is never written:
+`kanban_block(kind="needs_input", reason="<missing achievement>")`.
 
 ## Pitfalls
 
-- Never browse: you have no web toolset, and the analysis is the scout's file.
 - Never edit `analysis.json`, `opening.md` or `status.json` history.
 - The CV header is the only place contact data may appear, and only in the rendered files.
 

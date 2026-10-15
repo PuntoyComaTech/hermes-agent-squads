@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Card: write the 90-day plan for cafe-luna. brand.md is active; the research file and the current-state scores exist; cost per customer is unknown.",
-      "expected_output": "plan/90-day.md with the eight template sections; the binding constraint named; moves with mechanisms, indicators and owners; cost per customer listed as an open decision, not invented.",
+      "prompt": "Card: write the 90-day plan for cafe-luna. brand.md is active; the research file and the current-state scores exist; CAC is unknown.",
+      "expected_output": "plan/90-day.md with the eight template sections; the binding constraint named; moves with mechanisms, indicators and owners; CAC listed as an open decision, not invented.",
       "files": []
     },
     {

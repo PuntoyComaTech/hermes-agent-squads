@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
 """squadctl: plan, apply, inspect and remove Hermes squads. Idempotent: read state, diff, write only the difference.
 
-  squadctl plan|apply <squad>|--self [--bots a,b] [--models f] [--dry-run] [--skip-skills] [--confirm id] [--yes]
-  squadctl status [squad]          installed.yaml and the live profiles
-  squadctl doctor                  hermes, gateway, apps, models, passthrough, stale cards
-  squadctl uninstall <squad> [--keep-profiles] [--dry-run] [--yes]
-  squadctl project add <squad> <name> <path>
-  squadctl chain <squad> <chain> --project <slug> --title <t> [--when a,b] [--dry-run]
-
-`--yes` marks an explicitly non-interactive run, for scripts and the builder; squadctl never prompts anyway, and
-licence or disclosure items still need `--confirm <id>` (or they stay pending).
-
 Reads squads/<key>/squad.yaml (builder.yaml for --self), the overlay local/squads/<key>/squad.yaml and the models
-chosen in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning, written by the builder after
-scripts/model_advisor.py). --models <file> merges the same shape (or model_advisor --json output) and is saved on
-a real apply. Output is TOON by default, JSON with --json. Config writes go through Hermes's own writer, one process
+in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning). --models <file> merges the same shape
+or `scripts/hpy model_advisor.py --json` output, and a real apply saves it. Licence or disclosure items stay pending
+until `--confirm <id>`. Output is TOON, JSON with --json. Config writes go through Hermes's own writer, one process
 per profile (_profile_apply.py). Never reads or prints secrets: passthrough shows names and set/missing only.
 """
 from __future__ import annotations
@@ -117,6 +107,7 @@ class Ctx:
         self.builder = a.builder
         self.json = a.json
         self._runtime: tuple[str, str] | None = None
+        self._vision: dict[tuple[str, str], bool] = {}
         self.confirmed = set(getattr(a, "confirm", None) or [])
 
     def home(self, bot: str) -> Path:
@@ -149,6 +140,23 @@ class Ctx:
                 raise Fail("cannot locate the Hermes source tree from `hermes --print-runtime-command`")
             self._runtime = (argv[0], root.group(1))
         return self._runtime
+
+    def sees_images(self, provider: str, model: str) -> bool:
+        """True when Hermes routes images to this model natively (agent.image_routing, `auto` mode, no
+        auxiliary.vision). False when it is text-only or the runtime cannot tell."""
+        key = (provider, model)
+        if key not in self._vision:
+            py, hroot = self.runtime()
+            code = ("import json, sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; "
+                    "import hermes_bootstrap; from agent.image_routing import decide_image_input_mode as d; "
+                    "print(json.dumps(d(sys.argv[1], sys.argv[2], {}) == 'native'))") % hroot
+            try:
+                p = subprocess.run([py, "-I", "-c", code, provider, model], capture_output=True, text=True,
+                                   timeout=120, stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+                self._vision[key] = p.returncode == 0 and p.stdout.strip().splitlines()[-1:] == ["true"]
+            except (OSError, subprocess.SubprocessError):
+                self._vision[key] = False
+        return self._vision[key]
 
     def apply_config(self, home: Path, payload: dict) -> None:
         """One write pass per home through Hermes's own config writer (_profile_apply.py)."""
@@ -321,10 +329,16 @@ def models_from(doc: dict) -> dict:
     """{bots: {name: m}, lanes: {lane: m}} from the installed.yaml shape or model_advisor --json output."""
     def pick(row: dict) -> dict:
         return {k: row[k] for k in ("provider", "model", "reasoning") if row.get(k)}
-    if isinstance(doc.get("bots"), list):
-        bots = {r["bot"]: pick(r) for r in doc["bots"]}
+    if isinstance(doc.get("squads"), list):  # model_advisor --json: {squads: [{key, bots, shared}], lanes: [...]}
+        doc = {"bots": [b for s in doc["squads"] for b in s.get("bots") or []],
+               "shared": [x for s in doc["squads"] for x in s.get("shared") or []], "lanes": doc.get("lanes")}
+    if isinstance(doc.get("bots"), list) or isinstance(doc.get("lanes"), list):
+        rows = doc.get("bots") or []
+        bots = {r["bot"]: pick(r) for r in rows}
         lanes: dict = {}
-        for row in [*doc["bots"], {"extras": doc.get("shared") or []}]:
+        for row in [*rows, {"extras": [*(doc.get("shared") or []), *(doc.get("lanes") or [])]}]:
+            if row.get("lane"):
+                lanes.setdefault(row["lane"], pick(row))
             for ex in row.get("extras") or []:
                 lanes.setdefault(ex["lane"], pick(ex))
         return {"bots": bots, "lanes": lanes}
@@ -508,6 +522,11 @@ class Applier:
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],
                  ["agent.disabled_toolsets", sorted(set(self.always) | (MANAGED - set(toolsets))), False]]
         for use, lane in (("aux", d.get("aux_lane", "aux")), ("vision", d.get("vision_lane", "vision"))):
+            if use == "vision" and m and self.ctx.sees_images(m["provider"], m["model"]):
+                # An explicit auxiliary.vision would turn native images into text descriptions
+                # (agent/image_routing.py decide_image_input_mode): only text-only models get one (D-021).
+                plan += [["auxiliary.vision.provider", "", False], ["auxiliary.vision.model", "", False]]
+                continue
             lm = self.lane_model(lane)
             if not lm:
                 notes.append(f"no model assigned for lane {lane} ({use})")
@@ -788,11 +807,14 @@ class Applier:
             body = (f'#!/usr/bin/env bash\nexec {"bash" if w["src"].endswith(".sh") else "python3"} '
                     f'"$(dirname "$0")/{w["src"]}" {shlex.join(w["args"])}\n').replace(" \n", "\n") if w["args"] else None
             files = {w["src"]: src.read_text(encoding="utf-8")}
+            if "gate_lib" in files[w["src"]]:
+                # squad gates import gate_lib from their own directory: ship it beside them
+                files["gate_lib.py"] = (HERE / "gate_lib.py").read_text(encoding="utf-8")
             if body:
                 files[w["script"]] = body
             for fname, text in files.items():
                 dest = home / "scripts" / fname
-                if dest.is_file() and dest.resolve() == src.resolve():
+                if dest.is_file() and dest.resolve() in (src.resolve(), (HERE / fname).resolve()):
                     continue
                 if _read(dest) != text:
                     acts.append(f"script {'~' if dest.is_file() else '+'} {fname}")
@@ -882,7 +904,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
     ap = Applier(ctx, spec, models, dry, a.skip_skills, a.self_mode)
     unassigned = sorted({n for name in names for n in ap.missing_models(name)})
     if unassigned and not dry:
-        raise Fail("; ".join(unassigned) + ". Run scripts/model_advisor.py, then pass --models <file>.", 2)
+        raise Fail("; ".join(unassigned) + ". Run scripts/hpy model_advisor.py, then pass --models <file>.", 2)
     board = "none" if a.self_mode else ensure_board(ctx, spec, dry)
     root_acts = root_kanban(ctx, dry)
     bots = [ap.bot(n) for n in names]
@@ -991,6 +1013,15 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
                 path, version = find_app(app)
                 out.append(check(f"{name}:app:{app}", "warn" if problem else "ok",
                                  problem or f"{path} {version or ''}".strip()))
+        if key == "jobs":
+            # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
+            projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
+            out.append(check("jobs:project", "ok" if projs else "warn", ", ".join(p["path"] for p in projs)
+                             or "none: scripts/squadctl project add jobs <name> <path>"))
+            for p in projs:
+                ok = (Path(p["path"]) / "profile.md").is_file()
+                out.append(check("jobs:profile.md", "ok" if ok else "warn",
+                                 p["path"] if ok else f"missing in {p['path']}: the search stays off"))
         slug = (spec.get("board") or {}).get("slug")
         if slug and ver:
             try:
@@ -1126,7 +1157,7 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--confirm", action="append", metavar="ID",
                         help="install this keep or plugin that needs the user's OK (repeatable)")
         sp.add_argument("--yes", action="store_true",
-                        help="non-interactive run, never prompt (confirm-gated items still need --confirm)")
+                        help="non-interactive run (squadctl never prompts; confirm items still need --confirm)")
     sp = sub.add_parser("plan", parents=[common], help="show what apply would change (reads only)")
     apply_args(sp)
     sp.set_defaults(fn=lambda c, a: cmd_apply(c, a, True), dry_run=True)
@@ -1135,35 +1166,34 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--dry-run", action="store_true", help="same as plan")
     sp.set_defaults(fn=cmd_apply)
     sp = sub.add_parser("status", parents=[common], help="installed squads against the live profiles")
-    sp.add_argument("squad", nargs="?")
+    sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_status)
     sp = sub.add_parser("doctor", parents=[common], help="check hermes, gateway, apps, models, passthrough, stale cards")
     sp.set_defaults(fn=cmd_doctor)
     sp = sub.add_parser("uninstall", parents=[common], help="export, remove cron, delete profiles, archive the board")
-    sp.add_argument("squad")
-    sp.add_argument("--keep-profiles", action="store_true")
-    sp.add_argument("--dry-run", action="store_true")
-    sp.add_argument("--yes", action="store_true",
-                    help="non-interactive run, never prompt (confirm-gated items still need --confirm)")
+    sp.add_argument("squad", help="squad key")
+    sp.add_argument("--keep-profiles", action="store_true", help="export and remove cron only; keep the profiles")
+    sp.add_argument("--dry-run", action="store_true", help="show what would be removed; change nothing")
+    sp.add_argument("--yes", action="store_true", help="non-interactive run (uninstall never prompts)")
     sp.set_defaults(fn=cmd_uninstall)
     sp = sub.add_parser("project", parents=[common], help="project commands")
     psub = sp.add_subparsers(dest="pcmd", required=True, metavar="action")
     pp = psub.add_parser("add", parents=[common], help="create the project in the lead and every worker")
-    pp.add_argument("squad")
-    pp.add_argument("name")
-    pp.add_argument("path")
-    pp.add_argument("--dry-run", action="store_true")
+    pp.add_argument("squad", help="squad key")
+    pp.add_argument("name", help="project name (the slug is derived from it)")
+    pp.add_argument("path", help="existing project folder")
+    pp.add_argument("--dry-run", action="store_true", help="show which profiles would get it; create nothing")
     pp.set_defaults(fn=cmd_project_add)
     sp = sub.add_parser("chain", parents=[common], help="file the dependent cards of a squad chain")
-    sp.add_argument("squad")
-    sp.add_argument("chain")
+    sp.add_argument("squad", help="squad key")
+    sp.add_argument("chain", help="chain name in squad.yaml -> chains")
     sp.add_argument("--project", required=True, help="project slug")
-    sp.add_argument("--title", required=True)
+    sp.add_argument("--title", required=True, help="title prefix of every card")
     sp.add_argument("--when", default="", help="comma list of conditions that enable `when:` stages")
-    sp.add_argument("--body", default="")
+    sp.add_argument("--body", default="", help="text appended to every card body")
     sp.add_argument("--run-id", help="idempotency run id (default: slug of the title)")
-    sp.add_argument("--workspace")
-    sp.add_argument("--dry-run", action="store_true")
+    sp.add_argument("--workspace", help="card workspace (default: dir:<project primary path>)")
+    sp.add_argument("--dry-run", action="store_true", help="print the cards, create nothing")
     sp.set_defaults(fn=cmd_chain)
     return p
 

@@ -1,6 +1,6 @@
 # Gary Vaynerchuk
 
-**Lens:** Attention is the only asset in marketing, find where consumer attention is underpriced right now, and make platform-native content there before the price gets bid up.
+**Lens:** Attention is the only asset in marketing: find where consumer attention is underpriced right now, and make platform-native content there before the price gets bid up.
 
 ## Core frameworks
 
@@ -32,4 +32,4 @@
 ## Best for / blind spots
 
 **Best for:** Organic social strategy, platform trend arbitrage, personal branding, creative volume systems, content atomization, early-mover channel bets, long-horizon brand patience.
-**Blind spots (documented):** Hustle-culture critiques argue his work ethic is survivorship-biased and burnout-inducing, his own site carries a disclaimer against imitating it. Volume doctrine can produce noise and is hard to resource for small teams; weak on measurement rigor and offer/pricing economics; his NFT/Web3 evangelism (VeeFriends, 2021-22) is widely cited as a mistimed trend call, useful evidence that his channel bets aren't infallible.
+**Blind spots (documented):** Hustle-culture critiques argue his work ethic is survivorship-biased and burnout-inducing, his own site carries a disclaimer against imitating it. Volume doctrine can produce noise and is hard to resource for small teams; weak on measurement rigor and offer/pricing economics; his NFT/Web3 evangelism (VeeFriends, 2021-22) is widely cited as a mistimed trend call.

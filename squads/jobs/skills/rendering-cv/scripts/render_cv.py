@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Render a CV content file to the files an application submits, and report defects.
 
-Usage:
-  render_cv.py --content application/cv_content.json --output application [options]
-
 Writes into --output:
   cv_ats.html        one-column, ATS-safe HTML (always)
   cv_ats.txt         plain text in reading order (always)
@@ -32,7 +29,7 @@ HEADINGS = {
     "en": {"summary": "Summary", "experience": "Experience", "projects": "Projects", "skills": "Skills",
            "education": "Education", "languages": "Languages"},
     "es": {"summary": "Perfil", "experience": "Experiencia", "projects": "Proyectos", "skills": "Habilidades",
-           "education": "Formación", "languages": "Idiomas"},
+           "education": "Formaci\u00f3n", "languages": "Idiomas"},
 }
 CHROMIUM_CANDIDATES = (
     "chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "chrome",
@@ -69,7 +66,7 @@ def header_block(content: dict) -> tuple[str, str, str, list[str]]:
     h = content.get("header") or {}
     name = str(h.get("name") or "").strip()
     headline = str(h.get("headline") or "").strip()
-    contact = " · ".join(str(x).strip() for x in (h.get("email"), h.get("phone"), h.get("location")) if x)
+    contact = " \u00b7 ".join(str(x).strip() for x in (h.get("email"), h.get("phone"), h.get("location")) if x)
     links = [str(x).strip() for x in (h.get("links") or []) if x]
     return name, headline, contact, links
 
@@ -77,19 +74,19 @@ def header_block(content: dict) -> tuple[str, str, str, list[str]]:
 def render_txt(content: dict) -> str:
     language, words = fit(content)
     name, headline, contact, links = header_block(content)
-    lines = [name, headline, contact, " · ".join(links), ""]
+    lines = [name, headline, contact, " \u00b7 ".join(links), ""]
     if content.get("summary"):
         lines += [words["summary"].upper(), str(content["summary"]).strip(), ""]
     if content.get("experience"):
         lines += [words["experience"].upper()]
         for job in content["experience"]:
-            lines.append(f"{job.get('title', '')} — {job.get('company', '')} ({job.get('dates', '')})".strip())
+            lines.append(f"{job.get('title', '')} \u2014 {job.get('company', '')} ({job.get('dates', '')})".strip())
             lines += [f"- {b.get('text', '')}" for b in job.get("bullets") or []]
             lines.append("")
     if content.get("projects"):
         lines += [words["projects"].upper()]
         for p in content["projects"]:
-            lines.append(f"{p.get('name', '')} — {p.get('url', '')}".strip(" —"))
+            lines.append(f"{p.get('name', '')} \u2014 {p.get('url', '')}".strip(" \u2014"))
             if p.get("text"):
                 lines.append(str(p["text"]).strip())
         lines.append("")
@@ -126,13 +123,13 @@ def render_html(content: dict) -> str:
     if contact:
         out.append(p(contact))
     if links:
-        out.append("<p>" + " · ".join(f'<a href="{html.escape(u)}">{html.escape(u)}</a>' for u in links) + "</p>")
+        out.append("<p>" + " \u00b7 ".join(f'<a href="{html.escape(u)}">{html.escape(u)}</a>' for u in links) + "</p>")
     if content.get("summary"):
         out += [f"<h2>{words['summary']}</h2>", p(str(content["summary"]))]
     if content.get("experience"):
         out.append(f"<h2>{words['experience']}</h2>")
         for job in content["experience"]:
-            out.append(f"<p><strong>{html.escape(str(job.get('title', '')))}</strong> — "
+            out.append(f"<p><strong>{html.escape(str(job.get('title', '')))}</strong> \u2014 "
                        f"{html.escape(str(job.get('company', '')))}, {html.escape(str(job.get('dates', '')))}</p>")
             bullets = [f"<li>{html.escape(str(b.get('text', '')))}</li>" for b in job.get("bullets") or []]
             if bullets:
@@ -142,7 +139,7 @@ def render_html(content: dict) -> str:
         for proj in content["projects"]:
             label = html.escape(str(proj.get("name", "")))
             url = str(proj.get("url") or "")
-            out.append(p(f"{label} — {url}" if url else label))
+            out.append(p(f"{label} \u2014 {url}" if url else label))
             if proj.get("text"):
                 out.append(p(str(proj["text"])))
     if content.get("skills"):
@@ -236,7 +233,7 @@ def render_docx(content: dict, path: Path, defects: list[dict]) -> str:
             doc.add_paragraph(text)
 
     doc.add_heading(name or "CV", level=0)
-    for line in (headline, contact, " · ".join(links)):
+    for line in (headline, contact, " \u00b7 ".join(links)):
         if line:
             doc.add_paragraph(line)
     if content.get("summary"):
@@ -245,7 +242,7 @@ def render_docx(content: dict, path: Path, defects: list[dict]) -> str:
     if content.get("experience"):
         heading(words["experience"])
         for job in content["experience"]:
-            doc.add_paragraph(f"{job.get('title', '')} — {job.get('company', '')}, {job.get('dates', '')}")
+            doc.add_paragraph(f"{job.get('title', '')} \u2014 {job.get('company', '')}, {job.get('dates', '')}")
             for bullet in job.get("bullets") or []:
                 try:
                     doc.add_paragraph(str(bullet.get("text", "")), style="List Bullet")
@@ -254,7 +251,7 @@ def render_docx(content: dict, path: Path, defects: list[dict]) -> str:
     if content.get("projects"):
         heading(words["projects"])
         for proj in content["projects"]:
-            doc.add_paragraph(f"{proj.get('name', '')} — {proj.get('url', '')}".strip(" —"))
+            doc.add_paragraph(f"{proj.get('name', '')} \u2014 {proj.get('url', '')}".strip(" \u2014"))
             if proj.get("text"):
                 doc.add_paragraph(str(proj["text"]))
     if content.get("skills"):

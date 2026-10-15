@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "A glTF export loads in the demo page but shows no materials.",
-      "expected_output": "The export is fixed (materials and textures embedded) and re-verified in the demo page; the piece is not handed off with a broken glTF.",
+      "expected_output": "The export is fixed (materials and textures embedded) and re-validated with npx -y @gltf-transform/cli validate; the piece is not handed off with a broken glTF.",
       "files": []
     }
   ]

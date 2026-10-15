@@ -1,6 +1,7 @@
-# Archivos locales de trabajo
+# Local tooling and caches
 CLAUDE.md
 .claude/
 .DS_Store
 __pycache__/
 *.pyc
+.venv/

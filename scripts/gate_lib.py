@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
 """Cron wake-gate helpers: zero LLM cost when there is nothing to do.
 
-Hermes runs a cron --script BEFORE the agent. The last non-empty stdout line decides:
-  {"wakeAgent": false}                    the tick ends, no model call
-  {"wakeAgent": true, "context": {...}}   the agent runs
-Any other output (non-JSON) wakes the agent and the full stdout is prepended as `## Script Output`;
-empty stdout skips the agent entirely (no output, no model call). A gate therefore prints exactly
-one line: the JSON gate line, which is also the wake decision.
+Hermes runs a cron --script BEFORE the agent (cron/scheduler_prompt.py):
+  empty stdout                            the agent is skipped
+  last non-empty line {"wakeAgent": false} the agent is skipped
+  anything else                           the agent runs, with the full stdout prepended as `## Script Output`
+A gate prints exactly one JSON line, which is also the wake decision.
 
-Import it from a gate script:  from gate_lib import changed, emit, guarded, fingerprint
-Or use it from the shell on JSON read from stdin:
-
-  some-command --json | gate_lib.py changed <gate>    wake only when the JSON differs from the last run
-  gate_lib.py fingerprint < data.json                 print the fingerprint
-  gate_lib.py emit --no-wake | --wake [--context JSON]
+Import it from a gate script (`from gate_lib import changed, emit, guarded, fingerprint`), or pipe JSON into
+`gate_lib.py changed <gate>` / `gate_lib.py fingerprint` from the shell.
 
 State lives in $HERMES_HOME/local/state/gate_<gate>.json (override with --state-dir or GATE_STATE_DIR).
-Output is always one JSON line.
 """
 from __future__ import annotations
 
@@ -108,18 +102,19 @@ def guarded(gate: str, fn: Callable[[], int]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], epilog=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], epilog=__doc__.split("\n\n", 1)[1],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--state-dir", help="state directory (default $HERMES_HOME/local/state)")
     ap.add_argument("--json", action="store_true", help="accepted for uniformity; output is always JSON")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("fingerprint", help="print the fingerprint of the JSON on stdin")
     ch = sub.add_parser("changed", help="wake only when the JSON on stdin differs from the last run")
-    ch.add_argument("gate")
+    ch.add_argument("gate", help="gate name (state file gate_<gate>.json)")
     ch.add_argument("--no-save", action="store_true", help="do not store the new fingerprint")
     em = sub.add_parser("emit", help="print a gate line")
     mode = em.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--wake", action="store_true")
-    mode.add_argument("--no-wake", action="store_true")
+    mode.add_argument("--wake", action="store_true", help="wake the agent")
+    mode.add_argument("--no-wake", action="store_true", help="skip the agent")
     em.add_argument("--context", help="JSON object (with --wake)")
     a = ap.parse_args(argv)
 

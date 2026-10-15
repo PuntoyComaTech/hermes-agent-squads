@@ -1,6 +1,6 @@
 ---
 name: changing-bots
-description: "Edits one bot's tools, skills or schedule. Use when a bot is added, changed, split or retired."
+description: "Edits, adds, splits and retires the bots of a squad. Use when a bot is added, changed, split or retired."
 ---
 
 # Changing bots
@@ -8,37 +8,52 @@ description: "Edits one bot's tools, skills or schedule. Use when a bot is added
 ## When to Use
 
 - The user wants a bot to gain or lose toolsets, skills, plugins, MCP servers,
-  connectors, schedules or its lane.
-- A bot is redundant, or a new bot must split out of an existing one.
+  connectors, cron jobs or its lane.
+- A squad needs another bot, one bot split in two, or a bot retired.
 
 ## Procedure
 
-1. Restate the change in one line and find what it touches: the manifest
-   (`squad.yaml` / `builder.yaml`), profile config, skills, cron.
-2. Ship the change through the overlay: write
-   `local/squads/<key>/squad.yaml` with just the changed fields; merge order is
-   repo manifest < local overlay < `local/installed.yaml`
-   (`scripts/squadctl.py`).
-3. Run `scripts/hpy squadctl.py plan <key> --json`, show the diff, and
-   apply only after the user's explicit OK.
-4. When the change alters role or permissions, re-check D-001 with
-   `skills/designing-squads`.
-5. Removing a bot: drop it from the overlay and `apply`; for a whole squad use
-   `squadctl uninstall <key>`, which exports backups first.
+1. Write the change to the overlay `local/squads/<key>/squad.yaml` (key
+   `builder` for the builder). Merge rule (`deep_merge` in
+   `scripts/squadctl.py`): maps merge per key, lists and scalars replace,
+   `null` deletes the key. Write every changed list or chain in full.
+2. Put new or changed assets next to the overlay; they win over the repo
+   copies: `local/squads/<key>/souls/<bot>.md`,
+   `local/squads/<key>/skills/<skill>/` (`skills/authoring-skills`),
+   `local/squads/<key>/scripts/<script>`.
+3. Add a bot: check D-001 (`skills/designing-squads` step 5), then add
+   `bots.<key>-<role>` with `role: worker`, `title`, `description`, `lane`,
+   `toolsets`, `hidden: true`, `memory: false`
+   (`squads/_schema/squad.schema.json` -> `bot`), its SOUL and the chain
+   stages it takes. The schema allows at most 5 bots.
+4. Split a bot: add the new bot as in step 3, then rewrite the old bot's
+   `toolsets` and `skills.squad` and every chain whose stages move.
+5. Retire a bot: set `bots.<bot>: null`; rewrite every chain and copy into the
+   overlay every squad skill that names it, with the bot replaced.
+   Move its open cards first: `hermes kanban --board <slug> list --assignee <bot> --json`,
+   then `hermes kanban --board <slug> reassign <id> <new-bot> --reclaim` per card.
+6. Run `scripts/hpy squadctl.py plan <key> --json` (`--self` for the builder),
+   show the diff and apply only after the user's explicit OK:
+   `scripts/hpy squadctl.py apply <key>`. A new lane without a model needs
+   `skills/assigning-models` first.
+7. After a retire, `apply` leaves the old profile in place. On the user's OK run
+   `hermes profile export <bot> -o local/backups/<bot>.tar.gz`, then
+   `hermes profile delete <bot> --yes`.
 
 ## Pitfalls
 
-- Editing a profile's config by hand: change the overlay and `apply`.
-- Editing `skills/` in a worker profile: squad skills are copied; the source of
-  truth is the repo (or overlay) and reaches the bot on the next `apply`.
-- Adding a cron job without a gate: every agent cron needs its gate script or
-  `agent: false`.
-- Granting passthrough to a bot that reads the web: credentials go only on the
-  bot that calls the API.
+- Editing a profile's `config.yaml`, `SOUL.md` or `skills/` by hand: the next
+  `apply` overwrites it. Change the overlay.
+- A cron `agent` job whose `script` prints on quiet ticks: only empty stdout or
+  a last line `{"wakeAgent": false}` skips the agent
+  (`skills/hermes-platform/references/cron-and-gates.md`).
+- `passthrough` on a bot with `web` or `browser`: credentials go only on a bot
+  that reads no web content.
 
 ## Verification
 
-- `plan <key> --json` after apply reports `unchanged`.
-- `hermes -p <bot> config get` and `hermes -p <bot> cron list` show the new
-  values.
-- `squadctl doctor` is clean for that bot.
+- `scripts/hpy squadctl.py plan <key> --json` reports every bot `unchanged`.
+- `hermes -p <bot> config get <config-key>` and `hermes -p <bot> cron list`
+  show the new values.
+- After a retire, `hermes profile list` no longer shows the bot and
+  `scripts/hpy squadctl.py doctor` reports no `fail`.

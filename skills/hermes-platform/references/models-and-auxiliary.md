@@ -1,51 +1,44 @@
 # Models and auxiliary slots
 
-## Contents
-
-- [Per-profile model](#per-profile-model)
-- [Providers and the models cache](#providers-and-the-models-cache)
-- [Auxiliary slots](#auxiliary-slots)
-- [Vision](#vision)
-
 ## Per-profile model
 
-- Each profile has `model.provider` and `model.default`, plus
+- Each profile has `model.provider`, `model.default` and
   `agent.reasoning_effort` (`website/docs/user-guide/configuration.md`;
   `website/docs/user-guide/configuring-models.md`).
-- Default effort is per profile. Per-model overrides
-  (`agent.reasoning_overrides`) and cron `--reasoning-effort` exist;
-  `kanban create` has no effort flag, so a lane needing another effort gets its
-  own profile (`hermes cron create --help`;
-  `website/docs/user-guide/features/kanban.md`, "Per-task model override";
-  `docs/decisions.md` V-07).
-- Model switching and the picker: `hermes model` (`website/docs/user-guide/configuring-models.md`).
+- Default effort is per profile. `agent.reasoning_overrides` maps a model name
+  to an effort (config.yaml only, no CLI) and cron jobs take
+  `--reasoning-effort` (`hermes_cli/config_defaults.py`; `hermes cron create
+  --help`). `kanban create` has no effort flag, so a lane that needs another
+  effort gets its own profile (`docs/decisions.md` V-07).
+- `hermes model` picks provider and model; `hermes model --refresh` re-fetches
+  every provider's model list (`hermes model --help`).
 
 ## Providers and the models cache
 
-- Authenticated providers and their model catalogs are resolved by the runtime
-  provider system (`website/docs/integrations/providers.md`).
 - `$HERMES_HOME/provider_models_cache.json` caches each authed provider's model
   list (`hermes_cli/models.py`, `_provider_models_cache_path`).
 - `scripts/model_advisor.py` reads that cache and `scripts/data/model-roles.yaml`
-  (lanes, family regex candidates, provider preference) to suggest one model per
-  bot; model ids live only in that data file and the builder profile's
-  `local/installed.yaml` (`scripts/model_advisor.py`; `docs/decisions.md` V-08).
-- Fallback and routing: `website/docs/user-guide/features/fallback-providers.md`
-  and `website/docs/user-guide/features/provider-routing.md`.
+  to suggest one model per bot; model ids live only in that data file and the
+  builder profile's `local/installed.yaml` (`docs/decisions.md` V-08).
+- Providers: `website/docs/integrations/providers.md`; fallback and routing:
+  `website/docs/user-guide/features/fallback-providers.md`,
+  `website/docs/user-guide/features/provider-routing.md`.
 
 ## Auxiliary slots
 
-- Background tasks have their own `auxiliary.<task>.provider/model` keys and
-  default to the main model when unset
-  (`website/docs/user-guide/configuration.md`; `scripts/squadctl.py`).
-- Squad tooling points its `AUX_TASKS` set (13 slots) at the cheap `aux` lane;
-  `mcp`, `tts_audio_tags`, `voice_chat` and the two MoA slots keep the main
-  model (`scripts/squadctl.py`; `scripts/data/model-roles.yaml`).
+- Background tasks have their own `auxiliary.<task>.provider` / `.model` keys;
+  `provider: auto` inherits the main model (`hermes_cli/config_defaults.py`,
+  `auxiliary`).
+- Squad tooling points its `AUX_TASKS` set (13 slots) at the `aux` lane and
+  `auxiliary.vision` at the `vision` lane; `mcp`, `tts_audio_tags`,
+  `voice_chat`, `moa_reference` and `moa_aggregator` keep the main model
+  (`scripts/squadctl.py`).
 
 ## Vision
 
 - A text-only main model keeps its profile and gets `auxiliary.vision` instead
-  of a model change (`docs/decisions.md` D-021;
-  `website/docs/user-guide/features/vision.md`).
-- The `vision` lane must be a model that accepts images
-  (`scripts/data/model-roles.yaml`).
+  of a model change (`docs/decisions.md` D-021). The `vision` lane must accept
+  images (`scripts/data/model-roles.yaml`).
+- An explicit `auxiliary.vision` provider or model also sends images from a
+  vision-capable main model through the description path under
+  `agent.image_input_mode: auto` (`website/docs/user-guide/features/vision.md`).

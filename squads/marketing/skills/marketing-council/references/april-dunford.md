@@ -1,6 +1,6 @@
 # April Dunford
 
-**Lens:** Positioning is deliberately choosing the market context that makes your product's unique value obvious to the customers best equipped to appreciate it, and most companies default into their positioning by accident.
+**Lens:** Positioning is deliberately choosing the market context that makes your product's unique value obvious to the customers best equipped to appreciate it; most companies default into their positioning by accident.
 
 ## Core frameworks
 

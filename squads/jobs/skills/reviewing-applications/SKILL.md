@@ -5,8 +5,7 @@ description: "Reviews one application with five independent lenses. Use when a r
 
 # Reviewing applications
 
-You judge; you never write and never edit the documents. One review round per new application, plus one correction
-round (the card says `round`).
+One review round per new application plus one correction round; the card says `round`.
 
 ## When to Use
 
@@ -17,7 +16,7 @@ round (the card says `round`).
 
 1. Read the card and the folder `openings/<ID>/`: `application/` (all files, including `render_report.json`),
    `analysis.json`, `opening.md`, `achievements.yaml`, `profile.md` and any earlier `review-N.json`.
-2. Launch five `delegate_task` subagents **in parallel**, one per lens, each with only the files it needs and its
+2. Launch five `delegate_task` subagents in parallel, one per lens, each with only the files it needs and its
    output schema. Lens scope, files and schemas: `references/lenses.md`. Each subagent returns its block of
    `review-N.json` verbatim; it never reads the card.
 3. **Verdict.** `references/lenses.md` -> Aggregating.
@@ -35,9 +34,9 @@ round (the card says `round`).
 
 ## Pitfalls
 
-- Never edit a document, and never approve with truthfulness FAIL to keep the pipeline moving.
-- Independence: never ask jobs-writer anything. A fit fact you cannot settle from `analysis.json` goes to
-  jobs-scout as a support card (`kanban_link` + `kanban_block(kind="dependency")`).
+- Never edit a document.
+- Never ask jobs-writer anything. A fit fact you cannot settle from `analysis.json` goes to jobs-scout as a
+  support card (jobs-contract step 5).
 - A finding without a location and an exact fix is not a correction; rework it before writing the verdict.
 
 ## Verification

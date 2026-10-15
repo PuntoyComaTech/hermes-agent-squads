@@ -5,8 +5,7 @@ description: "Builds interview preparation notes for one opening. Use when an in
 
 # Preparing interviews
 
-One opening, one file: `interview.md` beside `application/`. Every suggested answer comes from `achievements.yaml`
-with `verified: true`; you never invent a story, a number or a level.
+One opening, one file: `interview.md` beside `application/`.
 
 ## When to Use
 
@@ -31,7 +30,6 @@ with `verified: true`; you never invent a story, a number or a level.
 
 ## Pitfalls
 
-- Never promise a skill the achievements do not support, and never coach an exaggerated claim.
 - Never invent details about the company that are not in its dated profile or the opening.
 - Contact details never appear here beyond the name the user uses in conversation.
 

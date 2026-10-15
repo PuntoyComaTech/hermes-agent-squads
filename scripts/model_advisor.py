@@ -336,7 +336,7 @@ def render_text(result: dict) -> str:
              f"(via {result['providers']['source']})"]
     if result["providers"]["stale"]:
         lines.append(f"stale cache (older than 7 days): {', '.join(result['providers']['stale'])}; "
-                     f"ask the user to run `hermes model --refresh`")
+                     f"ask the user to run `hermes model --refresh` in a terminal (it opens a picker)")
 
     def row(label: str, p: dict, indent: str = "") -> None:
         lines.append(f"{indent}{label:<22} {p['lane']:<9} {p['model']} @ {p['provider']} [{p['reasoning']}]")
@@ -370,8 +370,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--providers", default="auto", metavar="auto|cache|a,b",
                    help="auto detects authenticated providers; cache trusts every cache entry; or a slug list")
     p.add_argument("--cache", type=Path, help="provider_models_cache.json (default: $HERMES_HOME, then the root)")
-    p.add_argument("--roles", type=Path, default=SCRIPTS / "data" / "model-roles.yaml")
-    p.add_argument("--local-roles", type=Path, default=BUILDER / "local" / "model-roles.yaml")
+    p.add_argument("--roles", type=Path, default=SCRIPTS / "data" / "model-roles.yaml",
+                   help="lane table (default: scripts/data/model-roles.yaml)")
+    p.add_argument("--local-roles", type=Path, default=BUILDER / "local" / "model-roles.yaml",
+                   help="per-user override of lanes and families (default: local/model-roles.yaml)")
     p.add_argument("--now", type=float, help="epoch seconds used for cache staleness (tests)")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     return p

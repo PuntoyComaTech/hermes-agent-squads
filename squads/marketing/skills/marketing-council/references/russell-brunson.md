@@ -1,6 +1,6 @@
 # Russell Brunson (b. 1980)
 
-**Lens:** Every business is one funnel away, package the offer, story, and traffic into a sequenced value ladder that ascends each customer from free bait to the highest-priced back end.
+**Lens:** Every business is one funnel away: package the offer, story, and traffic into a sequenced value ladder that ascends each customer from free bait to the highest-priced back end.
 
 ## Core frameworks
 

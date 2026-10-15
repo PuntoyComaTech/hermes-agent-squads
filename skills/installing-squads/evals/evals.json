@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Remove the marketing squad but keep the profiles around.",
-      "expected_output": "squadctl uninstall marketing --keep-profiles: exports backups, removes marketing-* cron, archives the board, leaves project folders.",
+      "expected_output": "squadctl uninstall marketing --dry-run, shown to the user; on OK uninstall marketing --keep-profiles: exports backups, removes marketing-* cron, archives the board, leaves project folders.",
       "files": []
     }
   ]

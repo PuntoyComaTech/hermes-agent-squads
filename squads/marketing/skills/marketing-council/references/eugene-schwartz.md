@@ -1,6 +1,6 @@
 # Eugene Schwartz (1927-1995)
 
-**Lens:** Copy cannot create desire, it can only channel the mass desire already existing in millions of hearts onto a particular product. The market, not the writer, writes the ad.
+**Lens:** Copy cannot create desire; it can only channel the mass desire already existing in millions of hearts onto a particular product. The market, not the writer, writes the ad.
 
 ## Core frameworks
 

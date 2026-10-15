@@ -1,5 +1,5 @@
 # Toolsets never offered to any squad bot. squadctl writes
-#   disabled_toolsets = always_disabled ∪ (managed − bot.toolsets)
+#   disabled_toolsets = always_disabled + (MANAGED - bot.toolsets)
 # against hermes-agent toolsets.py TOOLSETS (a2a: plugin-registered, plugins/platforms/a2a/tools.py).
 # Dropped from the source list:
 #   setup, start_chat  retired toolset names (hermes_cli/observability/shared_metrics_contract.py)

@@ -1,61 +1,46 @@
 # Profiles and distributions
 
-## Contents
-
-- [What a profile is](#what-a-profile-is)
-- [Creating profiles](#creating-profiles)
-- [Profile distributions](#profile-distributions)
-- [Install, update, uninstall](#install-update-uninstall)
-
 ## What a profile is
 
 - A profile is an independent agent: its own `config.yaml`, `SOUL.md`, sessions,
   skills, memory and channels under `~/.hermes/profiles/<name>/`
-  (`website/docs/user-guide/profiles.md`).
-- One gateway serves many profiles; each keeps its own state
-  (`website/docs/user-guide/multi-profile-gateways.md`).
+  (`website/docs/user-guide/profiles.md`). One gateway serves many profiles:
+  `gateways-and-messaging.md`.
 - Commands take `-p <profile>`; without it they use the sticky profile set by
   `hermes profile use`, else the default
   (`website/docs/reference/cli-commands.md`).
 
-## Creating profiles
+## Creating and removing profiles
 
-- `hermes profile create <name>` with `--no-skills --no-alias --description ...`
-  creates an empty, unaliased profile (`website/docs/reference/profile-commands.md`).
-- `--no-skills` opts out of bundled-skill seeding entirely
-  (`website/docs/user-guide/features/skills.md`).
+- `hermes profile create <name> --no-skills --no-alias --description ...`
+  creates an empty, unaliased profile; `--no-skills` refuses to combine with
+  any `--clone*` flag (`website/docs/reference/profile-commands.md`). Seeding
+  details: `skills-format-and-sources.md` -> Bundled, official and hub skills.
 - `--clone` copies `config.yaml`, `.env`, `SOUL.md`, skills, the curated
-  memories and the memory provider's config from the active profile; sessions,
-  `state.db` and cron jobs are not copied
-  (`website/docs/reference/profile-commands.md`). Squad tooling never uses it:
-  it copies `.env` (secret values) into the new profile (`scripts/squadctl.py`).
-- `hermes profile export <name> -o <file>` writes a backup tarball before any
-  prune or delete (`website/docs/reference/profile-commands.md`).
+  memories and the memory provider's config; sessions, `state.db` and cron jobs
+  are not copied (`website/docs/reference/profile-commands.md`). Squad tooling
+  never clones, because `.env` holds secret values (`docs/decisions.md` V-10).
+- `hermes profile export <name> -o <file>` writes a tarball without `.env` or
+  `auth.json`; `hermes profile delete <name> --yes` removes a profile
+  (`website/docs/reference/profile-commands.md`). Squad tooling exports before
+  any delete and never deletes project folders (`scripts/squadctl.py`).
 
 ## Profile distributions
 
-- `hermes profile install <source>` installs a whole profile from a git URL or a
-  local directory whose root holds `distribution.yaml`
-  (`website/docs/user-guide/profile-distributions.md`;
-  `hermes profile install --help`).
-- The manifest's `distribution_owned` list names exactly the paths the
-  distribution copies and later updates; without the list (legacy) the whole
-  payload is owned. `scripts/` lands in `$HERMES_HOME/scripts/` where cron
-  needs it (`hermes_cli/profile_distribution.py`).
-- Install flags: `--name` (override profile name), `--alias` (shell wrapper),
-  `--force` (overwrite same-name profile, user data preserved), `-y`
-  (`hermes profile install --help`).
-
-## Install, update, uninstall
-
+- `hermes profile install <source>` installs a profile from a git URL or a local
+  directory whose root holds `distribution.yaml`; flags: `--name`, `--alias`
+  (shell wrapper), `--force` (overwrite a same-name profile, user data kept),
+  `-y` (`hermes profile install --help`;
+  `website/docs/user-guide/profile-distributions.md`).
+- `distribution_owned` in the manifest lists exactly the paths the distribution
+  copies and later updates; without it (legacy) the whole payload is owned
+  except user paths such as `memories`, `sessions` and `local`
+  (`hermes_cli/profile_distribution.py`, `_owned_entries`).
 - `hermes profile update <name>` re-fetches the recorded source and overwrites
-  distribution-owned files and the skills and cron jobs the distribution ships.
-  User data (memories, sessions, auth, `.env`) is never copied by install or
-  update; `config.yaml` is preserved unless `--force-config`
+  distribution-owned files plus the skills and cron jobs it ships; skills and
+  cron jobs the user added stay. User data (memories, sessions, auth, `.env`) is
+  never touched, and `config.yaml` is kept unless `--force-config`
   (`hermes profile update --help`).
-- Skills or cron jobs the user added themselves survive an update
-  (`hermes profile update --help`).
-- Squad tooling keeps its own state under the builder profile's `local/`
-  (`installed.yaml`, backups) (`scripts/squadctl.py`).
-- `hermes profile delete <name>` removes a profile; squad tooling exports a
-  backup first and never deletes project folders (`scripts/squadctl.py`).
+- Squad state lives under the builder profile's `local/` (`installed.yaml`,
+  backups), which install and update never write (`USER_OWNED_EXCLUDE`,
+  `hermes_cli/profile_distribution.py`; `docs/decisions.md` V-01).

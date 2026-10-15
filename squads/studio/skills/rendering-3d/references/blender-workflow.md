@@ -1,11 +1,10 @@
 # Blender workflow
 
-Squad conventions for the `3d` stage. The blender plugin (official) is the interface; it ships a Blender
-workflow skill with the tool names and scene recipes.
+Squad conventions for the `3d` stage.
 
 ## Stage setup
 
-- Keep the working scene (`*.blend`) and the exported assets in `assets/`; only finished files go to
+- Keep the working scene (`*.blend`) and the exported assets in `assets/blender/`; only finished files go to
   `renders/`.
 
 ## Scene conventions
@@ -22,19 +21,14 @@ workflow skill with the tool names and scene recipes.
 ## Outputs
 
 - Stills: PNG at the brief's resolution into `renders/<piece-id>-<shot>-<NN>.png`.
-- Animation: write a clip into `renders/` at the brief's fps and resolution, then run
-  `$HERMES_HOME/skills/squad-studio/studio-contract/scripts/render_check.py <file> --brief <folder>/brief.md --contact-sheet auto --json`; a PNG sequence
-  is stitched with FFmpeg before the check.
-- glTF for the demos: export `.glb` with materials and textures embedded, into `assets/` (or the demo
-  folder when the brief delivers it), then validate it with `npx gltf-validator <file>` (the demo-page
-  load is studio-motion's step). Absolute texture
-  paths and missing materials are the usual causes of a broken export.
+- Animation: write a clip into `renders/` at the brief's fps and resolution, then run the check of
+  rendering-3d step 6; a PNG sequence is stitched with FFmpeg before the check.
+- glTF for the demos: export `.glb` with materials and textures embedded, into `assets/blender/` (or the
+  demo folder when the brief delivers it), then validate it (rendering-3d step 5).
 - Contact sheets for stills: run `render_check.py` on the animation, or build a grid with FFmpeg for a
   still set; the lead reviews from the sheet.
 
-## Assets and licences
+## Versions
 
-- Every external model, HDRI, texture or brush set gets a row in `assets/sources.md` with source, licence
-  and cost before it is used (CC0 or a recorded licence only).
 - Record the Blender version and the plugin version in the handoff summary when a render is the first in
-  a piece; a later stage may need to reproduce it.
+  a piece.

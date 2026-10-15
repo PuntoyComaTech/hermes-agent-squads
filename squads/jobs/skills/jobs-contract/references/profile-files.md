@@ -54,7 +54,7 @@ Missing optional keys mean no constraint. Required: occupation, target_roles, se
 
 ## achievements.yaml
 
-The only source of claims. Nothing enters a document unless it is here with `verified: true`.
+The only source of claims (jobs-contract -> Pitfalls).
 
 ```yaml
 experiences:
@@ -83,7 +83,7 @@ Store text in every language the user applies in; the user confirms each.
 
 ## contact.yaml
 
-Read only by jobs-writer (CV header) and jobs-applier (forms). Sensitive; keep it out of git.
+Sensitive; keep it out of git. Readers: jobs-contract step 2.
 
 ```yaml
 name: "Ana Example"
@@ -95,7 +95,7 @@ links: ["https://github.com/example"]
 
 ## application-data.yaml
 
-Only when `auto_apply: try`. Read only by jobs-applier. Sensitive; keep it out of git.
+Only when `auto_apply: try`. Sensitive; keep it out of git.
 
 ```yaml
 work_authorization: [{country: PE, authorized: true, needs_sponsorship: false}]

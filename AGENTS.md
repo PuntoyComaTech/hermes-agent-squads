@@ -15,8 +15,8 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
   Do not reimplement them.
 - **English only** in repo content; bots speak the user's language at runtime.
 - **Model ids only** in `scripts/data/model-roles.yaml` and `local/installed.yaml` (enforced).
-- **Real scripts, never prose scripts**: Python for YAML/JSON/HTTP work with `--help` on every script; bash only
-  for the shims and one-line cron wrappers.
+- **Real scripts, never prose scripts**: Python for YAML/JSON/HTTP work, `--help` on every script; bash only for
+  the shims and one-line cron wrappers.
 - **Skills pass** `scripts/hpy skill_lint.py`; rules: `skill_lint.py --rules`.
 - **Verify every platform claim** against local Hermes docs or source and cite the path; when Hermes contradicts
   the repo, Hermes wins: fix the repo.
@@ -34,6 +34,7 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
 | `skills/` | builder skills; `hermes-platform` is the verified reference |
 | `scripts/`, `scripts/data/` | squadctl and helpers; lane tables |
 | `squads/<key>/` | one squad: `squad.yaml`, `souls/`, `skills/`, `scripts/`, README |
+| `local/` (installed builder only, never shipped) | `installed.yaml`, overlays and local squads in `squads/<key>/`, backups, state |
 | `squads/_schema/squad.schema.json` | manifest schema |
 | `docs/decisions.md` | condensed decision log |
 | `tests/` | pytest against a temporary `HERMES_HOME` |

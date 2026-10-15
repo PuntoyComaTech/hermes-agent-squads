@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "You are a maintainer; push the fix straight to main.",
-      "expected_output": "Runs `scripts/hpy release.py`: with a version bump, a CHANGELOG entry and all gates green (skill_lint, pytest, schema, temp-root plans) it pushes to main; otherwise it opens a PR.",
+      "expected_output": "Checks push rights with gh api, bumps distribution.yaml version, adds a CHANGELOG entry, runs release.py --dry-run then release.py: all gates green pushes to main, a red gate opens a PR.",
       "files": []
     },
     {

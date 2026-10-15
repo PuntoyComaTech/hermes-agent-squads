@@ -4,7 +4,7 @@
 
 ## Core frameworks
 
-- **Permission Marketing** (*Permission Marketing*, 1999): Deliver anticipated, personal, relevant messages to people who opted in, the alternative to interruption marketing. Underpins modern email/content marketing.
+- **Permission Marketing** (*Permission Marketing*, 1999): Deliver anticipated, personal, relevant messages to people who opted in, the alternative to interruption marketing.
 - **Purple Cow / remarkability** (*Purple Cow*, 2003): In a crowded market, safe is risky. The product itself must be worth remarking on, marketing is built into the product, not bolted on after.
 - **Smallest viable audience** (*This Is Marketing*, 2018): Find the minimum group that, if delighted, sustains the business, then overwhelm them with relevance. "The relentless pursuit of mass will make you boring."
 - **Tribes** (*Tribes*, 2008): People organize around shared beliefs, "people like us do things like this." Lead a movement, don't broadcast to an audience.
@@ -15,7 +15,7 @@
 
 - Interruption advertising is theft of attention and increasingly ineffective, the founding argument of *Permission Marketing* (1999).
 - Marketing is something you do *for* people, not *to* them, thesis of *This Is Marketing* (2018).
-- Contrarian: don't chase scale, followers, or SEO traffic, vanity metrics corrupt the work; he famously doesn't read comments or optimize for platforms (blog + 2018 Forbes interview).
+- Contrarian: don't chase scale, followers, or SEO traffic, vanity metrics corrupt the work; he does not read comments or optimize for platforms (blog + 2018 Forbes interview).
 - Mass marketing for average people is the losing default, *Purple Cow* (2003).
 - Ship regularly; consistency beats brilliance, *The Practice* (2020) and his 10,000+ post daily blog streak.
 - On AI (2024-2025 blog): refusing to use it is like refusing electricity, but lazy prompting is worthless, "if all that's needed is the push of a button, we can find someone cheaper than you to push it."

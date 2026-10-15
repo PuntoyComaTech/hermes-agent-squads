@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Which flag keeps a new worker profile from inheriting ~90 bundled skills, and where is it verified?",
+      "prompt": "Which flag keeps a new worker profile from inheriting the bundled skills, and where is it verified?",
       "expected_output": "--no-skills on hermes profile create, cited to website/docs/reference/profile-commands.md or the create --help output.",
       "files": []
     },

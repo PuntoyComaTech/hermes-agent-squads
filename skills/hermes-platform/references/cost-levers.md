@@ -1,8 +1,9 @@
 # Cost levers
 
-- Skill index and description budget -> `skills-format-and-sources.md#format`.
-- Tool search deferral -> `tool-search-and-connectors.md#tool-search`.
-- Auxiliary slots and per-bot model pins -> `models-and-auxiliary.md#auxiliary-slots`.
-- Delegation child model -> `delegation.md#pinning-the-child-model`.
-- Cron gates, `--no-agent`, `--monitor-script` -> `cron-and-gates.md#script-mode-and-gates`.
-- Quiet kanban comments -> `bot-to-bot.md#direct-messages`.
+- Skill index description limit: `skills-format-and-sources.md` -> Format.
+- Tool search deferral: `tool-search-and-connectors.md` -> Tool search.
+- Auxiliary slots: `models-and-auxiliary.md` -> Auxiliary slots.
+- Per-card model: `kanban.md` -> Per-card flags.
+- Delegation child model: `delegation.md` -> Pinning the child model.
+- Cron `--no-agent`, `--monitor-script`, gate scripts: `cron-and-gates.md`.
+- Comments that wake nobody: `bot-to-bot.md` -> Direct messages.
