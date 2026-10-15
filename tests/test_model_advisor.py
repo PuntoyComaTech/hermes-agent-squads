@@ -32,7 +32,8 @@ def temp_home(tmp_path, monkeypatch):
 
 def advise(capsys, *argv, cache="copilot-opencode-go", providers="cache", squads=()):
     args = [*(str(FIX / "squads" / f"{s}.yaml") for s in squads), "--json", "--now", str(NOW),
-            "--providers", providers, "--local-roles", str(FIX / "nonexistent.yaml"), *argv]
+            "--providers", providers, "--local-roles", str(FIX / "nonexistent.yaml"),
+            "--exclude-file", str(FIX / "nonexistent-exclude.txt"), *argv]
     if cache:
         args += ["--cache", str(cache if isinstance(cache, Path) else FIX / "caches" / f"{cache}.json")]
     code = ma.main(args)
@@ -93,7 +94,9 @@ def test_review_lane_avoids_requested_producer_family(capsys, all_families):
     pick = result["lanes"][0]
     assert pick["provider"] == "opencode-go" and pick["model"] == "mimo-v2.6-pro"
     _, plain = advise(capsys, "--lane", "review", cache=all_families)
-    assert plain["lanes"][0]["model"] == "mimo-v2.6-pro"
+    # with no producer in scope the rule does not apply: the strongest available model wins
+    # (claude-subscription, the first provider_pref, serves the [1m] variant only in the fixtures)
+    assert plain["lanes"][0]["model"] == "claude-opus-5-5[1m]"
     _, vs_open = advise(capsys, "--lane", "review", "--producer-lane", "code", cache=all_families)
     assert vs_open["lanes"][0]["provider"] != "opencode-go"
 
@@ -119,8 +122,9 @@ def test_delegation_and_shared_lanes(capsys):
 
 def test_lane_table_without_squads_lists_every_lane(capsys):
     _, result = advise(capsys, cache="opencode-go-only")
-    assert {p["lane"] for p in result["lanes"]} == {"design", "lead", "code", "advisor", "review", "copy", "research",
-                                                  "digest", "aux", "vision"}
+    assert {p["lane"] for p in result["lanes"]} == {"manager", "frontend", "design-pro", "code-complex",
+                                                    "code-routine", "review", "deploy", "research", "digest",
+                                                    "aux", "vision"}
 
 
 def test_regex_survives_provider_renames(capsys):
@@ -179,16 +183,19 @@ def test_detection_models_fill_providers_missing_from_cache(monkeypatch, capsys)
     monkeypatch.setattr(ma, "probe_in_process", lambda: [
         {"slug": "nous", "models": ["deepseek-v4.1-flash", "claude-opus-5.5"]},
         {"slug": "opencode-go", "models": ["only-in-probe"]}])
+    monkeypatch.setattr(ma, "scope_providers", lambda home: set())  # no subprocesses in tests
     code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
     assert code == 0 and result["providers"]["source"] == "in-process"
     by_slug = {p["slug"]: p for p in result["providers"]["authenticated"]}
-    assert by_slug["nous"]["models"] == 2, "no cache entry: the detection call's models are used"
-    assert by_slug["opencode-go"]["models"] == 45, "cache entry wins over the detection call's models"
+    assert by_slug["nous"]["models"] == ["deepseek-v4.1-flash", "claude-opus-5.5"], \
+        "no cache entry: the detection call's models are used"
+    assert len(by_slug["opencode-go"]["models"]) == 45, "cache entry wins over the detection call's models"
     assert result["lanes"][0]["provider"] == "opencode-go"
 
 
 def test_detection_models_are_used_for_a_provider_without_cache(monkeypatch, capsys):
     monkeypatch.setattr(ma, "probe_in_process", lambda: [{"slug": "nous", "models": ["deepseek-v4.1-flash"]}])
+    monkeypatch.setattr(ma, "scope_providers", lambda home: set())  # no subprocesses in tests
     _, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
     assert (result["lanes"][0]["model"], result["lanes"][0]["provider"]) == ("deepseek-v4.1-flash", "nous")
 
@@ -235,6 +242,80 @@ def test_cache_file_is_never_modified(tmp_path, capsys):
     before = cache.read_bytes()
     advise(capsys, "--lane", "lead", cache=cache)
     assert cache.read_bytes() == before
+
+
+# --- exclusions, key homes, aliases ------------------------------------------------------------------------------
+
+def test_excluded_provider_is_detected_but_never_recommended(tmp_path, capsys):
+    ex = tmp_path / "providers-exclude.txt"
+    ex.write_text("# never recommend this one\ncopilot\n")
+    _, before = advise(capsys, "--lane", "review", cache="copilot-opencode-go")
+    assert before["lanes"][0]["provider"] == "copilot", "sanity: copilot would be picked"
+    _, after = advise(capsys, "--lane", "review", "--lane", "code", "--exclude-file", str(ex),
+                      cache="copilot-opencode-go")
+    listed = {p["slug"]: p for p in after["providers"]["authenticated"]}
+    assert listed["copilot"]["excluded"] is True, "excluded providers are still detected and reported"
+    assert after["providers"]["excluded"] == ["copilot"]
+    for pick in after["lanes"]:
+        assert pick["provider"] != "copilot", pick
+
+
+def test_exclusions_apply_to_squad_picks_too(tmp_path, capsys):
+    ex = tmp_path / "providers-exclude.txt"
+    ex.write_text("opencode-go\n")
+    _, result = advise(capsys, "--exclude-file", str(ex), cache="copilot-opencode-go", squads=["web"])
+    for squad in result["squads"]:
+        for row in [*squad["bots"], *[e for b in squad["bots"] for e in b["extras"]], *squad["shared"]]:
+            assert row["provider"] != "opencode-go", row
+
+
+def test_key_locations_reports_root_only_provider(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    profile = root / "profiles" / "builder"
+    profile.mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HOME", str(profile))
+    monkeypatch.setattr(ma, "scope_providers",
+                        lambda home: {"anthropic", "opencode-go"} if home == root else {"opencode-go"})
+    key_in, report = ma.key_locations(["anthropic", "opencode-go"])
+    assert key_in == {"anthropic": ["root"], "opencode-go": ["root", "profile"]}
+    assert report == ["provider anthropic authenticated at root but not in profile builder"]
+
+
+def test_key_locations_single_scope_when_root_is_the_profile(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
+    monkeypatch.setattr(ma, "scope_providers", lambda home: {"opencode-go"})
+    key_in, report = ma.key_locations(["opencode-go"])
+    assert key_in == {"opencode-go": ["root"]} and report == []
+
+
+def test_alias_lanes_resolve_and_keep_the_requested_name(capsys):
+    _, result = advise(capsys, "--lane", "lead", "--lane", "design", "--lane", "code",
+                       cache="copilot-opencode-go")
+    by = {p["lane"]: p for p in result["lanes"]}
+    assert set(by) == {"lead", "design", "code"}, "the requested name is kept for squad.yaml resolution"
+    assert "alias of manager" in by["lead"]["reason"]
+    assert "alias of design-pro" in by["design"]["reason"]
+    assert "alias of code-routine" in by["code"]["reason"]
+
+
+def test_alias_lane_picks_match_the_canonical_lane(capsys):
+    _, old = advise(capsys, "--lane", "lead", "--lane", "advisor", cache="anthropic-only")
+    _, new = advise(capsys, "--lane", "manager", "--lane", "code-complex", cache="anthropic-only")
+    for alias, live in zip(old["lanes"], new["lanes"]):
+        assert (alias["model"], alias["provider"], alias["reasoning"]) == (live["model"], live["provider"],
+                                                                          live["reasoning"])
+
+
+def test_local_override_of_an_alias_name_wins(tmp_path, capsys):
+    local = tmp_path / "model-roles.yaml"
+    local.write_text("lanes:\n  lead:\n    candidates:\n      - {family: open-weights, match: 'glm-5\\.3', reasoning: low}\n")
+    code = ma.main(["--lane", "lead", "--json", "--providers", "cache",
+                    "--local-roles", str(local), "--exclude-file", str(tmp_path / "nope.txt"),
+                    "--cache", str(FIX / "caches" / "copilot-opencode-go.json")])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert (out["lanes"][0]["model"], out["lanes"][0]["reasoning"]) == ("glm-5.3", "low")
+    assert "alias of manager" in out["lanes"][0]["reason"]
 
 
 def test_help_works_without_network(temp_home):

@@ -7,19 +7,50 @@
       {
         "slug": "anthropic",
         "family": "anthropic",
-        "models": 17
+        "models": [
+          "claude-fable-5.1",
+          "claude-fable-5",
+          "claude-opus-5-5",
+          "claude-opus-5",
+          "claude-sonnet-5",
+          "claude-opus-4-8",
+          "claude-opus-4-7",
+          "claude-opus-4-6",
+          "claude-sonnet-4-6",
+          "claude-opus-4-5-20251101",
+          "claude-sonnet-4-5-20250929",
+          "claude-opus-4-20250514",
+          "claude-sonnet-4-20250514",
+          "claude-haiku-4-5-20251001",
+          "claude-sonnet-5-5",
+          "claude-haiku-5-5",
+          "claude-fable-5-1"
+        ],
+        "key_in": []
       },
       {
         "slug": "claude-subscription-directsdk-experimental",
         "family": "anthropic",
-        "models": 8
+        "models": [
+          "claude-sonnet-5-5[1m]",
+          "claude-sonnet-5[1m]",
+          "claude-haiku-5-5[1m]",
+          "claude-haiku-4-5-20251001",
+          "claude-opus-5-5[1m]",
+          "claude-opus-5[1m]",
+          "claude-opus-4-8[1m]",
+          "claude-fable-5-1[1m]"
+        ],
+        "key_in": []
       }
     ],
     "families": [
       "anthropic"
     ],
     "source": "cache",
-    "stale": []
+    "stale": [],
+    "report": [],
+    "excluded": []
   },
   "squads": [
     {
@@ -44,7 +75,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -53,7 +84,62 @@
           "lane": "design",
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "medium",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "extras": []
+        },
+        {
+          "bot": "web-backend",
+          "role": "worker",
+          "lane": "code",
+          "model": "claude-haiku-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-haiku-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "code lane (alias of code-routine), candidate 4/6 (anthropic): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "advisor",
+              "model": "claude-opus-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high",
+              "alternatives": [
+                {
+                  "model": "claude-sonnet-5-5[1m]",
+                  "provider": "claude-subscription-directsdk-experimental",
+                  "reasoning": "high"
+                },
+                {
+                  "model": "claude-opus-5-5",
+                  "provider": "anthropic",
+                  "reasoning": "high"
+                }
+              ],
+              "reason": "advisor lane (alias of code-complex), candidate 1/5 (anthropic): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+            }
+          ]
+        },
+        {
+          "bot": "web-qa",
+          "role": "worker",
+          "lane": "review",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
           "alternatives": [
             {
               "model": "claude-sonnet-5-5[1m]",
@@ -63,60 +149,10 @@
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
-            }
-          ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
-          "extras": []
-        },
-        {
-          "bot": "web-backend",
-          "role": "worker",
-          "lane": "code",
-          "model": "claude-sonnet-5-5[1m]",
-          "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "medium",
-          "alternatives": [
-            {
-              "model": "claude-sonnet-5-5",
-              "provider": "anthropic",
-              "reasoning": "medium"
-            }
-          ],
-          "reason": "code lane, candidate 4/6 (anthropic): Backend work is long tool loops on tests",
-          "extras": [
-            {
-              "use": "delegation",
-              "lane": "advisor",
-              "model": "claude-opus-5-5[1m]",
-              "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium",
-              "alternatives": [
-                {
-                  "model": "claude-opus-5-5",
-                  "provider": "anthropic",
-                  "reasoning": "medium"
-                }
-              ],
-              "reason": "advisor lane, candidate 1/4 (anthropic): Consulted rarely via delegate_task on data model, auth, repeated failures and irreversible migrations"
-            }
-          ]
-        },
-        {
-          "bot": "web-qa",
-          "role": "worker",
-          "lane": "review",
-          "model": "claude-sonnet-5-5[1m]",
-          "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "high",
-          "alternatives": [
-            {
-              "model": "claude-sonnet-5-5",
-              "provider": "anthropic",
               "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": []
         },
         {
@@ -133,7 +169,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps and deploy runs are high-volume and low-judgment",
+          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment",
           "extras": []
         }
       ],
@@ -192,7 +228,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -209,24 +245,29 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps and deploy runs are high-volume and low-judgment",
+          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment",
           "extras": []
         },
         {
           "bot": "marketing-creative",
           "role": "worker",
           "lane": "copy",
-          "model": "claude-sonnet-5-5[1m]",
+          "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5",
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium"
+            },
+            {
+              "model": "claude-opus-5-5",
               "provider": "anthropic",
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
+          "reason": "copy lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -235,7 +276,24 @@
           "lane": "design",
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "medium",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "extras": []
+        },
+        {
+          "bot": "marketing-reviewer",
+          "role": "worker",
+          "lane": "review",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
           "alternatives": [
             {
               "model": "claude-sonnet-5-5[1m]",
@@ -245,27 +303,10 @@
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
-            }
-          ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
-          "extras": []
-        },
-        {
-          "bot": "marketing-reviewer",
-          "role": "worker",
-          "lane": "review",
-          "model": "claude-sonnet-5-5[1m]",
-          "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "high",
-          "alternatives": [
-            {
-              "model": "claude-sonnet-5-5",
-              "provider": "anthropic",
               "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": []
         }
       ],
@@ -324,7 +365,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -341,22 +382,27 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps and deploy runs are high-volume and low-judgment",
+          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment",
           "extras": [
             {
               "use": "chain:application/analyze",
               "lane": "review",
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
               "alternatives": [
                 {
-                  "model": "claude-sonnet-5-5",
+                  "model": "claude-sonnet-5-5[1m]",
+                  "provider": "claude-subscription-directsdk-experimental",
+                  "reasoning": "high"
+                },
+                {
+                  "model": "claude-opus-5-5",
                   "provider": "anthropic",
                   "reasoning": "high"
                 }
               ],
-              "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers"
+              "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers"
             }
           ]
         },
@@ -364,34 +410,44 @@
           "bot": "jobs-writer",
           "role": "worker",
           "lane": "copy",
-          "model": "claude-sonnet-5-5[1m]",
+          "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5",
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "medium"
+            },
+            {
+              "model": "claude-opus-5-5",
               "provider": "anthropic",
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane, candidate 1/4 (anthropic): Copy, CVs and letters need voice and nuance more than tools",
+          "reason": "copy lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
           "bot": "jobs-reviewer",
           "role": "worker",
           "lane": "review",
-          "model": "claude-sonnet-5-5[1m]",
+          "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5",
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
+            {
+              "model": "claude-opus-5-5",
               "provider": "anthropic",
               "reasoning": "high"
             }
           ],
-          "reason": "review lane, candidate 4/4 (anthropic): Independent review catches more when the reviewer's model family differs from the producer's; only one family available, same as the producers",
+          "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": []
         }
       ],
@@ -406,20 +462,15 @@
           "lane": "design",
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5-5[1m]",
-              "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
-            },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         },
         {
@@ -428,20 +479,15 @@
           "lane": "design",
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5-5[1m]",
-              "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
-            },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         },
         {
@@ -450,20 +496,15 @@
           "lane": "design",
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [
-            {
-              "model": "claude-sonnet-5-5[1m]",
-              "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
-            },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "high"
             }
           ],
-          "reason": "design lane, candidate 1/6 (anthropic): UI, motion and 3D quality is visibly model-bound",
+          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         }
       ],
@@ -522,7 +563,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane, candidate 1/6 (anthropic): Leads interview, plan and accept work",
+          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "cron:builder-watch",
