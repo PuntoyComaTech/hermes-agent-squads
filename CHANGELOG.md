@@ -3,6 +3,11 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.1
+
+- release.py: `private` gate blocks local-only names listed in the maintainer's `local/private-terms.txt`.
+- contributing-upstream: never publish local fleets.
+
 ## 2.0.0 - 2026-10-15
 
 Full redesign as a profile distribution (see `docs/decisions.md`).

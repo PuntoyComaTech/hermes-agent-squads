@@ -1,6 +1,6 @@
 # Toolsets never offered to any squad bot. squadctl writes
 #   disabled_toolsets = always_disabled + (MANAGED - bot.toolsets)
-# Ported from Omnicommerce ops/hermes/bots.yaml defaults.always_disabled; every name verified 2026-10-15
+# Every name verified against the Hermes toolset registry 2026-10-15
 # against hermes-agent toolsets.py TOOLSETS (a2a: plugin-registered, plugins/platforms/a2a/tools.py).
 # Dropped from the source list:
 #   setup, start_chat  retired toolset names (hermes_cli/observability/shared_metrics_contract.py)
