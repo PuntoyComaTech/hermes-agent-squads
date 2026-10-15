@@ -507,10 +507,13 @@ class Applier:
         pending: list[str] = []
         notes: list[str] = []
         created = False
-        if not exists:
-            if self.self_mode:
-                raise Fail(f"profile {name} is missing: install it first with "
-                           f"`hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name {name} --alias`")
+        if not exists and self.self_mode:
+            install = f"hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name {name} --alias"
+            if not dry:
+                raise Fail(f"profile {name} is missing: install it first with `{install}`")
+            acts.append(f"profile install ({install})")
+            created = True
+        elif not exists:
             acts.append("profile create (--no-skills --no-alias)")
             if not dry:
                 ctx.hermes("profile", "create", name, "--no-skills", "--no-alias", "--description",
