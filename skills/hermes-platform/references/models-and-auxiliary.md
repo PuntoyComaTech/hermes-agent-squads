@@ -75,9 +75,15 @@
 
 - Background tasks have their own `auxiliary.<task>.provider` / `.model` keys;
   `provider: auto` inherits the main model.
-- Squad tooling points its `AUX_TASKS` set (13 slots) at the `aux` lane and
-  `auxiliary.vision` at the `vision` lane; `mcp`, `tts_audio_tags`,
-  `voice_chat`, `moa_reference` and `moa_aggregator` keep the main model.
+- squadctl routes each slot one way:
+  - `aux` lane: `title_generation`, `goal_judge`, `curator`, `compression`,
+    `kanban_decomposer`, `triage_specifier`, `background_review`,
+    `profile_describer`, `memory_query_rewrite`, `approval`, `review`,
+    `skills_hub`, `monitor`.
+  - `vision` lane: `vision` (text-only main models only; see Vision).
+  - Main model: `mcp`, `tts_audio_tags`, `voice_chat`, `moa_reference`,
+    `moa_aggregator`.
+- Read a profile's live slots with `hermes -p <bot> config get auxiliary`.
 
 ## Vision
 
