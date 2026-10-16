@@ -3,6 +3,15 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.9 - 2026-10-16
+
+### Changed
+
+- README: what the project does, the builder's flow as the only diagram, install, and a squad table linking to each
+  squad's README. PuntoyComaTech header badges and footer.
+- Squad READMEs (`squads/<key>/README.md`): purpose, a colored vertical flow, what you can ask, bots, schedule,
+  requirements and files, with a link back and the same footer.
+
 ## 2.0.8 - 2026-10-16
 
 Squads are opt-in: "set me up" installs the builder, then asks which squads to add.
