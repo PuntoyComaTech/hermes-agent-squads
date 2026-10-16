@@ -228,7 +228,10 @@
           "additionalProperties": false,
           "properties": {"lane": {"oneOf": [{"$ref": "#/$defs/lane"}, {"type": "null"}]}}
         },
-        "memory": {"type": "boolean"},
+        "memory": {
+          "description": "Built-in memory (MEMORY.md, USER.md); default true. An external provider is chosen per profile with `hermes -p <bot> memory setup`, never in the manifest (skills/hermes-platform/references/memory.md).",
+          "type": "boolean"
+        },
         "optional": {
           "description": "Not installed by a plain apply: only `squadctl plan/apply <squad> --with <name>` installs it (all bots are visible in the Desktop).",
           "type": "boolean"
