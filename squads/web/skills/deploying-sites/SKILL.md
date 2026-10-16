@@ -13,7 +13,8 @@ description: "Moves a site between repo, GitHub and the provider. Use when a car
 ## Procedure
 
 1. `kanban_show`. Read the card body, `site.yaml`, the milestone note and the newest deploy record. The stage is the last segment of the card's idempotency key.
-2. Check the logins, never a token: `gh auth status`, then `cf auth whoami` (a named `--profile`, when
+2. Pick the launcher: `cf` and `wrangler` when on PATH, else `npx cf` and `npx wrangler`
+(`references/cloudflare.md` -> Launcher). Check the logins, never a token: `gh auth status`, then `cf auth whoami` (a named `--profile`, when
 `site.yaml -> provider_profile` is set; or `vercel whoami` when `site.yaml -> provider: vercel`). Nobody logged
 in: `kanban_block(kind="capability", reason="<command>: <its output>")`; the user runs `gh auth login` /
 `cf auth login` once (`references/cloudflare.md`).
