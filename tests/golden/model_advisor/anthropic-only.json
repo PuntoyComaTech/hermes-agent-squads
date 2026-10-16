@@ -202,7 +202,7 @@
               "reasoning": "low"
             }
           ],
-          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -339,7 +339,7 @@
               "reasoning": "low"
             }
           ],
-          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -524,7 +524,7 @@
               "reasoning": "low"
             }
           ],
-          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models (D-021)"
+          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models"
         }
       ]
     }
