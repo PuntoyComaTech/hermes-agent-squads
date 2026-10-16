@@ -3,6 +3,25 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.8 - 2026-10-16
+
+Squads are opt-in: "set me up" installs the builder, then asks which squads to add.
+
+### Changed
+
+- `installing-squads`: after `apply --self` the builder asks once "Only the builder (default), Web, Marketing,
+  Jobs, or Everything?" and installs nothing more without an answer. Several squads share one model table and
+  one OK.
+- README rewritten: what the project does, what a squad is, the install choice, and vertical diagrams.
+  Squad READMEs use vertical diagrams too.
+- `AGENTS.md` and `llms.txt`: an agent asked to install this repo installs only the builder; squads and models
+  stay the user's choice.
+
+### Added
+
+- Tests: `apply --self` creates no squad profile; README diagrams are vertical, its squad links match the repo,
+  its install flags exist in `hermes profile install --help`, and the agent install rule is present.
+
 ## 2.0.7 - 2026-10-16
 
 Every bot gets the install's fallback chain, overlays edit repo lists in place, and `plan` names config it

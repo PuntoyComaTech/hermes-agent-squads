@@ -3,110 +3,115 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hermes Agent](https://img.shields.io/badge/Hermes%20Agent-NousResearch-7c3aed)](https://github.com/NousResearch/hermes-agent)
 
-Ready-to-install **AI agent squads for [Hermes Agent](https://github.com/NousResearch/hermes-agent)**:
-web development, marketing and job search, plus a **builder** that installs them,
-creates new ones with you and keeps everything updated. The repo root is the builder's
-**profile distribution**: one command installs it, one command updates it.
+Teams of AI bots ("squads") for [Hermes Agent](https://github.com/NousResearch/hermes-agent) that do real work
+for you: build websites, run a brand's marketing, or search and apply for jobs.
 
-Each squad is one manager (the only bot you talk to) plus workers that pass work
-along a Kanban board; every bot is visible in the Desktop. Irreversible steps
-(apply, publish, send, deploy) always wait for your explicit yes.
+You install one bot, the **builder**. You tell it which squads you want, it suggests a model for each bot from
+the AI providers you already use, and it installs only what you approve. Later it can create new squads for
+your own goals, change existing ones, and keep everything updated.
 
-## Install (3 commands)
+## What a squad is
+
+- **One manager** you talk to. It turns your request into tasks and asks you only what is yours to decide.
+- **A few workers** (frontend, copywriter, reviewer...). Each one does a single job and passes the result to
+  the next through a Kanban board, so you never relay messages between them.
+- **A reviewer** checks every result before it reaches you.
+- **Nothing irreversible without your yes**: publishing, sending, applying, deploying and spending always wait
+  for your explicit confirmation.
+
+## Install
+
+You need Hermes Agent with at least one model provider connected (`hermes model`).
 
 ```bash
 hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias
-hermes -p builder model        # pick the builder's model (interactive, once)
-builder chat                   # say "set me up" -> the builder runs squadctl apply --self
+hermes -p builder model     # choose the builder's own model
+builder chat                # then say: "set me up"
 ```
 
-The `--alias` wrapper is written to `~/.local/bin`; keep that directory on your `PATH` to
-use the short `builder chat` form (`hermes -p builder chat` always works).
+This creates **only the builder**. When you say "set me up", it asks what to install:
 
-You need Hermes Agent with a connected model provider, a machine that stays on for
-automations, and (optional) a messaging platform where the managers deliver results.
+| Choice | What you get |
+| --- | --- |
+| Only the builder (default) | Nothing else now; ask for a squad whenever you need one |
+| Web, Marketing or Jobs | That squad (5 bots each) |
+| Everything | The three squads (15 bots) |
 
-The install creates one profile, `builder`. The builder suggests a model per bot from your
-connected providers and shows a diff before every change. Updates: ask the builder "what
-changed upstream", or run `hermes profile update builder`.
+Before installing, the builder shows one table with a suggested **model, provider and reasoning effort** for
+every bot, picked from the providers you have connected. Accept it or change any bot; nothing is created
+until you say OK.
 
-## Desktop setup
+`builder chat` needs `~/.local/bin` on your `PATH`; `hermes -p builder chat` always works.
 
-1. **Kanban plugin.** Enable Capabilities > Plugins > **Kanban** to see the boards
-   (it ships disabled by default; the dispatcher runs in the gateway regardless).
-2. **Bots pane.** The Bots tab is your roster: every bot is visible — Hermes (default),
-   the builder and each squad's bots. The `Managers` section holds the squad managers,
-   one section per squad holds its workers (sections come from each squad's manifest).
-3. **Rail.** The profile rail lists every profile (a full install has 17 profiles including the
-   default) and condenses into a dropdown above 13; use Cmd+K > *Toggle profile rail* and switch
-   in the Bots pane.
-4. **Projects.** Each site, brand or client is a Hermes Project; the builder registers it
-   in the manager and the workers (`squadctl project add`), and the Desktop groups sessions
-   by project.
+**Using an AI assistant to install it?** Point it at this repo: it installs the builder only and leaves the
+squad and model choices to you ([AGENTS.md](AGENTS.md)).
 
 ## Squads
 
-| Squad | Board | You get | Bots |
-| --- | --- | --- | --- |
-| [Web](squads/web/README.md) | `web` | Sites from idea to production behind a quality gate, preview link before publishing | manager, frontend, backend, qa, deployer, frontend-pro (optional) |
-| [Marketing](squads/marketing/README.md) | `marketing` | Dated research, 90-day plans, copy and assets for your brands, five-lens review | manager, research, creative, producer, reviewer |
-| [Jobs](squads/jobs/README.md) | `jobs` | Matching openings with tailored applications; "apply" sends (or a manual kit) | manager, scout, writer, reviewer, applier |
-| Yours | - | Ask the builder: "create a squad for <goal>" | up to 5 |
+| Squad | You ask for | You get back |
+| --- | --- | --- |
+| [Web](squads/web/README.md) | "a site for my bakery" | A working site, a preview link to review, and publishing only when you say so |
+| [Marketing](squads/marketing/README.md) | "plan my brand's next 90 days" | Research, a 90-day plan, a weekly calendar and reviewed copy and assets |
+| [Jobs](squads/jobs/README.md) | your profile and what you look for | Matching openings with a tailored CV and letter; it applies only when you say "apply" |
+| Your own | "create a squad for <goal>" | The builder designs it with you (a manager and up to 4 workers) |
 
 ### Web
 
 ```mermaid
-flowchart LR
-    U([you: "new site: idea"]) --> L["web (manager): spec + milestones"]
-    L --> C["chain card 1: api (if backend)"] --> F["chain card 2: ui"]
-    F --> P["chain card 3: preview"] --> Q["web-qa: 5 lenses"]
-    Q -->|fail: fix card, max 2 rounds| F
-    Q -->|pass| A{"you: publish?"}
-    A -->|"yes"| D["web-deployer: GitHub, DNS, rollback"]
+flowchart TD
+    U(["You: new site idea"]) --> M["web (manager): spec and milestones"]
+    M --> B["web-backend: API and data (only if the site needs it)"]
+    B --> F["web-frontend: pages and design"]
+    M --> F
+    F --> P["web-deployer: preview link"]
+    P --> Q["web-qa: reviews the preview"]
+    Q -->|"needs fixes (up to 2 rounds)"| F
+    Q -->|"approved"| A{"You: publish?"}
+    A -->|"yes"| D["web-deployer: goes live"]
 ```
 
 ### Marketing
 
 ```mermaid
-flowchart LR
-    U([you: brand brief]) --> L["marketing (manager): plan + calendar"]
-    L --> R["marketing-research (dated evidence)"]
-    R --> C["marketing-creative: concepts + copy"]
-    C --> P["marketing-producer: assets, landings, emails"]
-    P --> V["marketing-reviewer: 5 lenses"]
-    V -->|one fix round| C
-    V -->|approved| A{"you: publish?"}
+flowchart TD
+    U(["You: brand brief"]) --> M["marketing (manager): plan and calendar"]
+    M --> R["marketing-research: dated evidence"]
+    R --> C["marketing-creative: concepts and copy"]
+    C --> P["marketing-producer: images, landings, emails"]
+    P --> V["marketing-reviewer: reviews each piece"]
+    V -->|"needs fixes"| C
+    V -->|"approved"| A{"You: approve?"}
 ```
 
 ### Jobs
 
 ```mermaid
-flowchart LR
-    U([cron: search slots]) --> L["jobs (manager): profile + criteria"]
-    L --> S["jobs-scout: search + hard filter"]
-    S --> W["jobs-writer: CV + letter"]
-    W --> R["jobs-reviewer: 5 lenses"]
-    R -->|one fix round| W
-    R --> D["manager digest: match + link"]
-    D --> A{"you: apply / change / no"}
-    A -->|"apply"| J["jobs-applier: simple form or manual kit"]
+flowchart TD
+    T(["Scheduled search, twice a day"]) --> S["jobs-scout: finds and filters openings"]
+    S --> W["jobs-writer: tailored CV and letter"]
+    W --> R["jobs-reviewer: checks the application"]
+    R -->|"needs fixes (once)"| W
+    R -->|"approved"| M["jobs (manager): sends you the match"]
+    M --> A{"You: apply, change or skip?"}
+    A -->|"apply"| J["jobs-applier: submits, or prepares a kit for you"]
 ```
 
-## How work flows
+## In the Desktop app
 
-A card is one bounded job; each stage creates the next as a dependent card
-(`--parent`), so work moves without you relaying anything. Reviewers send fixable findings
-back as fix cards (rounds per squad in the diagrams above), then the manager asks you only what
-is yours to decide. Cron jobs run behind zero-LLM gates: a quiet tick costs nothing.
+- **Bots tab**: every bot is listed. Managers sit in the `Managers` section; each squad has its own section
+  for its workers.
+- **Kanban boards**: enable *Capabilities > Plugins > Kanban* to watch the work move. The work runs either way.
+- **Projects**: each site, brand or client is a Hermes Project shared by the squad's bots.
 
-## For AI agents
+## Updates
 
-Read [`AGENTS.md`](AGENTS.md) first (repository map in its last section); short index in
-[`llms.txt`](llms.txt). Verified Hermes behavior is in `skills/hermes-platform/references/`
-(every fact cites its docs path). Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md), or ask
-your builder: it can propose them with your OK.
+Ask the builder "what changed upstream?", or run `hermes profile update builder` and then ask it to update
+your squads. It shows what would change before touching anything.
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md). AI agents start at [AGENTS.md](AGENTS.md) and [llms.txt](llms.txt).
 
 ## License
 
-MIT. Third-party skills and plugins keep their own licences; the builder quotes each one
-before installing it.
+MIT. Third-party skills and plugins keep their own licences; the builder shows each one before installing it.

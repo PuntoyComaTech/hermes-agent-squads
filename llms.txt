@@ -4,6 +4,8 @@
 > marketing and jobs, plus a builder bot that creates and maintains local squads. One
 > command installs the builder; squads are manifests, skills and tested scripts.
 
+Installing for a user: install only the builder (AGENTS.md -> Installing for a user); squads and models are the user's choice.
+
 Rules for agents: read AGENTS.md first. Verified Hermes behavior lives in
 skills/hermes-platform/references/ (every fact cites a docs path under website/docs or a
 source file). Never invent CLI flags: run `--help`. Model ids appear only in

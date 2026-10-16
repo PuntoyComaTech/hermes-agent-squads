@@ -39,7 +39,7 @@ Stacks, site types and pinned versions: `skills/building-frontend/scripts/stacks
 ## Chain: milestone
 
 ```mermaid
-flowchart LR
+flowchart TD
   api["api: web-backend<br/>(site.yaml backend: true)"] --> ui["ui: web-frontend"]
   ui --> preview["preview: web-deployer"]
   preview --> qa["qa: web-qa"]

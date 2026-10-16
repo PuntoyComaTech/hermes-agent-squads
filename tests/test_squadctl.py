@@ -980,6 +980,18 @@ def test_apply_self_creates_builder_watch_on_the_digest_lane(env, capsys):
     assert again["summary"] == {"unchanged": 1}
 
 
+def test_apply_self_installs_no_squad(env, capsys):
+    """"set me up" applies the builder only: every squad stays opt-in until the user picks it."""
+    env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
+    env.seed_builder()
+    env.run("apply", "--self", capsys=capsys)
+    profiles = sorted(p.name for p in (env.root / "profiles").iterdir() if p.is_dir())
+    assert profiles == ["builder"]
+    assert not any(c["args"][:2] == ["profile", "create"] for c in env.calls())
+    _, st = env.run("status", capsys=capsys)
+    assert st["installed"] == 1 and [s["squad"] for s in st["squads"]] == ["builder"]
+
+
 def test_agent_cron_is_pinned_and_doctor_warns_on_an_unpinned_one(env, capsys):
     """Every agent cron squadctl writes carries --model/--provider (an unpinned job follows the main model at fire
     time); doctor flags a squad agent job that lost its pin, and the next apply restores it."""
