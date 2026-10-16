@@ -26,7 +26,7 @@ sys.path.insert(0, str(SCRIPTS))
 import squadctl  # noqa: E402
 
 real_hermes = pytest.mark.skipif(not os.environ.get("SQUADCTL_REAL_HERMES"), reason="needs the real hermes binary")
-LANES = ["lead", "design", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
+LANES = ["manager", "lead", "design", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
 WEB_BOTS = ["web", "web-frontend", "web-backend", "web-qa", "web-deployer"]
 ALWAYS = yaml.safe_load((SCRIPTS / "data" / "always-disabled.yaml").read_text())["always_disabled"]
 WRITES = {("profile", "create"), ("profile", "delete"), ("profile", "describe"), ("profile", "export"),
@@ -241,12 +241,14 @@ def test_delegation_lane_and_passthrough(web):
 
 
 def test_ui_meta_hidden_section_and_revision(web):
-    lead = yaml.safe_load((web.root / "profiles" / "web" / "profile.yaml").read_text())
+    """All bots are visible (V-12); the manager is filed under Managers, workers under the squad section."""
+    manager = yaml.safe_load((web.root / "profiles" / "web" / "profile.yaml").read_text())
     worker = yaml.safe_load((web.root / "profiles" / "web-qa" / "profile.yaml").read_text())
-    assert lead["ui_meta"]["hermes-bots"] == {"title": "Web lead", "hidden": False, "sectionId": "web",
-                                              "sectionName": "Web"}
-    assert worker["ui_meta"]["hermes-bots"]["hidden"] is True
-    assert lead["_ui_meta_revisions"] == {"hermes-bots": 1}
+    assert manager["ui_meta"]["hermes-bots"] == {"title": "Web manager", "hidden": False,
+                                                 "sectionId": "managers", "sectionName": "Managers"}
+    assert worker["ui_meta"]["hermes-bots"] == {"title": "Web QA", "hidden": False,
+                                                "sectionId": "web", "sectionName": "Web"}
+    assert manager["_ui_meta_revisions"] == {"hermes-bots": 1}
 
 
 def test_skills_copied_with_sha_marker_and_soul(web):
@@ -364,7 +366,7 @@ def test_dry_run_leaves_tree_equal(env, capsys):
     assert not (env.local / "installed.yaml").exists()
     first = out["bots"][0]["actions"]
     assert first[0].startswith("profile create")
-    assert any(a.startswith("set ") and "config keys (model prov-lead/model-lead medium)" in a for a in first)
+    assert any(a.startswith("set ") and "config keys (model prov-manager/model-manager medium)" in a for a in first)
 
 
 def test_dry_run_after_apply_shows_diff_without_writing(web, capsys):
@@ -437,7 +439,7 @@ def test_per_bot_model_beats_lane_and_user_reasoning_wins(env, capsys):
 def test_models_file_accepts_model_advisor_json(env, capsys):
     env.squad("web")
     rows = [{"bot": b, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low", "extras": []}
-            for b, l in (("web", "lead"), ("web-frontend", "design"), ("web-backend", "code"), ("web-qa", "review"),
+            for b, l in (("web", "manager"), ("web-frontend", "design"), ("web-backend", "code"), ("web-qa", "review"),
                          ("web-deployer", "research"))]
     rows[2]["extras"] = [{"use": "delegation", "lane": "advisor", "model": "adv-advisor", "provider": "adv",
                           "reasoning": "medium"}]
@@ -508,7 +510,9 @@ def test_local_overlay_changes_one_bot_and_can_remove_one(env, capsys):
 
 
 @pytest.mark.parametrize("mutate,message", [
-    (lambda s: s["bots"]["web"].update(role="worker"), "lead"),
+    (lambda s: s["bots"]["web"].update(role="worker"), "role manager"),
+    (lambda s: s["bots"]["web"].update(title="Web lead"), "manager title must be"),
+    (lambda s: (s.pop("manager"), s.update(lead="web")), "renamed to 'manager'"),
     (lambda s: s["bots"]["web-qa"].update(toolsets=["file", "kanban", "a2a"]), "always-disabled"),
     (lambda s: s["bots"]["web-qa"].update(lane="nonexistent"), "nonexistent"),
     (lambda s: s["chains"]["milestone"][0].update(assignee="ghost"), "ghost"),
@@ -526,6 +530,51 @@ def test_worker_must_carry_the_squad_prefix(env, capsys):
     env.squad("web", rename)
     _, out = env.run("plan", "web", expect=1, capsys=capsys)
     assert "must be prefixed web-" in out["error"]
+
+
+def test_manager_must_be_named_after_the_squad_key(env, capsys):
+    def rename(spec):
+        spec["manager"] = "chief"
+        spec["bots"]["chief"] = spec["bots"].pop("web")
+    env.squad("web", rename)
+    _, out = env.run("plan", "web", expect=1, capsys=capsys)
+    assert "must be named 'web'" in out["error"]
+
+
+def test_more_than_five_required_bots_need_optional(env, capsys):
+    def crowd(spec):
+        spec["bots"]["web-extra"] = {"role": "worker", "title": "Web extra", "description": "sixth required bot",
+                                     "lane": "manager", "toolsets": ["file", "skills", "kanban", "todo"]}
+    env.squad("web", crowd)
+    _, out = env.run("plan", "web", expect=1, capsys=capsys)
+    assert "at most 5 required bots" in out["error"]
+
+
+def test_optional_bot_installs_only_with_the_with_flag(env, capsys):
+    def add_pro(spec):
+        spec["bots"]["web-frontend-pro"] = {
+            "optional": True, "role": "worker", "title": "Web frontend pro",
+            "description": "3D and complex motion when the brief needs it",
+            "lane": "manager", "toolsets": ["file", "skills", "kanban", "todo"]}
+    env.squad("web", add_pro)
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["summary"] == {"created": 5} and out["optional_skipped"] == ["web-frontend-pro"]
+    assert not (env.root / "profiles" / "web-frontend-pro").exists()
+    installed = yaml.safe_load((env.local / "installed.yaml").read_text())
+    assert installed["squads"]["web"]["bots"] == WEB_BOTS
+    _, st = env.run("status", "web", capsys=capsys)
+    assert "web-frontend-pro" not in [b["bot"] for b in st["squads"][0]["bots"]]  # live-state hides a missing optional
+    _, out = env.run("apply", "web", "--with", "web-frontend-pro", capsys=capsys)
+    assert out["summary"] == {"created": 1, "unchanged": 5} and "optional_skipped" not in out
+    assert (env.root / "profiles" / "web-frontend-pro" / "config.yaml").is_file()
+    installed = yaml.safe_load((env.local / "installed.yaml").read_text())
+    assert installed["squads"]["web"]["bots"] == [*WEB_BOTS, "web-frontend-pro"]
+    _, st = env.run("status", "web", capsys=capsys)
+    assert "web-frontend-pro" in [b["bot"] for b in st["squads"][0]["bots"]]
+    _, out = env.run("apply", "web", "--bots", "web-frontend-pro", expect=1, capsys=capsys)
+    assert "optional bots install only with --with" in out["error"]
+    _, out = env.run("apply", "web", "--with", "web", expect=1, capsys=capsys)
+    assert "names only optional bots" in out["error"]
 
 
 def test_unknown_squad_lists_the_available_ones(env, capsys):
@@ -741,7 +790,7 @@ def test_apply_self_creates_builder_watch_on_the_digest_lane(env, capsys):
     assert (job["model"], job["provider"], job["reasoning_effort"], job["skills"]) == (
         "model-digest", "prov-digest", "high", ["tracking-updates"])
     meta = yaml.safe_load((home / "profile.yaml").read_text())["ui_meta"]["hermes-bots"]
-    assert meta == {"title": "Builder", "hidden": False, "sectionId": "base", "sectionName": "Base"}
+    assert meta == {"title": "Builder", "hidden": False, "sectionId": "managers", "sectionName": "Managers"}
     assert not any(c["args"][:2] == ["profile", "create"] for c in env.calls())
     _, again = env.run("apply", "--self", capsys=capsys)
     assert again["summary"] == {"unchanged": 1}
@@ -884,7 +933,7 @@ def test_chain_delegates_to_kanban_chain_and_is_idempotent(web, tmp_path, capsys
     web.run("project", "add", "web", "Toy", str(tmp_path / "s"), capsys=capsys)
     args = ("chain", "web", "milestone", "--project", "toy", "--title", "M1", "--when", "backend")
     _, dry = web.run(*args, "--dry-run", capsys=capsys)
-    assert dry["dry_run"] is True and dry["board"] == "web" and dry["lead"] == "web"
+    assert dry["dry_run"] is True and dry["board"] == "web" and dry["manager"] == "web"
     assert [c["stage"] for c in dry["cards"]] == ["api", "ui", "preview", "qa", "accept"]
     _, first = web.run(*args, capsys=capsys)
     _, second = web.run(*args, capsys=capsys)

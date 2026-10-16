@@ -43,7 +43,8 @@ RULES = {
     "desc-capability-length": "capability clause before 'Use when' longer than 57 characters",
     "desc-use-when": "description has no 'Use when' clause",
     "desc-length": "description longer than 250 characters",
-    "skill-lines": "SKILL.md longer than its budget (lead/builder 150, worker 120)",
+    "skill-lines": "SKILL.md longer than its budget (manager/builder 150, worker 120)",
+    "manager-naming": "manifest naming: one manager named <key> with title '<Name> manager', workers <key>-<role>, at most 5 required bots",
     "index-lines": "hermes-platform SKILL.md longer than 80 lines",
     "ref-lines": "references/*.md longer than 200 lines",
     "ref-depth": "references nested more than one level deep",
@@ -64,7 +65,7 @@ RULES = {
 NAME_MAX = 40
 DESC_MAX = 250
 CAPABILITY_MAX = 57
-LEAD_LINES, WORKER_LINES, INDEX_LINES = 150, 120, 80
+MANAGER_LINES, WORKER_LINES, INDEX_LINES = 150, 120, 80
 REF_MAX, REF_TOC_AFTER, TOC_WINDOW = 200, 100, 20
 SOUL_LINES, SOUL_CHARS = 6, 800
 SPANISH_MAX = 0.03
@@ -161,7 +162,35 @@ class Linter:
 
     def lint_squad_yaml(self, path: Path) -> None:
         self.targets.append(str(path))
-        self.check_model_ids(path, path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        self.check_model_ids(path, text)
+        if path.name == "builder.yaml":
+            return  # the builder's profile name follows `--builder`, not the squad naming rules (C-11)
+        try:
+            doc = _yaml().safe_load(text) or {}
+        except Exception:
+            return
+        bots, key = doc.get("bots") or {}, doc.get("key")
+        name = doc.get("name") or key
+        problems = []
+        if "lead" in doc and "manager" not in doc:
+            problems.append("field 'lead' was renamed to 'manager'")
+        managers = [b for b, s in bots.items() if (s or {}).get("role") == "manager"]
+        if bots and managers != [doc.get("manager")]:
+            problems.append(f"exactly one bot must have role manager and match the manager field (got {managers})")
+        elif bots and doc.get("manager") != key:
+            problems.append(f"manager {doc.get('manager')!r} must be named after the squad key {key!r}")
+        elif bots and (bots.get(key) or {}).get("title") != f"{name} manager":
+            problems.append(f"manager title must be {name} manager")
+        unprefixed = [b for b, s in bots.items()
+                      if (s or {}).get("role") == "worker" and not str(b).startswith(f"{key}-")]
+        if unprefixed:
+            problems.append(f"workers must be named {key}-<role>: {', '.join(unprefixed)}")
+        required = [b for b, s in bots.items() if not (s or {}).get("optional")]
+        if len(required) > 5:
+            problems.append(f"{len(required)} required bots: at most 5 (extra bots set optional: true)")
+        for problem in problems:
+            self.add("manager-naming", path, problem)
 
     # --- skill --------------------------------------------------------------------------------------------------------
 
@@ -228,13 +257,13 @@ class Linter:
             self.add("desc-capability-length", path,
                      f"capability clause is {len(head.strip())} characters, budget {CAPABILITY_MAX}")
 
-    def lead_budget(self, skill: Path, name: str) -> int:
-        """150 for builder skills and skills used only by lead bots, else 120."""
+    def manager_budget(self, skill: Path, name: str) -> int:
+        """150 for builder skills and skills used only by manager bots, else 120."""
         if self.role:
-            return LEAD_LINES if self.role == "lead" else WORKER_LINES
+            return MANAGER_LINES if self.role == "manager" else WORKER_LINES
         container = skill.parent.parent
         if (container / "builder.yaml").is_file():
-            return LEAD_LINES
+            return MANAGER_LINES
         manifest = container / "squad.yaml"
         if container.parent.name != "squads" or not manifest.is_file():
             return WORKER_LINES
@@ -243,7 +272,7 @@ class Linter:
             roles = [b.get("role") for b in bots.values() if name in ((b.get("skills") or {}).get("squad") or [])]
         except Exception:
             return WORKER_LINES
-        return LEAD_LINES if roles and set(roles) == {"lead"} else WORKER_LINES
+        return MANAGER_LINES if roles and set(roles) == {"manager"} else WORKER_LINES
 
     def check_size(self, skill: Path, path: Path, text: str, name: str) -> None:
         lines = len(text.splitlines())
@@ -251,7 +280,7 @@ class Linter:
             if lines > INDEX_LINES:
                 self.add("index-lines", path, f"{lines} lines, budget {INDEX_LINES}")
             return
-        budget = self.lead_budget(skill, name)
+        budget = self.manager_budget(skill, name)
         if lines > budget:
             self.add("skill-lines", path, f"{lines} lines, budget {budget}")
 
@@ -405,7 +434,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     parser.add_argument("--rules", action="store_true", help="list rule ids and exit")
     parser.add_argument("--roles", type=Path, default=DEFAULT_ROLES, help="model-roles.yaml used to detect model ids")
-    parser.add_argument("--role", choices=["lead", "worker"], help="force the SKILL.md budget instead of inferring it")
+    parser.add_argument("--role", choices=["manager", "worker"], help="force the SKILL.md budget instead of inferring it")
     parser.add_argument("--require-shellcheck", action="store_true", help="fail when shellcheck is not installed")
     parser.add_argument("--no-scripts", action="store_true", help="skip the scripts/ checks (compile, --help, shellcheck)")
     return parser

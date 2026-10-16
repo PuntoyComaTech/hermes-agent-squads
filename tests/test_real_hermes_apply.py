@@ -21,7 +21,7 @@ pytestmark = [pytest.mark.real_hermes, pytest.mark.skipif(
 
 MODELS = {"provider": "smoke", "model": "smoke-model"}
 WEB_BOTS = ["web", "web-frontend", "web-backend", "web-qa", "web-deployer"]
-LANES = ["design", "lead", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
+LANES = ["manager", "design", "lead", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
 
 
 def models_file(tmp_path: Path) -> Path:

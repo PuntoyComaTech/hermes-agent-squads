@@ -2,16 +2,16 @@ schema: 2
 key: studio
 name: Studio
 description: "Motion graphics, rendered video and 3D assets for the web and marketing squads"
-version: 1.0.0
+version: 1.1.0
 hermes_requires: ">=0.22.0"
 board: {slug: studio, name: Studio, icon: "🎬", color: "#7048E8", description: "Rendered assets: motion graphics, MP4/WebM, 3D renders, glTF, WebGL demos"}
 section: {id: studio, name: Studio}
-lead: studio
+manager: studio
 defaults: {aux_lane: aux, vision_lane: vision}
 bots:
   studio:
-    role: lead
-    title: Studio lead
+    role: manager
+    title: Studio manager
     description: "Brief to storyboard and shot list, chains the work, reviews renders, delivers to the requester"
     lane: design
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, vision, web, delegation]
@@ -21,7 +21,6 @@ bots:
       keep: [official:creative/creative-ideation]
     plugins: {enable: [disk-cleanup]}
     memory: true
-    hidden: false
     cron:
       studio-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
   studio-motion:
@@ -48,7 +47,6 @@ bots:
         - name: hermes-video-editor
           confirm: "hermes-video-editor is PolyForm Noncommercial 1.0.0: free for non-commercial use, commercial use needs a separate licence from the author. Install only after the user confirms the use."
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
-    hidden: true
   studio-3d:
     role: worker
     title: Studio 3D
@@ -62,7 +60,6 @@ bots:
         - name: blender
           confirm: "The blender plugin runs arbitrary Python inside Blender with the user's privileges and needs Blender 5.1+, its MCP add-on and uv. Install only after the user's OK."
     requires: {apps: [blender>=5.1, uv, git]}
-    hidden: true
 chains:
   piece:
     - {stage: 3d, assignee: studio-3d, skill: rendering-3d, when: needs_3d}

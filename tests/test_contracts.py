@@ -69,8 +69,8 @@ def test_draft_validates(name):
 def test_draft_cross_field_rules(name):
     doc = load_draft(name)
     bots = doc["bots"]
-    assert doc["lead"] in bots and bots[doc["lead"]]["role"] == "lead"
-    assert [b for b, spec in bots.items() if spec["role"] == "lead"] == [doc["lead"]]
+    assert doc["manager"] in bots and bots[doc["manager"]]["role"] == "manager"
+    assert [b for b, spec in bots.items() if spec["role"] == "manager"] == [doc["manager"]]
     for stages in (doc.get("chains") or {}).values():
         for stage in stages:
             assert stage["assignee"] in bots, stage
@@ -81,12 +81,46 @@ def test_draft_cross_field_rules(name):
             assert bot.startswith(f"{doc['key']}-"), bot
 
 
+def test_draft_manager_naming():
+    """C-11: the manager is the bot named after the squad key, titled '<Name> manager'; workers <key>-<role>."""
+    for name in SQUADS:
+        doc = load_draft(name)
+        bots = doc["bots"]
+        assert doc["manager"] == doc["key"] == name
+        assert bots[name]["title"] == f"{doc['name']} manager"
+        assert "hidden" not in bots[name]
+        assert all("hidden" not in spec for spec in bots.values())
+
+
+def test_shipped_manifests_validate_and_name_the_manager():
+    """The shipped builder.yaml and squads/*/squad.yaml hold the same contract the fixtures hold."""
+    paths = [REPO / "builder.yaml", *sorted((REPO / "squads").glob("*/squad.yaml"))]
+    assert len(paths) == len(SQUADS) + 1
+    for path in paths:
+        doc = yaml.safe_load(path.read_text())
+        assert errors(doc) == [], (path, errors(doc))
+        bots = doc["bots"]
+        assert [b for b, spec in bots.items() if spec["role"] == "manager"] == [doc["manager"]], path
+        if path.name != "builder.yaml":
+            assert doc["manager"] == doc["key"], path
+            assert bots[doc["manager"]]["title"] == f"{doc['name']} manager", path
+        for bot, spec in bots.items():
+            assert "hidden" not in spec, (path, bot)
+            if spec["role"] == "worker":
+                assert bot.startswith(f"{doc['key']}-"), (path, bot)
+            assert not set(spec["toolsets"]) & set(ALWAYS_DISABLED), (path, bot)
+        assert len([b for b, spec in bots.items() if not spec.get("optional")]) <= 5, path
+    web = yaml.safe_load((REPO / "squads" / "web" / "squad.yaml").read_text())
+    pro = web["bots"]["web-frontend-pro"]
+    assert pro["optional"] is True and pro["role"] == "worker" and pro["lane"] == "design-pro"
+
+
 def _mutations():
     def drop(key):
         return lambda d: d.pop(key)
     return {
         "schema-1": lambda d: d.update(schema=1),
-        "no-lead": drop("lead"),
+        "no-manager": drop("manager"),
         "no-bots": drop("bots"),
         "unknown-top-key": lambda d: d.update(orchestration_skills="skills/orchestration"),
         "unknown-bot-key": lambda d: d["bots"]["web-frontend"].update(model="claude-opus-5-5"),
@@ -107,7 +141,6 @@ def test_schema_rejects(case):
     doc = copy.deepcopy(load_draft("web"))
     _mutations()[case](doc)
     assert errors(doc), case
-
 
 # --- model-roles ------------------------------------------------------------------------------------------------
 
@@ -194,7 +227,8 @@ def test_one_bad_fixture_per_lint_rule():
     rules = yaml.safe_load((bad / "rules.yaml").read_text())["rules"]
     assert {p.name for p in bad.iterdir() if p.is_dir()} == set(rules)
     for rule in rules:
-        assert any((bad / rule).rglob("SKILL.md")) or any((bad / rule).glob("souls/*.md")), rule
+        assert any((bad / rule).rglob("SKILL.md")) or any((bad / rule).glob("souls/*.md")) \
+            or any((bad / rule).glob("*.yaml")), rule
     good = FIX / "skills" / "good"
     assert (good / "building-widgets" / "SKILL.md").is_file() and (good / "souls").is_dir()
 

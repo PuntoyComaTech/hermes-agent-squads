@@ -52,7 +52,7 @@ gh pr merge <n> --repo <owner>/<slug> --merge          # merge commit: never --s
 git -C repo revert -m 1 <merge-commit> && git -C repo push origin main   # rollback after the provider step
 ```
 
-Stacked milestones merge in order. A conflicted PR: file a card for the bot that built it (deploying-sites step 9), never a force push.
+Stacked milestones merge in order. A conflicted PR: file a card for the bot that built it (deploying-sites step 10), never a force push.
 
 ## Rules
 

@@ -132,8 +132,8 @@
       "bots": [
         {
           "bot": "web",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
@@ -149,7 +149,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -310,8 +310,8 @@
       "bots": [
         {
           "bot": "marketing",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
@@ -327,7 +327,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -467,8 +467,8 @@
       "bots": [
         {
           "bot": "jobs",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
@@ -484,7 +484,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -582,7 +582,7 @@
       "bots": [
         {
           "bot": "studio",
-          "role": "lead",
+          "role": "manager",
           "lane": "design",
           "model": "claude-opus-5.5",
           "provider": "copilot",
@@ -695,8 +695,8 @@
       "bots": [
         {
           "bot": "builder",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
@@ -712,7 +712,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "cron:builder-watch",

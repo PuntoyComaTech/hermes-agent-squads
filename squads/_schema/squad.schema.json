@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/PuntoyComaTech/hermes-agent-squads/squads/_schema/squad.schema.json",
   "title": "Hermes squad manifest (schema 2)",
-  "description": "squads/<key>/squad.yaml, builder.yaml and local squads. Cross-field rules (lead is a bot with role lead, chain assignees are bots, lanes exist in model-roles.yaml) are enforced by squadctl and tests, not by this schema.",
+  "description": "squads/<key>/squad.yaml, builder.yaml and local squads. Cross-field rules (the manager is the bot named after the squad key with role manager and title '<Name> manager', chain assignees are bots, lanes exist in model-roles.yaml) are enforced by squadctl, skill_lint and tests, not by this schema.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "key", "name", "version", "lead", "bots"],
+  "required": ["schema", "key", "name", "version", "manager", "bots"],
   "properties": {
     "schema": {"const": 2},
     "key": {"$ref": "#/$defs/slug"},
@@ -26,7 +26,7 @@
       }
     },
     "section": {
-      "description": "Desktop Bots pane section, written to ui_meta.hermes-bots as sectionId/sectionName.",
+      "description": "Desktop Bots pane section for the squad's workers, written to ui_meta.hermes-bots as sectionId/sectionName. The manager is filed under the Managers section instead; a bot belongs to exactly one section.",
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "name"],
@@ -35,7 +35,10 @@
         "name": {"type": "string", "minLength": 1}
       }
     },
-    "lead": {"$ref": "#/$defs/botName"},
+    "manager": {
+      "description": "The one manager bot; its profile name equals `key` and its title is '<Name> manager'.",
+      "$ref": "#/$defs/botName"
+    },
     "defaults": {
       "type": "object",
       "additionalProperties": false,
@@ -46,9 +49,9 @@
       }
     },
     "bots": {
+      "description": "At most 5 required bots (the count is enforced by squadctl and skill_lint, since JSON Schema cannot count optional members); a bot with `optional: true` installs only via `squadctl apply --with <name>`.",
       "type": "object",
       "minProperties": 1,
-      "maxProperties": 5,
       "propertyNames": {"$ref": "#/$defs/botName"},
       "additionalProperties": {"$ref": "#/$defs/bot"}
     },
@@ -169,7 +172,7 @@
       "additionalProperties": false,
       "required": ["role", "title", "description", "lane", "toolsets"],
       "properties": {
-        "role": {"enum": ["lead", "worker"]},
+        "role": {"enum": ["manager", "worker"]},
         "title": {"type": "string", "minLength": 1, "maxLength": 40},
         "description": {"type": "string", "minLength": 10, "maxLength": 160},
         "lane": {"$ref": "#/$defs/lane"},
@@ -217,7 +220,10 @@
           "properties": {"lane": {"oneOf": [{"$ref": "#/$defs/lane"}, {"type": "null"}]}}
         },
         "memory": {"type": "boolean"},
-        "hidden": {"type": "boolean"},
+        "optional": {
+          "description": "Not installed by a plain apply: only `squadctl plan/apply <squad> --with <name>` installs it (all bots are visible in the Desktop).",
+          "type": "boolean"
+        },
         "website_blocklist": {
           "description": "Domains written to security.website_blocklist.domains (enabled when non-empty).",
           "type": "array",

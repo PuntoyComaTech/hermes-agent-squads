@@ -23,7 +23,7 @@ scripts/data/model-roles.yaml and local/installed.yaml.
 - [skills/designing-squads/SKILL.md](skills/designing-squads/SKILL.md): user need to squad.yaml
 - [skills/installing-squads/SKILL.md](skills/installing-squads/SKILL.md): plan, apply, uninstall, migration
 - [skills/assigning-models/SKILL.md](skills/assigning-models/SKILL.md): model per bot from connected providers
-- [skills/managing-projects/SKILL.md](skills/managing-projects/SKILL.md): Projects across lead and workers
+- [skills/managing-projects/SKILL.md](skills/managing-projects/SKILL.md): Projects across manager and workers
 - [skills/changing-bots/SKILL.md](skills/changing-bots/SKILL.md): edits and scaling via overlay and apply
 - [skills/authoring-skills/SKILL.md](skills/authoring-skills/SKILL.md): skill format and lint gate
 - [skills/finding-capabilities/SKILL.md](skills/finding-capabilities/SKILL.md): plugins, skills, MCP, connectors

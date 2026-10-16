@@ -11,7 +11,7 @@ A simulated board: each seat applies one marketer's documented frameworks and po
 
 - A decision with real stakes needs conflicting lenses: positioning, offer, pricing, a channel shift, a launch.
 - The user asks "what would <advisor> say", "get multiple perspectives" or "run it by the council".
-- A plan or report has two defensible directions and the lead must argue both before recommending.
+- A plan or report has two defensible directions and the manager must argue both before recommending.
 
 ## The Bench
 

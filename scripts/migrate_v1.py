@@ -12,7 +12,7 @@ separately as "kept by v2" and are never listed for deletion.
 
 What it does, in order:
   1. registers every `~/Hermes/projects/<key>/` folder as a native Hermes Project through
-     `scripts/squadctl project add <key> <key> <path>`, which creates it in the squad's lead and workers;
+     `scripts/squadctl project add <key> <key> <path>`, which creates it in the squad's manager and workers;
   2. removes the `deliver.py` cron jobs from every profile (`hermes -p <bot> cron remove <id>`);
   3. exports the `orchestrator` profile to `<local>/backups/orchestrator-<stamp>.tar.gz`
      (`hermes profile export`), and with `--delete-orchestrator` deletes it afterwards;

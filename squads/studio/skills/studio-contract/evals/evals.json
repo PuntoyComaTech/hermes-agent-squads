@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "A producing stage starts and the piece folder has brief.md and storyboard.md but no renders/ directory.",
-      "expected_output": "studio_project.py init completes the layout, check exits 0, and the stage starts without touching the lead's files.",
+      "expected_output": "studio_project.py init completes the layout, check exits 0, and the stage starts without touching the manager's files.",
       "files": []
     },
     {

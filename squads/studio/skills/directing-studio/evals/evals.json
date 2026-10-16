@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Card: the requester writes 'the usual banner, make it look good' with no format, size or deadline.",
-      "expected_output": "The lead blocks with the exact missing questions instead of guessing format, resolution, deadline or brand assets.",
+      "expected_output": "The manager blocks with the exact missing questions instead of guessing format, resolution, deadline or brand assets.",
       "files": []
     }
   ]

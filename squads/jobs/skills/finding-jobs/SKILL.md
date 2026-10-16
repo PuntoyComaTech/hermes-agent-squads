@@ -9,7 +9,7 @@ Your card body says `Mode: SEARCH` (scheduled or on demand) or `Mode: URL` (link
 
 ## When to Use
 
-- A search card from the `jobs-search` cron, or a URL card from the lead.
+- A search card from the `jobs-search` cron, or a URL card from the manager.
 - Before saving any `opening.md` or creating an analyze card.
 
 ## Procedure

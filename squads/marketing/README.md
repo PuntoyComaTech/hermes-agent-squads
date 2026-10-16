@@ -1,15 +1,15 @@
 # Squad: Marketing
 
-A lead and four workers that run a brand's marketing cycle: onboarding, a 90-day plan, a weekly calendar, reviewed pieces and a monthly report. Every card goes on the `marketing` board; the user approves, requests changes or discards from the lead's chat. The squad never publishes, sends, schedules or spends without the user's explicit OK for that action.
+A manager and four workers that run a brand's marketing cycle: onboarding, a 90-day plan, a weekly calendar, reviewed pieces and a monthly report. Every card goes on the `marketing` board; the user approves, requests changes or discards from the manager's chat. The squad never publishes, sends, schedules or spends without the user's explicit OK for that action.
 
-Bots, lanes, skills, keeps, crons and the `piece` chain: `squad.yaml`. Only the visible lead (`marketing`) talks to the user. File layout, card fields, keys and rules: skill `brand-contract`. Licences: [skills/LICENSES.md](skills/LICENSES.md).
+Bots, lanes, skills, keeps, crons and the `piece` chain: `squad.yaml`. Only the visible manager (`marketing`) talks to the user. File layout, card fields, keys and rules: skill `brand-contract`. Licences: [skills/LICENSES.md](skills/LICENSES.md).
 
 ## The piece chain
 
 `research` (only when the brief says `Needs research: yes`) -> `copy` -> `asset` -> `review` -> `approve`.
 
 - The reviewer returns `approve`, `fix` (up to `brand.md -> reviewer_rounds` rounds, then a re-review of the same card) or `escalate`.
-- The lead presents an approved piece; a change request starts a `-c<N>` round with the user's literal wording. Every reply is logged in `preferences.md`.
+- The manager presents an approved piece; a change request starts a `-c<N>` round with the user's literal wording. Every reply is logged in `preferences.md`.
 - A `publish` card exists only when `brand.md -> publishing` names a connector and the user confirmed that piece.
 
 The user can file a chain by hand:

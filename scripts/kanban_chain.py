@@ -2,8 +2,8 @@
 """File one squad chain as dependent kanban cards in one command (zero LLM).
 
 Reads squads/<squad>/squad.yaml (deep-merged with <home>/local/squads/<squad>/squad.yaml when present) and creates
-one card per stage on the squad's board, through the lead's profile:
-  hermes -p <lead> kanban --board <slug> create ... --assignee <bot> --skill <skill> --parent <previous card>
+one card per stage on the squad's board, through the manager's profile:
+  hermes -p <manager> kanban --board <slug> create ... --assignee <bot> --skill <skill> --parent <previous card>
         --project <slug> --idempotency-key <squad>:<chain>:<project>:<run>:<stage> --workspace dir:<primary>
         [--model M --provider P]
 
@@ -13,7 +13,7 @@ one card per stage on the squad's board, through the lead's profile:
   With no model on record the card is created without the flags and a warning is reported.
 - Idempotent: the key is derived from squad, chain, project, run id (default: slug of the title) and stage, so
   re-running prints the same card ids. Use --run-id to file a second chain with the same title.
-- The board and the project (`hermes -p <lead> project create ...`) must already exist.
+- The board and the project (`hermes -p <manager> project create ...`) must already exist.
 """
 from __future__ import annotations
 
@@ -71,7 +71,9 @@ def load_squad(squad: str, squads_dir: Path, home: Path) -> dict:
     if not repo.is_file() and not local.is_file():
         raise ChainError(f"squad {squad!r} not found in {squads_dir} or {local.parent}")
     doc = deep_merge(load_yaml(repo) if repo.is_file() else {}, load_yaml(local) if local.is_file() else {})
-    for field in ("lead", "bots", "chains"):
+    if "lead" in doc and "manager" not in doc:
+        raise ChainError(f"squad {squad!r}: field 'lead' was renamed to 'manager' (S3); update the manifest")
+    for field in ("manager", "bots", "chains"):
         if not doc.get(field):
             raise ChainError(f"squad {squad!r} has no {field}")
     return doc
@@ -113,13 +115,13 @@ def plan(doc: dict, squad: str, chain: str, project: str, title: str, body: str,
                 warnings.append(f"stage {st['stage']}: no model on record for lane {st['lane']!r}; card uses the profile model")
         cards.append(card)
         parent = f"<{st['stage']}>"
-    return {"squad": squad, "chain": chain, "board": (doc.get("board") or {}).get("slug") or squad, "lead": doc["lead"],
+    return {"squad": squad, "chain": chain, "board": (doc.get("board") or {}).get("slug") or squad, "manager": doc["manager"],
             "project": project, "cards": cards, "skipped": skipped, "warnings": warnings}
 
 
 def card_command(hermes_bin: str, result: dict, card: dict, parent_id: str | None, workspace: str | None) -> list[str]:
-    cmd = [hermes_bin, "-p", result["lead"], "kanban", "--board", result["board"], "create", card["title"],
-           "--assignee", card["assignee"], "--created-by", result["lead"], "--project", result["project"],
+    cmd = [hermes_bin, "-p", result["manager"], "kanban", "--board", result["board"], "create", card["title"],
+           "--assignee", card["assignee"], "--created-by", result["manager"], "--project", result["project"],
            "--idempotency-key", card["key"], "--body", card["body"]]
     for flag, value in (("--skill", card["skill"]), ("--parent", parent_id), ("--model", card["model"]),
                         ("--provider", card["provider"]), ("--workspace", workspace)):
@@ -136,12 +138,12 @@ def task_id(out: str) -> str:
         return out.split()[-1]
 
 
-def project_primary(hermes_bin: str, root: Path, lead: str, project: str) -> str | None:
+def project_primary(hermes_bin: str, root: Path, manager: str, project: str) -> str | None:
     """Primary folder of the project (`hermes project show` prints a `primary:` line). With a project and no
     explicit workspace, kanban_db turns a `scratch` card into a git worktree of that repo; a plain folder is
     not a repo, so cards default to `dir:<primary>` instead."""
     try:
-        proc = subprocess.run([hermes_bin, "-p", lead, "project", "show", project], capture_output=True, text=True,
+        proc = subprocess.run([hermes_bin, "-p", manager, "project", "show", project], capture_output=True, text=True,
                               timeout=120, env={**os.environ, "HERMES_HOME": str(root)})
     except (OSError, subprocess.SubprocessError):
         return None
@@ -154,7 +156,7 @@ def project_primary(hermes_bin: str, root: Path, lead: str, project: str) -> str
 def create(result: dict, hermes_bin: str, root: Path, workspace: str | None) -> None:
     env = {**os.environ, "HERMES_HOME": str(root)}
     if not workspace:
-        primary = project_primary(hermes_bin, root, result["lead"], result["project"])
+        primary = project_primary(hermes_bin, root, result["manager"], result["project"])
         if primary:
             workspace = f"dir:{primary}"
         else:
@@ -187,7 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("squad", help="squad key")
     ap.add_argument("chain", help="chain name in squad.yaml -> chains")
-    ap.add_argument("--project", required=True, help="project slug (exists in the lead's profile)")
+    ap.add_argument("--project", required=True, help="project slug (exists in the manager's profile)")
     ap.add_argument("--title", required=True, help="title prefix of every card")
     ap.add_argument("--body", default="", help="text appended to every card body")
     ap.add_argument("--when", default="", help="comma list of conditions that enable `when:` stages")

@@ -1,32 +1,31 @@
 schema: 2
 key: web
 name: Web
-version: 3.0.0
+version: 3.1.0
 description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
 hermes_requires: ">=0.22.0"
 board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
 section: {id: web, name: Web}
-lead: web
+manager: web
 defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [terminal, file, skills, kanban, todo]}
 bots:
   web:
-    role: lead
-    title: Web lead
+    role: manager
+    title: Web manager
     description: "Interviews the user, writes spec.md, plans milestones, files chains, triages changes and accepts work"
-    lane: lead
+    lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, web, vision, delegation]
     skills: {squad: [leading-web, site-contract], auto_load: leading-web,
              keep: [official:software-development/grill-me]}
     plugins: {enable: [disk-cleanup]}
     memory: true
-    hidden: false
     cron:
       web-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
   web-frontend:
     role: worker
     title: Web frontend
-    description: "UI, design system, motion, scroll animation and three.js for the site repo"
-    lane: design
+    description: "UI, design system, motion and scroll animation for the site repo"
+    lane: frontend
     reasoning: medium
     toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
     skills: {squad: [building-frontend, site-contract], auto_load: building-frontend,
@@ -37,12 +36,11 @@ bots:
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: []}
     memory: false
-    hidden: true
   web-backend:
     role: worker
     title: Web backend
-    description: "APIs, data, auth and tests; consults the advisor lane on data model, auth and migrations"
-    lane: code
+    description: "APIs, data, auth and tests; the manager pins the code-complex lane per card on hard problems"
+    lane: code-routine
     toolsets: [file, skills, kanban, todo, terminal, delegation]
     skills: {squad: [building-backend, site-contract], auto_load: building-backend,
              keep: [bundled:test-driven-development, bundled:systematic-debugging,
@@ -50,9 +48,8 @@ bots:
     plugins: {enable: [disk-cleanup, security-guidance]}
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: [supabase, neon_mcp]}
-    delegation: {lane: advisor}
+    delegation: {lane: code-complex}
     memory: false
-    hidden: true
   web-qa:
     role: worker
     title: Web QA
@@ -64,12 +61,11 @@ bots:
     plugins: {enable: [disk-cleanup]}
     mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
     memory: false
-    hidden: true
   web-deployer:
     role: worker
     title: Web deployer
     description: "GitHub flow, preview and production deploys, DNS and rollback; the only bot with tokens"
-    lane: research
+    lane: deploy
     toolsets: [file, skills, kanban, todo, terminal]
     skills: {squad: [deploying-sites, site-contract], auto_load: deploying-sites,
              keep: [official:web-development/publish-site, bundled:github]}
@@ -77,7 +73,27 @@ bots:
     connectors: {enabled: false, suggest: [cloudflare_mcp, vercel_mcp]}
     passthrough: [CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GH_TOKEN, VERCEL_TOKEN]
     memory: false
-    hidden: true
+  web-frontend-pro:
+    optional: true
+    role: worker
+    title: Web frontend pro
+    description: "3D, WebGL shaders, GSAP ScrollTrigger/Lenis and complex motion when the brief needs them"
+    lane: design-pro
+    toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
+    skills: {squad: [building-3d-motion, site-contract], auto_load: building-3d-motion,
+             keep: [official:creative/impeccable, official:creative/auteur, official:web-development/scrollcraft,
+                    official:creative/dream-loop, official:creative/hyperframes,
+                    bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}
+    plugins:
+      enable:
+        - disk-cleanup
+        - security-guidance
+        - name: blender
+          confirm: "The blender plugin runs arbitrary Python inside Blender with the user's privileges and needs Blender 5.1+, its MCP add-on and uv. Install only after the user's OK."
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
+    connectors: {enabled: false, suggest: []}
+    requires: {apps: [blender>=5.1, uv]}
+    memory: false
 chains:
   onboarding:
     - {stage: repo, assignee: web-deployer, skill: deploying-sites}

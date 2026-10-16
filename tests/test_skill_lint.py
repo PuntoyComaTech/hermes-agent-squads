@@ -92,13 +92,13 @@ def test_default_budget_is_worker(tmp_path, capsys):
     assert rules_of(report) == {"skill-lines"}
 
 
-def test_role_flag_forces_lead_budget(tmp_path, capsys):
+def test_role_flag_forces_manager_budget(tmp_path, capsys):
     skill = make_skill(tmp_path, body_extra=pad(100))
-    assert lint(capsys, skill, "--role", "lead")[0] == 0
-    assert lint(capsys, make_skill(tmp_path, name="building-extras", body_extra=pad(140)), "--role", "lead")[0] == 1
+    assert lint(capsys, skill, "--role", "manager")[0] == 0
+    assert lint(capsys, make_skill(tmp_path, name="building-extras", body_extra=pad(140)), "--role", "manager")[0] == 1
 
 
-def test_builder_skills_get_lead_budget(tmp_path, capsys):
+def test_builder_skills_get_manager_budget(tmp_path, capsys):
     (tmp_path / "builder.yaml").write_text("key: builder\n")
     skill = make_skill(tmp_path, body_extra=pad(100))
     assert lint(capsys, skill)[0] == 0
@@ -106,14 +106,15 @@ def test_builder_skills_get_lead_budget(tmp_path, capsys):
 
 def _squad(tmp_path, skill_users):
     squad = tmp_path / "squads" / "web"
-    bots = {bot: {"role": "lead" if bot == "web" else "worker", "skills": {"squad": ["building-widgets"] if bot in skill_users else []}}
+    bots = {bot: {"role": "manager" if bot == "web" else "worker",
+                  "skills": {"squad": ["building-widgets"] if bot in skill_users else []}}
             for bot in ("web", "web-frontend")}
     squad.mkdir(parents=True)
-    (squad / "squad.yaml").write_text(yaml.safe_dump({"schema": 2, "key": "web", "lead": "web", "bots": bots}))
+    (squad / "squad.yaml").write_text(yaml.safe_dump({"schema": 2, "key": "web", "manager": "web", "bots": bots}))
     return make_skill(squad, body_extra=pad(100))
 
 
-def test_lead_only_squad_skill_gets_lead_budget(tmp_path, capsys):
+def test_manager_only_squad_skill_gets_manager_budget(tmp_path, capsys):
     assert lint(capsys, _squad(tmp_path, {"web"}))[0] == 0
 
 

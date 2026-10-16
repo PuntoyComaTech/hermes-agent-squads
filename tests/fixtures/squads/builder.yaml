@@ -3,21 +3,19 @@ key: builder
 name: Builder
 version: 2.0.0
 hermes_requires: ">=0.22.0"
-section: {id: base, name: Base}
-lead: builder
+manager: builder
 defaults: {aux_lane: aux, vision_lane: vision}
 bots:
   builder:
-    role: lead
+    role: manager
     title: Builder
     description: "Creates, edits and maintains local Hermes squads through squadctl"
-    lane: lead
+    lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, terminal, cronjob]
     skills: {squad: [hermes-platform, installing-squads], auto_load: hermes-platform,
              keep: [bundled:hermes-agent, bundled:hermes-agent-skill-authoring]}
     plugins: {enable: [disk-cleanup]}
     memory: true
-    hidden: false
     cron:
       builder-watch:
         schedule: "0 7 * * *"

@@ -391,7 +391,7 @@ def bot_extras(doc: dict, name: str, bot: dict) -> list[tuple[str, str]]:
 def advise_squad(adv: Advisor, doc: dict) -> dict:
     bots = doc["bots"]
     producers = {n: adv.pick(b["lane"]) for n, b in bots.items()
-                 if adv.resolve(b["lane"]) != "review" and b["role"] != "lead"}
+                 if adv.resolve(b["lane"]) != "review" and b.get("role") not in ("manager", "lead")}
     if not producers:
         producers = {n: adv.pick(b["lane"]) for n, b in bots.items() if adv.resolve(b["lane"]) != "review"}
     avoid: dict[str, int] = {}

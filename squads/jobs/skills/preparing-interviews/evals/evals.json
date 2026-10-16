@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "The opening is in English with no interview level stated; the user asked for preparation in Spanish.",
-      "expected_output": "interview.md follows the opening's language (English) unless the user asked otherwise, and the lead delivers it as the card requires.",
+      "expected_output": "interview.md follows the opening's language (English) unless the user asked otherwise, and the manager delivers it as the card requires.",
       "files": []
     },
     {

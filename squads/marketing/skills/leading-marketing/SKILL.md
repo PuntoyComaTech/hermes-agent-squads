@@ -1,11 +1,11 @@
 ---
 name: leading-marketing
-description: "Runs brand onboarding, planning, briefs and reports. Use when a marketing lead card asks for a brand onboarding, a 90-day plan, a weekly calendar, piece briefs, an approval or a results report."
+description: "Runs brand onboarding, planning, briefs and reports. Use when a marketing manager card asks for a brand onboarding, a 90-day plan, a weekly calendar, piece briefs, an approval or a results report."
 ---
 
 # Leading marketing
 
-Lead procedure; conventions in `brand-contract`. Workers produce; you brief, file cards and take the user's decisions.
+Manager procedure; conventions in `brand-contract`. Workers produce; you brief, file cards and take the user's decisions.
 
 ## When to Use
 

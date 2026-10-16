@@ -8,9 +8,9 @@ web development, marketing, job search and a studio, plus a **builder** that ins
 creates new ones with you and keeps everything updated. The repo root is the builder's
 **profile distribution**: one command installs it, one command updates it.
 
-Each squad is one visible lead (the only bot you talk to) plus hidden workers that pass work
-along a Kanban board. Irreversible steps (apply, publish, send, deploy) always wait for
-your explicit yes.
+Each squad is one manager (the only bot you talk to) plus workers that pass work
+along a Kanban board; every bot is visible in the Desktop. Irreversible steps
+(apply, publish, send, deploy) always wait for your explicit yes.
 
 ## Install (3 commands)
 
@@ -24,7 +24,7 @@ The `--alias` wrapper is written to `~/.local/bin`; keep that directory on your 
 use the short `builder chat` form (`hermes -p builder chat` always works).
 
 You need Hermes Agent with a connected model provider, a machine that stays on for
-automations, and (optional) a messaging platform where the leads deliver results.
+automations, and (optional) a messaging platform where the managers deliver results.
 
 The install creates one profile, `builder`. The builder suggests a model per bot from your
 connected providers and shows a diff before every change. Updates: ask the builder "what
@@ -34,30 +34,31 @@ changed upstream", or run `hermes profile update builder`.
 
 1. **Kanban plugin.** Enable Capabilities > Plugins > **Kanban** to see the boards
    (it ships disabled by default; the dispatcher runs in the gateway regardless).
-2. **Bots pane.** The Bots tab is your roster: workers are hidden, so you see Hermes (default),
-   the builder and one lead per squad. Sections come from each squad's manifest.
+2. **Bots pane.** The Bots tab is your roster: every bot is visible — Hermes (default),
+   the builder and each squad's bots. The `Managers` section holds the squad managers,
+   one section per squad holds its workers (sections come from each squad's manifest).
 3. **Rail.** The profile rail lists every profile (a full install has 20 profiles including the
    default) and condenses into a dropdown above 13; use Cmd+K > *Toggle profile rail* and switch
    in the Bots pane.
 4. **Projects.** Each site, brand or client is a Hermes Project; the builder registers it
-   in the lead and the workers (`squadctl project add`), and the Desktop groups sessions
+   in the manager and the workers (`squadctl project add`), and the Desktop groups sessions
    by project.
 
 ## Squads
 
 | Squad | Board | You get | Bots |
 | --- | --- | --- | --- |
-| [Web](squads/web/README.md) | `web` | Sites from idea to production behind a quality gate, preview link before publishing | lead, frontend, backend, qa, deployer |
-| [Marketing](squads/marketing/README.md) | `marketing` | Dated research, 90-day plans, copy and assets for your brands, five-lens review | lead, research, creative, producer, reviewer |
-| [Jobs](squads/jobs/README.md) | `jobs` | Matching openings with tailored applications; "apply" sends (or a manual kit) | lead, scout, writer, reviewer, applier |
-| [Studio](squads/studio/README.md) | `studio` | Motion, video and 3D assets ordered by the other squads | lead, motion, 3d |
+| [Web](squads/web/README.md) | `web` | Sites from idea to production behind a quality gate, preview link before publishing | manager, frontend, backend, qa, deployer, frontend-pro (optional) |
+| [Marketing](squads/marketing/README.md) | `marketing` | Dated research, 90-day plans, copy and assets for your brands, five-lens review | manager, research, creative, producer, reviewer |
+| [Jobs](squads/jobs/README.md) | `jobs` | Matching openings with tailored applications; "apply" sends (or a manual kit) | manager, scout, writer, reviewer, applier |
+| [Studio](squads/studio/README.md) | `studio` | Motion, video and 3D assets ordered by the other squads | manager, motion, 3d |
 | Yours | - | Ask the builder: "create a squad for <goal>" | up to 5 |
 
 ### Web
 
 ```mermaid
 flowchart LR
-    U([you: "new site: idea"]) --> L["web (lead): spec + milestones"]
+    U([you: "new site: idea"]) --> L["web (manager): spec + milestones"]
     L --> C["chain card 1: api (if backend)"] --> F["chain card 2: ui"]
     F --> P["chain card 3: preview"] --> Q["web-qa: 5 lenses"]
     Q -->|fail: fix card, max 2 rounds| F
@@ -69,7 +70,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    U([you: brand brief]) --> L["marketing (lead): plan + calendar"]
+    U([you: brand brief]) --> L["marketing (manager): plan + calendar"]
     L --> R["marketing-research: dated evidence"]
     R --> C["marketing-creative: concepts + copy"]
     C --> P["marketing-producer: assets, landings, emails"]
@@ -82,12 +83,12 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    U([cron: search slots]) --> L["jobs (lead): profile + criteria"]
+    U([cron: search slots]) --> L["jobs (manager): profile + criteria"]
     L --> S["jobs-scout: search + hard filter"]
     S --> W["jobs-writer: CV + letter"]
     W --> R["jobs-reviewer: 5 lenses"]
     R -->|one fix round| W
-    R --> D["lead digest: match + link"]
+    R --> D["manager digest: match + link"]
     D --> A{"you: apply / change / no"}
     A -->|"apply"| J["jobs-applier: simple form or manual kit"]
 ```
@@ -96,12 +97,12 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    U(["card from web or marketing"]) --> L["studio (lead): storyboard + shot list"]
+    U(["card from web or marketing"]) --> L["studio (manager): storyboard + shot list"]
     L --> T{"3D needed?"}
     T -->|yes| G["studio-3d: Blender scenes + renders"]
     T -->|no| M["studio-motion: motion, video, demos"]
     G --> M
-    M --> R["lead: render review (contact sheets)"]
+    M --> R["manager: render review (contact sheets)"]
     R -->|one fix round| M
     R --> D["delivered as a comment on the requester's card"]
 ```
@@ -110,7 +111,7 @@ flowchart LR
 
 A card is one bounded job; each stage creates the next as a dependent card
 (`--parent`), so work moves without you relaying anything. Reviewers send fixable findings
-back as fix cards (rounds per squad in the diagrams above), then the lead asks you only what
+back as fix cards (rounds per squad in the diagrams above), then the manager asks you only what
 is yours to decide. Cron jobs run behind zero-LLM gates: a quiet tick costs nothing.
 
 ## For AI agents

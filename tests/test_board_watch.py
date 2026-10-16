@@ -1,4 +1,4 @@
-"""board_watch.py: which blocked or stale cards reach the lead's Bot Chat, once each."""
+"""board_watch.py: which blocked or stale cards reach the manager's Bot Chat, once each."""
 import json
 import os
 import subprocess

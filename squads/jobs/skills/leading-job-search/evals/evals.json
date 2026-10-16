@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "The user asks for \"change: say I led the data migration\" but achievements.yaml records that work as participated.",
-      "expected_output": "The lead asks for the exact confirmed text first; no card is filed until a verified achievement exists.",
+      "expected_output": "The manager asks for the exact confirmed text first; no card is filed until a verified achievement exists.",
       "files": []
     },
     {
