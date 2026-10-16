@@ -69,3 +69,9 @@ flowchart LR
 | `skills/` | `leading-web`, `building-frontend`, `building-backend`, `reviewing-sites`, `deploying-sites`, `site-contract` |
 | `skills/building-frontend/scripts/` | `scaffold_site.py`, `stacks.json` |
 | `skills/site-contract/scripts/` | `check_site.py` |
+
+## Extras
+
+The web bots cover sites, not taste: nobody in the repo ships site-cloning, reverse-engineering or
+personal-style skills. Add your own extras to a bot's `skills.keep` through the builder
+("add skill <name> to web-frontend"), and apply them with `squadctl apply web`.
