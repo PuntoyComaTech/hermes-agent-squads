@@ -292,6 +292,25 @@ def test_always_disabled_names_exist_in_hermes():
         assert f'"{name}":' in static or f'toolset="{name}"' in plugin_text, name
 
 
+# Auxiliary slots squadctl leaves on the main model (references/models-and-auxiliary.md -> Auxiliary slots).
+AUX_ON_MAIN_MODEL = {"mcp", "tts_audio_tags", "voice_chat", "moa_reference", "moa_aggregator"}
+
+
+@pytest.mark.skipif(not (HERMES_SRC / "hermes_cli" / "config_defaults.py").is_file(),
+                    reason="Hermes source tree not available")
+def test_every_hermes_auxiliary_slot_is_routed_or_named():
+    """A slot Hermes adds and squadctl neither routes nor names would silently run on the main model."""
+    text = (HERMES_SRC / "hermes_cli" / "config_defaults.py").read_text()
+    block = text.split('\n    "auxiliary": {\n', 1)[1].split("\n    },\n", 1)[0]
+    real = set(re.findall(r'^        "([a-z_]+)": [{_]', block, re.M))
+    src = (REPO / "scripts" / "squadctl.py").read_text()
+    routed = set(re.findall(r'"([a-z_]+)"', src.split("AUX_TASKS = (", 1)[1].split(")", 1)[0]))
+    ours = routed | {"vision"} | AUX_ON_MAIN_MODEL
+    assert real == ours, {"unrouted": sorted(real - ours), "gone": sorted(ours - real)}
+    doc = (REPO / "skills" / "hermes-platform" / "references" / "models-and-auxiliary.md").read_text()
+    assert all(f"`{s}`" in doc for s in AUX_ON_MAIN_MODEL)
+
+
 def hermes_configurable_toolsets() -> set[str]:
     """CONFIGURABLE_TOOLSETS keys of the real hermes_cli/tools_config.py: what `hermes tools enable` accepts."""
     text = (HERMES_SRC / "hermes_cli" / "tools_config.py").read_text()
