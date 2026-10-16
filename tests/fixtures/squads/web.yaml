@@ -1,9 +1,10 @@
 schema: 2
 key: web
 name: Web
-version: 3.0.0
+version: 3.1.1
+description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
 hermes_requires: ">=0.22.0"
-board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB"}
+board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
 section: {id: web, name: Web}
 manager: web
 defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [terminal, file, skills, kanban, todo]}
@@ -11,7 +12,7 @@ bots:
   web:
     role: manager
     title: Web manager
-    description: "Interviews the user, writes spec.md, plans milestones, launches chains, triages and accepts"
+    description: "Interviews the user, writes spec.md, plans milestones, files chains, triages changes and accepts work"
     lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, web, vision, delegation]
     skills: {squad: [leading-web, site-contract], auto_load: leading-web,
@@ -19,63 +20,82 @@ bots:
     plugins: {enable: [disk-cleanup]}
     memory: true
     cron:
-      web-watch: {schedule: "0 */4 * * *", script: web_watch.py, agent: false}
+      web-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
   web-frontend:
     role: worker
     title: Web frontend
-    description: "UI, design system, motion, scroll and three.js for the site repo"
-    lane: design
+    description: "UI, design system, motion and scroll animation for the site repo"
+    lane: frontend
     reasoning: medium
-    toolsets: [file, skills, kanban, todo, terminal, vision, browser]
+    toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
     skills: {squad: [building-frontend, site-contract], auto_load: building-frontend,
-             keep: [official:creative/impeccable, bundled:claude-design]}
-    plugins: {enable: [disk-cleanup, security-guidance], disable: []}
-    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+             keep: [official:creative/impeccable, official:web-development/scrollcraft,
+                    bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}
+    plugins: {enable: [disk-cleanup, security-guidance]}
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: []}
-    passthrough: []
-    delegation: {lane: null}
-    memory: false
   web-backend:
     role: worker
     title: Web backend
-    description: "APIs, data, auth and tests; consults the advisor on data model, auth and migrations"
-    lane: code
+    description: "APIs, data, auth and tests; the manager pins the code-complex lane per card on hard problems"
+    lane: code-routine
     toolsets: [file, skills, kanban, todo, terminal, delegation]
     skills: {squad: [building-backend, site-contract], auto_load: building-backend,
-             keep: [bundled:test-driven-development, bundled:systematic-debugging]}
+             keep: [bundled:test-driven-development, bundled:systematic-debugging,
+                    official:software-development/rest-graphql-debug, official:software-development/ast-grep]}
     plugins: {enable: [disk-cleanup, security-guidance]}
-    mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: [supabase, neon_mcp]}
-    delegation: {lane: advisor}
-    memory: false
+    delegation: {lane: code-complex}
   web-qa:
     role: worker
     title: Web QA
-    description: "Five lenses on each preview: acceptance, visual, WCAG 2.2, Core Web Vitals, security and SEO"
+    description: "Reviews each preview with five lenses and never fixes what it reviews"
     lane: review
     toolsets: [file, skills, kanban, todo, browser, vision, terminal, delegation]
     skills: {squad: [reviewing-sites, site-contract], auto_load: reviewing-sites,
              keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
     plugins: {enable: [disk-cleanup]}
     mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
-    memory: false
   web-deployer:
     role: worker
     title: Web deployer
     description: "GitHub flow, preview and production deploys, DNS and rollback; the only bot with deploy credentials"
-    lane: research
+    lane: deploy
     toolsets: [file, skills, kanban, todo, terminal]
     skills: {squad: [deploying-sites, site-contract], auto_load: deploying-sites,
              keep: [official:web-development/publish-site, bundled:github]}
     plugins: {enable: [disk-cleanup]}
     connectors: {enabled: false, suggest: [cloudflare_mcp]}
     requires: {apps: [cf, wrangler, gh]}
-    memory: false
+  web-frontend-pro:
+    optional: true
+    role: worker
+    title: Web frontend pro
+    description: "3D, WebGL shaders, GSAP ScrollTrigger/Lenis and complex motion when the brief needs them"
+    lane: design-pro
+    toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
+    skills: {squad: [building-3d-motion, site-contract], auto_load: building-3d-motion,
+             keep: [official:creative/impeccable, official:web-development/scrollcraft,
+                    bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}
+    plugins:
+      enable:
+        - disk-cleanup
+        - security-guidance
+        - name: blender
+          confirm: "The blender plugin runs arbitrary Python inside Blender with the user's privileges and needs Blender 5.1+, its MCP add-on and uv. Install only after the user's OK."
+    mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
+    connectors: {enabled: false, suggest: []}
+    requires: {apps: [blender>=5.1, uv]}
 chains:
+  onboarding:
+    - {stage: repo, assignee: web-deployer, skill: deploying-sites}
   milestone:
     - {stage: api, assignee: web-backend, skill: building-backend, when: backend}
     - {stage: ui, assignee: web-frontend, skill: building-frontend}
     - {stage: preview, assignee: web-deployer, skill: deploying-sites}
     - {stage: qa, assignee: web-qa, skill: reviewing-sites}
     - {stage: accept, assignee: web, skill: leading-web}
-asks: ["new site: <idea>", "status", "publish"]
+  deploy-production:
+    - {stage: production, assignee: web-deployer, skill: deploying-sites}
+asks: ["new site: <idea>", "ok", "publish", "change: <what>", "bug: <what>", "connect my domain", "rollback", "status"]

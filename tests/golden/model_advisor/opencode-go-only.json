@@ -89,24 +89,24 @@
         {
           "bot": "web-frontend",
           "role": "worker",
-          "lane": "design",
-          "model": "mimo-v2.6-pro",
+          "lane": "frontend",
+          "model": "kimi-k3",
           "provider": "opencode-go",
-          "reasoning": "xhigh",
+          "reasoning": "high",
           "alternatives": [
             {
-              "model": "kimi-k3",
+              "model": "glm-5.3",
               "provider": "opencode-go",
               "reasoning": "high"
             }
           ],
-          "reason": "design lane (alias of design-pro), candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "frontend lane, candidate 5/6 (open-weights): UI quality is model-bound and pays per pixel: strong UI models at high effort",
           "extras": []
         },
         {
           "bot": "web-backend",
           "role": "worker",
-          "lane": "code",
+          "lane": "code-routine",
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -122,16 +122,16 @@
               "reasoning": "high"
             }
           ],
-          "reason": "code lane (alias of code-routine), candidate 1/6 (open-weights): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
+          "reason": "code-routine lane, candidate 1/6 (open-weights): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
           "extras": [
             {
               "use": "delegation",
-              "lane": "advisor",
+              "lane": "code-complex",
               "model": "mimo-v2.6-pro",
               "provider": "opencode-go",
               "reasoning": "xhigh",
               "alternatives": [],
-              "reason": "advisor lane (alias of code-complex), candidate 2/5 (open-weights): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+              "reason": "code-complex lane, candidate 2/5 (open-weights): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
             }
           ]
         },
@@ -149,12 +149,29 @@
         {
           "bot": "web-deployer",
           "role": "worker",
-          "lane": "research",
+          "lane": "deploy",
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
-          "reasoning": "medium",
+          "reasoning": "high",
           "alternatives": [],
-          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
+          "reason": "deploy lane, candidate 1/4 (open-weights): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
+          "extras": []
+        },
+        {
+          "bot": "web-frontend-pro",
+          "role": "worker",
+          "lane": "design-pro",
+          "model": "mimo-v2.6-pro",
+          "provider": "opencode-go",
+          "reasoning": "xhigh",
+          "alternatives": [
+            {
+              "model": "kimi-k3",
+              "provider": "opencode-go",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design-pro lane, candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         }
       ],
