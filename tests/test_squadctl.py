@@ -543,6 +543,34 @@ def test_per_bot_model_beats_lane_and_user_reasoning_wins(env, capsys):
     assert env.config("web-qa")["model"]["default"] == "model-review"
 
 
+def test_fallback_chain_reaches_every_bot_its_children_and_installed_yaml(env, capsys):
+    """Same shape as the owner's models file: a top-level `fallback:` list (Sonnet high, then Haiku xhigh)."""
+    env.squad("web")
+    doc = models_doc()
+    doc["fallback"] = [{"provider": "anthropic", "model": "claude-sonnet-4-6", "reasoning": "high"},
+                       {"provider": "anthropic", "model": "claude-haiku-4-5", "reasoning": "xhigh"},
+                       {"provider": "anthropic"}]  # incomplete rows are dropped, as Hermes drops them
+    env.models.write_text(yaml.safe_dump(doc))
+    env.run("apply", "web", capsys=capsys)
+    chain = [{"provider": "anthropic", "model": "claude-sonnet-4-6"},
+             {"provider": "anthropic", "model": "claude-haiku-4-5"}]
+    for bot in WEB_BOTS:
+        cfg = env.config(bot)
+        assert cfg["fallback_providers"] == chain, bot
+        assert cfg["delegation"]["fallback_providers"] == chain, bot
+        assert cfg["agent"]["reasoning_overrides"] == {"claude-sonnet-4-6": "high", "claude-haiku-4-5": "xhigh"}
+    saved = yaml.safe_load((env.local / "installed.yaml").read_text())
+    assert [r["model"] for r in saved["fallback"]] == ["claude-sonnet-4-6", "claude-haiku-4-5"]
+    # A later models file without `fallback:` inherits the saved chain; `fallback: []` clears it.
+    env.models.write_text(yaml.safe_dump(models_doc()))
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["summary"] == {"unchanged": 5}
+    env.models.write_text(yaml.safe_dump({**models_doc(), "fallback": []}))
+    env.run("apply", "web", capsys=capsys)
+    assert env.config("web-qa")["fallback_providers"] == []
+    assert "fallback" not in yaml.safe_load((env.local / "installed.yaml").read_text())
+
+
 def test_models_file_accepts_model_advisor_json(env, capsys):
     env.squad("web")
     rows = [{"bot": b, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low", "extras": []}

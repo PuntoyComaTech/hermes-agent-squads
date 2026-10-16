@@ -2,7 +2,8 @@
 """squadctl: plan, apply, inspect and remove Hermes squads. Idempotent: read state, diff, write only the difference.
 
 Reads squads/<key>/squad.yaml (builder.yaml for --self), the overlay local/squads/<key>/squad.yaml and the models
-in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning). --models <file> merges the same shape
+in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning, plus an optional `fallback:` list of
+provider/model/reasoning tried in order by every bot and its children). --models <file> merges the same shape
 or `scripts/hpy model_advisor.py --json` output, and a real apply saves it. Licence or disclosure items stay pending
 until `--confirm <id>`. Output is TOON, JSON with --json. Config writes go through Hermes's own writer, one process
 per profile (_profile_apply.py). Never prints secret values: `apply --yes` copies a provider key into the bot's env
@@ -444,13 +445,28 @@ def asset(ctx: Ctx, key: str, *parts: str) -> Path | None:
 
 def load_installed(ctx: Ctx) -> dict:
     d = read_yaml(ctx.local / "installed.yaml") or {}
-    return {"schema": 1, **{k: d.get(k) or {} for k in ("bots", "lanes", "squads", "projects")}}
+    out = {"schema": 1, **{k: d.get(k) or {} for k in ("bots", "lanes", "squads", "projects")}}
+    if d.get("fallback"):
+        out["fallback"] = fallback_rows(d["fallback"])
+    return out
+
+
+def fallback_rows(rows) -> list[dict]:
+    """The models file's `fallback:` list as [{provider, model, reasoning?}]; entries without provider and model
+    are dropped, as Hermes drops them from `fallback_providers`."""
+    out = []
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and row.get("provider") and row.get("model"):
+            out.append({k: str(row[k]) for k in ("provider", "model", "reasoning") if row.get(k)})
+    return out
 
 
 def models_from(doc: dict) -> dict:
-    """{bots: {name: m}, lanes: {lane: m}} from the installed.yaml shape or model_advisor --json output."""
+    """{bots: {name: m}, lanes: {lane: m}, fallback: [m] | None} from the installed.yaml shape or model_advisor
+    --json output. `fallback` is None when the document has no `fallback:` key (inherit), [] when it clears it."""
     def pick(row: dict) -> dict:
         return {k: row[k] for k in ("provider", "model", "reasoning") if row.get(k)}
+    fallback = fallback_rows(doc["fallback"]) if "fallback" in doc else None
     if isinstance(doc.get("squads"), list):  # model_advisor --json: {squads: [{key, bots, shared}], lanes: [...]}
         doc = {"bots": [b for s in doc["squads"] for b in s.get("bots") or []],
                "shared": [x for s in doc["squads"] for x in s.get("shared") or []], "lanes": doc.get("lanes")}
@@ -463,8 +479,8 @@ def models_from(doc: dict) -> dict:
                 lanes.setdefault(row["lane"], pick(row))
             for ex in row.get("extras") or []:
                 lanes.setdefault(ex["lane"], pick(ex))
-        return {"bots": bots, "lanes": lanes}
-    return {"bots": doc.get("bots") or {}, "lanes": doc.get("lanes") or {}}
+        return {"bots": bots, "lanes": lanes, "fallback": fallback}
+    return {"bots": doc.get("bots") or {}, "lanes": doc.get("lanes") or {}, "fallback": fallback}
 
 
 def model_for(models: dict, lane: str, bot: str | None = None) -> dict | None:
@@ -765,6 +781,7 @@ class Applier:
         plan += [["delegation.provider", dm["provider"] if dm else "", False],
                  ["delegation.model", dm["model"] if dm else "", False],
                  ["delegation.reasoning_effort", (dm or {}).get("reasoning") or "", False]]
+        plan += self.fallback_plan()
         plan += [["platform_toolsets.cli", sorted(toolsets), False],  # hermes tools enable stores sorted(union)
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],
                  ["agent.disabled_toolsets", sorted(set(self.always) | (MANAGED - set(toolsets))), False]]
@@ -797,6 +814,19 @@ class Applier:
             plan += [["security.website_blocklist.enabled", True, False],
                      ["security.website_blocklist.domains", list(bot["website_blocklist"]), False]]
         return plan
+
+    def fallback_plan(self) -> list:
+        """The install's fallback chain, the same for every bot: `fallback_providers` for the bot,
+        `delegation.fallback_providers` for its children (a child pinned to a delegation lane gets no fallback
+        unless this key declares one) and one `agent.reasoning_overrides` entry per fallback model (Hermes
+        re-resolves the effort from it when it switches). No `fallback:` in the models: the keys stay as they are;
+        `fallback: []` clears them."""
+        rows = self.models.get("fallback")
+        if rows is None:
+            return []
+        chain = [{"provider": r["provider"], "model": r["model"]} for r in rows]
+        return [["fallback_providers", chain, False], ["delegation.fallback_providers", chain, False],
+                ["agent.reasoning_overrides", {r["model"]: r["reasoning"] for r in rows if r.get("reasoning")}, False]]
 
     def missing_models(self, name: str) -> list[str]:
         """Lanes without a model for this bot (its own, delegation, aux, vision, agent cron jobs)."""
@@ -1255,8 +1285,18 @@ def effective_models(ctx: Ctx, models_file: str | None) -> tuple[dict, dict]:
     models = models_from(installed)
     if models_file:
         extra = models_from(read_yaml(Path(models_file)) or {})
-        models = {k: {**models[k], **extra[k]} for k in models}
+        models = {"bots": {**models["bots"], **extra["bots"]}, "lanes": {**models["lanes"], **extra["lanes"]},
+                  "fallback": models["fallback"] if extra["fallback"] is None else extra["fallback"]}
     return installed, models
+
+
+def save_models(installed: dict, models: dict) -> dict:
+    """installed.yaml with the effective models: bots, lanes and the fallback chain (dropped when empty)."""
+    out = {**installed, "bots": models["bots"], "lanes": models["lanes"]}
+    out.pop("fallback", None)
+    if models.get("fallback"):
+        out["fallback"] = models["fallback"]
+    return out
 
 
 def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
@@ -1303,8 +1343,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
                "board": (spec.get("board") or {}).get("slug"), "applied": old.get("applied")}
         if any(b["actions"] for b in bots) or old.get("version") != spec["version"]:
             rec["applied"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-        new = {**installed, "squads": {**installed["squads"], key: rec}}
-        new["bots"], new["lanes"] = models["bots"], models["lanes"]
+        new = save_models({**installed, "squads": {**installed["squads"], key: rec}}, models)
         if new != load_installed(ctx):
             write_yaml(ctx.local / "installed.yaml", new)
     rows = [{k: v for k, v in b.items() if v or k in ("bot", "status")} for b in bots]
@@ -1546,8 +1585,7 @@ def cmd_uninstall(ctx: Ctx, a: argparse.Namespace) -> int:
         installed["squads"].pop(a.squad, None)
         for proj in installed["projects"].values():
             proj["squads"] = [s for s in proj.get("squads", []) if s != a.squad]
-        installed["bots"], installed["lanes"] = models["bots"], models["lanes"]
-        write_yaml(ctx.local / "installed.yaml", installed)
+        write_yaml(ctx.local / "installed.yaml", save_models(installed, models))
     emit(ctx, {"squad": a.squad, "dry_run": a.dry_run, "board": f"archive {board}" if board else "none",
                "backups": str(ctx.local / "backups"), "projects": "untouched", "bots": rows})
     return 0
@@ -1578,8 +1616,7 @@ def cmd_project_add(ctx: Ctx, a: argparse.Namespace) -> int:
         proj = installed["projects"].get(slug) or {"name": a.name, "path": str(path), "squads": []}
         proj["squads"] = sorted({*proj.get("squads", []), a.squad})
         installed["projects"][slug] = proj
-        installed["bots"], installed["lanes"] = models["bots"], models["lanes"]
-        write_yaml(ctx.local / "installed.yaml", installed)
+        write_yaml(ctx.local / "installed.yaml", save_models(installed, models))
     emit(ctx, {"squad": a.squad, "project": slug, "path": str(path), "dry_run": a.dry_run, "bots": rows})
     return 1 if any(r["result"] == "profile missing" for r in rows) else 0
 
