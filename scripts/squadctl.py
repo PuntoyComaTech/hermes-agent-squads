@@ -1243,7 +1243,6 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
     if unassigned and not dry:
         raise Fail("; ".join(unassigned) + ". Run scripts/hpy model_advisor.py, then pass --models <file>.", 2)
     board = "none" if a.self_mode else ensure_board(ctx, spec, dry)
-    root_acts = root_kanban(ctx, dry, bool(getattr(a, "set_root_kanban_cap", False)))
     bots = [ap.bot(n) for n in names]
     counts: dict[str, int] = {}
     for b in bots:
@@ -1260,7 +1259,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
         if new != load_installed(ctx):
             write_yaml(ctx.local / "installed.yaml", new)
     rows = [{k: v for k, v in b.items() if v or k in ("bot", "status")} for b in bots]
-    out = {"squad": key, "dry_run": dry, "board": board, "root": root_acts, "summary": counts, "bots": rows}
+    out = {"squad": key, "dry_run": dry, "board": board, "summary": counts, "bots": rows}
     skipped = [b for b in optional if b not in names]
     if skipped:
         out["optional_skipped"] = skipped
@@ -1354,23 +1353,23 @@ def check(name: str, status: str, detail: str) -> dict:
     return {"check": name, "status": status, "detail": detail}
 
 
-ROOT_KANBAN_KEY = "kanban.max_in_progress_per_profile"
+KANBAN_CAP_KEY = "kanban.max_in_progress_per_profile"
 
 
-def root_kanban(ctx: Ctx, dry: bool, set_cap: bool = False) -> list[str]:
-    """`kanban.*` is machine-wide (the gateway holds the dispatcher lock), so squadctl writes the cap only when
-    `--set-root-kanban-cap` is passed: `plan` and `doctor` never propose it."""
-    if not set_cap:
-        return []
-    cfg = read_yaml(ctx.root / "config.yaml") or {}
-    cur = pa.current(cfg, ROOT_KANBAN_KEY)
-    if cur == 1:
-        return []
-    act = f"set root {ROOT_KANBAN_KEY}: {pa.as_cli(cur) if cur is not None else 'unset'} -> 1"
-    if dry:
-        return [act]
-    ctx.apply_config(ctx.root, {"set": [[ROOT_KANBAN_KEY, 1, False]], "ui_meta_bots": None})
-    return [act]
+def kanban_cap_checks(ctx: Ctx) -> list[dict]:
+    """A warn per home (root or profile) that sets the per-profile kanban cap: squads run without one."""
+    homes = [("default", ctx.root)] + ([(p.name, p) for p in sorted(ctx.profiles.iterdir()) if p.is_dir()]
+                                       if ctx.profiles.is_dir() else [])
+    out = []
+    for name, home in homes:
+        cur = pa.current(read_yaml(home / "config.yaml") or {}, KANBAN_CAP_KEY)
+        if cur is not None:
+            where = ("the gateway dispatcher reads it" if name == "default"
+                     else "dead config: the gateway dispatcher reads only the root config")
+            out.append(check(f"{name}:kanban-cap", "warn",
+                             f"{KANBAN_CAP_KEY}: {pa.as_cli(cur)} ({where}); "
+                             f"remove it: hermes -p {name} config unset {KANBAN_CAP_KEY}"))
+    return out
 
 
 def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
@@ -1386,6 +1385,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
         running = bool(re.search(r"^Gateway:\s+running", shown, re.M))
         out.append(check("gateway", "ok" if running else "warn", "default profile gateway "
                          + ("running" if running else "not running: kanban cards will not be dispatched")))
+    out += kanban_cap_checks(ctx)
     installed = load_installed(ctx)
     _i, models = effective_models(ctx, None)
     keys = sorted(installed["squads"])
@@ -1572,8 +1572,6 @@ def build_parser() -> argparse.ArgumentParser:
                         help="install this keep or plugin that needs the user's OK (repeatable)")
         sp.add_argument("--yes", action="store_true",
                         help="non-interactive run (squadctl never prompts; confirm items still need --confirm)")
-        sp.add_argument("--set-root-kanban-cap", action="store_true",
-                        help="also write kanban.max_in_progress_per_profile=1 into the gateway root config")
     sp = sub.add_parser("plan", parents=[common], help="show what apply would change (reads only)")
     apply_args(sp)
     sp.set_defaults(fn=lambda c, a: cmd_apply(c, a, True), dry_run=True)

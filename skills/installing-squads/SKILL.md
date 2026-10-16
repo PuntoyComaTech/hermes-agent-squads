@@ -23,12 +23,10 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    A `credentials <NAME>` note is a key the user puts in that bot's profile.
 3. If the notes list `no model assigned`, run `skills/assigning-models` first.
 4. `scripts/hpy squadctl.py apply <key> [--models <file>] [--with <bot>]
-   [--bots a,b] [--skip-skills] [--confirm <id>] [--set-root-kanban-cap]`.
+   [--bots a,b] [--skip-skills] [--confirm <id>]`.
    A `pending` item (licence or disclosure)
    installs only on a later apply with `--confirm <id>`, after the user
-   answers its question. `--set-root-kanban-cap` is the only writer of the
-   machine-wide `kanban.max_in_progress_per_profile`; pass it only when the user
-   asks for that cap, since nothing else proposes it.
+   answers its question.
 5. Check: `scripts/hpy squadctl.py status <key>` and
    `scripts/hpy squadctl.py doctor`.
 6. Update: after `hermes profile update builder`, run step 2 for each squad
