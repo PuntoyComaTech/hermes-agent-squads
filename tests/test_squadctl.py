@@ -947,6 +947,29 @@ def test_apply_self_creates_builder_watch_on_the_digest_lane(env, capsys):
     assert again["summary"] == {"unchanged": 1}
 
 
+def test_agent_cron_is_pinned_and_doctor_warns_on_an_unpinned_one(env, capsys):
+    """Every agent cron squadctl writes carries --model/--provider (an unpinned job follows the main model at fire
+    time); doctor flags a squad agent job that lost its pin, and the next apply restores it."""
+    env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
+    env.seed_builder()
+    env.run("apply", "--self", capsys=capsys)
+    create = next(c["args"] for c in env.calls() if c["args"][:2] == ["cron", "create"])
+    assert create[create.index("--model") + 1] == "model-digest"
+    assert create[create.index("--provider") + 1] == "prov-digest"
+    path = env.root / "profiles" / "builder" / "cron" / "jobs.json"
+    data = json.loads(path.read_text())
+    data["jobs"][0]["model"] = data["jobs"][0]["provider"] = None
+    path.write_text(json.dumps(data))
+    _, doc = env.run("doctor", "builder", expect=None, capsys=capsys)
+    (warn,) = [c for c in doc["checks"] if c["check"] == "builder:cron:builder-watch"]
+    assert warn["status"] == "warn" and "no model pin" in warn["detail"]
+    _, out = env.run("apply", "--self", capsys=capsys)
+    assert "cron ~ builder-watch" in out["bots"][0]["actions"]
+    assert env.jobs("builder")[0]["model"] == "model-digest"
+    _, doc = env.run("doctor", "builder", expect=None, capsys=capsys)
+    assert not [c for c in doc["checks"] if c["check"].startswith("builder:cron:")]
+
+
 def test_apply_self_needs_the_installed_profile(env, capsys):
     env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
     _, out = env.run("apply", "--self", expect=1, capsys=capsys)

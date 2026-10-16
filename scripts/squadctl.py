@@ -1421,6 +1421,18 @@ def kanban_cap_checks(ctx: Ctx) -> list[dict]:
     return out
 
 
+def unpinned_cron_checks(ctx: Ctx, key: str, bot: str) -> list[dict]:
+    """A warn per squad agent cron job without a model pin: Hermes runs an unpinned job on the main model at
+    fire time, so a later `hermes model` change would move the lane. Apply writes `--model/--provider`."""
+    raw = json.loads(_read(ctx.home(bot) / "cron" / "jobs.json") or "[]")
+    jobs = raw.get("jobs", []) if isinstance(raw, dict) else raw
+    return [check(f"{bot}:cron:{j.get('name')}", "warn",
+                  f"agent job has no model pin (follows the main model at fire time): "
+                  f"run `squadctl apply {key}` to pin its lane")
+            for j in jobs if str(j.get("name") or "").startswith(f"{key}-")
+            and not j.get("no_agent") and not j.get("model")]
+
+
 def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
     out = []
     ver = hermes_version(ctx) if shutil.which("hermes") else None
@@ -1474,6 +1486,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
                                  problem or f"{how} {version or ''}".strip()))
                 status, detail = login_probe(re.split(r"[<>=~]", app)[0].strip())
                 out.append(check(f"{name}:login:{app}", status, detail))
+            out += unpinned_cron_checks(ctx, key, name)
         if key == "jobs":
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
             projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
