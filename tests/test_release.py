@@ -218,3 +218,14 @@ def test_pytest_gate_names_the_venv_when_pytest_is_missing(monkeypatch):
     monkeypatch.setattr(release, "run_cmd", lambda argv, **k: cp("", code=1, stderr="No module named pytest"))
     name, ok, detail = release.gate_pytest("/hermes/runtime/python")
     assert name == "pytest" and not ok and "--python .venv/bin/python" in detail
+
+
+def test_open_pr_pushes_a_branch_then_uses_real_gh_flags(monkeypatch):
+    calls = []
+    monkeypatch.setattr(release, "run_cmd", lambda cmd, **kw: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0, "url", ""))[1])
+    ok, _ = release.open_pr("origin", [("bump", False, "not a bump")])
+    assert ok
+    push, pr = calls
+    assert push[:3] == ["git", "push", "--force"] and push[-1].startswith("HEAD:refs/heads/release/")
+    assert pr[:3] == ["gh", "pr", "create"] and "--push" not in pr
+    assert pr[pr.index("--head") + 1] == push[-1].removeprefix("HEAD:refs/heads/")

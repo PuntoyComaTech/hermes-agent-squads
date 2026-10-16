@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.10 - 2026-10-16
+
+### Fixed
+
+- `test_readme_install_command_uses_real_flags` skips when `hermes` is not installed (CI) instead of failing.
+- `release.py`: on red checks it pushes `release/<version>` and opens the PR with `gh pr create --head`; the old
+  `--push` flag does not exist in `gh`.
+
 ## 2.0.9 - 2026-10-16
 
 ### Changed

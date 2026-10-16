@@ -187,9 +187,13 @@ def push_to_main(remote: str) -> tuple[bool, str]:
 def open_pr(remote: str, checks: list[tuple[str, bool, str]]) -> tuple[bool, str]:
     red = [f"- {name}: {detail}" for name, ok, detail in checks if not ok]
     body = "Release checks red; main untouched.\n\n" + "\n".join(red)
-    p = run_cmd(["gh", "pr", "create", "--push", "--base", "main", "--title",
-                 f"release: {dist_version((SRC / 'distribution.yaml').read_text()) or 'unknown'} (checks red)",
-                 "--body", body])
+    version = dist_version((SRC / "distribution.yaml").read_text()) or "unknown"
+    branch = f"release/{version}"
+    p = run_cmd(["git", "push", "--force", remote, f"HEAD:refs/heads/{branch}"])
+    if p.returncode != 0:
+        return False, (p.stderr or p.stdout).strip()[-400:]
+    p = run_cmd(["gh", "pr", "create", "--base", "main", "--head", branch,
+                 "--title", f"release: {version} (checks red)", "--body", body])
     return p.returncode == 0, (p.stdout or p.stderr).strip()[-400:]
 
 
