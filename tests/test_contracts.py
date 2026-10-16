@@ -126,6 +126,17 @@ def test_shipped_manifests_validate_and_name_the_manager():
     assert pro["optional"] is True and pro["role"] == "worker" and pro["lane"] == "design-pro"
 
 
+def test_the_deployer_logs_in_with_the_clis_instead_of_a_passed_token():
+    """D-036: deploys use the CLIs' own logins (`gh auth login`, `cf auth login`), never a token in the
+    profile env; the deployer declares the CLIs so `doctor` reports them installed and logged in."""
+    web = yaml.safe_load((REPO / "squads" / "web" / "squad.yaml").read_text())
+    deployer = web["bots"]["web-deployer"]
+    assert deployer["requires"] == {"apps": ["cf", "wrangler", "gh"]}
+    assert "passthrough" not in deployer
+    assert "vercel_mcp" not in deployer["connectors"]["suggest"], "Vercel is opt-in per project, never suggested"
+    assert not any(bot.get("passthrough") for bot in web["bots"].values())
+
+
 def test_the_release_version_lives_only_in_distribution_yaml():
     """C-13: builder.yaml carries no version; distribution.yaml -> version is the single source of truth."""
     assert "version" not in yaml.safe_load((REPO / "builder.yaml").read_text())
@@ -145,7 +156,8 @@ def _mutations():
         "bad-role": lambda d: d["bots"]["web-frontend"].update(role="specialist"),
         "bad-reasoning": lambda d: d["bots"]["web-frontend"].update(reasoning="extreme"),
         "bad-keep-prefix": lambda d: d["bots"]["web-frontend"]["skills"]["keep"].append("link:accessibility"),
-        "passthrough-value": lambda d: d["bots"]["web-deployer"]["passthrough"].append("ghp_abc123"),
+        "passthrough-value": lambda d: d["bots"]["web-qa"].update(passthrough=["ghp_abc123"]),
+        "app-spec-value": lambda d: d["bots"]["web-deployer"]["requires"]["apps"].append("GH_TOKEN"),
         "bot-without-lane": lambda d: d["bots"]["web-qa"].pop("lane"),
         "cron-agent-true": lambda d: d["bots"]["web"]["cron"]["web-watch"].update(agent=True),
         "plugin-confirm-missing": lambda d: d["bots"]["web-qa"]["plugins"]["enable"].append({"name": "blender"}),

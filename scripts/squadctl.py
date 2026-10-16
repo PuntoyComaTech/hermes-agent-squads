@@ -596,40 +596,85 @@ def sched_matches(job: dict, wanted: str) -> bool:
 # App locations `shutil.which` misses (GUI apps on macOS).
 APP_MAC_PATHS = {"blender": "/Applications/Blender.app/Contents/MacOS/Blender"}
 
+# npm-packaged CLIs: when one is not on PATH, `npx --no-install` runs the project-local or cached copy and
+# never downloads anything, so a hit there proves the CLI is reachable from this machine.
+APP_NPX = frozenset({"wrangler"})
+
+# Stored logins `doctor` reports on: app -> (arguments, what the user runs once to log in). Only these apps are
+# probed, and only their exit status is read: a probe's output carries accounts and, with the wrong flag, tokens.
+APP_LOGINS = {"cf": (["auth", "whoami"], "cf auth login"),
+              "wrangler": (["whoami"], "wrangler login"),
+              "gh": (["auth", "status"], "gh auth login"),
+              "vercel": (["whoami"], "vercel login")}
+
+
+def run_quiet(argv: list[str], timeout: int = 60) -> subprocess.CompletedProcess | None:
+    """The finished command, or None when it cannot run here (missing binary, timeout). No output is used."""
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def app_launcher(name: str) -> list[str] | None:
+    """argv that runs a required app here: its PATH location or the macOS app path, else `npx --no-install`
+    for an npm-packaged CLI (proved with `--version`, so the launcher really resolves). None when missing."""
+    if shutil.which(name):
+        return [name]
+    mac = APP_MAC_PATHS.get(name)
+    if mac and Path(mac).is_file():
+        return [mac]
+    if name in APP_NPX and shutil.which("npx"):
+        argv = ["npx", "--no-install", name]
+        if run_quiet([*argv, "--version"]):
+            return argv
+    return None
+
 
 def find_app(spec: str) -> tuple[str | None, str | None]:
-    """(path, version) of a `requires.apps` entry like `blender>=5.1`. The version is read with
+    """(how it runs, version) of a `requires.apps` entry like `blender>=5.1`. The version is read with
     `--version` only when the entry pins one; an unparsable version is reported, never guessed."""
     name = re.split(r"[<>=~]", spec)[0].strip()
     want = spec[len(name):].strip()
-    path = shutil.which(name)
-    if not path:
-        mac = APP_MAC_PATHS.get(name)
-        path = mac if mac and Path(mac).is_file() else None
+    argv = app_launcher(name)
     version = None
-    if path and want:
-        try:
-            done = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=60,
-                                  stdin=subprocess.DEVNULL)
-            hit = re.search(r"(\d+(?:\.\d+){1,2})", (done.stdout or "") + (done.stderr or ""))
-            version = hit.group(1) if hit else None
-        except (OSError, subprocess.SubprocessError):
-            version = None
-    return path, version
+    if argv and want:
+        done = run_quiet([*argv, "--version"], 60)
+        hit = re.search(r"(\d+(?:\.\d+){1,2})", ((done.stdout or "") + (done.stderr or "")) if done else "")
+        version = hit.group(1) if hit else None
+    return (" ".join(argv) if argv else None, version)
 
 
 def app_problem(spec: str) -> str | None:
     """One note when a required app is missing or does not satisfy its version pin; None when fine."""
     name = re.split(r"[<>=~]", spec)[0].strip()
     want = spec[len(name):].strip()
-    path, version = find_app(spec)
-    if not path:
-        return f"app {spec} not found on PATH (or {APP_MAC_PATHS.get(name, 'the app path')})"
+    how, version = find_app(spec)
+    if not how:
+        where = "PATH, the macOS app path or npx" if name in APP_NPX else "PATH or the macOS app path"
+        return f"app {spec} not found ({where})"
     if want and version is None:
-        return f"app {name} found at {path} but `--version` gave no parsable version (need {want})"
+        return f"app {name} runs as `{how}` but `--version` gave no parsable version (need {want})"
     if want and version and not version_ok(want, version):
-        return f"app {name} {version} at {path} does not satisfy {spec}"
+        return f"app {name} {version} (as `{how}`) does not satisfy {spec}"
     return None
+
+
+def login_probe(name: str) -> tuple[str, str]:
+    """(status, detail) for a required CLI's stored login: ok, warn when it is not logged in, info when the
+    probe cannot run here. Only the exit status is read, never the output (`gh auth status` prints the account
+    and a masked token; cf and wrangler print account identifiers). Deploys use these logins (D-036)."""
+    probe = APP_LOGINS.get(name)
+    argv = app_launcher(name) if probe else None
+    if not probe or not argv:
+        return "info", f"{name}: no login check (no probe for this app, or it is not installed)"
+    hint = probe[1]
+    done = run_quiet([*argv, *probe[0]], 45)
+    if done is None:
+        return "info", f"{name} login not verified here: run `{hint}` once"
+    if done.returncode == 0:
+        return "ok", "logged in"
+    return "warn", f"not logged in: run `{hint}` once (no credentials stored, or no network)"
 
 
 class Applier:
@@ -1376,9 +1421,11 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
                                  "set" if os.environ.get(env) else "missing in this environment"))
             for app in (bot.get("requires") or {}).get("apps") or []:
                 problem = app_problem(app)
-                path, version = find_app(app)
+                how, version = find_app(app)
                 out.append(check(f"{name}:app:{app}", "warn" if problem else "ok",
-                                 problem or f"{path} {version or ''}".strip()))
+                                 problem or f"{how} {version or ''}".strip()))
+                status, detail = login_probe(re.split(r"[<>=~]", app)[0].strip())
+                out.append(check(f"{name}:login:{app}", status, detail))
         if key == "jobs":
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
             projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
@@ -1543,7 +1590,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--profiles", help="comma-separated profiles (default: default + every profile)")
     sp.add_argument("--out", metavar="FILE", help="also write the inventory as YAML (must be under local/)")
     sp.set_defaults(fn=cmd_inventory)
-    sp = sub.add_parser("doctor", parents=[common], help="check hermes, gateway, apps, models, passthrough, stale cards")
+    sp = sub.add_parser("doctor", parents=[common],
+                        help="check hermes, gateway, apps and their logins, models, passthrough, stale cards")
     sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_doctor)
     sp = sub.add_parser("uninstall", parents=[common], help="export, remove cron, delete profiles, archive the board")

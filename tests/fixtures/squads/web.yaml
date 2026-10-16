@@ -62,14 +62,14 @@ bots:
   web-deployer:
     role: worker
     title: Web deployer
-    description: "GitHub flow, preview and production deploys, DNS and rollback; the only bot with tokens"
+    description: "GitHub flow, preview and production deploys, DNS and rollback; the only bot with deploy credentials"
     lane: research
     toolsets: [file, skills, kanban, todo, terminal]
     skills: {squad: [deploying-sites, site-contract], auto_load: deploying-sites,
              keep: [official:web-development/publish-site, bundled:github]}
     plugins: {enable: [disk-cleanup]}
-    connectors: {enabled: false, suggest: [cloudflare_mcp, vercel_mcp]}
-    passthrough: [CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GH_TOKEN]
+    connectors: {enabled: false, suggest: [cloudflare_mcp]}
+    requires: {apps: [cf, wrangler, gh]}
     memory: false
 chains:
   milestone:
