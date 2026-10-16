@@ -21,6 +21,9 @@
           "disclosure": "PolyForm Noncommercial licence: commercial use needs a separate licence from the author.",
           "needs_ok": true,
           "install": "hermes plugins install hermes-video-editor",
+          "shelf": "media",
+          "requires_hermes": "",
+          "known_issues": [],
           "score": 50
         },
         {

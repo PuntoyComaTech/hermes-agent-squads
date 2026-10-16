@@ -21,6 +21,9 @@
           "disclosure": "tools execute arbitrary Python in Blender with your privileges; first start downloads the server and its dependencies with uv.",
           "needs_ok": true,
           "install": "hermes plugins install blender",
+          "shelf": "tools",
+          "requires_hermes": "",
+          "known_issues": [],
           "score": 100
         },
         {
@@ -35,6 +38,11 @@
           "disclosure": "",
           "needs_ok": true,
           "install": "hermes plugins install blender-render-helper",
+          "shelf": "tools",
+          "requires_hermes": ">=0.23",
+          "known_issues": [
+            "Built for plugins.isolation: in_process. Under host its slash command is unavailable."
+          ],
           "score": 70
         }
       ]

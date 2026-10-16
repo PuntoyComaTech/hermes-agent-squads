@@ -64,6 +64,32 @@ def test_blender_resolves_to_the_official_plugin(capsys):
     assert ids(result) == ["blender", "blender-render-helper"]
 
 
+def test_plugins_carry_shelf_requires_hermes_and_known_issues(capsys):
+    _, result = search(capsys, "blender")
+    blender, helper = result["queries"][0]["results"]
+    assert (blender["shelf"], blender["requires_hermes"], blender["known_issues"]) == ("tools", "", [])
+    assert helper["requires_hermes"] == ">=0.23"
+    assert helper["known_issues"] == ["Built for plugins.isolation: in_process. Under host its slash command is "
+                                      "unavailable."]
+    assert cs.main(["blender", "--hermes-src", str(SRC)]) == 0
+    text = capsys.readouterr().out
+    assert "requires_hermes: >=0.23" in text and "known issue: Built for plugins.isolation" in text
+
+
+def test_shelf_and_hermes_version_filter_plugins_only(capsys):
+    _, result = search(capsys, "blender", "design", "--hermes-version", "0.22.0")
+    assert ids(result, 0) == ["blender"]  # the helper needs >=0.23
+    assert ids(result, 1) == ["bundled:claude-design", "official:creative/impeccable"]  # skills are never filtered
+    _, result = search(capsys, "blender", "--hermes-version", "0.23.1")
+    assert ids(result) == ["blender", "blender-render-helper"]
+    _, result = search(capsys, "video", "--shelf", "media,web")
+    assert [r["id"] for r in result["queries"][0]["results"] if r["kind"] == "plugin"] == ["hermes-video-editor"]
+    _, result = search(capsys, "blender", "--shelf", "memory")
+    assert ids(result) == []
+    assert cs.main(["x", "--hermes-version", "v0.22", "--hermes-src", str(SRC), "--json"]) == 2
+    assert "--hermes-version" in json.loads(capsys.readouterr().out)["error"]
+
+
 def test_community_plugin_needs_ok_and_quotes_licence(capsys):
     _, result = search(capsys, "video")
     editor = next(r for r in result["queries"][0]["results"] if r["id"] == "hermes-video-editor")

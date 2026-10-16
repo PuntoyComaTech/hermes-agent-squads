@@ -6,4 +6,7 @@ title: Blender Render Helper
 maintainer: example
 tier: community
 category: tools
+requires_hermes: ">=0.23"
+known_issues:
+  - "Built for plugins.isolation: in_process. Under host its slash command is unavailable."
 capabilities: {provides_tools: [queue_render], provides_hooks: [], provides_middleware: [], requires_env: []}

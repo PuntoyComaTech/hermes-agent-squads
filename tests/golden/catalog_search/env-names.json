@@ -24,6 +24,9 @@
           "disclosure": "",
           "needs_ok": true,
           "install": "hermes plugins install cloudflare-pages",
+          "shelf": "devops",
+          "requires_hermes": "",
+          "known_issues": [],
           "score": 25
         }
       ]

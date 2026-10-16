@@ -8,7 +8,9 @@ titles, tags, categories, connector slugs, env var NAMES and descriptions. Env v
 
 Each result carries `id` (the keep/enable string squads use: `official:<category>/<name>`, `bundled:<name>`,
 `hub:<identifier>`, a plugin name, or `mcp:<name>`), `tier`, `needs_ok` (the builder must quote `disclosure` and get
-the user's OK first) and an `install` command.
+the user's OK first) and an `install` command. Plugin results add `shelf` (the catalog `category`), `requires_hermes`
+and `known_issues`. `--shelf` keeps plugins of those shelves; `--hermes-version` drops plugins whose
+`requires_hermes` that version does not meet.
 """
 from __future__ import annotations
 
@@ -102,11 +104,25 @@ def short(text: object, limit: int) -> str:
 
 
 def entry(kind: str, id_: str, name: str, tier: str, source: str, desc: object, install: str, **extra) -> dict:
-    return {"kind": kind, "id": id_, "name": name, "tier": tier, "source": source,
-            "description": short(desc, DESC_MAX), "env": sorted(set(extra.pop("env", []))),
-            "connector": extra.pop("connector", None), "disclosure": extra.pop("disclosure", ""),
-            "needs_ok": extra.pop("needs_ok", False), "install": install, "_tags": extra.pop("tags", []),
-            "_title": extra.pop("title", ""), "_category": extra.pop("category", "")}
+    out = {"kind": kind, "id": id_, "name": name, "tier": tier, "source": source,
+           "description": short(desc, DESC_MAX), "env": sorted(set(extra.pop("env", []))),
+           "connector": extra.pop("connector", None), "disclosure": extra.pop("disclosure", ""),
+           "needs_ok": extra.pop("needs_ok", False), "install": install, "_tags": extra.pop("tags", []),
+           "_title": extra.pop("title", ""), "_category": extra.pop("category", "")}
+    return out | extra  # plugin-only fields: shelf, requires_hermes, known_issues
+
+
+def version_ok(req: str, have: str) -> bool:
+    """`requires_hermes` (`>=0.21.5`, `>0.20`, ...) against a version `X.Y.Z`; an empty or unparsable spec passes."""
+    m = re.match(r"(>=|>|==|<=|<|~=)\s*(\d+(?:\.\d+)*)", req or "")
+    if not m:
+        return True
+    pad = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    want, cur = pad(m.group(2)), pad(have)
+    n = max(len(want), len(cur))
+    want, cur = want + (0,) * (n - len(want)), cur + (0,) * (n - len(cur))
+    return {">=": cur >= want, "~=": cur >= want, ">": cur > want, "==": cur == want, "<=": cur <= want,
+            "<": cur < want}[m.group(1)]
 
 
 def load_plugins(src: Path) -> list[dict]:
@@ -129,7 +145,9 @@ def load_plugins(src: Path) -> list[dict]:
             env=caps.get("requires_env") or [], tags=list(caps.get("provides_tools") or []),
             title=data.get("title") or "", category=data.get("category") or "",
             disclosure=short(disclosure.group(1), DISCLOSURE_MAX) if disclosure else "",
-            needs_ok=tier == "community" or bool(disclosure)))
+            needs_ok=tier == "community" or bool(disclosure),
+            shelf=str(data.get("category") or "desktop"), requires_hermes=str(data.get("requires_hermes") or ""),
+            known_issues=[short(i, DESC_MAX) for i in data.get("known_issues") or [] if isinstance(i, str)]))
     return out
 
 
@@ -226,9 +244,19 @@ def score(item: dict, words: list[str]) -> int:
     return total
 
 
-def search(entries: list[dict], query: str, kinds: set[str], limit: int) -> tuple[list[dict], int]:
+def plugin_ok(item: dict, shelves: set[str], version: str | None) -> bool:
+    """Non-plugin entries always pass; a plugin passes the --shelf and --hermes-version filters."""
+    if item["kind"] != "plugin":
+        return True
+    return ((not shelves or item["shelf"] in shelves)
+            and (version is None or version_ok(item["requires_hermes"], version)))
+
+
+def search(entries: list[dict], query: str, kinds: set[str], limit: int, shelves: set[str] | None = None,
+           version: str | None = None) -> tuple[list[dict], int]:
     words = query.lower().split()
-    scored = [(score(e, words), e) for e in entries if e["kind"] in kinds] if words else []
+    scored = [(score(e, words), e) for e in entries
+              if e["kind"] in kinds and plugin_ok(e, shelves or set(), version)] if words else []
     hits = sorted(((s, e) for s, e in scored if s), key=lambda t: (-t[0], TIER_RANK[t[1]["tier"]], t[1]["id"]))
     public = [{k: v for k, v in e.items() if not k.startswith("_")} | {"score": s} for s, e in hits]
     return public[:limit], len(public)
@@ -247,6 +275,9 @@ def render_text(result: dict) -> str:
                 lines.append(f"      env: {', '.join(r['env'])}")
             if r["disclosure"]:
                 lines.append(f"      disclosure: {r['disclosure']}")
+            if r.get("requires_hermes"):
+                lines.append(f"      requires_hermes: {r['requires_hermes']}")
+            lines += [f"      known issue: {i}" for i in r.get("known_issues") or []]
             lines.append(f"      install: {r['install']}")
     return "\n".join(lines).lstrip("\n")
 
@@ -259,6 +290,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--kind", default=",".join(KINDS), help="comma list of: plugin, skill, mcp (default: all)")
     p.add_argument("--limit", type=int, default=8, help="max results per query (default 8)")
     p.add_argument("--hermes-src", type=Path, help="Hermes source tree (default: autodetect)")
+    p.add_argument("--shelf", default="", help="comma list of plugin catalog shelves (category): desktop, memory, "
+                                                "platform, web, tools, voice, automation, models, general")
+    p.add_argument("--hermes-version", metavar="X.Y.Z",
+                   help="drop plugins whose requires_hermes this version does not meet (`hermes --version`)")
     p.add_argument("--hub", action="store_true", help="also query the skills hub (network)")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     return p
@@ -268,6 +303,9 @@ def run(args: argparse.Namespace) -> dict:
     kinds = {k.strip() for k in args.kind.split(",") if k.strip()}
     if not kinds <= set(KINDS):
         raise SearchError(f"unknown kind: {', '.join(sorted(kinds - set(KINDS)))}")
+    shelves = {s.strip() for s in args.shelf.split(",") if s.strip()}
+    if args.hermes_version and not re.fullmatch(r"\d+(\.\d+)*", args.hermes_version):
+        raise SearchError(f"--hermes-version must look like 0.22.0: {args.hermes_version}")
     src = find_source(args.hermes_src)
     entries, warnings = load_local(src)
     if not entries:
@@ -279,7 +317,7 @@ def run(args: argparse.Namespace) -> dict:
         if args.hub and "skill" in kinds:
             hub, warn = load_hub(q, args.limit, have)
             pool, warnings = entries + hub, warnings + warn
-        results, total = search(pool, q, kinds, args.limit)
+        results, total = search(pool, q, kinds, args.limit, shelves, args.hermes_version)
         queries.append({"query": q, "total": total, "results": results})
     return {"counts": {k: sum(e["kind"] == k for e in entries) for k in KINDS}, "queries": queries,
             "warnings": warnings}
