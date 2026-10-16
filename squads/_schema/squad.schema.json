@@ -259,7 +259,7 @@
         "skill": {"$ref": "#/$defs/skillName"},
         "when": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
         "lane": {
-          "description": "Per-card --model from this lane; the profile's reasoning effort still applies.",
+          "description": "Per-card --model from this lane (model+provider only); effort is not per-card and the profile's reasoning effort still applies. The only per-card depth writer is the kanban dashboard's reasoning_effort field; from the CLI use agent.reasoning_overrides or a dedicated profile (docs/decisions.md V-07).",
           "$ref": "#/$defs/lane"
         }
       }

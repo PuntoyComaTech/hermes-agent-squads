@@ -22,8 +22,18 @@
 `hermes kanban create` (`hermes kanban create --help`):
 
 - `--model` / `--provider`: pin this card to another model; there is no
-  reasoning-effort flag. Later changes: `hermes kanban set-model <id> <model>`
-  (`website/docs/user-guide/features/kanban.md`, "Per-task model override").
+  reasoning-effort flag on `hermes kanban create`, `set-model` or the
+  `kanban_create` tool (model+provider only). Per-card depth exists in the data
+  model (`tasks.reasoning_effort`, which makes the dispatcher pass `--reasoning
+  <level>` to the worker) but the only writer is the kanban dashboard's task
+  create/PATCH `reasoning_effort` (`plugins/kanban/dashboard/plugin_api.py`).
+  From the CLI the real paths for another depth are the bot's
+  `agent.reasoning_effort` (per model: `agent.reasoning_overrides`),
+  `delegation.reasoning_effort` for `delegate_task` children, `hermes cron
+  create --reasoning-effort` for cron jobs, or a dedicated profile
+  (`docs/decisions.md` V-07). Later model changes: `hermes kanban set-model
+  <id> <model>` (`website/docs/user-guide/features/kanban.md`, "Per-task model
+  override").
 - `--skill <name>` (repeatable): force-load a skill into the worker; the name
   must exist on the assignee's profile.
 - `--parent <id>` (repeatable): scheduling gate and the handoff channel from a
