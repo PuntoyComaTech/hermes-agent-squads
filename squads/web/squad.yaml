@@ -29,9 +29,8 @@ bots:
     reasoning: medium
     toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
     skills: {squad: [building-frontend, site-contract], auto_load: building-frontend,
-             keep: [official:creative/impeccable, official:creative/auteur, official:web-development/scrollcraft,
-                    official:creative/dream-loop, bundled:claude-design, bundled:design-md,
-                    bundled:popular-web-designs]}
+             keep: [official:creative/impeccable, official:web-development/scrollcraft,
+                    bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}
     plugins: {enable: [disk-cleanup, security-guidance]}
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: []}
@@ -81,8 +80,7 @@ bots:
     lane: design-pro
     toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
     skills: {squad: [building-3d-motion, site-contract], auto_load: building-3d-motion,
-             keep: [official:creative/impeccable, official:creative/auteur, official:web-development/scrollcraft,
-                    official:creative/dream-loop, official:creative/hyperframes,
+             keep: [official:creative/impeccable, official:web-development/scrollcraft,
                     bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}
     plugins:
       enable:

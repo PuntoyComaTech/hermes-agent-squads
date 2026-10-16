@@ -1,6 +1,6 @@
 ---
 name: building-3d-motion
-description: "Builds 3D, WebGL and complex-motion frontends. Use when a brief needs three.js, react-three-fiber, shaders, GSAP scroll choreography or Blender assets."
+description: "Builds 3D, WebGL and complex-motion frontends. Use when a brief needs three.js, react-three-fiber, shaders, a motion library (GSAP/ScrollTrigger, Lenis, Motion, Theatre.js, Lottie/Rive) or Blender-derived assets."
 ---
 
 # Building 3D and complex motion
@@ -17,18 +17,22 @@ Ordinary UI, styling and simple transitions belong to `web-frontend`: never take
 
 1. `kanban_show`. Read the card body, `spec.md`, the milestone note and `site.yaml`. The scene serves the
    milestone; if the brief is ambiguous about what the scene must communicate, block with that question.
-2. Reuse before building. The studio squad owns Blender scenes and rendered clips (`rendering-3d`,
-   `producing-motion` skills there), and your profile keeps the motion skills (`official:creative/hyperframes`,
-   `official:web-development/scrollcraft`, `official:creative/auteur`). Do not duplicate their material here;
-   order rendered assets by card on the `studio` board instead of rendering inside the site repo.
-3. Scene work: `references/threejs.md` (three.js and react-three-fiber structure, assets, disposal).
-4. Scroll and timeline work: `references/gsap.md` (ScrollTrigger + Lenis, contexts, teardown).
-5. Blender pipeline: `references/blender-pipeline.md` (what to model offline, glTF export, compression).
-6. Budgets: `references/perf-budgets.md` (LCP/INP caps measured, not assumed).
-7. Fallbacks are part of the deliverable: `references/fallbacks.md` (GPU fallback, `prefers-reduced-motion`).
-8. Verify in the browser at 390 and 1440 px before completing: no console errors, the fallback path works,
+2. Reuse before building. Your profile keeps the motion, design and scroll skills
+   (`official:web-development/scrollcraft`, `official:creative/impeccable`,
+   `bundled:claude-design`, `bundled:design-md`, `bundled:popular-web-designs`), and
+   `references/animation-libraries.md` says which library fits which brief. Offline assets
+   (Blender glTF, video, audio) are supplied by whoever ordered the card: ask for them on the
+   card; never render them inside the site repo.
+3. Pick the library before writing motion code: `references/animation-libraries.md` (when to use each
+   one, its bundle cost and its off switch).
+4. Scene work: `references/threejs.md` (three.js and react-three-fiber structure, assets, disposal).
+5. Scroll and timeline work: `references/gsap.md` (ScrollTrigger + Lenis, contexts, teardown).
+6. Blender pipeline: `references/blender-pipeline.md` (what to model offline, glTF export, compression).
+7. Budgets: `references/perf-budgets.md` (LCP/INP caps measured, not assumed).
+8. Fallbacks are part of the deliverable: `references/fallbacks.md` (GPU fallback, `prefers-reduced-motion`).
+9. Verify in the browser at 390 and 1440 px before completing: no console errors, the fallback path works,
    reduced motion renders the static branch.
-9. `kanban_complete`: files in `metadata.changed_files`, what you verified in `metadata.verification`.
+10. `kanban_complete`: files in `metadata.changed_files`, what you verified in `metadata.verification`.
 
 ## Pitfalls
 
