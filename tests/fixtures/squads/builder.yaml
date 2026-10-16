@@ -1,7 +1,6 @@
 schema: 2
 key: builder
 name: Builder
-version: 2.0.0
 hermes_requires: ">=0.22.0"
 manager: builder
 defaults: {aux_lane: aux, vision_lane: vision}

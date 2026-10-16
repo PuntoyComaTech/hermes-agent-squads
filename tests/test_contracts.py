@@ -115,6 +115,13 @@ def test_shipped_manifests_validate_and_name_the_manager():
     assert pro["optional"] is True and pro["role"] == "worker" and pro["lane"] == "design-pro"
 
 
+def test_the_release_version_lives_only_in_distribution_yaml():
+    """C-13: builder.yaml carries no version; distribution.yaml -> version is the single source of truth."""
+    assert "version" not in yaml.safe_load((REPO / "builder.yaml").read_text())
+    dist = yaml.safe_load((REPO / "distribution.yaml").read_text())
+    assert re.fullmatch(r"\d+\.\d+\.\d+", str(dist.get("version") or "")), dist.get("version")
+
+
 def _mutations():
     def drop(key):
         return lambda d: d.pop(key)

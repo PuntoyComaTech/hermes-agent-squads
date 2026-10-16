@@ -5,13 +5,14 @@
   "description": "squads/<key>/squad.yaml, builder.yaml and local squads. Cross-field rules (the manager is the bot named after the squad key with role manager and title '<Name> manager', chain assignees are bots, lanes exist in model-roles.yaml) are enforced by squadctl, skill_lint and tests, not by this schema.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "key", "name", "version", "manager", "bots"],
+  "required": ["schema", "key", "name", "manager", "bots"],
   "properties": {
     "schema": {"const": 2},
     "key": {"$ref": "#/$defs/slug"},
     "name": {"type": "string", "minLength": 1, "maxLength": 40},
     "description": {"type": "string", "maxLength": 200},
-    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                "description": "Manifest version for drift detection against local/installed.yaml. Squad manifests carry their own; the builder manifest carries none because distribution.yaml -> version is the single source of truth of the release (C-13)."},
     "hermes_requires": {"type": "string", "pattern": "^(>=|>|==|<=|<|~=)\\s*\\d+\\.\\d+(\\.\\d+)?$"},
     "board": {
       "type": "object",

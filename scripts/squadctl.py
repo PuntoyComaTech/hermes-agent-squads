@@ -290,6 +290,17 @@ def rename_builder_bot(spec: dict, name: str) -> dict:
     return spec
 
 
+def dist_version(ctx: Ctx) -> str:
+    """The distribution version (distribution.yaml -> version): the single source of truth of the release.
+
+    The builder manifest carries no version of its own (C-13); squad manifests keep theirs for drift detection
+    against local/installed.yaml."""
+    v = str((read_yaml(ctx.src / "distribution.yaml") or {}).get("version") or "")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", v):
+        raise Fail("distribution.yaml has no x.y.z version")
+    return v
+
+
 def load_spec(ctx: Ctx, key: str) -> dict:
     repo = ctx.src / ("builder.yaml" if key == "builder" else f"squads/{key}/squad.yaml")
     base = read_yaml(repo)
@@ -299,6 +310,8 @@ def load_spec(ctx: Ctx, key: str) -> dict:
     spec = deep_merge(base, over) if base is not None and over is not None else (base or over)
     if key == "builder":
         spec = rename_builder_bot(spec, ctx.builder)
+        # One version for the distribution (C-13): injected here so status, plan and installed.yaml all read it.
+        spec["version"] = dist_version(ctx)
     problems = validate_spec(ctx, spec, key)
     if problems:
         raise Fail(f"invalid squad {key}: " + "; ".join(p[:160] for p in problems[:6])
@@ -317,11 +330,14 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
         out += [f"{'/'.join(map(str, e.absolute_path)) or '.'}: {e.message}"
                 for e in jsonschema.Draft202012Validator(schema).iter_errors(spec)]
     except (ImportError, OSError):
-        for field in ("schema", "key", "name", "version", "manager", "bots"):
+        for field in ("schema", "key", "name", "manager", "bots"):
             if field not in spec:
                 out.append(f"missing {field}")
     if out:
         return out
+    if key != "builder" and not re.fullmatch(r"\d+\.\d+\.\d+", str(spec.get("version") or "")):
+        # only the builder manifest is versionless: its version is injected from distribution.yaml (C-13)
+        out.append("missing version (x.y.z)")
     bots, lanes, always = spec["bots"], load_roles(ctx), set(load_always_disabled())
     if spec["key"] != key:
         out.append(f"key {spec['key']!r} does not match {key!r}")
