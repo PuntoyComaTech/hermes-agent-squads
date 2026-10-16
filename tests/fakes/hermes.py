@@ -14,12 +14,15 @@ import yaml
 
 FAKE_ROOT = Path(os.environ.get("FAKE_HERMES_SRC") or Path(__file__).resolve().parent / "root")
 ROOT = Path(os.environ.get("HERMES_HOME", "/nonexistent"))
-# Core toolset names of toolsets.py (v0.22): `tools enable` rejects anything else, as the real CLI does.
+# CONFIGURABLE_TOOLSETS keys of hermes_cli/tools_config.py (v0.22), the set `tools enable` accepts besides plugin
+# toolsets and `server:tool` targets (hermes_cli/tools_config_mcp.tools_disable_enable_command). Anything else is
+# printed as "✗ Unknown toolset" and skipped, and the command still exits 0.
 KNOWN_TOOLSETS = frozenset("""
-bot_room browser catalog clarify code_execution coding computer_use connections context_engine cronjob debugging
-delegation desktop_ui discord discord_admin feishu_doc feishu_drive file image_gen kanban memory onboarding project
-safe search session_search skills terminal todo tts video video_gen vision web x_search yuanbao
+web browser terminal file code_execution vision video image_gen video_gen x_search tts stt skills todo kanban memory
+context_engine session_search connections clarify delegation cronjob discord discord_admin yuanbao computer_use
 """.split())
+# Kanban mutations refused inside a delegate/kanban-worker child (hermes_cli/kanban._is_delegated_child_cli_mutation).
+FENCED = bool(os.environ.get("HERMES_DELEGATED_CHILD_CONTEXT"))
 argv = sys.argv[1:]
 profile = None
 if argv[:1] == ["-p"]:
@@ -102,7 +105,11 @@ def main():
             if home.exists():
                 die(f"profile {name} exists")
             (home / "skills").mkdir(parents=True)
-            save(home / "config.yaml", {"model": {"default": "seed"}})
+            # Real create copies the launching home's `model` block (profiles.launch_model_seed) and writes no
+            # config.yaml at all when that home has none.
+            launch = load(ROOT / "config.yaml", {}).get("model")
+            if launch:
+                save(home / "config.yaml", {"model": launch})
             save(home / "profile.yaml", {"description": opt("--description", "")})
             if "--no-skills" in args:
                 (home / ".no-bundled-skills").write_text("")
@@ -182,8 +189,8 @@ def main():
             script = opt("--script")
             if not script and "--skill" not in args and not bare:
                 die("cron create needs a prompt, --skill or --script")
-            if script and not (HOME / "scripts" / script).is_file():
-                die(f"script not found: {script}")
+            # Real create_job stores the script string without checking that it exists (cron/jobs.py); a missing
+            # script surfaces only at run time or in `hermes cron doctor`.
             data["jobs"].append({
                 "id": uuid.uuid4().hex[:12], "name": opt("--name"), "script": opt("--script"),
                 "no_agent": "--no-agent" in args, "deliver": opt("--deliver", "local"),
@@ -210,8 +217,15 @@ def main():
             die(f"fake: cron {sub}")
         save_jobs(data)
     elif cmd == "kanban":
+        mutating = (rest[2:3] == ["create"] if rest[:1] == ["--board"]
+                    else rest[:1] == ["boards"] and rest[1:2] not in (["list"], ["show"]))
+        if FENCED and mutating:
+            die("kanban: delegate_task child contexts cannot mutate Kanban tasks via the CLI")
         if rest[:1] == ["--board"]:
             sub, args = rest[2], rest[3:]
+            boards = json.loads((ROOT / "boards.json").read_text()) if (ROOT / "boards.json").is_file() else []
+            if rest[1] != "default" and rest[1] not in {b["slug"] for b in boards if not b.get("archived")}:
+                die(f"kanban: board {rest[1]!r} does not exist. Create it with `hermes kanban boards create {rest[1]}`.")
             store = ROOT / f"cards-{rest[1]}.json"
             cards = json.loads(store.read_text()) if store.is_file() else {}
             if sub == "create":
@@ -325,15 +339,14 @@ def main():
             save(HOME / "config.yaml", cfg)
     elif cmd == "tools":
         need_profile()
-        # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union),
-        # and unknown toolset names are refused.
+        # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union).
         if rest[:1] == ["enable"]:
             unknown = [n for n in rest[1:] if n not in KNOWN_TOOLSETS and ":" not in n]
-            if unknown:
-                die(f"unknown toolset: {', '.join(unknown)}")
+            for n in unknown:  # real: an error line per bad name, the rest applied, exit 0
+                print(f"✗ Unknown toolset '{n}'")
             cfg = load(HOME / "config.yaml", {})
             have = set((cfg.get("platform_toolsets") or {}).get("cli") or [])
-            cfg.setdefault("platform_toolsets", {})["cli"] = sorted(have | set(rest[1:]))
+            cfg.setdefault("platform_toolsets", {})["cli"] = sorted(have | (set(rest[1:]) - set(unknown)))
             save(HOME / "config.yaml", cfg)
     else:
         die(f"fake hermes: unsupported command {argv}")

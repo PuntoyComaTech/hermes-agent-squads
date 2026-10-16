@@ -3,6 +3,26 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.6 - 2026-10-15
+
+Bots keep what they learn: apply never deletes their skills, and every bot has memory by default.
+
+### Changed
+
+- `squadctl apply` records what it installed in `skills/.squad-installed.json` and removes only those paths
+  (or `.squad-sha` copies, or symlinks into the squad source). Any other skill shows per bot as `learned`
+  in `plan` and `apply` and stays.
+- Built-in memory is on unless a bot sets `memory: false` (squadctl adds the `memory` toolset). Every SOUL
+  has one line on what its memory holds: job pitfalls and fixes, never secrets.
+- `designing-squads`: the QA lane is `kanban_request_review(reviewer=...)`; open-ended cards use `goal_mode`.
+
+### Added
+
+- `references/kanban.md`: Review lane, Dispatcher config (root-only keys with defaults), Goal-mode cards.
+- `references/cron-and-gates.md`: `--pin`/`--unpin`, `--paused`, `--interpreter`, `--continuity`,
+  `cron.catch_up_missed`, `[CRON_FAILURE]`, `cron.failure_repeat_alert_hours`, `hermes cron incidents`.
+- `squadctl doctor` warns on a squad agent cron job with no model pin; `apply` restores it.
+
 ## 2.0.5 - 2026-10-15
 
 The update watcher stops dropping section-scoped Hermes changes, and squads set no kanban cap.
