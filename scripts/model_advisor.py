@@ -153,8 +153,9 @@ def probe_auth_list(env: dict | None = None) -> list[dict] | None:
     except (OSError, subprocess.SubprocessError):
         return None
     # Provider header lines only ("<slug> (N credentials):", "<slug>: <label>", "<slug> (...):", as in
-    # `nous: Free tier` or `bedrock (...)`); credential rows are indented and never parsed.
-    slugs = re.findall(r"^([a-z0-9][a-z0-9._-]*)(?: \([^)]*\))?:", out.stdout, re.M)
+    # `nous: Free tier` or `bedrock (...)`); credential rows are indented and never parsed. A pool counts
+    # as available on its own (no env key, no runtime row), including custom endpoint pools `custom:<name>`.
+    slugs = re.findall(r"^((?:custom:)?[a-z0-9][a-z0-9._-]*)(?: \([^)]*\))?:", out.stdout, re.M)
     slugs = [s for s in slugs if s not in {"note", "error", "warning", "usage", "hint"}]
     return [{"slug": s, "models": []} for s in dict.fromkeys(slugs)] or None
 

@@ -39,7 +39,8 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 | Kanban cards, workers, per-card flags | `references/kanban.md` |
 | Cron, gates, delivery | `references/cron-and-gates.md` |
 | Delegation and the advisor pattern | `references/delegation.md` |
-| Models, auxiliary slots, providers | `references/models-and-auxiliary.md` |
+| Models, auxiliary slots, providers, credential pools, prompt cache | `references/models-and-auxiliary.md` |
+| Built-in memory and memory providers | `references/memory.md` |
 | MCP servers | `references/mcp.md` |
 | Tool search and connectors | `references/tool-search-and-connectors.md` |
 | Plugins and the catalog | `references/plugins.md` |

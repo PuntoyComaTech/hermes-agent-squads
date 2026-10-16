@@ -40,6 +40,37 @@
   `website/docs/user-guide/features/fallback-providers.md`,
   `website/docs/user-guide/features/provider-routing.md`.
 
+## Credential pools
+
+- A pool holds several keys or OAuth logins for one provider:
+  `hermes -p <bot> auth add <provider> [--type api-key|oauth] [--priority 0]`,
+  `hermes auth list [<provider>]`, `hermes auth remove|reset|priority`.
+  Numbered env siblings (`<NAME>_API_KEY_2`, `_3`, ...) join the pool with no
+  command; a custom endpoint's pool is keyed `custom:<name>`.
+- On 429 (second in a row), 402, or a failed OAuth refresh Hermes rotates to
+  the next pool entry. The fallback chain runs only after every entry is
+  exhausted.
+- `credential_pool_strategies: {<provider>: fill_first|round_robin|least_used|random}`
+  in `config.yaml`; default `fill_first` (by `priority`).
+- Children of `delegate_task` on the parent's provider share its pool; on
+  another provider they load that provider's pool.
+- A rotation starts on a key with no prompt cache: the next request pays full
+  input price.
+- Two logins of the same OpenAI account add no quota; pool different accounts.
+- `scripts/model_advisor.py` counts a provider listed by `hermes auth list` as
+  available, pool-only ones included.
+
+## Prompt cache
+
+- `prompt_caching.cache_ttl`: `5m` (default), `1h` or `auto`; applies to
+  Claude via Anthropic, OpenRouter and Nous Portal.
+- `auto` = `1h` for sessions a person types into, `5m` for machine-paced ones
+  (kanban workers, cron, subagents, one-shots, webhooks, API server).
+- `1h` writes cost 2x base input (`5m`: 1.25x) and pay off only when turns
+  are more than 5 minutes apart. Squad workers and cron bots keep `5m`; a
+  manager the user chats with through the day can use `auto`.
+- Delegated children always use `5m`.
+
 ## Auxiliary slots
 
 - Background tasks have their own `auxiliary.<task>.provider` / `.model` keys;

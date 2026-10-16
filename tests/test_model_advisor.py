@@ -240,6 +240,30 @@ def test_detection_falls_back_through_runtime_to_auth_list(monkeypatch, capsys):
     assert "sk-should-not-be-read" not in json.dumps(result)
 
 
+def test_pool_only_provider_is_detected(tmp_path, monkeypatch, capsys):
+    # credentials added with `hermes auth add` live only in the auth.json pool: no env key, no runtime row
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    for name in ("probe_in_process", "probe_runtime"):
+        monkeypatch.setattr(ma, name, lambda *a: None)
+    monkeypatch.setattr(ma, "registry_env_map", lambda: {})
+    monkeypatch.setattr(ma, "scope_providers", lambda home: set())
+    sample = ("opencode-go (2 credentials):\n"
+              "  #1  backup-key           api_key id=ab12cd priority=0 manual <-\n"
+              "  #2  second               api_key id=ef56gh priority=1 manual\n\n"
+              "custom:together.ai (1 credentials):\n"
+              "  #1  config key           api_key id=99aa00 priority=0 config:Together.ai\n\n"
+              "note: Codex CLI and Claude Code logins are not adopted\n")
+    monkeypatch.setattr(ma.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, sample, ""))
+    assert ma.probe_auth_list() == [{"slug": "opencode-go", "models": []},
+                                    {"slug": "custom:together.ai", "models": []}]
+    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    assert code == 0 and result["providers"]["source"] == "auth-list"
+    assert {p["slug"] for p in result["providers"]["authenticated"]} == {"opencode-go", "custom:together.ai"}
+    assert result["lanes"][0]["provider"] == "opencode-go", "a pool-only provider is picked like any other"
+
+
 def test_no_provider_is_a_structured_error(monkeypatch, capsys):
     for name in ("probe_in_process", "probe_runtime", "probe_auth_list"):
         monkeypatch.setattr(ma, name, lambda: None)
