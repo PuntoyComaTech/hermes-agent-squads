@@ -1018,6 +1018,7 @@ class Applier:
         # plugins, mcp
         acts += self.plugins(name, bot, cfg, pending)
         acts += self.mcp(name, bot, cfg, pending)
+        notes += self.undeclared_plugins(name, bot, cfg) + profile_kanban_notes(name, cfg)
 
         # description, SOUL
         if not self.self_mode:
@@ -1173,6 +1174,22 @@ class Applier:
                     ctx.hermes("plugins", "disable", pname, profile=name)
         acts += self.provider_plugin(name, bot)
         return acts
+
+    def undeclared_plugins(self, name: str, bot: dict, cfg: dict) -> list[str]:
+        """One note per plugin in the live `plugins.enabled` that the merged manifest does not declare (`enable`,
+        overlay `enable_add` included, `disable`, and the provider plugin key apply copies). Never removed."""
+        spec = bot.get("plugins") or {}
+        declared = {e if isinstance(e, str) else e["name"] for e in spec.get("enable") or []}
+        declared |= set(spec.get("disable") or [])
+        m = self.bot_model(name, bot)
+        found = provider_source(self.ctx, m["provider"]) if m else None
+        if found:
+            declared.add(plugin_key(found[0], found[1] / "plugins"))
+        live = pa.current(cfg, "plugins.enabled") or []
+        overlay = self.ctx.local / "squads" / self.key / "squad.yaml"
+        return [f"plugin {p} is enabled but not in the manifest; kept. Declare it (plugins.enable_add in {overlay}) "
+                f"or remove it: hermes -p {name} plugins disable {p}"
+                for p in sorted(set(live) - declared) if isinstance(p, str)]
 
     def provider_plugin(self, name: str, bot: dict) -> list[str]:
         """A provider that is a user plugin (of the builder profile or the root home): copy it into this bot's home.
@@ -1563,6 +1580,20 @@ def kanban_cap_checks(ctx: Ctx) -> list[dict]:
                              f"{KANBAN_CAP_KEY}: {pa.as_cli(cur)} ({where}); "
                              f"remove it: hermes -p {name} config unset {KANBAN_CAP_KEY}"))
     return out
+
+
+# The one kanban key a bot's own session reads (kanban_create subscribes its caller); the gateway dispatcher
+# reads every other kanban.* key from the root config only.
+PROFILE_KANBAN_KEYS = {"auto_subscribe_on_create"}
+
+
+def profile_kanban_notes(name: str, cfg: dict) -> list[str]:
+    """One note per `kanban.*` key in a bot profile that only the root config can set."""
+    kb = cfg.get("kanban")
+    kb = kb if isinstance(kb, dict) else {}
+    return [f"kanban.{k} in profile {name} has no effect: the gateway dispatcher reads the root config only; "
+            f"move it with `hermes config set kanban.{k} ...` or remove it: hermes -p {name} config unset kanban.{k}"
+            for k in sorted(kb) if k not in PROFILE_KANBAN_KEYS]
 
 
 def unpinned_cron_checks(ctx: Ctx, key: str, bot: str) -> list[dict]:
