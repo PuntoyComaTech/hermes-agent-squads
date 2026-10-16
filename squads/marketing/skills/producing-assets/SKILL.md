@@ -5,7 +5,7 @@ description: "Produces statics, carousels, landings, emails and PDFs. Use when a
 
 # Producing assets
 
-HTML and CSS with the brand's tokens, rendered at exact sizes and checked before review. Long video, complex motion and 3D belong to the studio squad. Conventions: `brand-contract`.
+HTML and CSS with the brand's tokens, rendered at exact sizes and checked before review. Long video, complex motion and 3D are out of this skill's scope: say so in the handoff. Conventions: `brand-contract`.
 
 ## When to Use
 
@@ -21,7 +21,7 @@ HTML and CSS with the brand's tokens, rendered at exact sizes and checked before
 4. Images, in this order: the brand's own from `identity/`; stock with a commercial licence; generated images up to `brand.md -> generated_images` per month. Never generate the final logo. Never present a generated face or voice as a real customer.
 5. Copy every external asset into `assets/` as `<piece-id>-<channel>-<NN>.<ext>` and log origin, licence and cost in `sources.md`.
 6. Check every output with `vision_analyze`: legibility at 390 px width, contrast, crop, safe zones. Fix and re-render at most three times; then `kanban_block(kind="needs_input", reason="<what still fails>")`.
-7. Short clip: load `hyperframes` and keep it within the brief's length. Long video, complex motion or 3D: state in the handoff that the studio squad owns it.
+7. Short clip: load `hyperframes` and keep it within the brief's length. Long video, complex motion or 3D: state the limit in the handoff instead of faking a render.
 8. Hand off per `brand-contract` step 6, with the checks you ran in `metadata.checks`.
 
 ## Pitfalls

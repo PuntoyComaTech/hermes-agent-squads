@@ -1,7 +1,7 @@
 # hermes-agent-squads
 
 > Profile distribution that installs AI agent squads for Hermes Agent (NousResearch): web,
-> marketing, jobs, studio, plus a builder bot that creates and maintains local squads. One
+> marketing and jobs, plus a builder bot that creates and maintains local squads. One
 > command installs the builder; squads are manifests, skills and tested scripts.
 
 Rules for agents: read AGENTS.md first. Verified Hermes behavior lives in
@@ -35,7 +35,6 @@ scripts/data/model-roles.yaml and local/installed.yaml.
 - [squads/web/README.md](squads/web/README.md): web development squad
 - [squads/marketing/README.md](squads/marketing/README.md): marketing squad
 - [squads/jobs/README.md](squads/jobs/README.md): job search squad
-- [squads/studio/README.md](squads/studio/README.md): motion, video and 3D studio
 - [squads/_schema/squad.schema.json](squads/_schema/squad.schema.json): manifest schema
 
 ## Reference

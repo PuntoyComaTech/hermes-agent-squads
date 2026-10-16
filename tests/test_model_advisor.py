@@ -14,7 +14,7 @@ FIX = REPO / "tests" / "fixtures"
 GOLDEN = REPO / "tests" / "golden" / "model_advisor"
 SCRIPT = REPO / "scripts" / "model_advisor.py"
 NOW = 1792022400.0 + 3600
-SQUADS = ["web", "marketing", "jobs", "studio", "builder"]
+SQUADS = ["web", "marketing", "jobs", "builder"]
 CACHES = sorted(p.stem for p in (FIX / "caches").glob("*.json"))
 
 spec = importlib.util.spec_from_file_location("model_advisor", SCRIPT)

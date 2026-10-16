@@ -17,7 +17,7 @@ ROLES = yaml.safe_load((REPO / "scripts" / "data" / "model-roles.yaml").read_tex
 ALWAYS_DISABLED = yaml.safe_load((REPO / "scripts" / "data" / "always-disabled.yaml").read_text())["always_disabled"]
 VALIDATOR = Draft202012Validator(SCHEMA)
 
-SQUADS = ["web", "marketing", "jobs", "studio"]
+SQUADS = ["web", "marketing", "jobs"]
 DRAFTS = SQUADS + ["builder"]
 CACHES = sorted(p.stem for p in (FIX / "caches").glob("*.json"))
 PLAN_LANES = {"manager", "frontend", "design-pro", "code-complex", "code-routine", "review", "deploy",

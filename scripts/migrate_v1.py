@@ -7,7 +7,7 @@ A v1 install is recognised by any of (all three are reported, never guessed):
   2. `~/Hermes/projects/<key>/` folders (the fixed work layout v2 replaces with native Projects);
   3. cron jobs that run `deliver.py` (the v1 outbox delivery, replaced by kanban notify + `bot-chat`).
 
-Profiles whose names the v2 squads also use (`jobs-*`, `marketing-*`, `web-*`, `studio-*` workers) are reported
+Profiles whose names the v2 squads also use (`jobs-*`, `marketing-*`, `web-*` workers) are reported
 separately as "kept by v2" and are never listed for deletion.
 
 What it does, in order:
@@ -41,7 +41,7 @@ import squadctl  # noqa: E402  (TOON output + the HERMES_HOME/root rule, so both
 LEGACY_PROFILE_RE = re.compile(
     r"^(?:orchestrator|jobs-analyst|marketing-strategist|web-architect|web-developer|web-advisor|web-reviewer)$")
 # Names the v2 squads use for their own workers: after a v2 install these are NOT v1 leftovers.
-V2_KEPT_RE = re.compile(r"^(?:jobs|marketing|web|studio)-[a-z0-9][a-z0-9-]*$")
+V2_KEPT_RE = re.compile(r"^(?:jobs|marketing|web)-[a-z0-9][a-z0-9-]*$")
 DELIVER_NAME_RE = re.compile(r"^deliver(?:-|$)", re.I)
 ORCHESTRATOR = "orchestrator"
 

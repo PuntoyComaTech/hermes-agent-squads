@@ -42,8 +42,7 @@
 - **V-09** `skill_lint.py` enforces the skill and SOUL budgets (`skill_lint.py --rules`).
 - **V-10** `squadctl` is idempotent (plan, OK, apply), never uses `--clone`, never reads or prints secret values, exports profiles before uninstall or prune.
 - **V-11** `always_disabled` toolsets live in `scripts/data/always-disabled.yaml` (C-07).
-- **V-12** All bots are visible; workers have no memory and run one card at a time (`kanban.max_in_progress_per_profile: 1` in the gateway root config). Desktop sections are stamped per bot on `ui_meta.hermes-bots` (`sectionId`/`sectionName`): every squad's manager under `Managers`, one section per squad for its workers; a bot belongs to exactly one section and the Desktop rebuilds the section records from the members (C-11).
-- **V-13** The `studio` squad owns rendered and standalone assets; web-frontend owns interactive code inside a site.
+- **V-12** All bots are visible; workers have no memory. Desktop sections are stamped per bot on `ui_meta.hermes-bots` (`sectionId`/`sectionName`): every squad's manager under `Managers`, one section per squad for its workers; a bot belongs to exactly one section and the Desktop rebuilds the section records from the members (C-11).
 - **V-14** Updates: zero-LLM `watch_upstream.py` gate, then a digest-lane agent; apply only through the builder with the user's OK.
 - **V-15** Cron jobs are created with `hermes cron create`; no `jobs.json` is shipped.
 - **V-16** Only managers create cards on another squad's board.

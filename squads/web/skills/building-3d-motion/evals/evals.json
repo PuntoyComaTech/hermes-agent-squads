@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "A card asks for a Blender-modeled hero prop with custom lighting, rendered into the site, and the scene also needs scripted exports on every content change.",
-      "expected_output": "Orders the heavy render as a studio card instead of rendering in the site repo, uses glTF with baked lighting and KTX2/Draco compression, and treats the confirm-gated blender plugin as a build-time tool only when scripted Blender work is required (after the user's OK), never as part of the shipped bundle.",
+      "expected_output": "Asks the card's requester for the heavy render instead of rendering it in the site repo, uses glTF with baked lighting and KTX2/Draco compression, and treats the confirm-gated blender plugin as a build-time tool only when scripted Blender work is required (after the user's OK), never as part of the shipped bundle.",
       "files": ["references/blender-pipeline.md"]
     },
     {

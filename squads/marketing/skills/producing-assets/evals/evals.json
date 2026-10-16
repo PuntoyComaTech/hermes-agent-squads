@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "The brief asks for a 60-second 3D animated video.",
-      "expected_output": "The producer states the scope boundary: complex motion and 3D go to the studio squad; the card notes it in the handoff instead of faking a render, and any short HyperFrames alternative is offered only if the brief allows.",
+      "expected_output": "The producer states the scope boundary: complex motion and 3D are out of this squad's scope and the card notes the limit in the handoff instead of faking a render; any short HyperFrames alternative is offered only if the brief allows.",
       "files": []
     }
   ]

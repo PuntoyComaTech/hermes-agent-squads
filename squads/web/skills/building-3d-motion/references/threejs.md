@@ -1,7 +1,7 @@
 # three.js and react-three-fiber
 
-Scene structure and lifecycle for site work. Studio renders (Blender, MP4/WebM) are ordered on the
-`studio` board; this skill covers live scenes inside the site bundle.
+Scene structure and lifecycle for site work. Offline renders (Blender, MP4/WebM) are supplied by
+whoever ordered the card; this skill covers live scenes inside the site bundle.
 
 ## Contents
 

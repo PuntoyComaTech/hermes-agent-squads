@@ -35,4 +35,4 @@ One brand is one Hermes Project. `brand.md` stays `draft` until the user approve
 
 ## Scope
 
-Not included: publishing, sending, scheduling or ad spend (the user does it); full websites (web squad); long video or 3D (studio squad). Ad accounts, pixels and connectors are added per brand.
+Not included: publishing, sending, scheduling or ad spend (the user does it); full websites (web squad); long video or 3D. Ad accounts, pixels and connectors are added per brand.

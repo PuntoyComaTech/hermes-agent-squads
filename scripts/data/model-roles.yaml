@@ -79,7 +79,7 @@ lanes:
 
   design-pro:
     why: "Frontier models for 3D/WebGL and complex motion where weaker models visibly fail"
-    used_by: [studio, studio-motion, studio-3d]
+    used_by: [web-frontend-pro]
     reasoning: high
     candidates:
       - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}

@@ -119,7 +119,7 @@ def test_plan_gate_runs_every_squad_on_a_temp_root(monkeypatch, tmp_path):
     for argv, env in seen:
         assert argv[0].endswith("scripts/squadctl") and argv[1] == "plan"
         assert env["HPY_PYTHON"] == "python3"
-    assert len(seen) == 5  # --self + web, marketing, jobs, studio
+    assert len(seen) == 4  # --self + web, marketing, jobs
 
 
 def test_plan_gate_reports_the_failing_plan(monkeypatch):
