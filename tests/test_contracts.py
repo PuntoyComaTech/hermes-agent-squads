@@ -290,3 +290,33 @@ def test_always_disabled_names_exist_in_hermes():
     plugin_text = "\n".join(p.read_text() for p in (HERMES_SRC / "plugins").rglob("*.py"))
     for name in ALWAYS_DISABLED:
         assert f'"{name}":' in static or f'toolset="{name}"' in plugin_text, name
+
+
+def hermes_configurable_toolsets() -> set[str]:
+    """CONFIGURABLE_TOOLSETS keys of the real hermes_cli/tools_config.py: what `hermes tools enable` accepts."""
+    text = (HERMES_SRC / "hermes_cli" / "tools_config.py").read_text()
+    block = text.split("CONFIGURABLE_TOOLSETS = [", 1)[1].split("\n]", 1)[0]
+    return set(re.findall(r'^\s*\(\s*"([a-z_]+)"', block, re.M))
+
+
+@pytest.mark.skipif(not (HERMES_SRC / "hermes_cli" / "tools_config.py").is_file(),
+                    reason="Hermes source tree not available")
+def test_fake_tools_enable_accepts_what_real_hermes_accepts():
+    """The fake's KNOWN_TOOLSETS is a copy; a copy that drifts makes every toolset test pass on a fiction."""
+    text = (REPO / "tests" / "fakes" / "hermes.py").read_text()
+    fake = set(text.split('KNOWN_TOOLSETS = frozenset("""', 1)[1].split('"""', 1)[0].split())
+    real = hermes_configurable_toolsets()
+    assert fake == real, {"only_fake": sorted(fake - real), "only_real": sorted(real - fake)}
+
+
+@pytest.mark.skipif(not (HERMES_SRC / "hermes_cli" / "tools_config.py").is_file(),
+                    reason="Hermes source tree not available")
+def test_every_shipped_toolset_is_one_hermes_tools_enable_accepts():
+    """`hermes tools enable` drops an unknown name and exits 0, so a typo in a shipped manifest reaches a bot."""
+    known = hermes_configurable_toolsets()
+    for path in [REPO / "builder.yaml", *sorted((REPO / "squads").glob("*/squad.yaml"))]:
+        doc = yaml.safe_load(path.read_text())
+        cron = (doc.get("defaults") or {}).get("cron_toolsets") or []
+        for bot, spec in doc["bots"].items():
+            assert set(spec["toolsets"]) <= known, (path.name, bot, sorted(set(spec["toolsets"]) - known))
+        assert set(cron) <= known, (path.name, sorted(set(cron) - known))
