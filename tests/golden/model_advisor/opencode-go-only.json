@@ -175,7 +175,7 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [],
-          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -273,7 +273,7 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [],
-          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -397,7 +397,7 @@
           "provider": "opencode-go",
           "reasoning": "low",
           "alternatives": [],
-          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models (D-021)"
+          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models"
         }
       ]
     }
