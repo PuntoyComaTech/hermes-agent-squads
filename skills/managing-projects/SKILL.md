@@ -16,8 +16,12 @@ description: "Registers Hermes Projects across manager and workers. Use when a s
 2. Run `scripts/hpy squadctl.py project add <key> "<name>" <path> --dry-run`,
    show it, then run it without `--dry-run`. It runs `hermes project create`
    with the squad board in the manager and every worker.
-3. Cards then take `--project <slug>`.
-4. Later changes (`add-folder`, `set-primary`, `rename`, `archive`): run
+3. When the folder ships `.hermes/skills/` or `.agents/skills/`, show the
+   user those skill names and, after an explicit OK, run `hermes -p <bot>
+   skills trust <path>` for the manager and every worker. Untrusted project
+   skills never load.
+4. Cards then take `--project <slug>`.
+5. Later changes (`add-folder`, `set-primary`, `rename`, `archive`): run
    `hermes -p <bot> project <action> ...` for the manager and every worker.
 
 ## Pitfalls
@@ -30,3 +34,5 @@ description: "Registers Hermes Projects across manager and workers. Use when a s
 
 - `hermes -p <bot> project list` shows the project in the manager and each worker.
 - `local/installed.yaml` -> `projects.<slug>.squads` lists the squad.
+- A trusted repo: `hermes -p <bot> config get skills.trusted_project_dirs`
+  lists its path in the manager and each worker.
