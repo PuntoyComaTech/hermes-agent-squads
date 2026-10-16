@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I need a squad that watches my competitors and drafts weekly counter-campaigns. Design it.",
-      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then local/squads/<key>/squad.yaml with a lead and few workers justified by D-001, lanes, a chain and gated cron, validated by squadctl plan and skill_lint.",
+      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then local/squads/<key>/squad.yaml with a manager and few workers justified by D-001, lanes, a chain and gated cron, validated by squadctl plan and skill_lint.",
       "files": []
     },
     {
@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "Design the cron for a nightly research sweep that should message me only when it found something.",
-      "expected_output": "A cron job with a zero-LLM gate script printing wakeAgent false on quiet ticks, delivering to bot-chat:<lead>, no schedule without a gate.",
+      "expected_output": "A cron job with a zero-LLM gate script printing wakeAgent false on quiet ticks, delivering to bot-chat:<manager>, no schedule without a gate.",
       "files": []
     }
   ]

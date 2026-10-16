@@ -15,7 +15,7 @@
     },
     {
       "id": 3,
-      "prompt": "The lead files a URL card with a LinkedIn link.",
+      "prompt": "The manager files a URL card with a LinkedIn link.",
       "expected_output": "LinkedIn is never opened: the scout looks for the same opening on the company site or blocks asking the user for the text.",
       "files": []
     }

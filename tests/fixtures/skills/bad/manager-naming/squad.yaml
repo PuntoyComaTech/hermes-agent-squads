@@ -1,0 +1,12 @@
+schema: 2
+key: web
+name: Web
+version: 3.0.0
+lead: web
+bots:
+  chief:
+    role: lead
+    title: Web lead
+    description: "Interviews the user, writes spec.md and plans milestones"
+    lane: manager
+    toolsets: [file, skills, kanban]

@@ -87,7 +87,7 @@ def test_dry_run_creates_nothing_and_skips_when_stages(env):
     assert [c["stage"] for c in with_backend["cards"]] == ["api", "ui", "preview", "qa", "accept"]
 
 
-def test_cards_are_chained_with_skill_key_project_and_lead(env):
+def test_cards_are_chained_with_skill_key_project_and_manager(env):
     proc = run(env, "web", "milestone", "--when", "backend", "--json")
     assert proc.returncode == 0, proc.stdout
     tasks = db(env)["tasks"]

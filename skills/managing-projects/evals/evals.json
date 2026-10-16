@@ -4,12 +4,12 @@
     {
       "id": 1,
       "prompt": "The web squad will build a site in ~/work/acme-site. Register it properly.",
-      "expected_output": "squadctl project add web 'Acme Site' ~/work/acme-site so the project exists in the lead and every worker, verified with hermes -p <bot> project list.",
+      "expected_output": "squadctl project add web 'Acme Site' ~/work/acme-site so the project exists in the manager and every worker, verified with hermes -p <bot> project list.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "The lead sees the project but web-frontend says 'No projects yet'.",
+      "prompt": "The manager sees the project but web-frontend says 'No projects yet'.",
       "expected_output": "Explains that Project state is per profile and re-runs squadctl project add, which creates the project only in the profiles that lack it, then verifies with project list.",
       "files": []
     },

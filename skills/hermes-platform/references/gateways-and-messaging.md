@@ -27,4 +27,4 @@
 
 - `--deliver` grammar and squad delivery: `cron-and-gates.md` -> Delivery and
   silence. Kanban notifications use `hermes kanban notify-subscribe` instead.
-- Leads are the only bots the user talks to (`docs/decisions.md` V-02).
+- Managers are the only bots the user talks to (`docs/decisions.md` V-02).

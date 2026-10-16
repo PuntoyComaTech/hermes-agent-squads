@@ -1,7 +1,7 @@
 # Squad: Jobs
 
 `jobs` interviews the user, the cron starts searches, the chain filters, analyzes, writes, reviews and delivers a
-CV with its link. The user replies `apply`, `change: <what>` or `no` in the lead's Bot Chat.
+CV with its link. The user replies `apply`, `change: <what>` or `no` in the manager's Bot Chat.
 
 Board `jobs`. One search is one Hermes Project (`scripts/squadctl project add jobs <name> <path>`); its folder
 holds the files of skill `jobs-contract`.
@@ -10,7 +10,7 @@ holds the files of skill `jobs-contract`.
 
 | Bot | Lane | Does |
 |---|---|---|
-| `jobs` (lead) | lead | Profile interview, digests, apply/change/no decisions, tracking. Holds the personal data, no web |
+| `jobs` (manager) | manager | Profile interview, digests, apply/change/no decisions, tracking. Holds the personal data, no web |
 | `jobs-scout` | research; analysis cards pinned to the review lane | Searches, applies the hard filter, saves the opening, then analyzes fit and the company |
 | `jobs-writer` | copy | CV content, letter and answers from verified achievements; renders PDF, DOCX and ATS text |
 | `jobs-reviewer` | review | Five independent lenses (truthfulness, ATS, recruiter, hiring manager, writing) and the verdict |

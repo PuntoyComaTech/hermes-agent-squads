@@ -139,7 +139,7 @@ Every stage appends one History line; the building bot is the only one that edit
 }
 ```
 
-`verdict`: `APPROVED`, `FIX` or `ESCALATE`. A critical finding is an unmet acceptance criterion, an axe `critical` or `serious` result, a value outside `thresholds`, a broken internal link, a leaked secret, a missing security header, or invented content presented as fact. `summary` is three plain-language lines for the lead to reuse.
+`verdict`: `APPROVED`, `FIX` or `ESCALATE`. A critical finding is an unmet acceptance criterion, an axe `critical` or `serious` result, a value outside `thresholds`, a broken internal link, a leaked secret, a missing security header, or invented content presented as fact. `summary` is three plain-language lines for the manager to reuse.
 
 ## 5. `deploys/<ID>-<env>-<n>.json`
 

@@ -32,7 +32,7 @@
 
 - `--deliver` targets: `origin`, `local`, a platform name, `platform:chat_id` or
   `bot-chat[:profile]` (inject output into a profile's canonical Bot Chat)
-  (`hermes cron create --help`). Squad crons deliver to `bot-chat:<lead>`
+  (`hermes cron create --help`). Squad crons deliver to `bot-chat:<manager>`
   (`scripts/squadctl.py`; `docs/decisions.md` V-05).
 - `--failure-deliver` overrides the target for failure notices only; `local`
   suppresses them (`hermes cron create --help`).

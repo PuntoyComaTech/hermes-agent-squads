@@ -9,7 +9,7 @@ description: "Reviews a deployed site preview with five lenses. Use when a qa ca
 
 - A `qa` card of a milestone chain: a preview URL and a deploy record exist.
 - Your `qa` card resumes after a fix round.
-- The lead asks whether a change already in production broke something: same procedure against the live URL.
+- The manager asks whether a change already in production broke something: same procedure against the live URL.
 
 ## Procedure
 

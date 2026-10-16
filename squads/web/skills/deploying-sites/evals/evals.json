@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "The preview smoke check comes back red on one page after a successful upload.",
-      "expected_output": "Writes the deploy record with ok: false, blocks naming the failing check and page, and does not merge the PR or hand a preview URL to the lead.",
+      "expected_output": "Writes the deploy record with ok: false, blocks naming the failing check and page, and does not merge the PR or hand a preview URL to the manager.",
       "files": []
     },
     {

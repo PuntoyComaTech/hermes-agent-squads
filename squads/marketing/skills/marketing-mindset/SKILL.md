@@ -5,7 +5,7 @@ description: "Checks marketing bets against fresh data and fast tests. Use when 
 
 # Marketing mindset
 
-How the lead judges a bet, a claim or a result.
+How the manager judges a bet, a claim or a result.
 
 ## When to Use
 

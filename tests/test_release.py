@@ -79,19 +79,24 @@ def test_schema_gate_passes_on_the_shipped_manifests():
     assert name == "schema" and ok, detail
 
 
-def test_schema_gate_rejects_more_than_five_bots():
+def test_schema_gate_accepts_optional_bots_beyond_five():
+    """C-11: `web-frontend-pro` is a 6th bot with `optional: true`. The 5-bot cap counts required bots and
+    is enforced by squadctl and skill_lint (`manager-naming`), not by the schema, which cannot count
+    optional members."""
     import copy
 
     import yaml
     from jsonschema import Draft202012Validator
 
     doc = yaml.safe_load((REPO / "squads" / "web" / "squad.yaml").read_text())
-    doc = copy.deepcopy(doc)
-    for i in range(6):
-        doc["bots"][f"web-extra-{i}"] = copy.deepcopy(next(iter(doc["bots"].values())))
+    assert len(doc["bots"]) > 5
+    assert doc["bots"]["web-frontend-pro"]["optional"] is True
     validator = Draft202012Validator(
         json.loads((REPO / "squads" / "_schema" / "squad.schema.json").read_text()))
-    assert any("5" in e.message for e in validator.iter_errors(doc)), "no maxProperties: 5 on bots"
+    assert not [e for e in validator.iter_errors(doc)]
+    without_flag = copy.deepcopy(doc)
+    without_flag["bots"]["web-extra"] = copy.deepcopy(without_flag["bots"]["web-frontend-pro"])
+    assert not [e for e in validator.iter_errors(without_flag)], "the count is cross-field, not schema"
 
 
 # --- plan gate --------------------------------------------------------------------------------------------------------

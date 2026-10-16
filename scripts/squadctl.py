@@ -280,11 +280,11 @@ def available_squads(ctx: Ctx) -> list[str]:
 
 def rename_builder_bot(spec: dict, name: str) -> dict:
     """The builder's profile is whatever `--builder` names (`hermes profile install --name X`); builder.yaml names
-    the bot `builder`, so the bot key and the lead follow the profile name. The squad key stays `builder`."""
-    lead = spec.get("lead")
+    the bot `builder`, so the bot key and the manager follow the profile name. The squad key stays `builder`."""
+    manager = spec.get("manager")
     bots = spec.get("bots") or {}
-    if lead and lead in bots and lead != name:
-        return {**spec, "lead": name, "bots": {name if b == lead else b: v for b, v in bots.items()}}
+    if manager and manager in bots and manager != name:
+        return {**spec, "manager": name, "bots": {name if b == manager else b: v for b, v in bots.items()}}
     return spec
 
 
@@ -306,6 +306,8 @@ def load_spec(ctx: Ctx, key: str) -> dict:
 
 def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     """Cross-field rules of the schema (docs/decisions.md C-01); the full JSON schema runs when jsonschema exists."""
+    if "lead" in spec and "manager" not in spec:
+        return ["field 'lead' was renamed to 'manager' (S3): update the manifest and the bot roles"]
     out: list[str] = []
     try:
         import jsonschema
@@ -313,7 +315,7 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
         out += [f"{'/'.join(map(str, e.absolute_path)) or '.'}: {e.message}"
                 for e in jsonschema.Draft202012Validator(schema).iter_errors(spec)]
     except (ImportError, OSError):
-        for field in ("schema", "key", "name", "version", "lead", "bots"):
+        for field in ("schema", "key", "name", "version", "manager", "bots"):
             if field not in spec:
                 out.append(f"missing {field}")
     if out:
@@ -321,10 +323,19 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     bots, lanes, always = spec["bots"], load_roles(ctx), set(load_always_disabled())
     if spec["key"] != key:
         out.append(f"key {spec['key']!r} does not match {key!r}")
-    if spec["lead"] not in bots or bots[spec["lead"]].get("role") != "lead":
-        out.append(f"lead {spec['lead']!r} is not a bot with role lead")
-    if [b for b, s in bots.items() if s.get("role") == "lead"] != [spec["lead"]]:
-        out.append("exactly one bot must have role lead")
+    if spec["manager"] not in bots or bots[spec["manager"]].get("role") != "manager":
+        out.append(f"manager {spec['manager']!r} is not a bot with role manager")
+    if [b for b, s in bots.items() if s.get("role") == "manager"] != [spec["manager"]]:
+        out.append("exactly one bot must have role manager")
+    if len([b for b, s in bots.items() if not s.get("optional")]) > 5:
+        out.append("at most 5 required bots; extra bots must set optional: true")
+    if key != "builder":
+        # manager naming (C-11): the manager's profile name is the squad key, its title '<Name> manager'
+        if spec["manager"] != spec["key"]:
+            out.append(f"manager {spec['manager']!r} must be named {spec['key']!r}")
+        want = f"{spec.get('name') or key} manager"
+        if (bots.get(spec["manager"]) or {}).get("title") != want:
+            out.append(f"manager title must be {want!r}")
     used = {v for k, v in (spec.get("defaults") or {}).items() if k.endswith("_lane")}
     for name, bot in bots.items():
         used.add(bot["lane"])
@@ -340,6 +351,12 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
                 for s in stages if s["assignee"] not in bots]
     out += [f"lane {lane!r} is not in model-roles.yaml" for lane in sorted(used - {None}) if lane not in lanes]
     return out
+
+
+def live_bots(ctx: Ctx, spec: dict) -> list[str]:
+    """Bots a live-state command (status, doctor, uninstall, project add) reports on: every required bot,
+    plus an optional bot once its profile exists (optional bots install only via `apply --with`)."""
+    return [b for b, s in spec["bots"].items() if not s.get("optional") or ctx.home(b).is_dir()]
 
 
 def asset(ctx: Ctx, key: str, *parts: str) -> Path | None:
@@ -627,12 +644,17 @@ class Applier:
         return [n for n in notes if n.startswith("no model assigned")]
 
     def ui_meta(self, bot: dict) -> dict:
-        meta = {"title": bot["title"], "hidden": bool(bot.get("hidden", bot["role"] == "worker"))}
-        section = self.spec.get("section")
-        # sectionId/sectionName are emitted every time, None included: the Desktop replaces the whole
-        # hermes-bots mapping, so a dropped section must clear its id instead of leaving a stale one.
-        meta |= {"sectionId": (section or {}).get("id"), "sectionName": (section or {}).get("name")}
-        return meta
+        # All bots are visible (V-12). Section membership is one section per bot, stamped as
+        # sectionId/sectionName on ui_meta.hermes-bots: the Desktop rebuilds the section records from these
+        # stamps (apps/desktop/src/plugins/hermes-bots/user-sections.ts, adoptBotSectionsFromMeta), so this
+        # is idempotent and travels with the profile. Managers share the `Managers` section; workers go to
+        # the squad's own section.
+        if bot.get("role") == "manager":
+            section = {"id": "managers", "name": "Managers"}
+        else:
+            section = self.spec.get("section") or {"id": self.key, "name": self.spec.get("name") or self.key}
+        return {"title": bot["title"], "hidden": False,
+                "sectionId": section["id"], "sectionName": section["name"]}
 
     def cron_plan(self, name: str, bot: dict, notes: list[str]) -> dict:
         jobs = {}
@@ -642,7 +664,7 @@ class Applier:
             args = shlex.split(args) if isinstance(args, str) else list(args)
             agent = j.get("agent")
             want = {"schedule": j["schedule"], "src": j["script"], "args": args, "no_agent": not agent,
-                    "script": f"{full}.sh" if args else j["script"], "deliver": f"bot-chat:{self.spec['lead']}"}
+                    "script": f"{full}.sh" if args else j["script"], "deliver": f"bot-chat:{self.spec['manager']}"}
             if agent:
                 lm = self.lane_model(agent["lane"], agent.get("reasoning"))
                 if not lm:
@@ -1033,12 +1055,24 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
         ver = hermes_version(ctx)
         if ver and not version_ok(spec.get("hermes_requires", ""), ver):
             raise Fail(f"{key} needs Hermes {spec['hermes_requires']}, found {ver}")
-    names = [spec["lead"], *[b for b in spec["bots"] if b != spec["lead"]]]
+    names = [spec["manager"], *[b for b in spec["bots"] if b != spec["manager"]]]
+    optional = [b for b, s in spec["bots"].items() if s.get("optional")]
+    with_bots = {x for w in (a.with_bots or []) for x in w.split(",") if x}
+    unknown = with_bots - set(spec["bots"])
+    if unknown:
+        raise Fail(f"not in {key}: {sorted(unknown)}")
+    if with_bots - set(optional):
+        raise Fail(f"--with names only optional bots: {sorted(with_bots - set(optional))}")
+    selected = [b for b in names if b not in optional or b in with_bots]
     if a.bots:
         wanted = [b for b in a.bots.split(",") if b]
-        if set(wanted) - set(names):
-            raise Fail(f"not in {key}: {sorted(set(wanted) - set(names))}")
-        names = [b for b in names if b in wanted]
+        missing = set(wanted) - set(selected)
+        if missing:
+            hint = sorted(missing & set(optional))
+            raise Fail(f"not in {key}: {sorted(missing)}"
+                       + (f" (optional bots install only with --with: {', '.join(hint)})" if hint else ""))
+        selected = [b for b in selected if b in wanted]
+    names = selected
     ap = Applier(ctx, spec, models, dry, a.skip_skills, a.self_mode)
     unassigned = sorted({n for name in names for n in ap.missing_models(name)})
     if unassigned and not dry:
@@ -1051,8 +1085,9 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
         counts[b["status"]] = counts.get(b["status"], 0) + 1
     if not dry:
         old = installed["squads"].get(key) or {}
-        rec = {"version": spec["version"], "bots": list(spec["bots"]), "board": (spec.get("board") or {}).get("slug"),
-               "applied": old.get("applied")}
+        rec = {"version": spec["version"],
+               "bots": [b for b in spec["bots"] if b in names or ctx.home(b).is_dir()],
+               "board": (spec.get("board") or {}).get("slug"), "applied": old.get("applied")}
         if any(b["actions"] for b in bots) or old.get("version") != spec["version"]:
             rec["applied"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         new = {**installed, "squads": {**installed["squads"], key: rec}}
@@ -1060,7 +1095,11 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
         if new != load_installed(ctx):
             write_yaml(ctx.local / "installed.yaml", new)
     rows = [{k: v for k, v in b.items() if v or k in ("bot", "status")} for b in bots]
-    return {"squad": key, "dry_run": dry, "board": board, "root": root_acts, "summary": counts, "bots": rows}
+    out = {"squad": key, "dry_run": dry, "board": board, "root": root_acts, "summary": counts, "bots": rows}
+    skipped = [b for b in optional if b not in names]
+    if skipped:
+        out["optional_skipped"] = skipped
+    return out
 
 
 def cmd_apply(ctx: Ctx, a: argparse.Namespace, force_dry: bool = False) -> int:
@@ -1076,7 +1115,7 @@ def cmd_status(ctx: Ctx, a: argparse.Namespace) -> int:
         spec = load_spec(ctx, key)
         ap = Applier(ctx, spec, models, True, False, key == "builder")
         rows = []
-        for name in spec["bots"]:
+        for name in live_bots(ctx, spec):
             home = ctx.home(name)
             if not home.is_dir():
                 rows.append({"bot": name, "state": "missing", "model": "-", "drift": 0})
@@ -1145,7 +1184,8 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             out.append(check(f"{key}:spec", "fail", str(e)))
             continue
         ap = Applier(ctx, spec, models, True, False, key == "builder")
-        for name, bot in spec["bots"].items():
+        for name in live_bots(ctx, spec):
+            bot = spec["bots"][name]
             miss = ap.missing_models(name)
             out.append(check(f"{name}:models", "warn" if miss else "ok", "; ".join(miss) or "assigned"))
             m = ap.bot_model(name, bot)
@@ -1192,7 +1232,7 @@ def cmd_uninstall(ctx: Ctx, a: argparse.Namespace) -> int:
     installed, models = effective_models(ctx, None)
     ap = Applier(ctx, spec, models, a.dry_run, False, False)
     rows = []
-    for name in spec["bots"]:
+    for name in live_bots(ctx, spec):
         home = ctx.home(name)
         if not home.is_dir():
             rows.append({"bot": name, "actions": ["profile absent"]})
@@ -1236,7 +1276,7 @@ def cmd_project_add(ctx: Ctx, a: argparse.Namespace) -> int:
     slug = slugify(a.name)
     board = (spec.get("board") or {}).get("slug")
     rows = []
-    for name in spec["bots"]:
+    for name in live_bots(ctx, spec):
         if not ctx.home(name).is_dir():
             rows.append({"bot": name, "result": "profile missing"})
             continue
@@ -1301,6 +1341,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("squad", nargs="?", help="squad key")
         sp.add_argument("--self", dest="self_mode", action="store_true", help="the builder itself (builder.yaml)")
         sp.add_argument("--bots", help="comma-separated subset of bots")
+        sp.add_argument("--with", dest="with_bots", action="append", metavar="BOT",
+                        help="also install this optional bot (repeatable or comma-separated)")
         sp.add_argument("--models", metavar="FILE", help="models file (installed.yaml shape or model_advisor --json)")
         sp.add_argument("--skip-skills", action="store_true", help="config only; leave the skills dirs alone")
         sp.add_argument("--confirm", action="append", metavar="ID",
@@ -1331,7 +1373,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(fn=cmd_uninstall)
     sp = sub.add_parser("project", parents=[common], help="project commands")
     psub = sp.add_subparsers(dest="pcmd", required=True, metavar="action")
-    pp = psub.add_parser("add", parents=[common], help="create the project in the lead and every worker")
+    pp = psub.add_parser("add", parents=[common], help="create the project in the manager and every worker")
     pp.add_argument("squad", help="squad key")
     pp.add_argument("name", help="project name (the slug is derived from it)")
     pp.add_argument("path", help="existing project folder")

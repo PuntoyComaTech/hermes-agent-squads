@@ -1,6 +1,6 @@
 # Profile files
 
-Written by the lead during the interview, in the project folder `<P>`: `profile.md`, `achievements.yaml`,
+Written by the manager during the interview, in the project folder `<P>`: `profile.md`, `achievements.yaml`,
 `contact.yaml` and `application-data.yaml`.
 
 ## Contents

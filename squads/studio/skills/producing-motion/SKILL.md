@@ -27,7 +27,7 @@ Turn a storyboard into rendered files, one shot at a time. A shot is done when i
 
 - A preview server left running keeps a render worker busy forever: stop `hyperframes preview` and `remotion studio` before finishing.
 - Draft quality and delivery quality use the same cut: never change timing between the two.
-- Never make a render pass by editing the brief's numbers; fix the render or ask the lead.
+- Never make a render pass by editing the brief's numbers; fix the render or ask the manager.
 - Heavy renders time out or fill the disk: keep intermediate frames in the piece folder and delete them after the check.
 
 ## Verification

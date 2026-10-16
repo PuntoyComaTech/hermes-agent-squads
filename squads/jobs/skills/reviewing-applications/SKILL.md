@@ -10,7 +10,7 @@ One review round per new application plus one correction round; the card says `r
 ## When to Use
 
 - A review card from the writer (round 1) or after a correction (round 2, or a CHANGE round for a user change).
-- Before the application reaches the lead's digest card.
+- Before the application reaches the manager's digest card.
 
 ## Procedure
 
@@ -24,7 +24,7 @@ One review round per new application plus one correction round; the card says `r
    `corrections` and `summary_for_user`. `status.json`: `in_review` -> `ready` on APPROVED, `not_approved`
    otherwise.
 5. **Hand off** by creating the next card with `kanban_create`, `parents: [<your card id>]`:
-   - APPROVED -> jobs (lead), `skills: [leading-job-search]`, `idempotency_key`
+   - APPROVED -> jobs (manager), `skills: [leading-job-search]`, `idempotency_key`
      `jobs:application:<project>:<ID>:digest` (CHANGE round N: `...:digest-c<N>`), body with the id, the verdict
      and the paths.
    - FIX in round 1 -> jobs-writer, `skills: [writing-applications]`, key `...:write-r2`, body naming each

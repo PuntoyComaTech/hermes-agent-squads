@@ -9,7 +9,7 @@ One opening, one file: `interview.md` beside `application/`.
 
 ## When to Use
 
-- A `preparing-interviews` card from the lead ("prepare me for the interview with X").
+- A `preparing-interviews` card from the manager ("prepare me for the interview with X").
 - Before the user's interview, when `analysis.json` and the company profile exist.
 
 ## Procedure
@@ -26,7 +26,7 @@ One opening, one file: `interview.md` beside `application/`.
    - **Questions to ask the company**: 3 to 5, drawn from the company profile and the opening, not generic.
    - **Logistics**: interview language, format and anything the opening states about the process.
 3. Keep it readable in one sitting: bullets, no paragraphs longer than 5 lines.
-4. `kanban_complete` naming the file; the lead delivers it to the user.
+4. `kanban_complete` naming the file; the manager delivers it to the user.
 
 ## Pitfalls
 

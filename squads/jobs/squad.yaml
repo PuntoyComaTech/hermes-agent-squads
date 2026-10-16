@@ -2,23 +2,22 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Finds openings, filters and analyzes them, writes and reviews tailored applications"
-version: 3.0.0
+version: 3.1.0
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, analysis, CV, review, apply"}
 section: {id: jobs, name: Jobs}
-lead: jobs
+manager: jobs
 defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [terminal, file, skills, kanban, todo]}
 bots:
   jobs:
-    role: lead
-    title: Jobs lead
+    role: manager
+    title: Jobs manager
     description: "Profile interview, digests, apply or skip decisions and tracking; holds PII, no web"
-    lane: lead
+    lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo]
     skills: {squad: [leading-job-search, jobs-contract], auto_load: leading-job-search}
     plugins: {enable: [disk-cleanup]}
     memory: true
-    hidden: false
     cron:
       jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
       jobs-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
@@ -31,7 +30,6 @@ bots:
     skills: {squad: [finding-jobs, analyzing-jobs, jobs-contract], keep: [bundled:blocked-page-recovery]}
     plugins: {enable: [disk-cleanup]}
     website_blocklist: [linkedin.com]
-    hidden: true
   jobs-writer:
     role: worker
     title: Jobs writer
@@ -42,7 +40,6 @@ bots:
       squad: [writing-applications, rendering-cv, preparing-interviews, jobs-contract]
       keep: [bundled:humanizer, bundled:docx, bundled:pdf]
     plugins: {enable: [disk-cleanup]}
-    hidden: true
   jobs-reviewer:
     role: worker
     title: Jobs reviewer
@@ -51,7 +48,6 @@ bots:
     toolsets: [file, skills, kanban, todo, delegation]
     skills: {squad: [reviewing-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
-    hidden: true
   jobs-applier:
     role: worker
     title: Jobs applier
@@ -61,7 +57,6 @@ bots:
     skills: {squad: [submitting-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
     website_blocklist: [linkedin.com]
-    hidden: true
 chains:
   application:
     - {stage: analyze, assignee: jobs-scout, skill: analyzing-jobs, lane: review}

@@ -26,13 +26,17 @@ description: "Designs a new local squad as a squad.yaml. Use when the user needs
 5. Create a bot only for one of these reasons (`docs/decisions.md` D-001): a
    permission boundary, independent judgment, a different reasoning effort, or
    context size. Everything else is a skill, subagent or script.
-6. One visible lead `<key>` (`role: lead`, `hidden: false`). Workers are
-   `<key>-<role>` (`role: worker`, `hidden: true`, `memory: false`) with only
-   the toolsets their role needs (V-02, V-12). At most 5 bots (schema).
+6. One manager `<key>` (`role: manager`, title `<Name> manager`): the only bot
+   the user talks to and the one that adds Projects for the squad. Workers are
+   `<key>-<role>` (`role: worker`, `memory: false`) with only the toolsets their
+   role needs (V-02, V-12, C-11). All bots are visible; squadctl files the
+   manager under the `Managers` Desktop section and the workers under the
+   squad's own section. At most 5 required bots; a sixth sets `optional: true`
+   and installs only with `squadctl apply <key> --with <name>`.
 7. Lane per bot: a key of `scripts/data/model-roles.yaml` -> `lanes`.
 8. Write `local/squads/<key>/squad.yaml` against
    `squads/_schema/squad.schema.json`: `schema: 2`, `key`, `name`, `version`,
-   `hermes_requires`, `board`, `section`, `lead`, `bots`, `chains`. Pass
+   `hermes_requires`, `board`, `section`, `manager`, `bots`, `chains`. Pass
    credentials as env names in `passthrough`, never values.
 9. Chains are stage lists (`stage`, `assignee`, optional `skill`, `when`,
    `lane`). A cron job has `schedule` and `script`; add `agent` (`lane`,
@@ -43,6 +47,23 @@ description: "Designs a new local squad as a squad.yaml. Use when the user needs
 11. Validate: `scripts/hpy squadctl.py plan <key> --json`, then
     `scripts/hpy skill_lint.py local/squads/<key>`. Install with
     `skills/installing-squads`.
+
+## Topology
+
+One rule, used everywhere (D-001, D-005, V-07):
+
+- `delegate_task` subagents are ephemeral: same model as the caller, no board,
+  no own credentials, gone when the turn ends.
+- Kanban workers are persistent profiles: own model, toolsets and credentials,
+  asynchronous, each needing a board.
+- Single bot with only `delegate_task` work -> Projects only, no board.
+- Single bot with async, long, cron or human-in-the-loop work, or per-task
+  models -> its own board (it files cards to itself).
+- Manager + workers = a squad -> one board per squad, one Project per repo.
+
+Skills follow one rule too: a hub skill is installed only after quoting its
+source and licence and getting the user's explicit OK (`{id, confirm}` in
+`skills.keep`); a squad's own skills ship with it and need no quote.
 
 ## Pitfalls
 

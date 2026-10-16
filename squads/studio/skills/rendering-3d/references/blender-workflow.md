@@ -26,7 +26,7 @@ Squad conventions for the `3d` stage.
 - glTF for the demos: export `.glb` with materials and textures embedded, into `assets/blender/` (or the
   demo folder when the brief delivers it), then validate it (rendering-3d step 5).
 - Contact sheets for stills: run `render_check.py` on the animation, or build a grid with FFmpeg for a
-  still set; the lead reviews from the sheet.
+  still set; the manager reviews from the sheet.
 
 ## Versions
 

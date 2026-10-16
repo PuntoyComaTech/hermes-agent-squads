@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "The user replies to a presented piece: 'change 2: shorter headline, keep the photo'.",
-      "expected_output": "A copy-c1 card carries the literal request, with asset-c1, review-c1 and approve-c1 chained after it; one preferences.md log line records the reply; the copy files are not edited by the lead.",
+      "expected_output": "A copy-c1 card carries the literal request, with asset-c1, review-c1 and approve-c1 chained after it; one preferences.md log line records the reply; the copy files are not edited by the manager.",
       "files": []
     },
     {

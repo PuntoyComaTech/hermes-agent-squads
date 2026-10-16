@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Print the cards of a squad board that need the lead's Bot Chat.
+"""Print the cards of a squad board that need the manager's Bot Chat.
 
 Reported once per wait (state: $HERMES_HOME/local/state/board_watch.json):
   - `blocked` with kind `needs_input` (or untyped), at once, with the block reason, unless the card has a
     notify subscription (the chain started in a chat, so that chat already got the event);
   - any other `blocked`, or `running` with no activity, after --hours.
 
-Cron runs it with --no-agent on each lead: non-empty stdout goes to the lead's Bot Chat, empty stdout sends
+Cron runs it with --no-agent on each manager: non-empty stdout goes to the manager's Bot Chat, empty stdout sends
 nothing. Stdlib only: the cron runs it with the system python3.
 """
 from __future__ import annotations
@@ -107,9 +107,9 @@ def findings(cards: list[dict], base: list[str], hours: float, now: float) -> li
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Report the cards of a squad board that wait on the lead's Bot Chat.",
+    p = argparse.ArgumentParser(description="Report the cards of a squad board that wait on the manager's Bot Chat.",
                                 epilog="Exit 0 board read, 1 board unreadable.")
-    p.add_argument("--board", help="board slug (default: the profile name, which is the squad key on a lead)")
+    p.add_argument("--board", help="board slug (default: the profile name, which is the squad key on a manager)")
     p.add_argument("--hours", type=float, default=24,
                    help="hours before another blocked or a silent running card is reported (default: 24)")
     p.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN") or "hermes",

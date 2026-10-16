@@ -2,18 +2,18 @@ schema: 2
 key: marketing
 name: Marketing
 description: "Brand onboarding, 90-day plans, weekly calendars and reviewed marketing pieces for several brands"
-version: 3.0.0
+version: 3.1.0
 hermes_requires: ">=0.22.0"
 board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F", description: "Brand plans, weekly calendars and reviewed pieces"}
 section: {id: marketing, name: Marketing}
-lead: marketing
+manager: marketing
 defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [file, skills, kanban, todo]}
 bots:
   marketing:
-    role: lead
-    title: Marketing lead
+    role: manager
+    title: Marketing manager
     description: "Brand onboarding, 90-day plan, calendar, briefs, approvals and reports"
-    lane: lead
+    lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, web, vision, delegation]
     skills:
       squad: [leading-marketing, brand-contract, marketing-plan, product-marketing, marketing-council, marketing-mindset]
@@ -22,7 +22,6 @@ bots:
     plugins: {enable: [disk-cleanup]}
     connectors: {enabled: false, suggest: []}
     memory: true
-    hidden: false
     cron:
       marketing-plan-week: {schedule: "0 8 * * 1", script: plan_week.py, agent: false}
       marketing-report: {schedule: "0 8 1 * *", script: report_gate.py, agent: false}
@@ -39,7 +38,6 @@ bots:
       keep: [bundled:competitor-news-monitor, bundled:blocked-page-recovery, official:social-media/reddit-reading]
     plugins: {enable: [disk-cleanup]}
     connectors: {enabled: false, suggest: []}
-    hidden: true
   marketing-creative:
     role: worker
     title: Marketing creative
@@ -52,7 +50,6 @@ bots:
       keep: [bundled:humanizer]
     plugins: {enable: [disk-cleanup]}
     connectors: {enabled: false, suggest: [notion]}
-    hidden: true
   marketing-producer:
     role: worker
     title: Marketing producer
@@ -65,7 +62,6 @@ bots:
       keep: [bundled:claude-design, bundled:design-md, official:creative/impeccable, official:creative/hyperframes]
     plugins: {enable: [disk-cleanup, security-guidance]}
     connectors: {enabled: false, suggest: []}
-    hidden: true
   marketing-reviewer:
     role: worker
     title: Marketing reviewer
@@ -74,7 +70,6 @@ bots:
     toolsets: [file, skills, kanban, todo, vision, delegation]
     skills: {squad: [reviewing-marketing, brand-contract], auto_load: reviewing-marketing}
     plugins: {enable: [disk-cleanup]}
-    hidden: true
 chains:
   piece:
     - {stage: research, assignee: marketing-research, skill: researching-markets, when: research}

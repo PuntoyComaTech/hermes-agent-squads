@@ -1,6 +1,6 @@
 ---
 name: directing-studio
-description: "Directs a studio piece from brief to delivery. Use when a requester's card orders a rendered asset, when the piece chain must be filed, or when a produced render needs the lead's review before delivery."
+description: "Directs a studio piece from brief to delivery. Use when a requester's card orders a rendered asset, when the piece chain must be filed, or when a produced render needs the manager's review before delivery."
 ---
 
 # Directing a studio piece

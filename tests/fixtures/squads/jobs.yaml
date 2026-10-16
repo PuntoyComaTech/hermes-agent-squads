@@ -4,17 +4,16 @@ name: Jobs
 version: 3.0.0
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E"}
 section: {id: jobs, name: Jobs}
-lead: jobs
+manager: jobs
 bots:
   jobs:
-    role: lead
-    title: Jobs lead
+    role: manager
+    title: Jobs manager
     description: "Profile interview, digests, apply or skip decisions and tracking; holds PII, no web"
-    lane: lead
+    lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo]
     skills: {squad: [leading-job-search, jobs-contract], auto_load: leading-job-search}
     memory: true
-    hidden: false
     cron:
       jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
   jobs-scout:
@@ -25,7 +24,6 @@ bots:
     toolsets: [file, skills, kanban, todo, web, browser, delegation]
     skills: {squad: [finding-jobs, analyzing-jobs, jobs-contract], keep: [bundled:blocked-page-recovery]}
     website_blocklist: [linkedin.com, "*.linkedin.com"]
-    hidden: true
   jobs-writer:
     role: worker
     title: Jobs writer
@@ -33,7 +31,6 @@ bots:
     lane: copy
     toolsets: [file, skills, kanban, todo, terminal]
     skills: {squad: [writing-applications, rendering-cv, jobs-contract], keep: [bundled:humanizer]}
-    hidden: true
   jobs-reviewer:
     role: worker
     title: Jobs reviewer
@@ -41,7 +38,6 @@ bots:
     lane: review
     toolsets: [file, skills, kanban, todo, delegation]
     skills: {squad: [reviewing-applications, jobs-contract]}
-    hidden: true
 chains:
   application:
     - {stage: analyze, assignee: jobs-scout, skill: analyzing-jobs, lane: review}

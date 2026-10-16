@@ -20,9 +20,9 @@ Shared rules of the jobs squad. File formats are in `references/`.
 
 | Path in `<P>` | Writer | Readers |
 |---|---|---|
-| `profile.md`, `achievements.yaml` | jobs (lead) | all |
-| `contact.yaml` | jobs (lead) | jobs-writer (CV header), jobs-applier (forms) |
-| `application-data.yaml` | jobs (lead) | jobs-applier |
+| `profile.md`, `achievements.yaml` | jobs (manager) | all |
+| `contact.yaml` | jobs (manager) | jobs-writer (CV header), jobs-applier (forms) |
+| `application-data.yaml` | jobs (manager) | jobs-applier |
 | `openings/<ID>/opening.md`, `searches/*.md` | jobs-scout | all |
 | `openings/<ID>/analysis.json`, `companies/*.md` | jobs-scout | all |
 | `openings/<ID>/application/*`, `interview.md` | jobs-writer | all |

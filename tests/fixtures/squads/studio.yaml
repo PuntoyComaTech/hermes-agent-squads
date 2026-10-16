@@ -5,19 +5,18 @@ version: 1.0.0
 hermes_requires: ">=0.22.0"
 board: {slug: studio, name: Studio, icon: "🎬", color: "#7048E8"}
 section: {id: studio, name: Studio}
-lead: studio
+manager: studio
 defaults: {aux_lane: aux, vision_lane: vision}
 bots:
   studio:
-    role: lead
-    title: Studio lead
+    role: manager
+    title: Studio manager
     description: "Brief to storyboard and shot list, chains the work, reviews renders, delivers to the requester"
     lane: design
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, vision, web, delegation]
     skills: {squad: [directing-studio, studio-contract], auto_load: directing-studio,
              keep: [official:creative/creative-ideation]}
     memory: true
-    hidden: false
   studio-motion:
     role: worker
     title: Studio motion
@@ -39,7 +38,6 @@ bots:
         - name: hermes-video-editor
           confirm: "hermes-video-editor is PolyForm Noncommercial. Is this use non-commercial?"
     mcp: {context7: {command: npx, args: [-y, "@upstash/context7-mcp"]}}
-    hidden: true
   studio-3d:
     role: worker
     title: Studio 3D
@@ -53,7 +51,6 @@ bots:
         - name: blender
           confirm: "The blender plugin runs arbitrary Python inside Blender. Enable it?"
     requires: {apps: [blender>=5.1, uv]}
-    hidden: true
 chains:
   piece:
     - {stage: storyboard, assignee: studio, skill: directing-studio}

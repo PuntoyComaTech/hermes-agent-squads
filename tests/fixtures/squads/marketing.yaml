@@ -5,20 +5,19 @@ version: 3.0.0
 hermes_requires: ">=0.22.0"
 board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F"}
 section: {id: marketing, name: Marketing}
-lead: marketing
+manager: marketing
 defaults: {aux_lane: aux, vision_lane: vision}
 bots:
   marketing:
-    role: lead
-    title: Marketing lead
+    role: manager
+    title: Marketing manager
     description: "Brand onboarding, 90-day plan, calendar, briefs, approvals and reports"
-    lane: lead
+    lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, web, vision, delegation]
     skills: {squad: [leading-marketing, brand-contract, marketing-plan], auto_load: leading-marketing,
              keep: [official:creative/social-media-content-calendar]}
     connectors: {enabled: false, suggest: [hubspot, notion]}
     memory: true
-    hidden: false
     cron:
       marketing-plan-week: {schedule: "0 8 * * 1", script: plan_week.py, agent: false}
   marketing-research:
@@ -28,7 +27,6 @@ bots:
     lane: research
     toolsets: [file, skills, kanban, todo, web, browser]
     skills: {squad: [researching-markets, brand-contract], keep: [bundled:blocked-page-recovery]}
-    hidden: true
   marketing-creative:
     role: worker
     title: Marketing creative
@@ -36,7 +34,6 @@ bots:
     lane: copy
     toolsets: [file, skills, kanban, todo, vision]
     skills: {squad: [writing-copy, brand-contract], keep: [bundled:humanizer]}
-    hidden: true
   marketing-producer:
     role: worker
     title: Marketing producer
@@ -45,7 +42,6 @@ bots:
     toolsets: [file, skills, kanban, todo, terminal, vision, image_gen, browser]
     skills: {squad: [producing-assets, brand-contract], keep: [official:creative/hyperframes]}
     plugins: {enable: [disk-cleanup, security-guidance]}
-    hidden: true
   marketing-reviewer:
     role: worker
     title: Marketing reviewer
@@ -53,7 +49,6 @@ bots:
     lane: review
     toolsets: [file, skills, kanban, todo, vision, delegation]
     skills: {squad: [reviewing-marketing, brand-contract]}
-    hidden: true
 chains:
   piece:
     - {stage: research, assignee: marketing-research, skill: researching-markets, when: research}

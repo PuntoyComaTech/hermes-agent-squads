@@ -1,5 +1,5 @@
 # One failing fixture per skill_lint.py rule (plan section 2.4). Each fixture breaks only its rule.
-# Layout: bad/<rule-id>/<skill-dir>/... or bad/<rule-id>/souls/<bot>.md
+# Layout: bad/<rule-id>/<skill-dir>/... or bad/<rule-id>/souls/<bot>.md or bad/<rule-id>/squad.yaml
 rules:
   frontmatter-required: "SKILL.md has no YAML frontmatter with name and description"
   name-kebab: "name is not lowercase kebab-case"
@@ -10,7 +10,8 @@ rules:
   desc-capability-length: "capability clause before 'Use when' longer than 57 characters"
   desc-use-when: "description has no 'Use when' clause"
   desc-length: "description longer than 250 characters"
-  skill-lines: "SKILL.md longer than its budget (lead/builder 150, worker 120)"
+  skill-lines: "SKILL.md longer than its budget (manager/builder 150, worker 120)"
+  manager-naming: "manifest naming: one manager named <key> with title '<Name> manager', workers <key>-<role>, at most 5 required bots"
   index-lines: "hermes-platform SKILL.md longer than 80 lines"
   ref-lines: "references/*.md longer than 200 lines"
   ref-depth: "references nested more than one level deep"

@@ -1,8 +1,8 @@
 # Squad: Studio
 
 Rendered and standalone assets for the other squads: motion graphics, MP4/WebM clips, 3D renders, glTF
-assets and WebGL hero demos. The web and marketing leads order a piece by card on the `studio` board;
-the studio lead writes the brief and storyboard, files the `piece` chain, reviews the renders and
+assets and WebGL hero demos. The web and marketing managers order a piece by card on the `studio` board;
+the studio manager writes the brief and storyboard, files the `piece` chain, reviews the renders and
 completes the ordering card with the deliverables.
 
 The split with the web squad: `web-frontend` owns interactive code inside a site; studio owns files that
@@ -13,13 +13,13 @@ producer profile.
 
 | Bot | Lane | Does |
 |---|---|---|
-| `studio` (lead) | design | Brief to `brief.md` and `storyboard.md`, files the chain, reviews renders (contact sheets plus the check report), delivers; no terminal |
+| `studio` (manager) | design | Brief to `brief.md` and `storyboard.md`, files the chain, reviews renders (contact sheets plus the check report), delivers; no terminal |
 | `studio-motion` | design | HyperFrames, Remotion, GSAP/ScrollTrigger, three.js/R3F, Manim, p5.js; runs `render_check.py` |
 | `studio-3d` | design | Blender scenes, materials, lighting, Cycles/EEVEE renders, turntables, glTF, through the blender MCP plugin |
 
 ## Chain `piece`
 
-Stages: `squad.yaml` -> `chains.piece`; the lead files them (skill `directing-studio` step 5). No cron.
+Stages: `squad.yaml` -> `chains.piece`; the manager files them (skill `directing-studio` step 5). No cron.
 
 ## Piece folder
 

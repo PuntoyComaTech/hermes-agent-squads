@@ -71,8 +71,8 @@
       "bots": [
         {
           "bot": "web",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -83,7 +83,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -184,8 +184,8 @@
       "bots": [
         {
           "bot": "marketing",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -196,7 +196,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -282,8 +282,8 @@
       "bots": [
         {
           "bot": "jobs",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -294,7 +294,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": []
         },
         {
@@ -354,7 +354,7 @@
       "bots": [
         {
           "bot": "studio",
-          "role": "lead",
+          "role": "manager",
           "lane": "design",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
@@ -430,8 +430,8 @@
       "bots": [
         {
           "bot": "builder",
-          "role": "lead",
-          "lane": "lead",
+          "role": "manager",
+          "lane": "manager",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -442,7 +442,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "lead lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "cron:builder-watch",

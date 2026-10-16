@@ -1,6 +1,6 @@
 # Learned preferences: <Name>
 
-Read before every piece. The lead adds one Log line per user reply and distills the lists weekly.
+Read before every piece. The manager adds one Log line per user reply and distills the lists weekly.
 
 ## Likes
 

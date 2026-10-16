@@ -39,5 +39,5 @@ Ask only what research and the brand files leave open.
 ## Only for B2B, SaaS or e-commerce with data
 
 - Buyer personas and decision roles.
-- Funnel numbers: sessions, leads, orders, CAC, repeat purchase rate.
+- Funnel numbers: sessions, managers, orders, CAC, repeat purchase rate.
 - Connected tools: Google Analytics, Search Console, CRM, email provider.

@@ -1,0 +1,23 @@
+{
+  "skill_name": "building-3d-motion",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The brief asks for a scroll-driven 3D hero: a GLB product model that rotates as the user scrolls, on a landing page whose LCP target is 2.5 s.",
+      "expected_output": "Lazily mounts a single clamped-DPR canvas behind a poster, drives rotation from a gsap.context ScrollTrigger timeline animating transform/opacity only, compresses the GLB (Draco/Meshopt) under ~2 MB or defers it past first paint, and ships a reduced-motion static branch plus a no-WebGL poster fallback.",
+      "files": ["references/threejs.md", "references/gsap.md", "references/perf-budgets.md", "references/fallbacks.md"]
+    },
+    {
+      "id": 2,
+      "prompt": "A card asks for a Blender-modeled hero prop with custom lighting, rendered into the site, and the scene also needs scripted exports on every content change.",
+      "expected_output": "Orders the heavy render as a studio card instead of rendering in the site repo, uses glTF with baked lighting and KTX2/Draco compression, and treats the confirm-gated blender plugin as a build-time tool only when scripted Blender work is required (after the user's OK), never as part of the shipped bundle.",
+      "files": ["references/blender-pipeline.md"]
+    },
+    {
+      "id": 3,
+      "prompt": "A preview FIX round reports the animated page janks on mid-range mobile and users with motion sensitivity cannot read the scroll story.",
+      "expected_output": "Measures the preview URL first, removes per-frame allocations and layout-triggering properties, batches ScrollTrigger, then makes the reduced-motion branch a complete static version of the same content (no Lenis, no hijack) and records the measured LCP/INP in the card.",
+      "files": ["references/gsap.md", "references/perf-budgets.md", "references/fallbacks.md"]
+    }
+  ]
+}

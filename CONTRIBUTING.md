@@ -4,7 +4,7 @@ Read `AGENTS.md` first; its Rules apply here, to people and to AI agents.
 
 ## Rules
 
-- **Manifests follow the schema** (`squads/_schema/squad.schema.json`); cross-field rules (one lead, chain assignees
+- **Manifests follow the schema** (`squads/_schema/squad.schema.json`); cross-field rules (one manager, chain assignees
   exist, lanes exist, worker names prefixed by the squad key) are enforced by `squadctl` and `tests/`.
 - **Tests and lint must stay green**: `.venv/bin/python -m pytest` (a venv with `pytest`, `PyYAML`, `jsonschema`)
   and `scripts/hpy skill_lint.py skills squads`.
@@ -18,7 +18,7 @@ Read `AGENTS.md` first; its Rules apply here, to people and to AI agents.
 | --- | --- | --- |
 | Squad key | One short lowercase English word, reused in every row below | `jobs`, `marketing`, `web` |
 | Squad folder | `squads/<key>/` (`squad.yaml`, `souls/`, `skills/`, `scripts/`, `README.md`) | `squads/marketing/` |
-| Profiles (bots) | `<key>-<role>`; the lead is `<key>`; the base bot is `builder` | `jobs-writer`, `web-frontend` |
+| Profiles (bots) | `<key>-<role>`; the manager is `<key>`; the base bot is `builder` | `jobs-writer`, `web-frontend` |
 | Builder skills | `<gerund>` in `skills/`, frontmatter `name` equal to the directory | `installing-squads` |
 | Project folders | Anywhere the user keeps them; registered as native Projects, never assumed | `~/Projects/acme-site` |
 | Scripts | `snake_case.py` | `plan_week.py` |

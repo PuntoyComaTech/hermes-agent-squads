@@ -5,8 +5,8 @@ Formats used by every studio bot. A piece folder is `<project>/studio/<piece-id>
 
 ```text
 <piece-id>/
-  brief.md            the requester's specs; written by the lead (studio_project.py init --overwrite rewrites it)
-  storyboard.md       shots and timing; written by the lead
+  brief.md            the requester's specs; written by the manager (studio_project.py init --overwrite rewrites it)
+  storyboard.md       shots and timing; written by the manager
   assets/             inputs: fonts, audio, images, models, .blend files
     sources.md        one row per external asset
   renders/            outputs and their checks
@@ -76,6 +76,6 @@ One row per external asset (studio-contract step 4). `Licence` is a concrete ide
   `<name>.contact.png` next to the render; exit 0 means the spec, the EBU R128 loudness and the contact
   sheet all passed.
 - The report holds `duration`, `fps`, `resolution`, `loudness.integrated_lufs` and `violations`; hand the
-  path to the lead in `metadata.paths`.
+  path to the manager in `metadata.paths`.
 - Interactive deliverables with `format: html` live in `renders/<piece-id>-<shot>-<NN>/` and are verified
   in the browser, not with `render_check.py`.

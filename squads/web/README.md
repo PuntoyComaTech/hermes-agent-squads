@@ -30,7 +30,7 @@ Reply: "publish", "change: ...", "bug: ... + screenshot"
 
 ## Bots
 
-One visible lead (`web`) and four hidden workers: `squad.yaml -> bots`. Models come from the lanes in `scripts/data/model-roles.yaml`.
+One manager (`web`) and four workers, plus the optional `web-frontend-pro` (3D, WebGL and complex motion; it installs only with `squadctl apply web --with web-frontend-pro`): `squad.yaml -> bots`. All bots are visible; the manager is filed under `Managers`, the workers under the `Web` section. Models come from the lanes in `scripts/data/model-roles.yaml`; `web-backend` runs `code-routine` and the manager pins the `code-complex` model per card on hard problems (skill `leading-web` step 6).
 
 ## Stack
 
@@ -53,7 +53,7 @@ flowchart LR
 
 ## Cron
 
-`web-watch` runs the builder's `scripts/board_watch.py` on the lead (`squad.yaml -> bots.web.cron`): it posts to the lead's Bot Chat when a card waits on the user or stalls.
+`web-watch` runs the builder's `scripts/board_watch.py` on the manager (`squad.yaml -> bots.web.cron`): it posts to the manager's Bot Chat when a card waits on the user or stalls.
 
 ## What the computer needs
 
