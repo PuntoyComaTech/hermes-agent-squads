@@ -5,7 +5,8 @@ Reads squads/<key>/squad.yaml (builder.yaml for --self), the overlay local/squad
 in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning). --models <file> merges the same shape
 or `scripts/hpy model_advisor.py --json` output, and a real apply saves it. Licence or disclosure items stay pending
 until `--confirm <id>`. Output is TOON, JSON with --json. Config writes go through Hermes's own writer, one process
-per profile (_profile_apply.py). Never reads or prints secrets: passthrough shows names and set/missing only.
+per profile (_profile_apply.py). Never prints secret values: `apply --yes` copies a provider key into the bot's env
+file (mode 600, name+value, value never shown; C-14) and passthrough shows names and set/missing only.
 """
 from __future__ import annotations
 
@@ -76,6 +77,52 @@ def write_text(path: Path, text: str, mode: int | None = None) -> None:
         path.chmod(mode)
 
 
+ENV_FILE = ".env"  # the per-profile env file `apply --yes` writes (C-14); values never reach output
+
+
+def env_pairs(path: Path) -> dict[str, str]:
+    """`KEY -> value` of one env file's own assignments (`export KEY=value`, optional quotes).
+
+    Values exist only inside the credential helpers (env_pairs, env_set, Applier.key_value): every output path
+    names keys, never values (C-14)."""
+    out: dict[str, str] = {}
+    for line in _read(path).splitlines():
+        bare = line.strip()
+        if not bare or bare.startswith("#") or "=" not in bare:
+            continue
+        if bare.startswith("export "):
+            bare = bare[len("export "):]
+        key, _, value = bare.partition("=")
+        key, value = key.strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            out[key] = value
+    return out
+
+
+def env_names(path: Path) -> set[str]:
+    return set(env_pairs(path))
+
+
+def env_set(path: Path, key: str, value: str) -> None:
+    """Set KEY=value in an env file (mode 600), keeping every other line exactly as it is."""
+    lines = _read(path).splitlines() if path.is_file() else []
+    row = f"{key}={value}"
+    out: list[str] = []
+    hit = False
+    for line in lines:
+        bare = line.strip().removeprefix("export ").split("=", 1)[0].strip()
+        if bare == key and not line.strip().startswith("#"):
+            out.append(row)
+            hit = True
+        else:
+            out.append(line)
+    if not hit:
+        out.append(row)
+    write_text(path, "\n".join(out) + "\n", 0o600)
+
+
 def deep_merge(base, over):
     """Dicts merge key-wise, anything else is replaced; a None value deletes the key."""
     if not isinstance(base, dict) or not isinstance(over, dict):
@@ -111,6 +158,7 @@ class Ctx:
         self._vision: dict[tuple[str, str], bool] = {}
         self._env_keys: dict[str, list[str]] = {}
         self.confirmed = set(getattr(a, "confirm", None) or [])
+        self.yes = bool(getattr(a, "yes", False))  # `apply --yes`: the owner's OK for the credential copy (C-14)
 
     def home(self, bot: str) -> Path:
         return self.profiles / bot
@@ -779,9 +827,9 @@ class Applier:
 
         for env in bot.get("passthrough") or []:
             notes.append(f"passthrough {env}: {'set' if os.environ.get(env) else 'missing'}")
-        note = self.credential_note(name, bot)
-        if note:
-            notes.append(note)
+        cred_acts, cred_notes = self.credentials(name, bot)
+        acts += cred_acts
+        notes += cred_notes
         conn = (bot.get("connectors") or {}).get("suggest") or []
         if conn:
             notes.append(f"connectors suggested: {', '.join(conn)}")
@@ -931,22 +979,62 @@ class Applier:
                                              "ui_meta_bots": None})
         return acts
 
-    def credential_note(self, name: str, bot: dict) -> str:
-        """The provider key of this bot as an owner item: a profile never inherits the gateway root environment.
+    def key_value(self, key: str) -> str | None:
+        """The value of one provider key from the only homes squadctl may take it from: the root env file and the
+        process environment. Used only by the copy step; never printed or logged (C-14)."""
+        return env_pairs(self.ctx.root / ENV_FILE).get(key) or os.environ.get(key) or None
 
-        Only the KEY NAME is resolved (PROVIDER_REGISTRY via `provider_env_keys`); no value is ever read, printed
-        or copied and no credential file is touched (AGENTS.md "no secrets", V-10) — same treatment as the
-        `passthrough` names, one line per bot in plan, apply and status.
-        """
+    def auth_slugs(self, name: str) -> set[str]:
+        """Provider slugs the profile auth store holds (`hermes -p <name> auth list`, header names only)."""
+        out = self.ctx.hermes("auth", "list", profile=name, check=False)
+        return set(re.findall(r"^([a-z0-9][a-z0-9._-]*)(?: \([^)]*\))?:", out, re.M))
+
+    def _credential(self, name: str, bot: dict) -> dict:
+        """One provider credential as facts: which key name, where it already lives, where a value could come from.
+
+        A profile never inherits the gateway root environment, so the bot's own homes are its env file and its
+        auth store; a key held only by the root is the copy case (C-14)."""
         m = self.bot_model(name, bot)
         if not m:
-            return ""
+            return {"skip": True, "where": "no model assigned"}
         keys = self.ctx.provider_env_keys(m["provider"])
-        if not keys or any(os.environ.get(k) for k in keys):
-            return ""
-        key = keys[0]
-        return (f"credentials {key}: not in this environment; put it in the {name} profile (mode 600) for "
-                f"provider {m['provider']} before the first run")
+        if not keys:  # OAuth or an external process: there is no API key to hold
+            return {"skip": True, "where": f"provider {m['provider']} needs no API key"}
+        have = env_names(self.ctx.home(name) / ENV_FILE)
+        if any(k in have for k in keys):
+            return {"skip": True, "where": "profile env file"}
+        if m["provider"] in self.auth_slugs(name):
+            return {"skip": True, "where": "profile auth store"}
+        key = next((k for k in keys if self.key_value(k) is not None), None)
+        return {"key": key or keys[0], "copy_from": key, "provider": m["provider"]}
+
+    def credentials(self, name: str, bot: dict) -> tuple[list[str], list[str]]:
+        """Apply-time credential handling (C-14): a key that exists only in the root env file or the process
+        environment is copied (name+value) into the bot's env file (mode 600) on `apply --yes`; the value is
+        never printed. Without `--yes` (and in plan) it stays an owner item; a key no home holds is named."""
+        c = self._credential(name, bot)
+        if c.get("skip"):
+            return [], []
+        if not c.get("copy_from"):
+            return [], [f"credentials {c['key']}: not in this environment; put it in the {name} profile "
+                        f"(mode 600) for provider {c['provider']} before the first run"]
+        if not self.ctx.yes:
+            return [], [f"credentials {c['key']}: held by the root only; `apply --yes` copies it into the "
+                        f"{name} profile (mode 600)"]
+        if not self.dry:
+            value = self.key_value(c["key"])
+            if value is not None:
+                env_set(self.ctx.home(name) / ENV_FILE, c["key"], value)
+        return [f"credentials {c['key']}: copied into {name} (mode 600)"], []
+
+    def credential_status(self, name: str, bot: dict) -> tuple[bool, str]:
+        """Doctor's provider-credential check per bot: the key is in the profile env file or the auth store."""
+        c = self._credential(name, bot)
+        if c.get("skip"):
+            return True, c["where"]
+        hint = (f"`apply --yes` copies {c['copy_from']} there" if c.get("copy_from")
+                else f"put {c['key']} in the {name} profile (mode 600)")
+        return False, f"{c['key']} not in the {name} profile: {hint}"
 
     def mcp(self, name: str, bot: dict, cfg: dict, pending: list[str]) -> list[str]:
         have = cfg.get("mcp_servers") or {}
@@ -1272,7 +1360,11 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
         for name in live_bots(ctx, spec):
             bot = spec["bots"][name]
             miss = ap.missing_models(name)
-            out.append(check(f"{name}:models", "warn" if miss else "ok", "; ".join(miss) or "assigned"))
+            authed, cred = ap.credential_status(name, bot)
+            out.append(check(f"{name}:credentials", "ok" if authed else "warn", cred))
+            # `models ok` never passes when the bot cannot authenticate (C-14)
+            out.append(check(f"{name}:models", "ok" if not miss and authed else "warn",
+                             "; ".join(miss) or ("assigned" if authed else f"assigned, but {cred}")))
             m = ap.bot_model(name, bot)
             found = provider_source(ctx, m["provider"]) if m else None
             if found and not (ctx.home(name) / found[0].relative_to(found[1])).is_dir():

@@ -239,6 +239,15 @@ def main():
                     b["archived"] = True
         if sub != "list":
             store.write_text(json.dumps(boards))
+    elif cmd == "auth":
+        need_profile()
+        assert rest[:1] == ["list"], rest
+        # real shape (hermes_cli/auth_commands): provider header lines only; the indented credential rows below
+        # them are never parsed by squadctl, which reads names, never values.
+        names = HOME / "auth-names.json"
+        for slug in (json.loads(names.read_text()) if names.is_file() else []):
+            print(f"{slug} (1 credentials):")
+            print("  #1  key-name  api_key id=1 priority=0 env:X <-")
     elif cmd == "project":
         need_profile()
         sub, args = rest[0], rest[1:]

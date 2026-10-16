@@ -380,18 +380,71 @@ def test_inventory_documents_profiles_read_only(web, capsys):
     assert "no such profile" in out["error"]
 
 
-def test_provider_key_is_reported_as_an_owner_item_never_read(env, capsys, monkeypatch):
-    """A profile never inherits the gateway root environment; squadctl names the key and touches no file."""
+def test_provider_key_is_copied_into_the_profile_only_with_yes(env, capsys, monkeypatch):
+    """C-14: a key held only by the root is copied (name+value) into the bot env file (mode 600) on `apply --yes`;
+    without the flag the owner item stands. The value never reaches output."""
     monkeypatch.delenv("PROV_DESIGN_API_KEY", raising=False)
     env.squad("web")
     _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
     (fe,) = out["bots"]
     assert any("credentials PROV_DESIGN_API_KEY" in n and "web-frontend" in n for n in fe["notes"])
-    assert not (env.root / "profiles" / "web-frontend" / ".env").exists()
-    monkeypatch.setenv("PROV_DESIGN_API_KEY", "sk-value-that-must-not-print")
-    _, out = env.run("plan", "web", "--bots", "web-frontend", capsys=capsys)
-    assert not any("credentials" in n for n in out["bots"][0].get("notes", []))
-    assert "sk-value-that-must-not-print" not in json.dumps(out)
+    env_file = env.root / "profiles" / "web-frontend" / ".env"
+    assert not env_file.exists()
+    monkeypatch.setenv("PROV_DESIGN_API_KEY", "sk-val...rint")
+    _, out = env.run("plan", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
+    assert any("copied into web-frontend" in a for a in out["bots"][0]["actions"])
+    assert not env_file.exists(), "plan writes nothing"
+    assert "sk-val...rint" not in json.dumps(out)
+    _, out = env.run("apply", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
+    (fe,) = out["bots"]
+    assert "credentials PROV_DESIGN_API_KEY: copied into web-frontend (mode 600)" in fe["actions"]
+    assert env_file.read_text() == "PROV_DESIGN_API_KEY=sk-val...rint\n"
+    assert oct(env_file.stat().st_mode)[-3:] == "600"
+    assert "sk-val...rint" not in json.dumps(out)
+    _, out = env.run("apply", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
+    assert out["summary"] == {"unchanged": 1}, "the copy is idempotent"
+    assert not any("credentials" in a for a in out["bots"][0].get("actions", []))
+
+
+def test_provider_key_is_copied_from_the_root_env_file(env, capsys, monkeypatch):
+    """The root env file is the other copy source; quotes and export are handled, the value never reaches output."""
+    monkeypatch.delenv("PROV_REVIEW_API_KEY", raising=False)
+    (env.root / ".env").write_text("# gateway pool\nexport PROV_REVIEW_API_KEY='sk-root...alue'\n")
+    env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web-qa", "--yes", capsys=capsys)
+    (qa,) = out["bots"]
+    assert "credentials PROV_REVIEW_API_KEY: copied into web-qa (mode 600)" in qa["actions"]
+    env_file = env.root / "profiles" / "web-qa" / ".env"
+    assert env_file.read_text() == "PROV_REVIEW_API_KEY=sk-root...alue\n"
+    assert oct(env_file.stat().st_mode)[-3:] == "600"
+    assert "sk-root...alue" not in json.dumps(out)
+
+
+def test_doctor_credentials_check_and_models_never_pass_without_them(env, capsys, monkeypatch):
+    """C-14: `<bot>:credentials` per bot; `models ok` passes only when the bot can authenticate."""
+    monkeypatch.delenv("PROV_REVIEW_API_KEY", raising=False)
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"web": {"version": "3.0.0"}},
+                                                                   **models_doc()}))
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["web-qa:credentials"]["status"] == "warn"
+    assert "PROV_REVIEW_API_KEY" in checks["web-qa:credentials"]["detail"]
+    assert checks["web-qa:models"]["status"] == "warn", "models ok must not pass without credentials"
+    assert "assigned" in checks["web-qa:models"]["detail"]
+    home = env.root / "profiles" / "web-qa"
+    (home / ".env").write_text("PROV_REVIEW_API_KEY=sk-x\n")
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["web-qa:credentials"]["status"] == "ok" and checks["web-qa:models"]["status"] == "ok"
+    assert "sk-x" not in json.dumps(out)
+    (home / ".env").unlink()
+    (home / "auth-names.json").write_text(json.dumps(["prov-review"]))  # the profile auth store counts too
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["web-qa:credentials"]["status"] == "ok" and "auth store" in checks["web-qa:credentials"]["detail"]
+    assert checks["web-qa:models"]["status"] == "ok"
 
 
 def test_apply_is_idempotent(web, capsys):
@@ -1157,10 +1210,12 @@ def test_sched_matches_intervals_and_cron():
     assert not squadctl.sched_matches({"schedule": {"expr": "0 8 * * *"}}, "0 9 * * *")
 
 
-def test_scripts_never_mention_secret_files():
+def test_scripts_never_touch_the_auth_store_or_clone():
+    """C-14 lets `apply --yes` write the profile env file (name+value, value never shown); the auth store stays
+    out of reach of every script, and no script may clone a profile."""
     for name in ("squadctl.py", "_profile_apply.py", "squadctl"):
         text = (SCRIPTS / name).read_text()
-        assert not re.search(r"\.env\b", text) and "auth.json" not in text, name
+        assert "auth.json" not in text, name
         assert "--clone" not in text.replace("Never `--clone`", ""), name
 
 
