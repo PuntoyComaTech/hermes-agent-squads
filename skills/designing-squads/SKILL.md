@@ -45,8 +45,7 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
 
 ## Rules
 
-Enforced by `squadctl` and `skill_lint.py` (`manager-naming`);
-`docs/decisions.md` D-001, V-12, C-11.
+Enforced by `squadctl` and `skill_lint.py`.
 
 - A bot exists only for a permission boundary, independent judgment, a
   different reasoning effort, or context size. Everything else is a skill,

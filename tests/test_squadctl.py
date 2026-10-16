@@ -212,35 +212,28 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert web.config("web")["memory"]["memory_enabled"] is True
 
 
-def test_kanban_cap_is_never_written_or_proposed_by_a_plain_apply(web, capsys):
-    """`kanban.*` is machine-wide (the gateway owns the dispatcher): a plain apply leaves it alone and says nothing."""
-    fe = web.config("web-frontend")
-    assert "kanban" not in fe
-    assert not (web.root / "config.yaml").exists()
+def test_apply_never_writes_a_kanban_cap(web, capsys):
+    """No kanban cap anywhere: apply writes no `kanban.*` key, root or profile, and has no flag for one."""
     _, out = web.run("apply", "web", capsys=capsys)
-    assert out["root"] == []
+    assert "root" not in out
     assert not (web.root / "config.yaml").exists()
-    assert "kanban" not in web.config("web-qa")
+    assert all("kanban" not in web.config(b) for b in ("web-frontend", "web-qa"))
+    with pytest.raises(SystemExit):
+        squadctl.main(["apply", "web", "--set-root-kanban-cap", "--hermes-root", str(web.root)])
+    capsys.readouterr()
 
 
-def test_kanban_cap_is_set_only_with_the_root_flag(web, capsys):
-    _, out = web.run("apply", "web", "--set-root-kanban-cap", capsys=capsys)
-    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1"]
-    root_cfg = yaml.safe_load((web.root / "config.yaml").read_text())
-    assert root_cfg["kanban"]["max_in_progress_per_profile"] == 1
-    _, out = web.run("apply", "web", capsys=capsys)
-    assert out["root"] == []  # written once, then unchanged
-    assert out["summary"] == {"unchanged": 5}
-
-
-def test_plan_never_proposes_the_root_kanban_cap(env, capsys):
-    env.squad("web")
-    _, out = env.run("plan", "web", capsys=capsys)
-    assert out["root"] == []
-    assert not (env.root / "config.yaml").exists()  # plan writes nothing
-    _, out = env.run("plan", "web", "--set-root-kanban-cap", capsys=capsys)
-    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1"]
-    assert not (env.root / "config.yaml").exists()  # still a dry run
+def test_doctor_warns_on_any_kanban_cap(web, capsys):
+    (web.root / "config.yaml").write_text("kanban:\n  max_in_progress_per_profile: 1\n")
+    cfg = web.config("web-qa")
+    cfg["kanban"] = {"max_in_progress_per_profile": 2}
+    (web.root / "profiles" / "web-qa" / "config.yaml").write_text(yaml.safe_dump(cfg))
+    _, out = web.run("doctor", capsys=capsys)
+    caps = {c["check"]: c for c in out["checks"] if c["check"].endswith(":kanban-cap")}
+    assert set(caps) == {"default:kanban-cap", "web-qa:kanban-cap"}
+    assert all(c["status"] == "warn" for c in caps.values())
+    assert "dead config" in caps["web-qa:kanban-cap"]["detail"]
+    assert "config unset kanban.max_in_progress_per_profile" in caps["default:kanban-cap"]["detail"]
 
 
 def test_delegation_lane_and_passthrough(web):
