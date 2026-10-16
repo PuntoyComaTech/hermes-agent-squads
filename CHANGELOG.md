@@ -3,6 +3,43 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.7 - 2026-10-16
+
+Every bot gets the install's fallback chain, overlays edit repo lists in place, and `plan` names config it
+will never touch.
+
+### Added
+
+- `fallback:` in the models file (provider/model/reasoning rows) reaches every bot as `fallback_providers`,
+  its children as `delegation.fallback_providers` and `agent.reasoning_overrides`, and is saved in
+  `installed.yaml`. `model_advisor.py` recommends a chain when a pick runs on a quota-limited provider.
+- Overlay list edits: `skills.keep_add`/`keep_remove` and `plugins.enable_add`/`enable_remove` follow the repo
+  lists instead of freezing a copy. A hub keep dropped from the manifest is uninstalled; a hub skill the bot
+  installed itself stays.
+- `squadctl plan` notes plugins enabled on a bot that its manifest does not declare (kept, never removed) and
+  profile-level `kanban.*` keys, which the gateway dispatcher never reads.
+- `catalog_search.py --shelf` and `--hermes-version`; plugin hits list `shelf`, `requires_hermes` and
+  `known_issues`.
+- `skill_lint.py` rule `no-issue-notes`: no upstream issue numbers or harmless-warning notes in bot context.
+- References: `memory.md`; credential pools and `prompt_caching.cache_ttl`; Agent Plugins v1 packages and
+  `plugins.isolation`; project-skill trust (`managing-projects` trusts a repo that ships skills); every
+  auxiliary slot and its lane; connector guest identity and several accounts per app; the renamed tools
+  `todo_list`, `cronjob_manage`, `process_manage` and the shipped `tools.tool_search.defer`; Hermes release
+  channels (`--set-channel`).
+
+### Fixed
+
+- `apply` fails when Hermes rejects a toolset (it exits 0 and prints "Unknown toolset"); invalid YAML names
+  the file and line; a `bots:` model pin that beats its lane is a plan note.
+- `cf` and `wrangler` run from PATH, a local npx copy or npx on first use; `doctor` never downloads.
+- `model_advisor.py` counts providers available only through a credential pool, `custom:<name>` included.
+
+### Tests
+
+- QA pass merged: real-hermes tests run whenever `hermes` is on PATH; the fake's toolsets match real Hermes;
+  the web fixture is the shipped manifest and test models cover every lane; a contract test fails when
+  Hermes adds an auxiliary slot squadctl does not route.
+
 ## 2.0.6 - 2026-10-15
 
 Bots keep what they learn: apply never deletes their skills, and every bot has memory by default.
