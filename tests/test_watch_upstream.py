@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from _real import needs_hermes
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPTS = REPO / "scripts"
@@ -359,6 +360,6 @@ def test_help_works_without_network():
     assert proc.returncode == 0 and "wakeAgent" in proc.stdout
 
 
-@pytest.mark.skipif(not os.environ.get("RUN_HERMES_TESTS"), reason="needs the real hermes binary; set RUN_HERMES_TESTS=1")
+@needs_hermes
 def test_real_hermes_version_is_parsed():
     assert re.match(r"\d+\.\d+\.\d+", wu.local_hermes_version("hermes") or "")

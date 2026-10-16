@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _real import needs_hermes
 
 REPO = Path(__file__).resolve().parents[1]
 SRC = REPO / "tests" / "fixtures" / "hermes-src"
@@ -201,7 +202,7 @@ def test_help_works_without_network(temp_home):
     assert out.returncode == 0 and "--hub" in out.stdout and "--json" in out.stdout
 
 
-@pytest.mark.skipif(not os.environ.get("RUN_HERMES_TESTS"), reason="needs the real Hermes tree; set RUN_HERMES_TESTS=1")
+@needs_hermes
 def test_real_tree_resolves_blender_to_official(monkeypatch, capsys):
     monkeypatch.delenv("HERMES_HOME")
     code = cs.main(["blender", "--json"])
