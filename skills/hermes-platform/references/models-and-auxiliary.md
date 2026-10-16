@@ -29,6 +29,13 @@
   `$HERMES_HOME/plugins/` loads only in that profile.
   Squad tooling copies the
   builder's provider plugin into each bot that uses it.
+- Fallback chain: top-level `fallback_providers: [{provider, model}]`, tried
+  in order when the primary fails (rate limit, quota, auth, connection) and
+  restored on the next turn. On a switch Hermes re-resolves the effort from
+  `agent.reasoning_overrides`, else `agent.reasoning_effort`. Children use
+  `delegation.fallback_providers` (`delegation.md`). Squad tooling writes all
+  three from the models file's top-level `fallback:` list, the same chain for
+  every bot; no `fallback:` key keeps the saved chain, `fallback: []` clears it.
 - Providers: `website/docs/integrations/providers.md`; fallback and routing:
   `website/docs/user-guide/features/fallback-providers.md`,
   `website/docs/user-guide/features/provider-routing.md`.

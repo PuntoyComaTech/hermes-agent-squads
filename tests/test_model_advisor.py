@@ -160,6 +160,29 @@ def test_local_override_replaces_lane_candidates(tmp_path, capsys):
     assert (out["lanes"][0]["model"], out["lanes"][0]["reasoning"]) == ("glm-5.3", "low")
 
 
+def test_quota_limited_primary_gets_a_fallback_chain_off_its_window(capsys):
+    """Picks on the subscription: the chain prefers the metered anthropic API (another window), one model once."""
+    _, result = advise(capsys, cache="anthropic-only", squads=["web"])
+    assert any(b["provider"].startswith("claude-subscription") for b in bots(result, "web").values())
+    assert result["fallback"] == [{"provider": "anthropic", "model": "claude-sonnet-5-5", "reasoning": "high"},
+                                  {"provider": "anthropic", "model": "claude-haiku-5-5", "reasoning": "xhigh"}]
+    assert "quota-limited primary provider (claude-subscription" in result["fallback_reason"]
+
+
+def test_metered_only_primary_gets_no_fallback(capsys):
+    _, result = advise(capsys, cache="anthropic-only", providers="anthropic", squads=["web"])
+    assert "fallback" not in result
+
+
+def test_squadctl_reads_the_advisor_fallback(capsys):
+    sys.path.insert(0, str(SCRIPT.parent))
+    import squadctl
+    _, result = advise(capsys, cache="anthropic-only", squads=["web"])
+    models = squadctl.models_from(result)
+    assert [m["model"] for m in models["fallback"]] == ["claude-sonnet-5-5", "claude-haiku-5-5"]
+    assert squadctl.models_from({"bots": {}})["fallback"] is None
+
+
 def test_alternatives_are_distinct_and_capped(capsys):
     _, result = advise(capsys, "--lane", "lead", cache="anthropic-only")
     pick = result["lanes"][0]

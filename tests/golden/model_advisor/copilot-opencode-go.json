@@ -668,5 +668,18 @@
       ]
     }
   ],
-  "lanes": []
+  "lanes": [],
+  "fallback": [
+    {
+      "provider": "copilot",
+      "model": "claude-sonnet-5.5",
+      "reasoning": "high"
+    },
+    {
+      "provider": "copilot",
+      "model": "gpt-5.4",
+      "reasoning": "high"
+    }
+  ],
+  "fallback_reason": "quota-limited primary provider (copilot, opencode-go): Keeps every bot working when its subscription window runs out: a strong model first, then a cheap one"
 }

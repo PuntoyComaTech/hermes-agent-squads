@@ -299,6 +299,8 @@ class Advisor:
         self.lanes = roles["lanes"]
         self.excluded = set(exclude or ())
         self.providers = [p for p in providers if p["slug"] not in self.excluded]
+        self.quota_globs = list(roles.get("quota_limited") or [])
+        self.fallback_spec = roles.get("fallback_chain") or {}
 
     def resolve(self, lane: str) -> str:
         """Follow alias_of (lead -> manager ...) to the live lane; cycle-safe."""
@@ -399,6 +401,34 @@ class Advisor:
         if len(self.present_families()) <= 1:
             return "only one family available, same as the producers"
         return "every available family is used by a producer, least shared one chosen"
+
+    def quota_limited(self, slug: str) -> bool:
+        return any(fnmatch(slug, g) for g in self.quota_globs)
+
+    def fallback_chain(self, picks: list[dict]) -> dict | None:
+        """{chain, reason} when any pick runs on a quota-limited provider, else None. Candidates come from
+        `fallback_chain`; for each one a provider outside the quota-limited primaries wins over one of them
+        (the same window would stop it too), and a model appears once."""
+        limited = sorted({p["provider"] for p in picks if self.quota_limited(p["provider"])})
+        spec = self.fallback_spec
+        if not limited or not spec.get("candidates"):
+            return None
+        norm = lambda m: re.sub(r"\[1m\]$", "", m).replace(".", "-")
+        used: set[str] = set()
+        chain: list[dict] = []
+        for cand in spec["candidates"]:
+            if len(chain) >= int(spec.get("size", 2)):
+                break
+            hits = sorted(self.candidate_hits(cand, cand.get("reasoning", "high")),
+                          key=lambda h: h["provider"] in limited)
+            hit = next((h for h in hits if norm(h["model"]) not in used), None)
+            if hit:
+                used.add(norm(hit["model"]))
+                chain.append({k: hit[k] for k in ("provider", "model", "reasoning")})
+        if not chain:
+            return None
+        why = str(spec.get("why", "")).split(";")[0].strip()
+        return {"chain": chain, "reason": f"quota-limited primary provider ({', '.join(limited)}): {why}"}
 
     @staticmethod
     def alternatives(hits: list[tuple[int, dict]]) -> list[dict]:
@@ -506,6 +536,11 @@ def render_text(result: dict) -> str:
         lines.append("")
         for p in result["lanes"]:
             row(p["lane"], p)
+    if result.get("fallback"):
+        lines.append("\nfallback (every bot and its children, tried in order)")
+        for i, p in enumerate(result["fallback"], 1):
+            lines.append(f"  {i}. {p['model']} @ {p['provider']} [{p['reasoning']}]")
+        lines.append(f"     why: {result['fallback_reason']}")
     return "\n".join(lines)
 
 
@@ -558,6 +593,11 @@ def run(args: argparse.Namespace) -> dict:
             fam = adv.pick(lane)["family"]
             avoid[fam] = avoid.get(fam, 0) + 1
     result["lanes"] = [slim(adv.pick(lane, avoid)) for lane in lanes]
+    picks = [*result["lanes"], *(row for s in result["squads"] for b in s["bots"] for row in (b, *b["extras"])),
+             *(x for s in result["squads"] for x in s["shared"])]
+    fb = adv.fallback_chain(picks)
+    if fb:  # same `fallback:` shape squadctl reads from a models file
+        result["fallback"], result["fallback_reason"] = fb["chain"], fb["reason"]
     return result
 
 
