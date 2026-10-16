@@ -29,8 +29,8 @@ class Upstream:
         self.routes = {
             "/releases": (200, (FIX / "releases.json").read_bytes()),
             "/atom": (200, (FIX / "releases.atom.xml").read_bytes()),
-            "/squads/distribution.yaml": (200, (FIX / "squads-distribution.yaml").read_bytes()),
-            "/squads/CHANGELOG.md": (200, (FIX / "squads-changelog.md").read_bytes()),
+            "/squads/HEAD/distribution.yaml": (200, (FIX / "squads-distribution.yaml").read_bytes()),
+            "/squads/HEAD/CHANGELOG.md": (200, (FIX / "squads-changelog.md").read_bytes()),
         }
         self.etag = ETAG
         self.log: list[tuple[str, int]] = []
@@ -241,9 +241,9 @@ def test_squads_version_on_main_wakes_once(up, home, capsys):
 
 def test_squads_not_published_or_not_installed_is_silent(up, home, capsys):
     seed(home, release="v0.22.1", hermes=LOCAL, squads=None)
-    up.routes["/squads/distribution.yaml"] = (404, b"")
+    up.routes["/squads/HEAD/distribution.yaml"] = (404, b"")
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
-    up.routes["/squads/distribution.yaml"] = (200, (FIX / "squads-distribution.yaml").read_bytes())
+    up.routes["/squads/HEAD/distribution.yaml"] = (200, (FIX / "squads-distribution.yaml").read_bytes())
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # no installed distribution.yaml
 
 
@@ -288,17 +288,62 @@ def test_dry_run_writes_nothing(up, home, capsys):
 def test_filter_keeps_priority_bullets_when_the_cap_bites():
     body = "# Release\n\n## Features\n" + "".join(f"- Plugin number {i} added with a long description " + "x" * 120 + "\n" for i in range(200))
     body += "- Remove the `cron.legacy_mode` flag\n- Kanban gets a new board command\n- Unrelated css tweak\n"
-    out = wu.filter_release(body, "v9.9.9", 2000)
-    assert len(out) <= 2000
+    out, overflow = wu.filter_release(body, "v9.9.9", 2000)
+    assert len(out) <= 2000 and overflow == ""
     assert "cron.legacy_mode" in out and "Kanban gets" in out and "css tweak" not in out
-    assert len(wu.filter_release(body, "v9.9.9", 300)) <= 300
+    assert len(wu.filter_release(body, "v9.9.9", 300)[0]) <= 300
 
 
 def test_filter_strips_link_noise_and_matches_config_keys():
     body = "## Fixes\n- Fix `kanban.failure_limit` default ([`abcdef12`](https://github.com/x/y/commit/abcdef12)) \u2014 @someone\n- Edit README.md\n"
-    out = wu.filter_release(body, "v1.2.3", 15000)
+    out, _ = wu.filter_release(body, "v1.2.3", 15000)
     assert "- Fix `kanban.failure_limit` default" in out and "abcdef12" not in out and "@someone" not in out
     assert "README.md" not in out
+
+
+def test_filter_matches_the_heading_and_spills_priority_bullets():
+    body = ("## Contributors\n- @someone did kanban work\n## Cron, Kanban & Delegation\n### Kanban\n"
+            "- Workers ride out provider trouble\n### Cron\n- Jobs follow your main model\n## Misc\n- Faster css\n")
+    out, overflow = wu.filter_release(body, "v1.0.0", 15000)
+    assert "Workers ride out" in out and "Jobs follow your main model" in out
+    assert "css" not in out and "@someone" not in out and overflow == ""
+    out, overflow = wu.filter_release(body, "v1.0.0", 120)
+    assert len(out) <= 120 and "Workers ride out" in overflow and "Jobs follow" in overflow
+
+
+def test_filter_on_the_v0_22_0_release_keeps_section_scoped_changes():
+    """Recorded v0.22.0 body: the bullets the keyword-only filter dropped survive, and nothing priority is lost."""
+    body = (FIX / "release-v0.22.0.md").read_text()
+    out, overflow = wu.filter_release(body, "v0.22.0", 15000 // 3)
+    assert len(out) <= 15000 // 3
+    both = out + overflow
+    for needle in ("Workers ride out provider trouble", "Jobs follow your main model", "Model providers as plugins",
+                   "Per-profile plugin host", "`delegation.fallback_providers`", "Memory providers moved to catalog plugins",
+                   "**Connectors: Hermes works inside your apps**", "**/goal**", "`kanban_schedule`"):
+        assert needle in both, needle
+    assert "@teknium1" not in both  # Contributors section skipped
+    assert "priority bullets in v0.22.0.overflow.md" in out
+
+
+def test_overflow_file_is_written_and_listed(up, home, capsys):
+    api = json.loads((FIX / "releases.json").read_text())
+    api[0]["body"] = (FIX / "release-v0.22.0.md").read_text()
+    up.set_api(api)
+    up.etag = "W/\"fixture-v0.22.0\""
+    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    ctx = run_gate(up, home, "--max-chars", "3000", capsys=capsys)["context"]
+    (over,) = [Path(p) for p in ctx["overflow"]]
+    assert over.name == "v0.22.1.overflow.md" and "Workers ride out provider trouble" in (
+        over.read_text() + Path(ctx["filtered"][0]).read_text())
+
+
+def test_squads_ref_selects_the_branch(up, home, capsys):
+    up.routes["/squads/v2/distribution.yaml"] = up.routes.pop("/squads/HEAD/distribution.yaml")
+    up.routes["/squads/v2/CHANGELOG.md"] = up.routes.pop("/squads/HEAD/CHANGELOG.md")
+    (home / "distribution.yaml").write_text('name: builder\nversion: 2.0.0\n')
+    seed(home, release="v0.22.1", hermes=LOCAL, squads="2.0.0")
+    assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # HEAD 404: not published there
+    assert run_gate(up, home, "--squads-ref", "v2", capsys=capsys)["context"]["squads"]["to"] == "2.1.0"
 
 
 def test_manifest_version():
