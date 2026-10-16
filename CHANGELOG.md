@@ -3,6 +3,31 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.3 - 2026-10-15
+
+Fixes from the builder's real `web` install.
+
+### Fixed
+
+- squadctl `ensure_board`: inside a Kanban worker (delegated child context) it checks
+  `hermes kanban boards list` first and reports "pending owner action: boards create"
+  only when the board is actually missing.
+- Credentials: `apply --yes` copies a provider's API key (name and value, never printed)
+  from the root source into the bot's profile env file (mode 600); `doctor` checks per
+  bot that the provider's key is present in the profile env file or the profile auth
+  store, and `models ok` no longer passes for a bot that cannot authenticate.
+- model_advisor: provider detection unions every probe (in-process, runtime,
+  `hermes auth list`) with the provider key names in the root and profile env files
+  (names only; values never leave the file), so a provider the first probe misses is
+  still detected; key-home reporting counts the same names per scope.
+- Per-card reasoning effort is documented as it really is: `kanban create`, `set-model`
+  and the `kanban_create` tool carry model+provider only; the task's `reasoning_effort`
+  (dispatcher passes `--reasoning`) is writable only from the kanban dashboard. CLI
+  paths: `agent.reasoning_overrides`, `delegation.reasoning_effort`, cron
+  `--reasoning-effort`, or a dedicated profile (V-07).
+- Version: `distribution.yaml` is the single source of truth; the builder manifest is
+  versionless and `status` reads the distribution version.
+
 ## 2.0.2 - 2026-10-15
 
 Squad structure: managers, visible bots and sections, web roles and `web-frontend-pro` (S1-S3).
