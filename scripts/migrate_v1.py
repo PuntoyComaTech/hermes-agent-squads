@@ -177,7 +177,7 @@ def run(args) -> dict:
         actions.append({"action": "cron remove", **row, "result": "removed" if proc.returncode == 0 else "failed",
                         **({} if proc.returncode == 0 else {"error": error_of(proc)})})
     if found["deliver_crons"]:
-        notes.append("v2 delivers cards to bot-chat; the deliver/outbox loop is gone (decisions V-05)")
+        notes.append("v2 delivers cards to bot-chat; the deliver/outbox loop is gone")
 
     orche = root / "profiles" / ORCHESTRATOR
     if orche.is_dir():

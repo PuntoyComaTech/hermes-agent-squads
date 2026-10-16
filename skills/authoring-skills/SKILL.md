@@ -29,8 +29,7 @@ description: "Writes skills that pass skill_lint.py. Use when a squad or the bui
 
 - Model ids in any file of the skill: they belong only in
   `scripts/data/model-roles.yaml` and `local/installed.yaml`.
-- A prose script, which the model rewrites per machine: ship a real script
-  (`docs/decisions.md` V-03).
+- A prose script, which the model rewrites per machine: ship a real script.
 
 ## Verification
 

@@ -4,13 +4,13 @@
     {
       "id": 1,
       "prompt": "I need a squad that watches my competitors and drafts weekly counter-campaigns. Design it.",
-      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then local/squads/<key>/squad.yaml with a manager and few workers justified by D-001, lanes, a chain and gated cron, validated by squadctl plan and skill_lint.",
+      "expected_output": "An interview (goal, deliveries, decisions, irreversibility), then local/squads/<key>/squad.yaml with a manager and few workers, each justified by a permission, judgment, effort or context boundary, lanes, a chain and gated cron, validated by squadctl plan and skill_lint.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "Give every specialist its own profile so each can have the best model for the job.",
-      "expected_output": "Push back: model-only differences use per-card --model; a profile exists only for permissions, effort or context (V-07), then redesign accordingly.",
+      "expected_output": "Push back: model-only differences use per-card --model; a profile exists only for permissions, effort or context, then redesign accordingly.",
       "files": []
     },
     {

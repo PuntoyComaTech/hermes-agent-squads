@@ -10,13 +10,13 @@
     {
       "id": 2,
       "prompt": "Just edit the worker's config.yaml directly, faster.",
-      "expected_output": "Refuses hand edits: routes the change through the overlay and squadctl apply (V-10).",
+      "expected_output": "Refuses hand edits: routes the change through the overlay and squadctl apply.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "The jobs squad's scout is doing too much; split its analysis work out.",
-      "expected_output": "Applies the D-001 test before creating a bot; if a real boundary exists, adds the bot in the overlay, moves skills and chain stages, plans and applies after OK; otherwise proposes a per-card skill or model change.",
+      "expected_output": "Applies the bot test (permission boundary, independent judgment, reasoning effort or context size) before creating a bot; if a real boundary exists, adds the bot in the overlay, moves skills and chain stages, plans and applies after OK; otherwise proposes a per-card skill or model change.",
       "files": []
     }
   ]

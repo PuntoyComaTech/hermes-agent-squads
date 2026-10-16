@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "The procedure is deterministic, so just describe the steps in prose and the bot will run them.",
-      "expected_output": "Refuses prose scripts (V-03) and ships a real script with --help and verification instead.",
+      "expected_output": "Refuses prose scripts and ships a real script with --help and verification instead.",
       "files": []
     }
   ]

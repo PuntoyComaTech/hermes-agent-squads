@@ -6,7 +6,7 @@ in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning). --m
 or `scripts/hpy model_advisor.py --json` output, and a real apply saves it. Licence or disclosure items stay pending
 until `--confirm <id>`. Output is TOON, JSON with --json. Config writes go through Hermes's own writer, one process
 per profile (_profile_apply.py). Never prints secret values: `apply --yes` copies a provider key into the bot's env
-file (mode 600, name+value, value never shown; C-14) and passthrough shows names and set/missing only.
+file (mode 600, name+value, value never shown) and passthrough shows names and set/missing only.
 """
 from __future__ import annotations
 
@@ -77,14 +77,14 @@ def write_text(path: Path, text: str, mode: int | None = None) -> None:
         path.chmod(mode)
 
 
-ENV_FILE = ".env"  # the per-profile env file `apply --yes` writes (C-14); values never reach output
+ENV_FILE = ".env"  # the per-profile env file `apply --yes` writes; values never reach output
 
 
 def env_pairs(path: Path) -> dict[str, str]:
     """`KEY -> value` of one env file's own assignments (`export KEY=value`, optional quotes).
 
     Values exist only inside the credential helpers (env_pairs, env_set, Applier.key_value): every output path
-    names keys, never values (C-14)."""
+    names keys, never values."""
     out: dict[str, str] = {}
     for line in _read(path).splitlines():
         bare = line.strip()
@@ -158,7 +158,7 @@ class Ctx:
         self._vision: dict[tuple[str, str], bool] = {}
         self._env_keys: dict[str, list[str]] = {}
         self.confirmed = set(getattr(a, "confirm", None) or [])
-        self.yes = bool(getattr(a, "yes", False))  # `apply --yes`: the owner's OK for the credential copy (C-14)
+        self.yes = bool(getattr(a, "yes", False))  # `apply --yes`: the owner's OK for the credential copy
 
     def home(self, bot: str) -> Path:
         return self.profiles / bot
@@ -341,7 +341,7 @@ def rename_builder_bot(spec: dict, name: str) -> dict:
 def dist_version(ctx: Ctx) -> str:
     """The distribution version (distribution.yaml -> version): the single source of truth of the release.
 
-    The builder manifest carries no version of its own (C-13); squad manifests keep theirs for drift detection
+    The builder manifest carries no version of its own; squad manifests keep theirs for drift detection
     against local/installed.yaml."""
     v = str((read_yaml(ctx.src / "distribution.yaml") or {}).get("version") or "")
     if not re.fullmatch(r"\d+\.\d+\.\d+", v):
@@ -358,7 +358,7 @@ def load_spec(ctx: Ctx, key: str) -> dict:
     spec = deep_merge(base, over) if base is not None and over is not None else (base or over)
     if key == "builder":
         spec = rename_builder_bot(spec, ctx.builder)
-        # One version for the distribution (C-13): injected here so status, plan and installed.yaml all read it.
+        # One version for the distribution: injected here so status, plan and installed.yaml all read it.
         spec["version"] = dist_version(ctx)
     problems = validate_spec(ctx, spec, key)
     if problems:
@@ -368,9 +368,9 @@ def load_spec(ctx: Ctx, key: str) -> dict:
 
 
 def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
-    """Cross-field rules of the schema (docs/decisions.md C-01); the full JSON schema runs when jsonschema exists."""
+    """Cross-field rules of the schema; the full JSON schema runs when jsonschema exists."""
     if "lead" in spec and "manager" not in spec:
-        return ["field 'lead' was renamed to 'manager' (C-11): update the manifest and the bot roles"]
+        return ["field 'lead' was renamed to 'manager': update the manifest and the bot roles"]
     out: list[str] = []
     try:
         import jsonschema
@@ -384,7 +384,7 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     if out:
         return out
     if key != "builder" and not re.fullmatch(r"\d+\.\d+\.\d+", str(spec.get("version") or "")):
-        # only the builder manifest is versionless: its version is injected from distribution.yaml (C-13)
+        # only the builder manifest is versionless: its version is injected from distribution.yaml
         out.append("missing version (x.y.z)")
     bots, lanes, always = spec["bots"], load_roles(ctx), set(load_always_disabled())
     if spec["key"] != key:
@@ -396,7 +396,7 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     if len([b for b, s in bots.items() if not s.get("optional")]) > 5:
         out.append("at most 5 required bots; extra bots must set optional: true")
     if key != "builder":
-        # manager naming (C-11): the manager's profile name is the squad key, its title '<Name> manager'
+        # manager naming: the manager's profile name is the squad key, its title '<Name> manager'
         if spec["manager"] != spec["key"]:
             out.append(f"manager {spec['manager']!r} must be named {spec['key']!r}")
         want = f"{spec.get('name') or key} manager"
@@ -664,7 +664,7 @@ def app_problem(spec: str) -> str | None:
 def login_probe(name: str) -> tuple[str, str]:
     """(status, detail) for a required CLI's stored login: ok, warn when it is not logged in, info when the
     probe cannot run here. Only the exit status is read, never the output (`gh auth status` prints the account
-    and a masked token; cf and wrangler print account identifiers). Deploys use these logins (D-036)."""
+    and a masked token; cf and wrangler print account identifiers). Deploys use these logins."""
     probe = APP_LOGINS.get(name)
     argv = app_launcher(name) if probe else None
     if not probe or not argv:
@@ -731,7 +731,7 @@ class Applier:
         for use, lane in (("aux", d.get("aux_lane", "aux")), ("vision", d.get("vision_lane", "vision"))):
             if use == "vision" and m and self.ctx.sees_images(m["provider"], m["model"]):
                 # An explicit auxiliary.vision would turn native images into text descriptions
-                # (agent/image_routing.py decide_image_input_mode): only text-only models get one (D-021).
+                # (agent/image_routing.py decide_image_input_mode): only text-only models get one.
                 plan += [["auxiliary.vision.provider", "", False], ["auxiliary.vision.model", "", False]]
                 continue
             lm = self.lane_model(lane)
@@ -766,7 +766,7 @@ class Applier:
         return [n for n in notes if n.startswith("no model assigned")]
 
     def ui_meta(self, bot: dict) -> dict:
-        # All bots are visible (V-12). Section membership is one section per bot, stamped as
+        # All bots are visible. Section membership is one section per bot, stamped as
         # sectionId/sectionName on ui_meta.hermes-bots: the Desktop rebuilds the section records from these
         # stamps (apps/desktop/src/plugins/hermes-bots/user-sections.ts, adoptBotSectionsFromMeta), so this
         # is idempotent and travels with the profile. Managers share the `Managers` section; workers go to
@@ -1027,7 +1027,7 @@ class Applier:
 
     def key_value(self, key: str) -> str | None:
         """The value of one provider key from the only homes squadctl may take it from: the root env file and the
-        process environment. Used only by the copy step; never printed or logged (C-14)."""
+        process environment. Used only by the copy step; never printed or logged."""
         return env_pairs(self.ctx.root / ENV_FILE).get(key) or os.environ.get(key) or None
 
     def auth_slugs(self, name: str) -> set[str]:
@@ -1039,7 +1039,7 @@ class Applier:
         """One provider credential as facts: which key name, where it already lives, where a value could come from.
 
         A profile never inherits the gateway root environment, so the bot's own homes are its env file and its
-        auth store; a key held only by the root is the copy case (C-14)."""
+        auth store; a key held only by the root is the copy case."""
         m = self.bot_model(name, bot)
         if not m:
             return {"skip": True, "where": "no model assigned"}
@@ -1055,7 +1055,7 @@ class Applier:
         return {"key": key or keys[0], "copy_from": key, "provider": m["provider"]}
 
     def credentials(self, name: str, bot: dict) -> tuple[list[str], list[str]]:
-        """Apply-time credential handling (C-14): a key that exists only in the root env file or the process
+        """Apply-time credential handling: a key that exists only in the root env file or the process
         environment is copied (name+value) into the bot's env file (mode 600) on `apply --yes`; the value is
         never printed. Without `--yes` (and in plan) it stays an owner item; a key no home holds is named."""
         c = self._credential(name, bot)
@@ -1406,7 +1406,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             miss = ap.missing_models(name)
             authed, cred = ap.credential_status(name, bot)
             out.append(check(f"{name}:credentials", "ok" if authed else "warn", cred))
-            # `models ok` never passes when the bot cannot authenticate (C-14)
+            # `models ok` never passes when the bot cannot authenticate
             out.append(check(f"{name}:models", "ok" if not miss and authed else "warn",
                              "; ".join(miss) or ("assigned" if authed else f"assigned, but {cred}")))
             m = ap.bot_model(name, bot)

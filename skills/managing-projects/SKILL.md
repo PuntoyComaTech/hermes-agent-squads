@@ -12,21 +12,19 @@ description: "Registers Hermes Projects across manager and workers. Use when a s
 
 ## Procedure
 
-1. Collect the project name and its real folder path; never impose a layout
-   (`docs/decisions.md` V-04).
+1. Collect the project name and its real folder path; never impose a layout.
 2. Run `scripts/hpy squadctl.py project add <key> "<name>" <path> --dry-run`,
    show it, then run it without `--dry-run`. It runs `hermes project create`
    with the squad board in the manager and every worker.
-3. Cards then take `--project <slug>` (`hermes kanban create --help`).
+3. Cards then take `--project <slug>`.
 4. Later changes (`add-folder`, `set-primary`, `rename`, `archive`): run
    `hermes -p <bot> project <action> ...` for the manager and every worker.
 
 ## Pitfalls
 
-- Creating the project in the manager only: Project state is per profile
-  (`hermes project --help`), so workers report "no projects yet".
-- Writing project rows into a database by hand: use the CLI
-  (`hermes_cli/projects_cmd.py` owns the state).
+- Creating the project in the manager only: Project state is per profile,
+  so workers report "no projects yet".
+- Writing project rows into a database by hand: use `hermes project`.
 
 ## Verification
 

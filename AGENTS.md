@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Contributor contract for this repository. Humans start at `README.md`; Hermes behavior is documented in
-`skills/hermes-platform/references/` (every fact cites its source).
+`skills/hermes-platform/references/`.
 
 ## What this is
 
@@ -18,9 +18,10 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
 - **Real scripts, never prose scripts**: Python for YAML/JSON/HTTP work, `--help` on every script; bash only for
   the shims and one-line cron wrappers.
 - **Skills pass** `scripts/hpy skill_lint.py`; rules: `skill_lint.py --rules`.
-- **Verify every platform claim** against local Hermes docs or source and cite the path; when Hermes contradicts
-  the repo, Hermes wins: fix the repo.
-- **Structural decisions** append to `docs/decisions.md` with id, date, decision, why.
+- **Verify every platform claim** against local Hermes docs or source before writing it; when Hermes contradicts
+  the repo, Hermes wins: fix the repo. Bot-loaded files (`SOUL.md`, `skills/`, `squads/`) state facts without
+  source paths, decision ids or history.
+- **Structural decisions**: `CONTRIBUTING.md` -> Decisions.
 - **No secrets**: never read or write `.env`, `auth.json` or credential values.
 - **Plan, user OK, apply** for anything that touches a profile; `profile export` before any prune or uninstall.
 - **Community plugins and hub skills**: `skills/finding-capabilities` steps 3-5. Squad rules (naming, visibility,

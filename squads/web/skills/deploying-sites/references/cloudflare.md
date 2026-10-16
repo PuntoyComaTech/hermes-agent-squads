@@ -10,7 +10,7 @@ any call. Install it once: `npm install --global cf`. Wrangler is the exception 
 - `cf auth login` opens a browser page the user approves. Bots never log in for the user, never type a password.
 - `cf auth whoami` is the check before the first command of a card: it names the account and where the credential
   comes from. Not logged in: `kanban_block(kind="capability", reason="cf auth whoami: <its output>")`.
-- One login per client folder (D-034): `cf auth create <name>` re-authenticates under a name, `cf auth activate
+- One login per client folder: `cf auth create <name>` re-authenticates under a name, `cf auth activate
   <name> <site folder>` binds it to that directory, `cf auth list` shows what is bound where. A named login is
   never shared between clients.
 - `CLOUDFLARE_API_TOKEN` (with `CLOUDFLARE_ACCOUNT_ID`) is the unattended path only — CI, a headless box — where

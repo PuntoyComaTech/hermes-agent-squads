@@ -31,8 +31,8 @@ The same branch in JavaScript: `gsap.matchMedia()` with a `(prefers-reduced-moti
 
 ```js
 const ctx = gsap.context(() => {
-  gsap.timeline({ scrollTrigger: { trigger: section, start: "top 80%", end: "top 30%", scrub: 0.5 } })
-      .from(".card", { y: 24, opacity: 0, stagger: 0.08 });
+  gsap.timeline({ scrollTrigger: { trigger: section, start: "top 80%", end: "top 30%", scrub: 0.5 } }).
+      from(".card", { y: 24, opacity: 0, stagger: 0.08 });
 }, section);
 // teardown
 ctx.revert();

@@ -74,7 +74,7 @@ HELP_TIMEOUT = 20
 
 INDEX_SKILL = "hermes-platform"
 # Names the Hermes platform itself requires (the `hermes-platform` index, the local notes skill every profile
-# installs) do not follow the verb-ing shape; the vetted marketing skills are exempt too (C-08).
+# installs) do not follow the verb-ing shape; the vetted marketing skills are exempt too.
 GERUND_ALLOWLIST = {INDEX_SKILL, "hermes-local-notes", "marketing-plan", "product-marketing", "marketing-council",
                     "marketing-psychology"}
 ALLOWED_CHILDREN = {"references", "scripts", "templates", "assets", "evals"}
@@ -165,7 +165,7 @@ class Linter:
         text = path.read_text(encoding="utf-8")
         self.check_model_ids(path, text)
         if path.name == "builder.yaml":
-            return  # the builder's profile name follows `--builder`, not the squad naming rules (C-11)
+            return  # the builder's profile name follows `--builder`, not the squad naming rules
         try:
             doc = _yaml().safe_load(text) or {}
         except Exception:
