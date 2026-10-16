@@ -63,7 +63,18 @@ def _yaml():
 
 
 def read_yaml(path: Path):
-    return _yaml().safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
+    """The parsed file, None when absent. A parse error is a Fail naming the file and line: a traceback hides
+    which file broke, and the usual cause (an unquoted `[1m]` model id inside `{...}`) is easy to fix."""
+    if not path.is_file():
+        return None
+    y = _yaml()
+    try:
+        return y.safe_load(path.read_text(encoding="utf-8"))
+    except getattr(y, "YAMLError", ValueError) as e:
+        mark = getattr(e, "problem_mark", None)
+        where = f":{mark.line + 1}" if mark is not None else ""
+        raise Fail(f"{path}{where} is not valid YAML ({getattr(e, 'problem', None) or e}); quote values that "
+                   "contain [ ] { } or ': ', such as model ids ending in [1m]") from None
 
 
 def write_yaml(path: Path, data) -> None:
@@ -811,6 +822,18 @@ class Applier:
         entry = self.models["bots"].get(name) or {}
         return {**m, "reasoning": entry.get("reasoning") or bot.get("reasoning") or m.get("reasoning")}
 
+    def pin_note(self, name: str, bot: dict) -> str | None:
+        """A per-bot model (`bots:` in installed.yaml or --models) that differs from its lane's model. It is kept
+        on every later apply, even when a new models file changes the lane, so plan names it."""
+        pin = model_for(self.models, bot["lane"], name)
+        lane = model_for(self.models, bot["lane"])
+        if not self.models["bots"].get(name) or not pin or (lane and (pin["provider"], pin["model"]) ==
+                                                            (lane["provider"], lane["model"])):
+            return None
+        return (f"model pin {pin['provider']}/{pin['model']} for {name} (bots: in local/installed.yaml) beats lane "
+                f"{bot['lane']}" + (f" ({lane['provider']}/{lane['model']})" if lane else "")
+                + f"; delete bots.{name} there to follow the lane")
+
     def lane_model(self, lane: str, reasoning: str | None = None) -> dict | None:
         m = model_for(self.models, lane)
         return {**m, "reasoning": reasoning or m.get("reasoning")} if m else None
@@ -970,7 +993,13 @@ class Applier:
             if not dry:
                 ctx.apply_config(home, {"set": sets, "ui_meta_bots": meta})
                 if any(k == "platform_toolsets.cli" for k, *_ in diff) or created:
-                    ctx.hermes("tools", "enable", *bot_toolsets(bot), profile=name)
+                    out = ctx.hermes("tools", "enable", *bot_toolsets(bot), profile=name)
+                    # Hermes prints one "Unknown toolset 'x'" (or "not available on platform") line per rejected
+                    # name and still exits 0: the bot would silently lack the tool.
+                    bad = re.findall(r"(?:Unknown toolset|Toolset) '([^']+)'", out)
+                    if bad:
+                        raise Fail(f"{name}: hermes tools enable rejected {sorted(set(bad))}; fix the toolsets "
+                                   "in the manifest (names: `hermes tools list`)")
         acts += self.describe(diff, created)
         if created:
             # bundled keeps are external skill dirs: one visible line each, never folded into the key count
@@ -1006,6 +1035,9 @@ class Applier:
 
         for env in bot.get("passthrough") or []:
             notes.append(f"passthrough {env}: {'set' if os.environ.get(env) else 'missing'}")
+        pin = self.pin_note(name, bot)
+        if pin:
+            notes.append(pin)
         cred_acts, cred_notes = self.credentials(name, bot)
         acts += cred_acts
         notes += cred_notes

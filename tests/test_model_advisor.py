@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import pytest
+from _real import needs_hermes
 
 REPO = Path(__file__).resolve().parents[1]
 FIX = REPO / "tests" / "fixtures"
@@ -392,7 +393,9 @@ def test_help_works_without_network(temp_home):
     assert out.returncode == 0 and "--json" in out.stdout and "--providers" in out.stdout
 
 
-@pytest.mark.skipif(not os.environ.get("RUN_HERMES_TESTS"), reason="needs the real hermes binary; set RUN_HERMES_TESTS=1")
+@needs_hermes
 def test_real_runtime_probe_with_empty_home(temp_home):
+    """The in-process probe imports Hermes internals (list_authenticated_providers): None means that import or
+    call broke and detection silently fell back to weaker probes."""
     rows = ma.probe_runtime()
-    assert rows is None or isinstance(rows, list)
+    assert isinstance(rows, list) and all(isinstance(r.get("slug"), str) for r in rows), rows

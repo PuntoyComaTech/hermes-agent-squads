@@ -1,7 +1,7 @@
 """squadctl: plan, apply, status, doctor, uninstall, project add, chain, against a fake `hermes` and a temp HERMES_HOME.
 
 Nothing here touches the real ~/.hermes: PATH points at tests/fakes/hermes.py and every path lives under tmp_path.
-Tests that need the real `hermes` binary are skipped unless SQUADCTL_REAL_HERMES=1.
+Tests that need the real `hermes` binary are skipped only when it is not on PATH.
 """
 import hashlib
 import io
@@ -25,7 +25,7 @@ SCRIPTS = REPO / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import squadctl  # noqa: E402
 
-real_hermes = pytest.mark.skipif(not os.environ.get("SQUADCTL_REAL_HERMES"), reason="needs the real hermes binary")
+from _real import needs_hermes as real_hermes  # noqa: E402  (skipped only when hermes is not on PATH)
 LANES = ["manager", "lead", "design", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
 WEB_BOTS = ["web", "web-frontend", "web-backend", "web-qa", "web-deployer"]
 ALWAYS = yaml.safe_load((SCRIPTS / "data" / "always-disabled.yaml").read_text())["always_disabled"]

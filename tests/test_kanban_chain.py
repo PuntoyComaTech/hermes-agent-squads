@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from _real import needs_hermes
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "kanban_chain.py"
@@ -185,7 +186,7 @@ def test_help_works():
     assert proc.returncode == 0 and "--dry-run" in proc.stdout
 
 
-@pytest.mark.skipif(not os.environ.get("RUN_HERMES_TESTS"), reason="needs the real hermes binary; set RUN_HERMES_TESTS=1")
+@needs_hermes
 def test_real_hermes_chain_is_idempotent_on_a_temp_board(env, monkeypatch):
     from _real import env_for, scrub, temp_root
     root = temp_root(env["tmp"])
