@@ -3,7 +3,12 @@
 `cf` first: it covers projects, builds, deploys, versions, DNS, domains, D1, R2 and KV. It is in open beta, so
 confirm every command instead of recalling one — `cf cli search "<task>"` returns the matches (JSON, first one
 best), `cf schema <command>` describes the request it sends, and `--dry-run` prints that request without making
-any call. Install it once: `npm install --global cf`. Wrangler is the exception path, not the default.
+any call. Wrangler is the exception path, not the default.
+
+Launcher, checked once per card: `command -v cf` hits: run `cf ...`; else run every command as `npx cf ...`
+(`npx --no-install cf --version` succeeds when a local or cached copy exists; otherwise `npx cf` downloads it on
+first use). Same for Wrangler: `wrangler ...` on PATH, else `npx wrangler ...`. The commands below are written
+bare; prefix `npx ` when the CLI is not on PATH, and record the form used in `deploy.md`.
 
 ## Logins (the user's, once)
 
@@ -37,7 +42,7 @@ any call. Install it once: `npm install --global cf`. Wrangler is the exception 
 Never run `cf dev`, `cf build` or `cf deploy` in a project that has `wrangler.jsonc`/`wrangler.toml` and no
 `cloudflare.config.ts`: they can generate a config that ignores Wrangler, or fail. Two ways out, both fine:
 
-- Keep Wrangler for that project: `npx wrangler@latest deploy` (or the project's own script) on the same user
+- Keep Wrangler for that project: `wrangler deploy` (or the project's own script) on the same user
   login (`wrangler login`, once). Record it in `deploy.md`.
 - Migrate it and use `cf` from then on: `cf migrate --dry-run`, then `cf migrate`, then resolve every
   `TODO(@cloudflare)` comment in the generated `cloudflare.config.ts` — the build fails until they are resolved,
@@ -45,8 +50,8 @@ Never run `cf dev`, `cf build` or `cf deploy` in a project that has `wrangler.js
 
 ## The only two Wrangler exceptions
 
-Setting one secret (`npx wrangler secret put <NAME> --name <worker>`, or a secrets file on a version create) and
-live logs (`npx wrangler tail <worker>`). Both only after `cf cli search` shows no `cf` way. Wrangler does not
+Setting one secret (`wrangler secret put <NAME> --name <worker>`, or a secrets file on a version create) and
+live logs (`wrangler tail <worker>`). Both only after `cf cli search` shows no `cf` way. Wrangler does not
 read a `cf` named login: at a site with `provider_profile`, `kanban_block(kind="needs_input", reason="wrangler
 needs the client's own access")`.
 

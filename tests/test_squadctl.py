@@ -1232,11 +1232,21 @@ def test_app_launcher_prefers_path_then_npx(tmp_path, monkeypatch):
     monkeypatch.setattr(squadctl, "run_quiet",
                         lambda argv, timeout=60: subprocess.CompletedProcess(argv, 0, "4.1.0\n", ""))
     assert squadctl.app_launcher("wrangler") == ["npx", "--no-install", "wrangler"]
+    assert squadctl.app_launcher("cf") == ["npx", "--no-install", "cf"]
     assert squadctl.app_launcher("gh") is None, "gh is not npm-packaged: no npx fallback"
-    monkeypatch.setattr(squadctl, "run_quiet",
-                        lambda argv, timeout=60: subprocess.CompletedProcess(argv, 1, "", "npx canceled"))
-    assert squadctl.app_launcher("wrangler") is None, "a non-zero npx means the CLI is not installed"
-    monkeypatch.setattr(squadctl, "run_quiet", lambda argv, timeout=60: None)
+    calls = []
+
+    def no_copy(argv, timeout=60):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 1, "", "npx canceled")
+    monkeypatch.setattr(squadctl, "run_quiet", no_copy)
+    assert squadctl.app_launcher("wrangler") == ["npx", "wrangler"], "no local copy: npx downloads it on first use"
+    assert squadctl.app_problem("cf") is None
+    assert "downloaded on first use" in squadctl.app_problem("wrangler>=4")
+    status, detail = squadctl.login_probe("cf")
+    assert status == "info" and "npx cf auth login" in detail
+    assert all("--no-install" in c for c in calls), "doctor never runs the downloading form"
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     assert squadctl.app_launcher("wrangler") is None, "no npx at all"
 
 

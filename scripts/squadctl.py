@@ -702,8 +702,14 @@ def sched_matches(job: dict, wanted: str) -> bool:
 APP_MAC_PATHS = {"blender": "/Applications/Blender.app/Contents/MacOS/Blender"}
 
 # npm-packaged CLIs: when one is not on PATH, `npx --no-install` runs the project-local or cached copy and
-# never downloads anything, so a hit there proves the CLI is reachable from this machine.
-APP_NPX = frozenset({"wrangler"})
+# never downloads anything, so a hit there proves the CLI is reachable from this machine. Without that copy the
+# bot still runs it as `npx <cli>`, which downloads it on first use; doctor never runs that form.
+APP_NPX = frozenset({"wrangler", "cf"})
+
+
+def npx_downloads(argv: list[str] | None) -> bool:
+    """True for the `npx <cli>` launcher, the one that downloads the CLI when it runs."""
+    return bool(argv) and len(argv) == 2 and argv[0] == "npx"
 
 # Stored logins `doctor` reports on: app -> (arguments, what the user runs once to log in). Only these apps are
 # probed, and only their exit status is read: a probe's output carries accounts and, with the wrong flag, tokens.
@@ -722,8 +728,9 @@ def run_quiet(argv: list[str], timeout: int = 60) -> subprocess.CompletedProcess
 
 
 def app_launcher(name: str) -> list[str] | None:
-    """argv that runs a required app here: its PATH location or the macOS app path, else `npx --no-install`
-    for an npm-packaged CLI (proved with `--version`, so the launcher really resolves). None when missing."""
+    """argv that runs a required app here: its PATH location or the macOS app path; for an npm-packaged CLI
+    `npx --no-install <cli>` when `--version` proves a local or cached copy, else `npx <cli>` (downloads on
+    first use, never run here). None when missing."""
     if shutil.which(name):
         return [name]
     mac = APP_MAC_PATHS.get(name)
@@ -732,8 +739,7 @@ def app_launcher(name: str) -> list[str] | None:
     if name in APP_NPX and shutil.which("npx"):
         argv = ["npx", "--no-install", name]
         done = run_quiet([*argv, "--version"])
-        if done and done.returncode == 0:
-            return argv
+        return argv if done and done.returncode == 0 else ["npx", name]
     return None
 
 
@@ -744,7 +750,7 @@ def find_app(spec: str) -> tuple[str | None, str | None]:
     want = spec[len(name):].strip()
     argv = app_launcher(name)
     version = None
-    if argv and want:
+    if argv and want and not npx_downloads(argv):
         done = run_quiet([*argv, "--version"], 60)
         hit = re.search(r"(\d+(?:\.\d+){1,2})", ((done.stdout or "") + (done.stderr or "")) if done else "")
         version = hit.group(1) if hit else None
@@ -759,6 +765,8 @@ def app_problem(spec: str) -> str | None:
     if not how:
         where = "PATH, the macOS app path or npx" if name in APP_NPX else "PATH or the macOS app path"
         return f"app {spec} not found ({where})"
+    if want and npx_downloads(how.split()):
+        return f"app {name} runs as `{how}` (downloaded on first use); version not checked (need {want})"
     if want and version is None:
         return f"app {name} runs as `{how}` but `--version` gave no parsable version (need {want})"
     if want and version and not version_ok(want, version):
@@ -774,7 +782,9 @@ def login_probe(name: str) -> tuple[str, str]:
     argv = app_launcher(name) if probe else None
     if not probe or not argv:
         return "info", f"{name}: no login check (no probe for this app, or it is not installed)"
-    hint = probe[1]
+    hint = f"npx {probe[1]}" if argv[0] == "npx" else probe[1]
+    if npx_downloads(argv):
+        return "info", f"{name} login not verified: `npx {name}` downloads it on first use; run `{hint}` once"
     done = run_quiet([*argv, *probe[0]], 45)
     if done is None:
         return "info", f"{name} login not verified here: run `{hint}` once"
