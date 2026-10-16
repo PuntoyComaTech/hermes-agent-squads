@@ -35,6 +35,15 @@ WRITES = {("profile", "create"), ("profile", "delete"), ("profile", "describe"),
           ("project", "create"), ("tools", "enable")}
 
 
+@pytest.fixture(autouse=True)
+def stub_cli_probes(monkeypatch):
+    """`doctor` probes `requires.apps` with real subprocesses (`npx --version`, `gh auth status`,
+    `cf auth whoami`): every test gets a stubbed runner, so no run depends on this machine's CLIs, its
+    network or on somebody being logged in."""
+    monkeypatch.setattr(squadctl, "run_quiet",
+                        lambda argv, timeout=60: subprocess.CompletedProcess(argv, 0, "1.0.0\n", ""))
+
+
 def tree_hash(path: Path) -> str:
     h = hashlib.sha256()
     for p in sorted(path.rglob("*")):
@@ -237,8 +246,8 @@ def test_delegation_lane_and_passthrough(web):
     assert web.config("web-backend")["delegation"] == {"provider": "prov-advisor", "model": "model-advisor",
                                                        "reasoning_effort": "medium"}
     assert "delegation" not in web.config("web-qa") or not web.config("web-qa")["delegation"].get("model")
-    assert web.config("web-deployer")["terminal"]["env_passthrough"] == [
-        "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "GH_TOKEN"]
+    # Deploys run through the CLIs' own logins (D-036), so no bot passes a provider token through its env.
+    assert web.config("web-deployer")["terminal"]["env_passthrough"] == []
     assert web.config("web-qa")["terminal"]["env_passthrough"] == []
 
 
@@ -1106,11 +1115,58 @@ def test_doctor_reports_checks_and_never_prints_env_values(web, capsys, monkeypa
     _, out = web.run("doctor", capsys=capsys)
     checks = {c["check"]: c for c in out["checks"]}
     assert checks["hermes"]["status"] == "ok" and checks["gateway"]["status"] == "ok"
-    assert checks["web-deployer:GH_TOKEN"]["detail"] == "set"
-    assert checks["web-deployer:CLOUDFLARE_API_TOKEN"]["status"] == "warn"
     assert checks["desktop-kanban"]["status"] == "info"
     assert checks["web:cards"]["detail"] == "no stale cards"
     assert "ghp_supersecretvalue" not in json.dumps(out)
+
+
+def test_doctor_reports_required_apps_and_their_logins(web, capsys, monkeypatch):
+    """D-036: a required CLI is reported twice — installed, and logged in — with no probe output in the check."""
+    monkeypatch.setattr(squadctl, "app_problem", lambda spec: None)
+    monkeypatch.setattr(squadctl, "find_app", lambda spec: (f"/usr/local/bin/{spec}", "9.9.9"))
+    monkeypatch.setattr(squadctl, "login_probe", lambda name: ("warn", f"not logged in: run `{name} login` once"))
+    _, out = web.run("doctor", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["web-deployer:app:cf"]["detail"] == "/usr/local/bin/cf 9.9.9"
+    assert checks["web-deployer:app:wrangler"]["status"] == "ok"
+    assert [checks[f"web-deployer:login:{a}"]["status"] for a in ("cf", "wrangler", "gh")] == ["warn"] * 3
+    assert checks["web-deployer:login:gh"]["detail"] == "not logged in: run `gh login` once"
+    assert "web-deployer:app:vercel" not in checks, "only the apps the bot declares are reported"
+
+
+def test_app_launcher_prefers_path_then_npx(tmp_path, monkeypatch):
+    """A required npm CLI that is not on PATH is still real when `npx --no-install` can run it (no download)."""
+    npx = tmp_path / "npx"
+    npx.write_text("#!/bin/sh\nexit 0\n")
+    npx.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setattr(squadctl, "run_quiet",
+                        lambda argv, timeout=60: subprocess.CompletedProcess(argv, 0, "4.1.0\n", ""))
+    assert squadctl.app_launcher("wrangler") == ["npx", "--no-install", "wrangler"]
+    assert squadctl.app_launcher("gh") is None, "gh is not npm-packaged: no npx fallback"
+    monkeypatch.setattr(squadctl, "run_quiet", lambda argv, timeout=60: None)  # npx cannot resolve it
+    assert squadctl.app_launcher("wrangler") is None
+
+
+def test_login_probe_reads_the_exit_status_only(monkeypatch):
+    """No probe output reaches a check: `gh auth status` prints the account and a masked token."""
+    calls = []
+
+    def fake(argv, timeout=60):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0 if len(calls) == 1 else 1,
+                                           "account x, token ghp_supersecretvalue\n", "")
+    monkeypatch.setattr(squadctl, "run_quiet", fake)
+    monkeypatch.setattr(squadctl, "app_launcher", lambda name: ["faketool"])
+    monkeypatch.setitem(squadctl.APP_LOGINS, "faketool", (["whoami"], "faketool login"))
+    assert squadctl.login_probe("faketool") == ("ok", "logged in")
+    status, detail = squadctl.login_probe("faketool")
+    assert calls == [["faketool", "whoami"]] * 2
+    assert status == "warn" and "faketool login" in detail and "ghp_supersecretvalue" not in detail
+    monkeypatch.setattr(squadctl, "app_launcher", lambda name: None)
+    assert squadctl.login_probe("faketool")[0] == "info", "nothing to check when the app is not installed"
+    assert squadctl.login_probe("no-probe-cli") == (
+        "info", "no-probe-cli: no login check (no probe for this app, or it is not installed)")
 
 
 def test_doctor_flags_a_missing_provider_plugin_and_filters_by_squad(env, capsys):
