@@ -19,8 +19,9 @@ gate `scripts/watch_upstream.py` (`--help` lists the signals). A quiet tick
 prints `{"wakeAgent": false}` and no agent runs. On a change Hermes prepends
 the gate's stdout to this turn as `## Script Output`.
 
-1. Read only the files listed in `context.filtered`, plus `context.squads`
-   (version delta and changelog excerpt).
+1. Read only the files listed in `context.filtered` and `context.overflow`
+   (priority bullets over the cap), plus `context.squads` (version delta and
+   changelog excerpt).
 2. Write `local/state/digests/<date>.json`:
 
 ```json

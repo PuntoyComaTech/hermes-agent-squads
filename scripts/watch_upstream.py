@@ -9,11 +9,15 @@ Signals:
   1. Hermes releases: GitHub releases API with a stored ETag (unchanged list = HTTP 304, no body),
      releases.atom as fallback. Only final vX.Y.Z tags count; rc.*, +canary and calver tags are skipped.
   2. Local Hermes: `hermes --version` differs from the last reviewed version.
-  3. Squads repo: `distribution.yaml` on main has a version other than the installed and the last reviewed one.
+  3. Squads repo: `distribution.yaml` on --squads-ref (default HEAD, the branch `hermes profile update` clones)
+     has a version other than the installed and the last reviewed one.
 
 On a change the full release bodies go to <state>/releases/<tag>.md and a keyword-filtered copy
-(profile, skill, kanban, cron, plugin, MCP, deprecations, config keys ...) to <state>/releases/<tag>.filtered.md.
-The filtered output of one run is capped at --max-chars (default 15000) in total.
+(profile, skill, kanban, cron, plugin, MCP, goal, delegation, memory, credentials, deprecations, config keys ...)
+to <state>/releases/<tag>.filtered.md. Keywords match the bullet and its heading; every bullet under
+Upgrade notes, Kanban, Cron, Delegation, Plugin system, Skills and Profiles is priority. The filtered output of one
+run is capped at --max-chars (default 15000) in total; priority bullets over the cap go to <tag>.overflow.md
+(listed in `context.overflow`), never dropped.
 
 State: $HERMES_HOME/local/state/watch.json (override with --state-dir). First run seeds the baseline from the
 local Hermes and the installed squads version. A wake only marks the change `pending`: it becomes `reviewed` once a
@@ -41,7 +45,9 @@ import gate_lib  # noqa: E402
 
 RELEASES_URL = "https://api.github.com/repos/NousResearch/hermes-agent/releases?per_page=5"
 ATOM_URL = "https://github.com/NousResearch/hermes-agent/releases.atom"
-SQUADS_RAW = "https://raw.githubusercontent.com/PuntoyComaTech/hermes-agent-squads/main"
+SQUADS_RAW = "https://raw.githubusercontent.com/PuntoyComaTech/hermes-agent-squads"
+# `hermes profile update` re-clones the default branch (`git clone --depth 1`, no ref), so HEAD is what an update installs.
+SQUADS_REF = "HEAD"
 FINAL_TAG = re.compile(r"^v(\d{1,3})\.(\d+)\.(\d+)$")  # v0.22.1; calver (v2026.9.24), rc.N-v0.22.1, +canary excluded
 MAX_NEW_RELEASES = 3
 ERROR_WAKE_AFTER = 3  # consecutive failed runs before a silent gate wakes the agent with the error
@@ -50,10 +56,16 @@ USER_AGENT = "hermes-squads-watch"
 _KEYS = (r"agent|auxiliary|delegation|kanban|cron|security|terminal|display|memory|skills|plugins|mcp_servers|"
          r"toolsets|platform_toolsets|ui_meta|profiles|gateway|model|approvals|projects")
 CONFIG_KEY = rf"\b(?:{_KEYS})\.(?!(?:py|md|ts|tsx|js|json|ya?ml|db|sh)\b)[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*"
-PRIORITY = re.compile(rf"\b(?:kanban|cron)\b|\b(?:deprecat|remov|renam)\w*|\bbreaking\b|{CONFIG_KEY}", re.I)
-KEYWORDS = re.compile(
-    rf"\b(?:profile|skill|kanban|cron|plugin|mcp|connector|desktop|bot|toolset|project|gateway)s?\b|"
+PRIORITY = re.compile(
+    rf"\b(?:kanban|cron|goals?|subagents?|credential pools?|connectors?|tool_search|auxiliary)\b|"
+    rf"/goal\b|\bdelegat\w*|\bmemory providers?\b|\bprovider plugins?\b|\bproviders as plugins\b|\bplugin catalog\b|"
     rf"\b(?:deprecat|remov|renam)\w*|\bbreaking\b|{CONFIG_KEY}", re.I)
+KEYWORDS = re.compile(
+    rf"\b(?:profile|skill|kanban|cron|plugin|mcp|connector|desktop|bot|toolset|project|gateway|goal|memory|"
+    rf"subagent|credential|provider)s?\b|\bdelegat\w*|\b(?:deprecat|remov|renam)\w*|\bbreaking\b|{CONFIG_KEY}", re.I)
+# Sections whose every bullet is prio 0, matched against the nearest heading.
+PRIORITY_HEADING = re.compile(r"\b(?:kanban|cron|delegation|plugin system|skills|profiles|upgrade notes)\b", re.I)
+SKIP_SECTION = re.compile(r"\b(?:contributors|tests)\b", re.I)  # top-level sections with nothing to digest
 LINK_NOISE = re.compile(r"\s*\(\[`?[0-9a-f]{7,40}`?\]\([^)]*\)\)|\s+[\u2014-]\s+@[\w-]+\s*$")
 MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 BULLET = re.compile(r"^\s*[-*]\s+(.*\S)")
@@ -196,29 +208,54 @@ def _clean(line: str) -> str:
     return line if len(line) <= MAX_LINE else line[: MAX_LINE - 3] + "..."
 
 
-def filter_release(body: str, tag: str, max_chars: int) -> str:
-    """Headings and bullets about Hermes surfaces squads depend on, kanban/cron/removals first, capped at max_chars."""
-    heading = ""
-    title = ""
-    cands: list[dict] = []  # {i, heading, text, prio}; prio 0 = kanban, cron, removals, renames, config keys
+def _render(head: str, title: str, items: list[dict], footer: str = "") -> str:
+    lines = [head]
+    if title:
+        lines.append(title)
+    last = ""
+    for c in items:
+        if c["heading"] and c["heading"] != last and c["heading"] != title:
+            lines += ["", c["heading"]]
+            last = c["heading"]
+        lines.append(c["text"])
+    if footer:
+        lines += ["", footer]
+    return "\n".join(lines) + "\n"
+
+
+def filter_release(body: str, tag: str, max_chars: int) -> tuple[str, str]:
+    """(filtered, overflow) for one release body.
+
+    A bullet matches when its heading or its text names a Hermes surface squads depend on (KEYWORDS). It is prio 0
+    when its text matches PRIORITY or its nearest heading matches PRIORITY_HEADING (Kanban, Cron, Delegation, ...).
+    `filtered` holds prio-0 bullets first, then prio-1 bullets, within max_chars. A prio-0 bullet never drops: what
+    does not fit goes to `overflow` (empty string when everything fit). Prio-1 bullets that do not fit drop.
+    Bullets under Contributors and Tests sections are skipped."""
+    section = heading = title = ""
+    cands: list[dict] = []  # {i, heading, text, prio}
     total = 0
     for raw in body.splitlines():
         h = HEADING.match(raw)
         if h:
-            heading = _clean(raw.strip())
-            title = title or heading
+            text = _clean(raw.strip())
+            title = title or text
+            if len(h.group(1)) <= 2:
+                section = text
+            heading = text
             continue
         b = BULLET.match(raw)
-        if not b:
+        if not b or SKIP_SECTION.search(section):
             continue
         total += 1
         text = _clean(f"- {b.group(1)}")
-        if KEYWORDS.search(text):
-            cands.append({"i": len(cands), "heading": heading, "text": text, "prio": 0 if PRIORITY.search(text) else 1})
+        if KEYWORDS.search(f"{heading} {text}"):
+            prio = 0 if PRIORITY.search(text) or PRIORITY_HEADING.search(heading) else 1
+            cands.append({"i": len(cands), "heading": heading, "text": text, "prio": prio})
 
-    head = f"# {tag} filtered release notes\n"
-    budget = max_chars - len(head) - len(title) - 120  # 120 reserved for the footer
+    head = f"# {tag} filtered release notes"
+    budget = max_chars - len(head) - len(title) - 160  # 160 reserved for the footer
     chosen: list[dict] = []
+    spilled: list[dict] = []
     used_headings: set[str] = set()
     for c in sorted(cands, key=lambda c: (c["prio"], c["i"])):
         cost = len(c["text"]) + 1 + (0 if c["heading"] in used_headings or not c["heading"] else len(c["heading"]) + 2)
@@ -226,19 +263,17 @@ def filter_release(body: str, tag: str, max_chars: int) -> str:
             budget -= cost
             used_headings.add(c["heading"])
             chosen.append(c)
+        elif c["prio"] == 0:
+            spilled.append(c)
     chosen.sort(key=lambda c: c["i"])
-    lines = [head.rstrip()]
-    if title:
-        lines.append(title)
-    last = ""
-    for c in chosen:
-        if c["heading"] and c["heading"] != last and c["heading"] != title:
-            lines += ["", c["heading"]]
-            last = c["heading"]
-        lines.append(c["text"])
-    lines += ["", f"kept {len(chosen)} of {len(cands)} matching bullets ({total} bullets in the release)"]
-    out = "\n".join(lines) + "\n"
-    return out if len(out) <= max_chars else out[: max_chars - 4].rstrip() + "...\n"
+    footer = f"kept {len(chosen)} of {len(cands)} matching bullets ({total} bullets in the release)"
+    if spilled:
+        footer += f"; {len(spilled)} priority bullets in {tag}.overflow.md"
+    out = _render(head, title, chosen, footer)
+    if len(out) > max_chars:
+        out = out[: max_chars - 4].rstrip() + "...\n"
+    overflow = _render(f"# {tag} priority bullets over the cap", "", spilled) if spilled else ""
+    return out, overflow
 
 
 # --- local and squads signals -----------------------------------------------------------------------------------
@@ -270,8 +305,12 @@ def installed_squads_version(home: Path) -> str | None:
         return None
 
 
+def squads_base(opts) -> str:
+    return f"{opts.squads_url.rstrip('/')}/{opts.squads_ref}"
+
+
 def remote_squads_version(opts) -> str | None:
-    status, _, body = http_get(f"{opts.squads_url}/distribution.yaml", {}, opts.timeout)
+    status, _, body = http_get(f"{squads_base(opts)}/distribution.yaml", {}, opts.timeout)
     if status == 404:
         return None  # not published yet
     if status != 200:
@@ -281,7 +320,7 @@ def remote_squads_version(opts) -> str | None:
 
 def changelog_excerpt(opts, version: str, limit: int = 1500) -> str:
     try:
-        status, _, body = http_get(f"{opts.squads_url}/CHANGELOG.md", {}, opts.timeout)
+        status, _, body = http_get(f"{squads_base(opts)}/CHANGELOG.md", {}, opts.timeout)
     except OSError:
         return ""
     if status != 200:
@@ -351,16 +390,26 @@ def run(opts) -> dict:
         for item in fresh:
             full = sdir / "releases" / f"{item['tag']}.md"
             filt = sdir / "releases" / f"{item['tag']}.filtered.md"
-            filtered = filter_release(item["body"], item["tag"], budget)
+            over = sdir / "releases" / f"{item['tag']}.overflow.md"
+            filtered, overflow = filter_release(item["body"], item["tag"], budget)
             if not opts.dry_run:
                 full.parent.mkdir(parents=True, exist_ok=True)
                 full.write_text(item["body"])
                 filt.write_text(filtered)
-            files.append({"tag": item["tag"], "full": str(full), "filtered": str(filt),
-                          "full_chars": len(item["body"]), "filtered_chars": len(filtered)})
+                if overflow:
+                    over.write_text(overflow)
+                else:
+                    over.unlink(missing_ok=True)
+            entry = {"tag": item["tag"], "full": str(full), "filtered": str(filt),
+                     "full_chars": len(item["body"]), "filtered_chars": len(filtered)}
+            if overflow:
+                entry.update(overflow=str(over), overflow_chars=len(overflow))
+            files.append(entry)
         context["tags"] = [f["tag"] for f in files]
         context["release_from"] = reviewed.get("release")
         context["filtered"] = [f["filtered"] for f in files]
+        if any("overflow" in f for f in files):
+            context["overflow"] = [f["overflow"] for f in files if "overflow" in f]
         context["release_files"] = files
     if changes["hermes"]:
         context["hermes"] = {"from": reviewed.get("hermes"), "to": local}
@@ -412,7 +461,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--hermes-version", help="use this local version instead of running `hermes --version`")
     ap.add_argument("--releases-url", default=RELEASES_URL, help="GitHub releases API URL (tests)")
     ap.add_argument("--atom-url", default=ATOM_URL, help="releases.atom fallback URL (tests)")
-    ap.add_argument("--squads-url", default=SQUADS_RAW, help="raw base URL of the squads repo main branch")
+    ap.add_argument("--squads-url", default=SQUADS_RAW, help="raw base URL of the squads repo, without the ref")
+    ap.add_argument("--squads-ref", default=SQUADS_REF, help="branch or tag to compare (default HEAD, the default branch)")
     ap.add_argument("--max-chars", type=int, default=15000, help="cap for the filtered output of one run")
     ap.add_argument("--timeout", type=int, default=20, help="HTTP timeout in seconds (default 20)")
     return ap
