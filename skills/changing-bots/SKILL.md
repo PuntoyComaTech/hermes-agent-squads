@@ -23,9 +23,9 @@ description: "Edits, adds, splits and retires the bots of a squad. Use when a bo
    `local/squads/<key>/scripts/<script>`.
 3. Add a bot: check `skills/designing-squads` -> Rules, then add
    `bots.<key>-<role>` with `role: worker`, `title`, `description`, `lane`,
-   `toolsets`, `memory: false` (`squads/_schema/squad.schema.json` -> `bot`),
-   its SOUL and the chain stages it takes. Past 5 required bots the new bot
-   sets `optional: true`.
+   `toolsets` (`squads/_schema/squad.schema.json` -> `bot`), its SOUL with
+   one line on what its memory stores, and the chain stages it takes. Past
+   5 required bots the new bot sets `optional: true`.
    Change a model: `skills/assigning-models`. Add a Project:
    `skills/managing-projects`.
 4. Split a bot: add the new bot as in step 3, then rewrite the old bot's

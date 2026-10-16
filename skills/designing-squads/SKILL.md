@@ -53,8 +53,12 @@ Enforced by `squadctl` and `skill_lint.py`.
 - One manager per squad: profile name `<key>`, `role: manager`, title
   `<Name> manager`. It is the only bot the user talks to and the one that adds
   Projects.
-- Workers: `<key>-<role>`, `role: worker`, `memory: false`, only the toolsets
-  their role needs.
+- Workers: `<key>-<role>`, `role: worker`, only the toolsets their role
+  needs. Memory is on by default (squadctl adds the `memory` toolset); the
+  SOUL has one line on what it stores: job pitfalls and fixes, never secrets.
+  `memory: false` only for a bot that must keep nothing between cards.
+- Skills a bot writes with `skill_manage` are `learned`: `squadctl plan`
+  lists them per bot and `apply` never removes them.
 - All bots are visible. squadctl files the manager under the Desktop section
   `Managers` and the workers under the squad's `section`.
 - At most 5 required bots; another bot sets `optional: true` and installs only
