@@ -59,3 +59,9 @@ HERMES_HOME=$T $T/profiles/builder-test/scripts/squadctl plan --self --builder b
   in `docs/decisions.md`.
 - A change to the layout (profiles, folders, state files) ships a migration: `scripts/migrate_v1.py` for v1 installs,
   a new script for anything later.
+
+## Decisions
+
+A structural decision (layout, schema, contract, a rule every squad follows) appends one line to `docs/decisions.md`
+with id, date, decision and why. `docs/decisions.md` is for contributors: bot-loaded files (`SOUL.md`, `skills/`,
+`squads/`) state the rule itself and never point to the log or carry an id.

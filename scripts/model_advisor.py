@@ -2,7 +2,7 @@
 """Suggest a model, provider and reasoning effort per squad bot from the user's authenticated providers.
 
 Inputs
-  providers  the union of every home (C-15): `hermes_cli.model_switch_providers.list_authenticated_providers()`
+  providers  the union of every home: `hermes_cli.model_switch_providers.list_authenticated_providers()`
              in-process, else the same call under the Hermes runtime interpreter, else `hermes auth list`
              (slugs only), plus the providers whose API-key name appears in the root or the profile env file.
              `--providers cache` or a comma list skips detection (offline).
@@ -159,7 +159,7 @@ def probe_auth_list(env: dict | None = None) -> list[dict] | None:
     return [{"slug": s, "models": []} for s in dict.fromkeys(slugs)] or None
 
 
-# --- env-file key names (C-15) --------------------------------------------------------------------------------
+# --- env-file key names --------------------------------------------------------------------------------
 
 ENV_FILE = ".env"
 
@@ -189,7 +189,7 @@ def slug_from_env_name(name: str) -> str | None:
 
 
 def env_slugs(home: Path) -> set[str]:
-    """Providers whose API-key name appears in <home>/.env. Names only: values never leave the file (C-15)."""
+    """Providers whose API-key name appears in <home>/.env. Names only: values never leave the file."""
     reg = registry_env_map()
     out = set()
     for name in env_key_names(home):
@@ -204,7 +204,7 @@ def detect_providers(mode: str, cache: dict) -> tuple[list[dict], str]:
         return [{"slug": s, "models": []} for s in cache], "cache"
     if mode != "auto":
         return [{"slug": s.strip(), "models": []} for s in mode.split(",") if s.strip()], "list"
-    # Union of every home (C-15): a provider the in-process probe misses (custom providers, a different key
+    # Union of every home: a provider the in-process probe misses (custom providers, a different key
     # home) must still reach the recommendations through the auth pool or an env-file key name.
     rows: list[dict] = []
     seen: set[str] = set()
@@ -249,7 +249,7 @@ def resolve_providers(mode: str, cache: dict, now: float) -> dict:
 
 def scope_providers(home: Path) -> set[str]:
     """Slugs that count as authenticated with HERMES_HOME=home: the Hermes runtime's own view of that
-    scope (root or profile) plus the provider API-key names in that scope's env file (C-15, names only;
+    scope (root or profile) plus the provider API-key names in that scope's env file (names only;
     values are never read out, printed or stored)."""
     env = {**os.environ, "HERMES_HOME": str(home)}
     slugs = set(env_slugs(home))

@@ -12,7 +12,7 @@
     "name": {"type": "string", "minLength": 1, "maxLength": 40},
     "description": {"type": "string", "maxLength": 200},
     "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$",
-                "description": "Manifest version for drift detection against local/installed.yaml. Squad manifests carry their own; the builder manifest carries none because distribution.yaml -> version is the single source of truth of the release (C-13)."},
+                "description": "Manifest version for drift detection against local/installed.yaml. Squad manifests carry their own; the builder manifest carries none because distribution.yaml -> version is the single source of truth of the release."},
     "hermes_requires": {"type": "string", "pattern": "^(>=|>|==|<=|<|~=)\\s*\\d+\\.\\d+(\\.\\d+)?$"},
     "board": {
       "type": "object",
@@ -259,7 +259,7 @@
         "skill": {"$ref": "#/$defs/skillName"},
         "when": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
         "lane": {
-          "description": "Per-card --model from this lane (model+provider only); effort is not per-card and the profile's reasoning effort still applies. The only per-card depth writer is the kanban dashboard's reasoning_effort field; from the CLI use agent.reasoning_overrides or a dedicated profile (docs/decisions.md V-07).",
+          "description": "Per-card --model from this lane (model+provider only); effort is not per-card and the profile's reasoning effort still applies. The only per-card depth writer is the kanban dashboard's reasoning_effort field; from the CLI use agent.reasoning_overrides or a dedicated profile.",
           "$ref": "#/$defs/lane"
         }
       }

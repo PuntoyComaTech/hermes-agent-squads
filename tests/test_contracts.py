@@ -100,7 +100,18 @@ def test_stage_lane_carries_no_per_card_effort():
     assert "reasoning" not in stage and set(stage) == {"stage", "assignee", "skill", "when", "lane"}
     ref = (REPO / "skills" / "hermes-platform" / "references" / "kanban.md").read_text()
     assert "reasoning-effort flag on `hermes kanban create`" in ref
-    assert "reasoning_effort" in ref and "V-07" in ref
+    assert "reasoning_effort" in ref and "dedicated profile" in ref
+
+
+def test_bot_context_carries_no_citations_or_decision_ids():
+    """Bot-loaded files state facts: no decision ids, decision-log pointers or Hermes source citations."""
+    bad = re.compile(r"\b[CVD]-\d{2,3}\b|docs/decisions\.md|\(`(?:website/docs|hermes_cli|tools|gateway|apps/desktop)/"
+                     r"|`hermes [^`]*--help`\)")
+    files = [REPO / "SOUL.md", *(REPO / "skills").rglob("*.md"), *(REPO / "skills").rglob("evals.json"),
+             *(REPO / "squads").rglob("*.md"), *(REPO / "squads").rglob("evals.json")]
+    hits = [f"{p.relative_to(REPO)}:{i}" for p in files for i, line in enumerate(p.read_text().splitlines(), 1)
+            if bad.search(line)]
+    assert hits == []
 
 
 def test_shipped_manifests_validate_and_name_the_manager():

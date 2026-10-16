@@ -172,7 +172,7 @@ lanes:
     fallback: cheapest
 
   vision:
-    why: "auxiliary.vision for text-only main models (D-021); must accept images"
+    why: "auxiliary.vision for text-only main models; must accept images"
     used_by: [auxiliary.vision]
     reasoning: low
     candidates:

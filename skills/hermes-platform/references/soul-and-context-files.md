@@ -4,18 +4,16 @@
 
 - `SOUL.md` is the profile's primary identity: first in the system prompt, it
   defines who the agent is and how it speaks. Procedures belong in skills and
-  project-specific instructions in `AGENTS.md`
-  (`website/docs/guides/use-soul-with-hermes.md`).
+  project-specific instructions in `AGENTS.md`.
 - One SOUL per profile; squad tooling copies it from
-  `squads/<key>/souls/<bot>.md` when it differs (`scripts/squadctl.py`).
+  `squads/<key>/souls/<bot>.md` when it differs.
   Budgets: `scripts/skill_lint.py --rules` (`soul-lines`, `soul-chars`).
 
 ## Context files
 
 - `AGENTS.md`, `.cursorrules` and `SOUL.md` are scanned for prompt injection
   before entering the system prompt. A hit blocks a project file and a
-  distribution-owned `SOUL.md`; the profile's own `SOUL.md` only warns
-  (`website/docs/user-guide/security.md`, "Context File Injection Protection").
+  distribution-owned `SOUL.md`; the profile's own `SOUL.md` only warns.
 - Which file does what: `website/docs/user-guide/which-file-does-what.md`.
   Context files: `website/docs/user-guide/features/context-files.md`;
   `@`-references for files, folders, diffs and URLs:

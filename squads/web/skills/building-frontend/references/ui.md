@@ -4,8 +4,8 @@
 
 Everything visual comes from custom properties on `:root`:
 
-```css
-:root {
+```css:
+root {
   --color-bg: #0e1116; --color-surface: #161b22; --color-text: #e6edf3;
   --color-muted: #9aa4b2; --color-accent: #2f6feb; --color-accent-contrast: #ffffff;
   --font-sans: "Inter Variable", system-ui, sans-serif; --font-display: "Fraunces", serif;

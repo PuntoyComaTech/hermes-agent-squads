@@ -34,7 +34,7 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
    `manager`, `bots`, `chains`.
 8. Chains are stage lists (`stage`, `assignee`, optional `skill`, `when`,
    `lane`). A cron job has `schedule` and `script`; add `agent` (`lane`,
-   `skill`, `reasoning`) only when the script is a wake gate (V-14).
+   `skill`, `reasoning`) only when the script is a wake gate.
 9. Write `local/squads/<key>/souls/<bot>.md` per bot, the squad skills in
    `local/squads/<key>/skills/` (`skills/authoring-skills`) and cron scripts in
    `local/squads/<key>/scripts/`. Capabilities from catalogs:
@@ -83,7 +83,7 @@ Enforced by `squadctl` and `skill_lint.py`.
 ## Pitfalls
 
 - A profile per specialist when only the model differs: use a per-card model
-  override (`docs/decisions.md` V-07).
+  override.
 - A chain stage that acts without the user: irreversible steps (apply, send,
   publish, deploy) wait for the user's explicit OK.
 - Writing the squad under `squads/`: that tree is distribution-owned. Local

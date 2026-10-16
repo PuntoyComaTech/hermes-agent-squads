@@ -23,7 +23,7 @@ description: "Assigns a model per bot from connected providers. Use when a squad
    to run `hermes -p <bot> model --refresh` in their terminal, then re-run
    step 1.
 4. Show the table and ask one question: "Accept all, or change any bot?" The
-   user's choices win over every suggestion (`docs/decisions.md` D-031). Write
+   user's choices win over every suggestion. Write
    each change into `local/models-<key>.json` (`model`, `provider`,
    `reasoning` of that bot or lane).
 5. When the user puts the reviewer on the producer's model family, say it
@@ -44,7 +44,7 @@ description: "Assigns a model per bot from connected providers. Use when a squad
   `--model`/`--provider`; per-card `reasoning_effort` is writable only from the
   kanban dashboard (`skills/hermes-platform/references/kanban.md`).
 - A model change for one card is not a bot assignment: use the card's
-  `--model`/`--provider` (`docs/decisions.md` V-07).
+  `--model`/`--provider`.
 
 ## Verification
 

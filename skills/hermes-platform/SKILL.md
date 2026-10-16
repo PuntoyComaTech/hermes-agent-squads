@@ -16,16 +16,15 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 
 1. Read `skills/hermes-local-notes/SKILL.md` when it exists; its facts win
    over `references/`.
-2. Pick the topic from the index below and read that reference file. Act only
-   on cited facts.
-3. When a reference and the live Hermes disagree (`hermes <cmd> --help`), the
-   live Hermes wins. Append `<topic>: <fact> (<source path>, <date>)` to
+2. Pick the topic from the index below and read that reference file.
+3. When a reference and the live Hermes (`hermes <cmd> --help`, the source)
+   disagree, the live Hermes wins. Append `<topic>: <fact> (<date>)` to
    `skills/hermes-local-notes/SKILL.md`, creating it with frontmatter
    `name: hermes-local-notes` and `description: "Lists local Hermes facts that
    override hermes-platform. Use when a reference and live Hermes disagree."`.
    Then propose the fix upstream (`skills/contributing-upstream`).
-4. For anything deeper, read the cited `website/docs/...` path under the Hermes
-   source root (the `sys.path` entry in `hermes --print-runtime-command`).
+4. For anything deeper, read `website/docs/` under the Hermes source root:
+   the `Install directory:` line of `hermes --version`.
 
 ## Reference index
 
@@ -48,17 +47,16 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 | Hooks | `references/hooks.md` |
 | Projects | `references/projects.md` |
 | Gateways and messaging | `references/gateways-and-messaging.md` |
-| Cost levers | `references/cost-levers.md` |
 
 ## Pitfalls
 
 - A flag or config key from memory: re-read the reference or run `--help`.
-- Desktop-internal facts (rail, Bots pane) cite `apps/desktop/src/...` source
-  files and change without a docs update.
+- `hermes config get <key>` warns "not a recognized config key" for valid
+  keys outside the schema (`agent.reasoning_effort`): read those with
+  `hermes config show` or the profile's `config.yaml`.
 - UNVERIFIED notes are hypotheses, not behavior.
 
 ## Verification
 
-- Each reference line carries a citation to `website/docs/...` or a source file.
+- The answer matches `hermes <cmd> --help` on this machine.
 - `scripts/hpy skill_lint.py skills/hermes-platform` exits 0.
-- A claim the reference cannot cite is deleted or marked UNVERIFIED.

@@ -25,8 +25,8 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
 5. Quote that disclosure and the licence to the user verbatim and get an explicit
    OK. Non-commercial (PolyForm NC) and per-seat (Remotion) licences get their
    own question.
-6. Declare the result in the squad manifest or overlay
-   (`squads/_schema/squad.schema.json`): a `skills.keep` entry (`bundled:`,
+6. Declare the result in the squad manifest or overlay:
+  a `skills.keep` entry (`bundled:`,
    `official:<cat>/<name>`, `hub:`, `local:`), a `plugins.enable` entry or an
    `mcp` server. Add a `confirm` text to any item that needs the user's OK.
 7. Run `scripts/hpy squadctl.py plan <key> --json`; each `confirm` item shows

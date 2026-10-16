@@ -23,8 +23,7 @@ description: "Proposes fixes upstream with the user's OK. Use when a defect or i
    `local/private-terms.txt`; `release.py` blocks any match). Generalize the fix
    or keep it local.
 2. Explain the finding in plain language and ask: "Should I open a PR to the
-   community repository?" Nothing is sent without an explicit yes for that PR
-   (`docs/decisions.md` D-029).
+   community repository?" Nothing is sent without an explicit yes for that PR.
 3. On yes: `cd local && gh repo fork PuntoyComaTech/hermes-agent-squads --clone`,
    then `git -C local/hermes-agent-squads switch -c fix/<slug>`. Change only
    repository content (a local squad: copy `local/squads/<key>/` to
