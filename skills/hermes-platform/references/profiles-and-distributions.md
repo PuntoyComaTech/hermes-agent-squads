@@ -39,3 +39,17 @@
   never touched, and `config.yaml` is kept unless `--force-config`.
 - Squad state lives under the builder profile's `local/` (`installed.yaml`,
   backups), which install and update never write (`USER_OWNED_EXCLUDE`).
+
+## Updating Hermes
+
+- A source checkout of the official repo follows the `stable` channel:
+  `hermes update` moves only from one published `vX.Y.Z` release to the next.
+  Forks and mirrors follow `main`.
+- `hermes update --set-channel main` follows every commit; `--set-channel
+  stable` returns to releases and pins the checkout to the latest release
+  commit, even when that is older. `hermes update --channel main` is one run
+  and saves nothing. The choice is stored under `update.installs` in the root
+  `config.yaml`.
+- `hermes update --check` reports whether an update exists without applying it.
+- `hermes update` restarts every gateway, which stops running agents
+  (`--no-gateway-restart` defers that): the user runs it, never a bot.
