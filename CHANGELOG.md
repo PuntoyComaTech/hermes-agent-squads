@@ -3,6 +3,32 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.5 - 2026-10-15
+
+The update watcher stops dropping section-scoped Hermes changes, and squads set no kanban cap.
+
+### Fixed
+
+- `watch_upstream.py` matches keywords against the bullet and its heading; every bullet under Upgrade notes,
+  Kanban, Cron, Delegation, Plugin system, Skills and Profiles is priority, and priority bullets over the cap go to
+  `<tag>.overflow.md` (`context.overflow`) instead of being dropped. Goal, delegation, memory providers, credential
+  pools, connectors and provider plugins are priority keywords. Tested on the recorded v0.22.0 body.
+- `watch_upstream.py --squads-ref` (default `HEAD`, the branch `hermes profile update` clones) replaces the
+  hardcoded `main`.
+
+### Removed
+
+- The kanban cap: `apply --set-root-kanban-cap` and the `root` key of the apply output are gone. `squadctl doctor`
+  warns on any home (root or profile) that sets `kanban.max_in_progress_per_profile`.
+- Source citations, decision ids and decision-log pointers from bot-loaded files (`skills/`, `squads/`, script
+  comments); `references/cost-levers.md`. A contract test keeps them out.
+
+### Changed
+
+- `references/delegation.md` documents `output_schema`, `images`, `steer`/`stop`, `independent_completions`,
+  `fallback_providers` and `child_timeout_seconds`. `hermes-platform` finds the Hermes source through
+  `hermes --version` and warns that `config get` flags valid keys outside the schema.
+
 ## 2.0.4 - 2026-10-15
 
 The distribution ships the builder plus `web`, `marketing` and `jobs`: the web squad is web-only and
