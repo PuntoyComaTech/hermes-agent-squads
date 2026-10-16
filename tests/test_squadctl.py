@@ -329,6 +329,42 @@ def test_provider_change_clears_the_stale_route(env, capsys):
     assert data["model"]["base_url"] == "" and data["model"]["api_mode"] == ""
 
 
+def test_root_provider_plugin_is_copied_and_keyless_provider_needs_no_key(env, capsys, monkeypatch):
+    """A provider plugin installed at the root home is copied like a builder one; a provider that declares
+    no API-key env var (OAuth or external process) gets no credentials note."""
+    plugin = env.root / "plugins" / "prov-keyless"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text("name: prov-keyless\nkind: model-provider\n")
+    env.squad("web")
+    doc = models_doc()
+    doc["bots"] = {"web-frontend": {"provider": "prov-keyless", "model": "model-x", "reasoning": "high"}}
+    env.models.write_text(yaml.safe_dump(doc))
+    _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
+    (fe,) = out["bots"]
+    assert "provider plugin + prov-keyless" in fe["actions"]
+    assert (env.root / "profiles" / "web-frontend" / "plugins" / "prov-keyless" / "plugin.yaml").is_file()
+    assert "prov-keyless" in env.config("web-frontend")["plugins"]["enabled"]
+    assert not any(n.startswith("credentials") for n in fe.get("notes", []))
+
+
+def test_inventory_documents_profiles_read_only(web, capsys):
+    n = len(web.calls())
+    (web.root / "profiles" / "web" / ".env").write_text("SECRET_TOKEN=do-not-read\n")
+    _, out = web.run("inventory", capsys=capsys)
+    rows = {r["profile"]: r for r in out["profiles"]}
+    assert set(rows) == {"default", *WEB_BOTS}
+    assert rows["web"]["squad"] == "web" and rows["web"]["section"] == "Managers"
+    assert rows["web-frontend"]["model"]["provider"] == "prov-design"
+    assert "do-not-read" not in json.dumps(out)
+    assert web.writes_since(n) == []
+    _, out = web.run("inventory", "--profiles", "web-qa", "--out", str(web.local / "fleet.yaml"), capsys=capsys)
+    assert out == {"written": str(web.local / "fleet.yaml"), "profiles": 1}
+    _, out = web.run("inventory", "--out", str(web.tmp / "fleet.yaml"), expect=1, capsys=capsys)
+    assert "must live under" in out["error"]
+    _, out = web.run("inventory", "--profiles", "nope", expect=1, capsys=capsys)
+    assert "no such profile" in out["error"]
+
+
 def test_provider_key_is_reported_as_an_owner_item_never_read(env, capsys, monkeypatch):
     """A profile never inherits the gateway root environment; squadctl names the key and touches no file."""
     monkeypatch.delenv("PROV_DESIGN_API_KEY", raising=False)

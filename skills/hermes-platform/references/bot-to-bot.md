@@ -9,8 +9,9 @@
   reply or a typed failure reason arrives as a completion notification
   (`website/docs/user-guide/bot-mode.md`).
 - The tool exists only in canonical Bot Chat sessions on Bot-Mode-managed
-  installs (`bot-mode-and-desktop.md` -> Bot Mode); regular chats, room member
-  sessions and CLI sessions never see it.
+  installs (`bot-mode-and-desktop.md` -> Bot Mode), including a Bot Chat opened
+  with `hermes -p <bot> chat`; regular chats and room member sessions never see
+  it (`tools/bot_mode_dm.py`, `message_agent_authorized`).
 - The teammate roster (names and roles from each profile's title and
   description) is part of every Bot Chat's system prompt
   (`website/docs/user-guide/bot-mode.md`).

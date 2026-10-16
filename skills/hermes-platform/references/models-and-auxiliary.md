@@ -20,6 +20,18 @@
 - `scripts/model_advisor.py` reads that cache and `scripts/data/model-roles.yaml`
   to suggest one model per bot; model ids live only in that data file and the
   builder profile's `local/installed.yaml` (`docs/decisions.md` V-08).
+- Credentials per profile: `.env` is read only from the profile's own
+  `HERMES_HOME` (`hermes_cli/env_loader.py`, `load_hermes_dotenv`); the root
+  `auth.json` is a read-only fallback per provider while the profile has no
+  entry for it (`hermes_cli/auth.py`, `_load_provider_state`,
+  `read_credential_pool`).
+- Provider plugins: bundled ones (`plugins/model-providers/`, for example
+  `opencode-go`) load in every profile; a user-installed one under
+  `$HERMES_HOME/plugins/` loads only in that profile
+  (`website/docs/developer-guide/model-provider-plugin.md`;
+  `providers/__init__.py`, `_scan_home_layer`). Squad tooling copies the
+  builder's provider plugin into each bot that uses it (`scripts/squadctl.py`,
+  `provider_plugin`).
 - Providers: `website/docs/integrations/providers.md`; fallback and routing:
   `website/docs/user-guide/features/fallback-providers.md`,
   `website/docs/user-guide/features/provider-routing.md`.

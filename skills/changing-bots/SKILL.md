@@ -21,11 +21,13 @@ description: "Edits, adds, splits and retires the bots of a squad. Use when a bo
    copies: `local/squads/<key>/souls/<bot>.md`,
    `local/squads/<key>/skills/<skill>/` (`skills/authoring-skills`),
    `local/squads/<key>/scripts/<script>`.
-3. Add a bot: check D-001 (`skills/designing-squads` step 5), then add
+3. Add a bot: check `skills/designing-squads` -> Rules, then add
    `bots.<key>-<role>` with `role: worker`, `title`, `description`, `lane`,
-   `toolsets`, `hidden: true`, `memory: false`
-   (`squads/_schema/squad.schema.json` -> `bot`), its SOUL and the chain
-   stages it takes. The schema allows at most 5 bots.
+   `toolsets`, `memory: false` (`squads/_schema/squad.schema.json` -> `bot`),
+   its SOUL and the chain stages it takes. Past 5 required bots the new bot
+   sets `optional: true`.
+   Change a model: `skills/assigning-models`. Add a Project:
+   `skills/managing-projects`.
 4. Split a bot: add the new bot as in step 3, then rewrite the old bot's
    `toolsets` and `skills.squad` and every chain whose stages move.
 5. Retire a bot: set `bots.<bot>: null`; rewrite every chain and copy into the
@@ -47,8 +49,8 @@ description: "Edits, adds, splits and retires the bots of a squad. Use when a bo
 - A cron `agent` job whose `script` prints on quiet ticks: only empty stdout or
   a last line `{"wakeAgent": false}` skips the agent
   (`skills/hermes-platform/references/cron-and-gates.md`).
-- `passthrough` on a bot with `web` or `browser`: credentials go only on a bot
-  that reads no web content.
+- `passthrough` on a bot with `web` or `browser`: `skills/designing-squads` ->
+  Rules.
 
 ## Verification
 

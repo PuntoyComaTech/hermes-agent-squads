@@ -164,24 +164,26 @@ class Ctx:
         """Env var names this provider reads its API key from, in priority order (PROVIDER_REGISTRY).
 
         The registry is the only authority: a plugin provider declares its own names (ANTHROPIC_API_KEY,
-        CLAUDE_CODE_OAUTH_TOKEN, ...), so guessing `<PROVIDER>_API_KEY` is the fallback, never the rule.
+        CLAUDE_CODE_OAUTH_TOKEN, ...). An empty list means the provider needs no API key (OAuth or an external
+        process); `<PROVIDER>_API_KEY` is guessed only when the registry does not know the provider.
         """
         if provider not in self._env_keys:
-            keys: list[str] = []
+            keys: list[str] | None = None
             try:
                 py, hroot = self.runtime()
                 code = ("import json, sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; "
                         "import hermes_bootstrap; from hermes_cli.auth import PROVIDER_REGISTRY as R; "
                         "p = R.get(sys.argv[1]); "
-                        "print(json.dumps(list(getattr(p, 'api_key_env_vars', ()) or []) if p else []))") % hroot
+                        "print(json.dumps(list(getattr(p, 'api_key_env_vars', ()) or []) if p else None))") % hroot
                 p = subprocess.run([py, "-I", "-c", code, provider], capture_output=True, text=True, timeout=60,
                                    stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
-                if p.returncode == 0 and p.stdout.strip():
-                    keys = json.loads(p.stdout.strip().splitlines()[-1])
-            except (OSError, ValueError, subprocess.SubprocessError):
-                keys = []
-            names = [k for k in keys if isinstance(k, str) and k]
-            self._env_keys[provider] = names or [f"{re.sub(r'[^A-Za-z0-9]', '_', provider).upper()}_API_KEY"]
+                keys = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 and p.stdout.strip() else None
+            except (OSError, ValueError, Fail, subprocess.SubprocessError):
+                keys = None
+            names = [k for k in keys if isinstance(k, str) and k] if isinstance(keys, list) else []
+            if keys is None:  # provider unknown to the registry: the conventional name is the only hint
+                names = [f"{re.sub(r'[^A-Za-z0-9]', '_', provider).upper()}_API_KEY"]
+            self._env_keys[provider] = names
         return self._env_keys[provider]
 
     def apply_config(self, home: Path, payload: dict) -> None:
@@ -307,7 +309,7 @@ def load_spec(ctx: Ctx, key: str) -> dict:
 def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     """Cross-field rules of the schema (docs/decisions.md C-01); the full JSON schema runs when jsonschema exists."""
     if "lead" in spec and "manager" not in spec:
-        return ["field 'lead' was renamed to 'manager' (S3): update the manifest and the bot roles"]
+        return ["field 'lead' was renamed to 'manager' (C-11): update the manifest and the bot roles"]
     out: list[str] = []
     try:
         import jsonschema
@@ -438,6 +440,16 @@ def provider_plugins(plugins_root: Path) -> dict[str, Path]:
                     and plugin_manifest(d).get("kind") == "model-provider"):
                 out.setdefault(d.name, d)
     return out
+
+
+def provider_source(ctx: "Ctx", provider: str) -> tuple[Path, Path] | None:
+    """(plugin dir, home that holds it) for a user-installed provider plugin: the builder profile first, then
+    the root home. Bundled providers (`<hermes>/plugins/model-providers/`) load everywhere and return None."""
+    for owner in (ctx.home(ctx.builder), ctx.root):
+        src = provider_plugins(owner / "plugins").get(provider)
+        if src is not None:
+            return src, owner
+    return None
 
 
 def version_ok(req: str, have: str) -> bool:
@@ -869,22 +881,22 @@ class Applier:
         return acts
 
     def provider_plugin(self, name: str, bot: dict) -> list[str]:
-        """A provider that is a user plugin lives in the builder's profile: copy it into this bot's own home.
+        """A provider that is a user plugin (of the builder profile or the root home): copy it into this bot's home.
 
         `providers/__init__._scan_home_layer` only loads the profile's own `<home>/plugins/model-providers/<name>/`
-        (or a flat `<home>/plugins/<name>/` declaring `kind: model-provider`), so a provider registered in the
-        builder profile is `Unknown provider` in every other bot until it is copied and listed.
+        (or a flat `<home>/plugins/<name>/` declaring `kind: model-provider`), so a provider installed elsewhere
+        is `Unknown provider` in this bot until it is copied and listed.
         """
         m = self.bot_model(name, bot)
         if not m:
             return []
-        builder, home = self.ctx.home(self.ctx.builder), self.ctx.home(name)
-        plugins_root = builder / "plugins"
-        src = provider_plugins(plugins_root).get(m["provider"])
-        if src is None:
+        found = provider_source(self.ctx, m["provider"])
+        if found is None:
             return []
-        key = plugin_key(src, plugins_root)
-        dest = home / src.relative_to(builder)
+        src, owner = found
+        home = self.ctx.home(name)
+        key = plugin_key(src, owner / "plugins")
+        dest = home / src.relative_to(owner)
         in_sync = dest.is_dir() and tree_sha(dest) == tree_sha(src)
         # Read the live list, never the config scanned at the start of the run: the `plugins.enable` items above
         # have been written since, and merging with a stale copy would drop them.
@@ -913,9 +925,10 @@ class Applier:
         m = self.bot_model(name, bot)
         if not m:
             return ""
-        key = self.ctx.provider_env_keys(m["provider"])[0]
-        if os.environ.get(key):
+        keys = self.ctx.provider_env_keys(m["provider"])
+        if not keys or any(os.environ.get(k) for k in keys):
             return ""
+        key = keys[0]
         return (f"credentials {key}: not in this environment; put it in the {name} profile (mode 600) for "
                 f"provider {m['provider']} before the first run")
 
@@ -1131,6 +1144,60 @@ def cmd_status(ctx: Ctx, a: argparse.Namespace) -> int:
     return 0
 
 
+def profile_inventory(ctx: Ctx, name: str, owners: dict[str, str]) -> dict:
+    """One profile as documentation: identity, model, toolsets, skills, plugins, MCP and cron names.
+
+    Reads only `config.yaml`, `profile.yaml`, `cron/jobs.json` and the `skills/` tree, never a credential file;
+    MCP servers and passthrough are reported by name only."""
+    home = ctx.home(name) if name != "default" else ctx.root
+    cfg = read_yaml(home / "config.yaml") or {}
+    meta = read_yaml(home / "profile.yaml") or {}
+    bots = ((meta.get("ui_meta") or {}).get("hermes-bots") or {}) if isinstance(meta, dict) else {}
+    model = cfg.get("model") if isinstance(cfg.get("model"), dict) else {}
+    skills = sorted({p.parent.name for p in (home / "skills").rglob("SKILL.md")}) if (home / "skills").is_dir() else []
+    raw = json.loads(_read(home / "cron" / "jobs.json") or "[]")
+    jobs = raw.get("jobs", []) if isinstance(raw, dict) else raw
+
+    def when(job: dict) -> str | None:
+        s = job.get("schedule")
+        return (s.get("display") or s.get("expr")) if isinstance(s, dict) else (s or job.get("schedule_display"))
+    return {
+        "profile": name, "squad": owners.get(name, "unmanaged"),
+        "description": meta.get("description") if isinstance(meta, dict) else None,
+        "title": bots.get("title"), "section": bots.get("sectionName"), "hidden": bool(bots.get("hidden")),
+        "model": {"provider": model.get("provider"), "default": model.get("default"),
+                  "reasoning": pa.current(cfg, "agent.reasoning_effort")},
+        "toolsets": sorted(pa.current(cfg, "platform_toolsets.cli") or []),
+        "disabled_toolsets": sorted(pa.current(cfg, "agent.disabled_toolsets") or []),
+        "skills": skills, "plugins": sorted(pa.current(cfg, "plugins.enabled") or []),
+        "mcp": sorted(cfg.get("mcp_servers") or {}),
+        "passthrough": list(pa.current(cfg, "terminal.env_passthrough") or []),
+        "cron": [{"name": j.get("name"), "schedule": when(j)} for j in jobs],
+    }
+
+
+def cmd_inventory(ctx: Ctx, a: argparse.Namespace) -> int:
+    """Document the local fleet without touching it: every profile (or --profiles), read-only."""
+    installed = load_installed(ctx)
+    owners = {b: key for key, rec in installed["squads"].items() for b in rec.get("bots") or []}
+    names = [n for n in (a.profiles or "").split(",") if n]
+    if not names:
+        names = ["default"] + (sorted(p.name for p in ctx.profiles.iterdir() if (p / "config.yaml").is_file())
+                               if ctx.profiles.is_dir() else [])
+    missing = [n for n in names if n != "default" and not ctx.home(n).is_dir()]
+    if missing:
+        raise Fail(f"no such profile: {', '.join(missing)}")
+    doc = {"root": str(ctx.root), "profiles": [profile_inventory(ctx, n, owners) for n in names]}
+    if a.out:
+        out = Path(a.out).expanduser().absolute()
+        if ctx.local not in out.parents:
+            raise Fail(f"--out must live under {ctx.local} (local data, never shipped)")
+        write_yaml(out, doc)
+        doc = {"written": str(out), "profiles": len(doc["profiles"])}
+    emit(ctx, doc)
+    return 0
+
+
 def check(name: str, status: str, detail: str) -> dict:
     return {"check": name, "status": status, "detail": detail}
 
@@ -1189,11 +1256,11 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             miss = ap.missing_models(name)
             out.append(check(f"{name}:models", "warn" if miss else "ok", "; ".join(miss) or "assigned"))
             m = ap.bot_model(name, bot)
-            src = provider_plugins(ctx.home(ctx.builder) / "plugins").get(m["provider"]) if m else None
-            if m and src and not (ctx.home(name) / src.relative_to(ctx.home(ctx.builder))).is_dir():
+            found = provider_source(ctx, m["provider"]) if m else None
+            if found and not (ctx.home(name) / found[0].relative_to(found[1])).is_dir():
                 out.append(check(f"{name}:provider-plugin", "warn",
-                                 f"provider {m['provider']} is a user plugin of {ctx.builder}: "
-                                 f"apply copies {src} into this profile"))
+                                 f"provider {m['provider']} is a user plugin of {found[1].name}: "
+                                 f"apply copies {found[0]} into this profile"))
             for env in bot.get("passthrough") or []:
                 out.append(check(f"{name}:{env}", "ok" if os.environ.get(env) else "warn",
                                  "set" if os.environ.get(env) else "missing in this environment"))
@@ -1362,6 +1429,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("status", parents=[common], help="installed squads against the live profiles")
     sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_status)
+    sp = sub.add_parser("inventory", parents=[common], help="document every profile of this machine (reads only)")
+    sp.add_argument("--profiles", help="comma-separated profiles (default: default + every profile)")
+    sp.add_argument("--out", metavar="FILE", help="also write the inventory as YAML (must be under local/)")
+    sp.set_defaults(fn=cmd_inventory)
     sp = sub.add_parser("doctor", parents=[common], help="check hermes, gateway, apps, models, passthrough, stale cards")
     sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_doctor)

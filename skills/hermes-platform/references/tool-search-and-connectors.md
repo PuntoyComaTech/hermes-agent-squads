@@ -3,7 +3,8 @@
 ## Tool search
 
 - Tool search replaces deferred tools in the prompt with bridge tools
-  (`tool_search`, `tool_call`) and loads each schema on demand
+  (`tool_search`, `tool_describe`, `tool_call`); `tool_describe` loads each
+  schema on demand
   (`website/docs/user-guide/features/tool-search.md`).
 - MCP and non-core plugin tools are deferred automatically. Core built-ins stay
   loaded; cold built-ins are deferred only when listed in
@@ -28,5 +29,4 @@
   suggest list is a note in the apply output, and the user connects apps with
   `hermes connectors connect <app>` (`scripts/squadctl.py`;
   `squads/_schema/squad.schema.json`).
-- Give a connector only to the bot that calls that app, never to a bot with web
-  or browser (`approvals-and-security.md` -> External content).
+- Connector placement: `approvals-and-security.md` -> External content.

@@ -42,8 +42,18 @@ Squad structure: managers, visible bots and sections, web roles and `web-fronten
   fallbacks, reusing the studio squad's skills).
 - `deploying-sites` refuses to deploy without the project's `deploy.md` (target,
   command, env names, rollback; template provided).
-- `designing-squads` documents the topology rule (delegate_task subagents vs Kanban
-  workers; one board per squad, one Project per repo) and hub-skill quoting.
+- `designing-squads` holds the squad Rules (naming, visibility, cap, credentials,
+  skill sources) and the Topology (delegate_task subagents vs Kanban workers; single
+  bot with or without a board; one board per squad, one Project per repo).
+
+### Fixed (release gate)
+
+- squadctl: provider plugins installed at the root home are copied like builder ones;
+  providers with no API-key env var (OAuth, external process) get no credentials note.
+- squadctl `inventory`: documents the local fleet read-only (C-12).
+- hermes-platform references: tool-search bridge lists `tool_describe`; `message_agent`
+  also reaches a Bot Chat opened from the CLI; per-profile credential and provider
+  plugin resolution added.
 
 ## 2.0.1
 
