@@ -1358,15 +1358,17 @@ ROOT_KANBAN_KEY = "kanban.max_in_progress_per_profile"
 
 
 def root_kanban(ctx: Ctx, dry: bool, set_cap: bool = False) -> list[str]:
-    """`kanban.*` is machine-wide (the gateway holds the dispatcher lock), so squadctl never writes the cap on its
-    own: `plan` reports it as an owner item and only `apply --set-root-kanban-cap` sets it (V-12)."""
+    """`kanban.*` is machine-wide (the gateway holds the dispatcher lock), so squadctl writes the cap only when
+    `--set-root-kanban-cap` is passed: `plan` and `doctor` never propose it."""
+    if not set_cap:
+        return []
     cfg = read_yaml(ctx.root / "config.yaml") or {}
     cur = pa.current(cfg, ROOT_KANBAN_KEY)
     if cur == 1:
         return []
     act = f"set root {ROOT_KANBAN_KEY}: {pa.as_cli(cur) if cur is not None else 'unset'} -> 1"
-    if dry or not set_cap:
-        return [f"{act} (owner confirm: apply --set-root-kanban-cap)"]
+    if dry:
+        return [act]
     ctx.apply_config(ctx.root, {"set": [[ROOT_KANBAN_KEY, 1, False]], "ui_meta_bots": None})
     return [act]
 
@@ -1384,10 +1386,6 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
         running = bool(re.search(r"^Gateway:\s+running", shown, re.M))
         out.append(check("gateway", "ok" if running else "warn", "default profile gateway "
                          + ("running" if running else "not running: kanban cards will not be dispatched")))
-    for act in root_kanban(ctx, True):
-        out.append(check("root:kanban", "warn", act))
-    if not any(c["check"] == "root:kanban" for c in out):
-        out.append(check("root:kanban", "ok", f"{ROOT_KANBAN_KEY} = 1"))
     installed = load_installed(ctx)
     _i, models = effective_models(ctx, None)
     keys = sorted(installed["squads"])
@@ -1575,8 +1573,7 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--yes", action="store_true",
                         help="non-interactive run (squadctl never prompts; confirm items still need --confirm)")
         sp.add_argument("--set-root-kanban-cap", action="store_true",
-                        help="also write the machine-wide kanban.max_in_progress_per_profile=1 into the gateway "
-                             "root config (never set silently)")
+                        help="also write kanban.max_in_progress_per_profile=1 into the gateway root config")
     sp = sub.add_parser("plan", parents=[common], help="show what apply would change (reads only)")
     apply_args(sp)
     sp.set_defaults(fn=lambda c, a: cmd_apply(c, a, True), dry_run=True)
