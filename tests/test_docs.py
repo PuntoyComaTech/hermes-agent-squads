@@ -1,5 +1,6 @@
 """Public docs: diagrams render vertically on GitHub, install commands exist, agents install the builder only."""
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -28,9 +29,10 @@ def test_readme_install_command_uses_real_flags():
     text = (REPO / "README.md").read_text()
     line = next(l for l in text.splitlines() if l.startswith("hermes profile install "))
     flags = set(re.findall(r"(--[a-z-]+)", line))
-    hermes = subprocess.run(["hermes", "profile", "install", "--help"], capture_output=True, text=True)
-    if hermes.returncode != 0:
+    if not shutil.which("hermes"):
         pytest.skip("hermes not on PATH")
+    hermes = subprocess.run(["hermes", "profile", "install", "--help"], capture_output=True, text=True)
+    assert hermes.returncode == 0, hermes.stderr
     assert flags <= set(re.findall(r"(--[a-z-]+)", hermes.stdout)), flags
 
 
