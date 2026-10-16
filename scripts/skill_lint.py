@@ -56,6 +56,8 @@ RULES = {
     "script-shellcheck": "a shell script has shellcheck findings",
     "language-english": "Spanish stopword ratio above 3%",
     "model-ids": "a model id appears outside model-roles.yaml and installed.yaml",
+    "no-issue-notes": "an upstream issue number (#12345), a 'known issue' remark or a 'has no effect' note: "
+                      "if it changes nothing the bot does, it is not written",
     "body-sections": "body lacks one of When to Use, Procedure, Pitfalls, Verification",
     "evals-count": "evals/evals.json does not hold exactly 3 scenarios",
     "soul-lines": "SOUL file longer than 6 lines",
@@ -97,6 +99,7 @@ puede pueden debe deben hacer hace hacen
 """.split())
 WORD_RE = re.compile(r"[a-zA-Z\u00c0-\u00ff]{2,}")
 FENCE_RE = re.compile(r"^(```|~~~).*?^\1\s*$", re.M | re.S)
+ISSUE_NOTE_RE = re.compile(r"(?<![\w&])#\d{5,}\b|\bknown (?:upstream )?issues?\b|\bhas no effect\b", re.I)
 GENERIC_MODEL_RE = (
     r"claude-(?:opus|sonnet|haiku|fable)-\d[\w.\[\]-]*|gpt-\d[\w.-]*|gemini-\d[\w.-]*|deepseek-v\d[\w.-]*"
     r"|kimi-k\d[\w.-]*|glm-\d[\w.-]*|mimo-v\d[\w.-]*"
@@ -147,6 +150,12 @@ class Linter:
                 self.add("model-ids", path, f"model id '{hit.group(0)}' belongs in model-roles.yaml or installed.yaml", number)
                 return
 
+    def check_issue_notes(self, path: Path, text: str) -> None:
+        for number, line in enumerate(text.splitlines(), 1):
+            hit = ISSUE_NOTE_RE.search(line)
+            if hit:
+                self.add("no-issue-notes", path, f"'{hit.group(0)}': state what the bot does, or drop the line", number)
+
     # --- SOUL ---------------------------------------------------------------------------------------------------------
 
     def lint_soul(self, path: Path) -> None:
@@ -159,6 +168,7 @@ class Linter:
             self.add("soul-chars", path, f"{len(text.rstrip(chr(10)))} characters, budget {SOUL_CHARS}")
         self.check_language(path, text)
         self.check_model_ids(path, text)
+        self.check_issue_notes(path, text)
 
     def lint_squad_yaml(self, path: Path) -> None:
         self.targets.append(str(path))
@@ -213,6 +223,10 @@ class Linter:
             self.check_scripts(skill)
         for md in [skill_md, *sorted((skill / "references").glob("*.md"))]:
             self.check_language(md, md.read_text(encoding="utf-8"))
+        for doc in [skill_md, *sorted((skill / "references").glob("*.md")), *sorted((skill / "templates").glob("*")),
+                    *sorted((skill / "evals").glob("*.json"))]:
+            if doc.is_file():
+                self.check_issue_notes(doc, doc.read_text(encoding="utf-8", errors="ignore"))
         for f in sorted(skill.rglob("*")):
             if f.is_file() and not set(f.relative_to(skill).parts) & IGNORED:
                 try:

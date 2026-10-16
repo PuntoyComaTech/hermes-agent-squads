@@ -30,6 +30,9 @@ description: "Writes skills that pass skill_lint.py. Use when a squad or the bui
 - Model ids in any file of the skill: they belong only in
   `scripts/data/model-roles.yaml` and `local/installed.yaml`.
 - A prose script, which the model rewrites per machine: ship a real script.
+- A line that changes nothing the bot does: harmless warnings, upstream issue
+  numbers, bug-tracker remarks. Not written in skills, SOULs, notes or
+  memory (lint rule `no-issue-notes`).
 
 ## Verification
 
