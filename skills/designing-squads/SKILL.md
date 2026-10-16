@@ -83,6 +83,16 @@ Enforced by `squadctl` and `skill_lint.py`.
   models: its own `board` (it files cards to itself).
 - Manager + workers: one `board` per squad; one Project per repo or folder
   (`skills/managing-projects`).
+- QA lane: the implementer ends with
+  `kanban_request_review(reviewer=<key>-qa)` on its own card; the reviewer
+  approves with `kanban_complete` or returns it with `kanban_request_changes`.
+  Use a separate chain stage only when QA needs its own card (a deployed
+  preview, a different workspace). The reviewer keeps
+  `bundled:sdlc-review` (the dispatcher force-loads it on review cards).
+  Dispatcher keys: `hermes-platform/references/kanban.md` -> Dispatcher config.
+- Open-ended cards (no fixed end state): `goal_mode` with
+  `goal_max_turns`; the goal judge gates `kanban_complete` and
+  `kanban_request_review`.
 
 ## Pitfalls
 
