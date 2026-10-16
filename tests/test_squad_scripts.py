@@ -7,7 +7,6 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 FAKES = REPO / "tests" / "fakes"
 START_SEARCH = REPO / "squads" / "jobs" / "scripts" / "start_search.py"
-STUDIO_PROJECT = REPO / "squads" / "studio" / "skills" / "studio-contract" / "scripts" / "studio_project.py"
 
 
 def fake_env(tmp: Path) -> dict:
@@ -40,11 +39,3 @@ def test_start_search_is_silent_without_profile_md(tmp_path):
     assert p.returncode == 0 and '"no profile.md"' in p.stdout  # the project resolved; the gap is profile.md
     p = run([START_SEARCH], env)
     assert (p.returncode, p.stdout) == (0, ""), p.stderr
-
-
-def test_studio_project_check_accepts_a_glb_brief(tmp_path):
-    piece = tmp_path / "studio" / "20261015-logo"
-    init = run([STUDIO_PROJECT, "init", piece, "--format", "glb", "--title", "Logo"], os.environ)
-    assert init.returncode == 0, init.stdout + init.stderr
-    check = run([STUDIO_PROJECT, "check", piece], os.environ)
-    assert check.returncode == 0, check.stdout + check.stderr

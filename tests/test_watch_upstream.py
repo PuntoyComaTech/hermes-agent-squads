@@ -233,7 +233,7 @@ def test_squads_version_on_main_wakes_once(up, home, capsys):
     seed(home, release="v0.22.1", hermes=LOCAL, squads="2.0.0")
     out = run_gate(up, home, capsys=capsys)
     sq = out["context"]["squads"]
-    assert sq["from"] == "2.0.0" and sq["to"] == "2.1.0" and "studio" in sq["changelog_excerpt"]
+    assert sq["from"] == "2.0.0" and sq["to"] == "2.1.0" and "web animation" in sq["changelog_excerpt"]
     assert "2.0.0 - 2026-10-15" not in sq["changelog_excerpt"]
     digest(home)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # reviewed, not installed: no daily nagging

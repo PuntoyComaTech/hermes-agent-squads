@@ -78,7 +78,7 @@ Squad structure: managers, visible bots and sections, web roles and `web-fronten
   model per card on hard problems; optional `web-frontend-pro` (lane `design-pro`,
   installed only with `squadctl apply web --with web-frontend-pro`) with the new
   `building-3d-motion` skill (three.js/R3F, GSAP, Blender pipeline, perf budgets and
-  fallbacks, reusing the studio squad's skills).
+  fallbacks).
 - `deploying-sites` refuses to deploy without the project's `deploy.md` (target,
   command, env names, rollback; template provided).
 - `designing-squads` holds the squad Rules (naming, visibility, cap, credentials,
@@ -121,7 +121,6 @@ Full redesign as a profile distribution (see `docs/decisions.md`).
   gates and per-card lanes.
 - Ten builder skills under `skills/`, including `hermes-platform` (18 verified Hermes
   reference topics with citations) (V-09).
-- New `studio` squad for rendered and standalone assets: motion, video, 3D (V-13).
 - `scripts/migrate_v1.py`: detects a v1 install (legacy profiles, `~/Hermes/projects/*`,
   `deliver.py` crons), registers the folders as native Projects, removes the deliver crons and
   archives the orchestrator into `local/backups/`; `--dry-run` and `--json`.

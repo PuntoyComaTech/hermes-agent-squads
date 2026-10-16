@@ -4,7 +4,7 @@
 [![Hermes Agent](https://img.shields.io/badge/Hermes%20Agent-NousResearch-7c3aed)](https://github.com/NousResearch/hermes-agent)
 
 Ready-to-install **AI agent squads for [Hermes Agent](https://github.com/NousResearch/hermes-agent)**:
-web development, marketing, job search and a studio, plus a **builder** that installs them,
+web development, marketing and job search, plus a **builder** that installs them,
 creates new ones with you and keeps everything updated. The repo root is the builder's
 **profile distribution**: one command installs it, one command updates it.
 
@@ -37,7 +37,7 @@ changed upstream", or run `hermes profile update builder`.
 2. **Bots pane.** The Bots tab is your roster: every bot is visible — Hermes (default),
    the builder and each squad's bots. The `Managers` section holds the squad managers,
    one section per squad holds its workers (sections come from each squad's manifest).
-3. **Rail.** The profile rail lists every profile (a full install has 20 profiles including the
+3. **Rail.** The profile rail lists every profile (a full install has 17 profiles including the
    default) and condenses into a dropdown above 13; use Cmd+K > *Toggle profile rail* and switch
    in the Bots pane.
 4. **Projects.** Each site, brand or client is a Hermes Project; the builder registers it
@@ -51,7 +51,6 @@ changed upstream", or run `hermes profile update builder`.
 | [Web](squads/web/README.md) | `web` | Sites from idea to production behind a quality gate, preview link before publishing | manager, frontend, backend, qa, deployer, frontend-pro (optional) |
 | [Marketing](squads/marketing/README.md) | `marketing` | Dated research, 90-day plans, copy and assets for your brands, five-lens review | manager, research, creative, producer, reviewer |
 | [Jobs](squads/jobs/README.md) | `jobs` | Matching openings with tailored applications; "apply" sends (or a manual kit) | manager, scout, writer, reviewer, applier |
-| [Studio](squads/studio/README.md) | `studio` | Motion, video and 3D assets ordered by the other squads | manager, motion, 3d |
 | Yours | - | Ask the builder: "create a squad for <goal>" | up to 5 |
 
 ### Web
@@ -91,20 +90,6 @@ flowchart LR
     R --> D["manager digest: match + link"]
     D --> A{"you: apply / change / no"}
     A -->|"apply"| J["jobs-applier: simple form or manual kit"]
-```
-
-### Studio
-
-```mermaid
-flowchart LR
-    U(["card from web or marketing"]) --> L["studio (manager): storyboard + shot list"]
-    L --> T{"3D needed?"}
-    T -->|yes| G["studio-3d: Blender scenes + renders"]
-    T -->|no| M["studio-motion: motion, video, demos"]
-    G --> M
-    M --> R["manager: render review (contact sheets)"]
-    R -->|one fix round| M
-    R --> D["delivered as a comment on the requester's card"]
 ```
 
 ## How work flows

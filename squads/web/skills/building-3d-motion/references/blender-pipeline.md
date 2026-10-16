@@ -1,9 +1,8 @@
 # Blender pipeline
 
-What to model offline and how it reaches the site. This file is the bridge only; the Blender workflow
-itself (scenes, materials, lighting, Cycles/EEVEE, turntables) lives in the studio squad's
-`rendering-3d` skill (`references/blender-workflow.md` there) — read it instead of duplicating it,
-and order heavy renders as cards on the `studio` board.
+What to model offline and how it reaches the site. The Blender work itself (scenes, materials, lighting,
+Cycles/EEVEE, turntables) happens outside the site repo, with the confirm-gated plugin below; what
+arrives here is a glTF/GLB or a static render you wire into the scene.
 
 ## Contents
 
@@ -15,8 +14,8 @@ and order heavy renders as cards on the `studio` board.
 
 - Model and bake in Blender when the asset is sculpted, lit or textured beyond what code does cheaply;
   keep procedural or parametric geometry in code (three.js/R3F) when it must react to the user.
-- Static hero renders can be delivered as WebM/MP4 or AVIF stills by the studio squad: often cheaper
-  than shipping a live scene.
+- Static hero renders delivered as WebM/MP4 or AVIF stills are often cheaper than shipping a live
+  scene: ask for a static export when the scene never reacts to the user.
 
 ## Export
 
