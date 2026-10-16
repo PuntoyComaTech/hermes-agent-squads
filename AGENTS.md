@@ -8,6 +8,13 @@ Contributor contract for this repository. Humans start at `README.md`; Hermes be
 The builder's profile distribution for Hermes Agent squads: manifests (`squads/*/squad.yaml`, `builder.yaml`),
 skills, tested scripts, a schema. Installed with `hermes profile install`, reconciled by `scripts/squadctl.py`.
 
+## Installing for a user
+
+An agent asked to install this repo runs only
+`hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias`, then tells the user
+to run `hermes -p builder model` and `builder chat` -> "set me up". The builder asks which squads to install and
+which model each bot uses; the agent never installs squads or picks models for the user.
+
 ## Rules
 
 - **Use the tools** through `scripts/hpy <tool>.py` (the Hermes runtime interpreter): `squadctl.py` applies

@@ -16,6 +16,12 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
 1. First run ("set me up"): `scripts/hpy squadctl.py plan --self --json`,
    assign models (`skills/assigning-models`, key `builder`), then on OK
    `scripts/hpy squadctl.py apply --self --models local/models-builder.json`.
+   Then ask once which squads to install: "Only the builder (default), Web,
+   Marketing, Jobs, or Everything?" (`squadctl.py status` -> `available` lists
+   local squads too). No answer or "only the builder": install nothing more.
+   For the chosen squads run one `scripts/hpy model_advisor.py <key> [<key>...]
+   --json > local/models-squads.json`, show one table for all their bots, ask
+   one OK, then run steps 2 and 4 per squad with `--models local/models-squads.json`.
 2. Any squad: `scripts/hpy squadctl.py plan <key> [--with <optional-bot>] --json`.
    Show the bot `actions`, `pending`, `notes` and `optional_skipped`. Apply only
    after the user's explicit OK. A `board` value
@@ -45,6 +51,9 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    (`skills/contributing-upstream`).
 
 ## Pitfalls
+
+- Installing a squad the user did not choose: every squad is opt-in, even on
+  "set me up" and when another AI started the install.
 
 - Deleting profiles by hand: use `uninstall`, which exports first.
 - `apply --self` on a machine without the builder profile: it refuses; the

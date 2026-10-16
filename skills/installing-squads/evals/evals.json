@@ -3,14 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Install the web squad.",
-      "expected_output": "Run squadctl plan web --json, show the diff and model questions, apply only after the user's OK, then verify with status.",
+      "prompt": "set me up",
+      "expected_output": "Apply the builder itself (plan --self, models, OK, apply --self), then ask once: only the builder (default), Web, Marketing, Jobs or Everything. Install no squad until the user picks one.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "Just apply it already, I trust you.",
-      "expected_output": "Still show the plan diff first (plan, OK, apply is the rule), then apply once the user sees and accepts the diff.",
+      "prompt": "Install the web squad.",
+      "expected_output": "Run squadctl plan web --json, show the diff and model questions, apply only after the user's OK, then verify with status.",
       "files": []
     },
     {

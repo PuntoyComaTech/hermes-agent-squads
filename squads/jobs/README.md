@@ -22,7 +22,7 @@ blocklists.
 ## Flow
 
 ```mermaid
-flowchart LR
+flowchart TD
   cron[cron jobs-search] --> scout["jobs-scout: search + hard filter"]
   scout -->|PASS opening| analyze["jobs-scout on the review lane: analysis"]
   analyze -->|PURSUE at or above apply_threshold| writer["jobs-writer: CV, letter, answers"]
