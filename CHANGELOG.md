@@ -3,6 +3,33 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.4 - 2026-10-15
+
+The distribution ships the builder plus `web`, `marketing` and `jobs`: the web squad is web-only and
+the root kanban cap is opt-in.
+
+### Removed
+
+- The `studio` squad (manifest, four skills, three souls). No board, profile, fixture or reference to
+  it remains; `web-frontend-pro` asks the card's requester for offline renders instead of ordering them.
+
+### Changed
+
+- `web-frontend` and `web-frontend-pro` keep `impeccable`, `scrollcraft`, `claude-design`, `design-md`
+  and `popular-web-designs`. `hyperframes`, `dream-loop` and `auteur` are out: video rendering and
+  taste, not site work.
+- `building-3d-motion` gains `references/animation-libraries.md` — GSAP/ScrollTrigger, Lenis, Motion,
+  three.js/R3F + drei, Theatre.js and Lottie/Rive, each with its bundle cost and reduced-motion switch.
+- `squadctl plan` and `squadctl doctor` never propose `kanban.max_in_progress_per_profile`; `apply
+  --set-root-kanban-cap` is the only writer and runs on the user's ask (V-12).
+- Squad `version` 3.1.1 in `web`, `marketing` and `jobs`.
+
+### Fixed
+
+- Stale references: `start_search.py --lead` is `--manager`, the marketing templates are named by the
+  skill that owns them, `site-contract` names `check_site.py`, and the review-round wording in the
+  jobs and web lenses and evals matches the rules that cap rounds.
+
 ## 2.0.3 - 2026-10-15
 
 Fixes from the builder's real `web` install, and deploys through the vendors' own CLIs.
