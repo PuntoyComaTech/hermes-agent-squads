@@ -292,6 +292,19 @@ def test_board_creation_is_the_owner_errand_inside_a_kanban_worker(env, capsys, 
     assert st["squads"][0]["board"].startswith("pending owner action: hermes kanban boards create web")
 
 
+def test_an_existing_board_is_reported_inside_a_kanban_worker(env, capsys, monkeypatch):
+    """The fenced worker checks `kanban boards list` first: an existing board is 'exists', never an owner errand."""
+    monkeypatch.setenv("HERMES_DELEGATED_CHILD_CONTEXT", str(env.root))
+    env.squad("web")
+    (env.root / "boards.json").write_text(json.dumps([{"slug": "web", "name": "Web", "archived": False}]))
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["board"] == "exists"
+    assert out["summary"] == {"created": 5}
+    assert not any(c["args"][:3] == ["kanban", "boards", "create"] for c in env.calls())
+    _, st = env.run("status", "web", capsys=capsys)
+    assert st["squads"][0]["board"] == "exists"
+
+
 def test_provider_plugin_is_copied_into_the_bot_profile(env, capsys):
     """A provider that is a user plugin of the builder is `Unknown provider` elsewhere until it is copied."""
     plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-design"

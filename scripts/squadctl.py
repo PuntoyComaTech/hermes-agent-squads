@@ -1033,10 +1033,8 @@ def ensure_board(ctx: Ctx, spec: dict, dry: bool) -> str:
     board = spec.get("board")
     if not board:
         return "none"
-    if os.environ.get("HERMES_DELEGATED_CHILD_CONTEXT"):
-        # Hermes refuses board creation from inside a Kanban worker (the card's board scope is fenced to the
-        # board it runs on), and the refusal must not cost the whole apply: the board becomes the owner's errand.
-        return "pending owner action: hermes kanban boards create " + shlex.join(board_args(board))
+    # The read is allowed inside a Kanban worker (HERMES_DELEGATED_CHILD_CONTEXT): only creation is fenced.
+    # Check first; the owner errand is reported only when the board is actually missing.
     out = ctx.hermes("kanban", "boards", "list", "--json", check=False)
     try:
         live = {b["slug"] for b in json.loads(out) if not b.get("archived")}
@@ -1044,6 +1042,10 @@ def ensure_board(ctx: Ctx, spec: dict, dry: bool) -> str:
         live = set()
     if board["slug"] in live:
         return "exists"
+    if os.environ.get("HERMES_DELEGATED_CHILD_CONTEXT"):
+        # Hermes refuses board creation from inside a Kanban worker (the card's board scope is fenced to the
+        # board it runs on), and the refusal must not cost the whole apply: the board becomes the owner's errand.
+        return "pending owner action: hermes kanban boards create " + shlex.join(board_args(board))
     if not dry:
         ctx.hermes("kanban", "boards", "create", *board_args(board))
     return "would-create" if dry else "created"
