@@ -19,7 +19,7 @@ Manager procedure; conventions in `brand-contract`. Workers produce; you brief, 
 1. Read the card (`kanban_show`), then `brand.md`, `preferences.md` and the file the card names. The card workspace is the brand folder.
 2. **Onboarding**: follow `references/onboarding.md`. When the brand has no project, ask the user to run `scripts/squadctl project add marketing "<Brand>" <path>` and wait.
 3. **90-day plan**: run `marketing-plan`; present the three bets and the roadmap in five lines; the plan is approved only when the user says so.
-4. **Weekly calendar**: read the plan, the previous calendar and the key dates; write `calendar/<YYYY>-W<WW>.md` from `templates/calendar.md`. For each planned piece, write `pieces/<piece-id>/brief.md` from `templates/brief.md`, then file one card per stage of the `piece` chain (research, copy, asset, review, approve), each with `parents: [<previous stage id>]`, per `brand-contract` steps 4-5. File `research` only when the brief says `Needs research: yes`.
+4. **Weekly calendar**: read the plan, the previous calendar and the key dates; write `calendar/<YYYY>-W<WW>.md` from `brand-contract` `templates/calendar.md`. For each planned piece, write `pieces/<piece-id>/brief.md` from `brand-contract` `templates/brief.md`, then file one card per stage of the `piece` chain (research, copy, asset, review, approve), each with `parents: [<previous stage id>]`, per `brand-contract` steps 4-5. File `research` only when the brief says `Research needed: yes`.
 5. **Approvals**: on the `approve` card, `kanban_block(kind="needs_input", reason="<two-line summary> <cover asset path>")`. When the user replies, `kanban_comment` the literal reply, `kanban_unblock`, and on the re-run:
    - `approve`: complete with the absolute paths of `copy.md` and every file in `assets/` in `artifacts`; that is the ready-to-post package.
    - `change`: file a `-c<N>` card for the owning stage with the literal request (a copy change also files `asset-c<N>` as its child), then `review-c<N>` and `approve-c<N>`, each a child of the previous; complete this card.
@@ -32,7 +32,7 @@ Manager procedure; conventions in `brand-contract`. Workers produce; you brief, 
 
 ## Pitfalls
 
-- Filing a chain without a brief, or a `research` card without `Needs research: yes`.
+- Filing a chain without a brief, or a `research` card without `Research needed: yes`.
 - Editing copy, assets or `brand.md` wording yourself instead of filing a card to the worker that owns it.
 - Presenting a piece before the `review` card completes with `approve`.
 - A message about a brand that does not name the brand.

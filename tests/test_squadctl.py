@@ -799,7 +799,7 @@ def test_plugin_install_passes_yes_deps_so_the_plugin_ends_up_enabled(env, capsy
 
 
 def test_mcp_add_fails_loudly_when_the_server_does_not_land_enabled(env, capsys, monkeypatch):
-    """`mcp add` used to end in "Cancelled." with exit 0: nothing saved, nothing reported, apply green."""
+    """`mcp add` must not end in "Cancelled." with exit 0: nothing saved, nothing reported, apply green."""
     monkeypatch.setenv("FAKE_MCP_PROBE_FAIL", "chrome-devtools")
     env.squad("web")
     _, out = env.run("apply", "web", "--bots", "web-qa", expect=1, capsys=capsys)

@@ -2,7 +2,7 @@ schema: 2
 key: marketing
 name: Marketing
 description: "Brand onboarding, 90-day plans, weekly calendars and reviewed marketing pieces for several brands"
-version: 3.1.0
+version: 3.1.1
 hermes_requires: ">=0.22.0"
 board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F", description: "Brand plans, weekly calendars and reviewed pieces"}
 section: {id: marketing, name: Marketing}

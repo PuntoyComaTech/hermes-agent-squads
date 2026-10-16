@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """File one search card per slot on the jobs board, unless the search is paused (cron, no agent).
 
-The project is --project or the lead's active project. The search pauses while `<project>/profile.md` says
+The project is --project or the manager's active project. The search pauses while `<project>/profile.md` says
 `search: paused`. The review-lane model comes from the builder's `local/installed.yaml`. The card is filed with
-`hermes -p <lead> kanban --board <board> create` and a per-slot idempotency key.
+`hermes -p <manager> kanban --board <board> create` and a per-slot idempotency key.
 
 stdout is what the cron delivers. A filed card, a paused search, a missing project and a missing `profile.md`
 print nothing and exit 0 (`squadctl doctor` reports the setup gaps). A hermes failure prints and exits 1.
@@ -43,9 +43,9 @@ def hermes_root() -> Path:
     return home.parent.parent if home.parent.name == "profiles" else home
 
 
-def profile_home(lead: str) -> Path:
-    home = Path(os.environ.get("HERMES_HOME") or hermes_root() / "profiles" / lead)
-    return home if home.name == lead else hermes_root() / "profiles" / lead
+def profile_home(manager: str) -> Path:
+    home = Path(os.environ.get("HERMES_HOME") or hermes_root() / "profiles" / manager)
+    return home if home.name == manager else hermes_root() / "profiles" / manager
 
 
 def hermes(bin_name: str, *args: str, check: bool = True) -> str:
@@ -88,20 +88,20 @@ def project_path(show: str) -> str | None:
     return starred.group(1) if starred else None
 
 
-def resolve_project(bin_name: str, lead: str, explicit: str | None) -> tuple[str, str]:
+def resolve_project(bin_name: str, manager: str, explicit: str | None) -> tuple[str, str]:
     if explicit:
         slug = explicit
-        show = hermes(bin_name, "-p", lead, "project", "show", slug, check=False)
+        show = hermes(bin_name, "-p", manager, "project", "show", slug, check=False)
     else:
-        rows = project_slugs(hermes(bin_name, "-p", lead, "project", "list", check=False))
+        rows = project_slugs(hermes(bin_name, "-p", manager, "project", "list", check=False))
         if not rows:
-            raise SetupGap("no project on the jobs lead: create it with "
+            raise SetupGap("no project on the jobs manager: create it with "
                            "`squadctl project add jobs <name> <path>`")
         slug = next((s for s, active in rows if active), rows[0][0])
-        show = hermes(bin_name, "-p", lead, "project", "show", slug, check=False)
+        show = hermes(bin_name, "-p", manager, "project", "show", slug, check=False)
     path = project_path(show)
     if not path:
-        raise SetupGap(f"project {slug}: no folder found (run `hermes -p {lead} project show {slug}`)")
+        raise SetupGap(f"project {slug}: no folder found (run `hermes -p {manager} project show {slug}`)")
     folder = Path(path).expanduser()
     if not folder.is_dir():
         raise SetupGap(f"project {slug}: {folder} is not a directory")
@@ -129,11 +129,11 @@ def search_state(profile_md: Path) -> str:
     return "paused" if str(meta.get("search", "active")).strip().lower() == "paused" else "active"
 
 
-def installed_candidates(args: argparse.Namespace, lead: str) -> list[Path]:
+def installed_candidates(args: argparse.Namespace, manager: str) -> list[Path]:
     out = []
     if args.installed:
         out.append(Path(args.installed).expanduser())
-    own = profile_home(lead) / "local" / "installed.yaml"
+    own = profile_home(manager) / "local" / "installed.yaml"
     out.append(own)
     for sibling in sorted((hermes_root() / "profiles").glob("*/local/installed.yaml")):
         if sibling != own:
@@ -141,11 +141,11 @@ def installed_candidates(args: argparse.Namespace, lead: str) -> list[Path]:
     return out
 
 
-def review_lane_model(args: argparse.Namespace, lead: str) -> tuple[str, str] | None:
+def review_lane_model(args: argparse.Namespace, manager: str) -> tuple[str, str] | None:
     """(model, provider) recorded for the review lane, else for jobs-reviewer, in the builder's installed.yaml."""
     if yaml is None:
         return None
-    for path in installed_candidates(args, lead):
+    for path in installed_candidates(args, manager):
         if not path.is_file():
             continue
         try:
@@ -185,11 +185,11 @@ def card_body(slug: str, folder: str, now: datetime, lane: tuple[str, str] | Non
     return "\n".join(lines)
 
 
-def file_card(bin_name: str, lead: str, args: argparse.Namespace, slug: str, folder: str,
+def file_card(bin_name: str, manager: str, args: argparse.Namespace, slug: str, folder: str,
               now: datetime, lane: tuple[str, str] | None) -> dict:
     key = f"jobs:{STAGE}:{slug}:{slot_id(now)}"
-    argv = ["-p", lead, "kanban", "--board", args.board, "create", card_title(now),
-            "--assignee", args.scout, "--created-by", lead, "--skill", args.skill,
+    argv = ["-p", manager, "kanban", "--board", args.board, "create", card_title(now),
+            "--assignee", args.scout, "--created-by", manager, "--skill", args.skill,
             "--project", slug, "--workspace", f"dir:{folder}", "--idempotency-key", key,
             "--body", card_body(slug, folder, now, lane), "--json"]
     result = {"key": key, "title": card_title(now), "assignee": args.scout, "board": args.board, "project": slug,
@@ -208,9 +208,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="start_search.py", description=(__doc__ or "").split("\n\n")[0],
         epilog="Exit 0 decided, 1 hermes failed, 2 usage error.", formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--project", help="project slug (default: the lead's active project)")
+    parser.add_argument("--project", help="project slug (default: the manager's active project)")
     parser.add_argument("--board", default="jobs", help="kanban board slug (default jobs)")
-    parser.add_argument("--lead", default="jobs", help="lead profile that files the card (default jobs)")
+    parser.add_argument("--manager", default="jobs", help="manager profile that files the card (default jobs)")
     parser.add_argument("--scout", default="jobs-scout", help="assignee of the search card (default jobs-scout)")
     parser.add_argument("--skill", default="finding-jobs", help="skill the card loads (default finding-jobs)")
     parser.add_argument("--installed", type=Path, help="installed.yaml holding the lane models")
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: --now must be 'YYYY-MM-DD HH:MM', got {args.now!r}", file=sys.stderr)
         return 2
     try:
-        slug, folder = resolve_project(args.hermes_bin, args.lead, args.project)
+        slug, folder = resolve_project(args.hermes_bin, args.manager, args.project)
         state = search_state(Path(folder) / "profile.md")
         if state == "paused":
             payload = {"filed": False, "reason": "paused", "project": slug, "slot": slot_id(now)}
@@ -237,8 +237,8 @@ def main(argv: list[str] | None = None) -> int:
             payload = {"filed": False, "reason": "no profile.md", "project": slug}
         else:
             payload = {"filed": True, "project": slug, "slot": slot_id(now),
-                       **file_card(args.hermes_bin, args.lead, args, slug, folder, now,
-                                   review_lane_model(args, args.lead))}
+                       **file_card(args.hermes_bin, args.manager, args, slug, folder, now,
+                                   review_lane_model(args, args.manager))}
     except SetupGap as exc:
         payload = {"filed": False, "reason": str(exc)}
     except RunError as exc:

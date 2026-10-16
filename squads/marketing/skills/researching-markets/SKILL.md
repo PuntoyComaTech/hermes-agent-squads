@@ -10,7 +10,7 @@ Every claim carries a URL and the date it was seen. Observations stay separate f
 ## When to Use
 
 - A `research` stage card asks for competitor, audience, trend or ad-library evidence.
-- A brief has `Needs research: yes`.
+- A brief has `Research needed: yes`.
 - A claim needs a source, or a source needs a freshness check.
 
 ## Procedure

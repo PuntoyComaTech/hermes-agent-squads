@@ -19,7 +19,7 @@ One brand is one Hermes Project; the project slug is the brand slug. The project
 2. Work only inside the project folder. Never read another brand's folder.
 3. Write outputs at the Layout paths. On every change except typo fixes, raise `version`, set `updated` and add a top line to the file's `Changes` section. Never rewrite past lines.
 4. File a card with `kanban_create`: `title`, `assignee`, `skills: [<stage skill>]`, `parents: [<card id>]`, `board: "marketing"`, `project: <slug>`, `workspace_kind: "dir"`, `workspace_path: <absolute project folder>`, `idempotency_key`, and a body with the piece id, stage, round, input paths and the user's literal request. Pass `board: "marketing"` on every kanban tool call.
-5. Keys: `marketing:piece:<project>:<piece-id>:<stage>`, the same key `squadctl chain` derives. A reviewer fix round appends `-r<N>`; a user change round appends `-c<N>`. Onboarding research: `marketing:onboarding:<project>:<YYYYMMDD>:research`.
+5. Keys: `marketing:piece:<project>:<piece-id>:<stage>`, the same key `squadctl chain` derives. A reviewer fix round appends `-r<N>`; a user change round appends `-c<N>`. Onboarding research key: `marketing:onboarding:<project>:<YYYYMMDD>:research`.
 6. Hand off with `kanban_complete`: `summary` in two lines, `metadata.changed_files` (every file written), `metadata.piece_id`, `metadata.stage`, and `created_cards` with the ids of cards you filed.
 7. A required file or fact is missing: `kanban_block(kind="needs_input", reason="<the exact question>")`.
 

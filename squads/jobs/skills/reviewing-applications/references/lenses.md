@@ -52,6 +52,6 @@ Output: `{"verdict": "PASS|FIX", "findings": [{"location": "", "text": "", "fix"
 1. Copy each block verbatim into `reviews` of `review-N.json`.
 2. Truthfulness FAIL -> never APPROVED. Collect the findings as `type: content` corrections with the exact
    replacement text required from a verified achievement.
-3. Any blocker or fixable finding -> FIX, with each correction carrying `type` and instructions. Round 2 (or a
-   CHANGE round) that is still not APPROVED -> NOT_APPROVED.
+3. Any blocker or fixable finding -> FIX, with each correction carrying `type` and instructions. A second
+   review round (or a CHANGE round) that is still not APPROVED -> NOT_APPROVED.
 4. `summary_for_user`: at most 5 lines, in the user's language, no internals.
