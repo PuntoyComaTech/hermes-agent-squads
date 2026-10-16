@@ -2,12 +2,14 @@
 """Suggest a model, provider and reasoning effort per squad bot from the user's authenticated providers.
 
 Inputs
-  providers  hermes_cli.model_switch_providers.list_authenticated_providers() in-process, else the same call under
-             the Hermes runtime interpreter, else `hermes auth list` (slugs only). `--providers cache` or a comma
-             list skips detection (offline).
+  providers  the union of every home (C-15): `hermes_cli.model_switch_providers.list_authenticated_providers()`
+             in-process, else the same call under the Hermes runtime interpreter, else `hermes auth list`
+             (slugs only), plus the providers whose API-key name appears in the root or the profile env file.
+             `--providers cache` or a comma list skips detection (offline).
   key homes  where each provider's key lives (root vs profile): the same detection is re-run with HERMES_HOME
              pointed at the root and at the profile, and the two views are diffed. "provider X authenticated at
-             root but not in profile Y" is that diff. Auto detection only; never reads .env or auth.json itself.
+             root but not in profile Y" is that diff. Env-file scanning reads key NAMES only (text before `=`);
+             values are never read out, printed or stored.
   models     <HERMES_HOME>/provider_models_cache.json ({slug: {fp, at, models[]}}); falls back to the models the
              detection call returned (providers such as nous have no cache entry).
   lanes      scripts/data/model-roles.yaml, overridden per lane/family by <builder>/local/model-roles.yaml;
@@ -157,16 +159,76 @@ def probe_auth_list(env: dict | None = None) -> list[dict] | None:
     return [{"slug": s, "models": []} for s in dict.fromkeys(slugs)] or None
 
 
+# --- env-file key names (C-15) --------------------------------------------------------------------------------
+
+ENV_FILE = ".env"
+
+def env_key_names(home: Path) -> set[str]:
+    """Key NAMES (never values) of one env file's assignments (`export KEY=value`)."""
+    path = home / ENV_FILE
+    names = set()
+    for line in (path.read_text(encoding="utf-8", errors="ignore").splitlines() if path.is_file() else []):
+        m = re.match(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=", line)
+        if m:
+            names.add(m.group(1))
+    return names
+
+
+def registry_env_map() -> dict[str, str]:
+    """{ENV_NAME: provider slug} from PROVIDER_REGISTRY when the Hermes runtime is importable, else {}."""
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY as R
+        return {name: slug for slug, p in R.items() for name in (getattr(p, "api_key_env_vars", ()) or ())}
+    except Exception:
+        return {}
+
+
+def slug_from_env_name(name: str) -> str | None:
+    """Reverse of the `<SLUG>_API_KEY` convention (the guess squadctl makes for unknown providers)."""
+    return name[:-len("_API_KEY")].lower().replace("_", "-") if name.endswith("_API_KEY") else None
+
+
+def env_slugs(home: Path) -> set[str]:
+    """Providers whose API-key name appears in <home>/.env. Names only: values never leave the file (C-15)."""
+    reg = registry_env_map()
+    out = set()
+    for name in env_key_names(home):
+        slug = reg.get(name) or slug_from_env_name(name)
+        if slug:
+            out.add(slug)
+    return out
+
+
 def detect_providers(mode: str, cache: dict) -> tuple[list[dict], str]:
     if mode == "cache":
         return [{"slug": s, "models": []} for s in cache], "cache"
     if mode != "auto":
         return [{"slug": s.strip(), "models": []} for s in mode.split(",") if s.strip()], "list"
+    # Union of every home (C-15): a provider the in-process probe misses (custom providers, a different key
+    # home) must still reach the recommendations through the auth pool or an env-file key name.
+    rows: list[dict] = []
+    seen: set[str] = set()
+    sources: list[str] = []
     for name, probe in (("in-process", probe_in_process), ("runtime", probe_runtime), ("auth-list", probe_auth_list)):
-        rows = probe()
-        if rows:
-            return rows, name
-    raise AdvisorError("no authenticated provider detected; run `hermes model` or pass --providers")
+        try:
+            got = probe() or []
+        except Exception:
+            got = []
+        fresh = [r for r in got if r["slug"] not in seen]
+        if fresh:
+            sources.append(name)
+        for r in fresh:
+            seen.add(r["slug"])
+            rows.append(r)
+    fresh = sorted((env_slugs(hermes_root()) | env_slugs(hermes_home())) - seen)
+    if fresh:
+        sources.append("env")
+        for s in fresh:
+            seen.add(s)
+            rows.append({"slug": s, "models": []})
+    if not rows:
+        raise AdvisorError("no authenticated provider detected; run `hermes model` or pass --providers")
+    return rows, "+".join(sources)
 
 
 def resolve_providers(mode: str, cache: dict, now: float) -> dict:
@@ -186,18 +248,19 @@ def resolve_providers(mode: str, cache: dict, now: float) -> dict:
 # --- key locations and exclusions -------------------------------------------------------------------------------
 
 def scope_providers(home: Path) -> set[str]:
-    """Slugs Hermes reports authenticated with HERMES_HOME=home: its own view of that scope (root or
-    profile). Runs detection with the scope's home in the subprocess environment; never opens .env or
-    auth.json here."""
+    """Slugs that count as authenticated with HERMES_HOME=home: the Hermes runtime's own view of that
+    scope (root or profile) plus the provider API-key names in that scope's env file (C-15, names only;
+    values are never read out, printed or stored)."""
     env = {**os.environ, "HERMES_HOME": str(home)}
+    slugs = set(env_slugs(home))
     for probe in (probe_runtime, probe_auth_list):
         try:
             rows = probe(env)
         except Exception:
             rows = None
         if rows:
-            return {r["slug"] for r in rows}
-    return set()
+            return {r["slug"] for r in rows} | slugs
+    return slugs
 
 
 def key_locations(slugs: list[str]) -> tuple[dict[str, list[str]], list[str]]:

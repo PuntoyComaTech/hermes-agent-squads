@@ -183,6 +183,8 @@ def test_detection_models_fill_providers_missing_from_cache(monkeypatch, capsys)
     monkeypatch.setattr(ma, "probe_in_process", lambda: [
         {"slug": "nous", "models": ["deepseek-v4.1-flash", "claude-opus-5.5"]},
         {"slug": "opencode-go", "models": ["only-in-probe"]}])
+    monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
+    monkeypatch.setattr(ma, "probe_auth_list", lambda *a: None)
     monkeypatch.setattr(ma, "scope_providers", lambda home: set())  # no subprocesses in tests
     code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
     assert code == 0 and result["providers"]["source"] == "in-process"
@@ -195,6 +197,8 @@ def test_detection_models_fill_providers_missing_from_cache(monkeypatch, capsys)
 
 def test_detection_models_are_used_for_a_provider_without_cache(monkeypatch, capsys):
     monkeypatch.setattr(ma, "probe_in_process", lambda: [{"slug": "nous", "models": ["deepseek-v4.1-flash"]}])
+    monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
+    monkeypatch.setattr(ma, "probe_auth_list", lambda *a: None)
     monkeypatch.setattr(ma, "scope_providers", lambda home: set())  # no subprocesses in tests
     _, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
     assert (result["lanes"][0]["model"], result["lanes"][0]["provider"]) == ("deepseek-v4.1-flash", "nous")
@@ -286,6 +290,47 @@ def test_key_locations_single_scope_when_root_is_the_profile(tmp_path, monkeypat
     monkeypatch.setattr(ma, "scope_providers", lambda home: {"opencode-go"})
     key_in, report = ma.key_locations(["opencode-go"])
     assert key_in == {"opencode-go": ["root"]} and report == []
+
+
+def test_detection_unions_every_probe_without_short_circuit(monkeypatch, capsys):
+    # the builder's machine: `hermes auth list` has opencode-go but the in-process probe does not;
+    # the old short-circuit on the first non-empty probe missed it entirely
+    monkeypatch.setattr(ma, "probe_in_process", lambda: [{"slug": "nous", "models": []}])
+    monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
+    monkeypatch.setattr(ma, "probe_auth_list", lambda *a: [{"slug": "opencode-go", "models": []}])
+    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    assert code == 0 and result["providers"]["source"] == "in-process+auth-list"
+    assert {p["slug"] for p in result["providers"]["authenticated"]} == {"nous", "opencode-go"}
+
+
+def test_env_file_key_names_are_detected_without_reading_values(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "root"
+    profile = root / "profiles" / "builder"
+    profile.mkdir(parents=True)
+    (root / ".env").write_text("OPENCODE_GO_API_KEY=sk-super-secret-value\nexport UNRELATED=x\n")
+    monkeypatch.setenv("HERMES_HOME", str(profile))
+    for name in ("probe_in_process", "probe_runtime", "probe_auth_list"):
+        monkeypatch.setattr(ma, name, lambda *a: None)
+    monkeypatch.setattr(ma, "registry_env_map", lambda: {})  # no Hermes runtime import in tests
+    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    assert code == 0 and result["providers"]["source"] == "env"
+    assert [p["slug"] for p in result["providers"]["authenticated"]] == ["opencode-go"]
+    assert "sk-super-secret-value" not in json.dumps(result), "values never leave the env file"
+
+
+def test_key_locations_counts_env_file_keys_per_scope(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    profile = root / "profiles" / "builder"
+    profile.mkdir(parents=True)
+    (root / ".env").write_text("OPENCODE_GO_API_KEY=x\n")
+    (profile / ".env").write_text("ANTHROPIC_API_KEY=y\n")
+    monkeypatch.setenv("HERMES_HOME", str(profile))
+    monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
+    monkeypatch.setattr(ma, "probe_auth_list", lambda *a: None)
+    monkeypatch.setattr(ma, "registry_env_map", lambda: {})
+    key_in, report = ma.key_locations(["opencode-go", "anthropic"])
+    assert key_in == {"opencode-go": ["root"], "anthropic": ["profile"]}
+    assert report == ["provider opencode-go authenticated at root but not in profile builder"]
 
 
 def test_alias_lanes_resolve_and_keep_the_requested_name(capsys):
