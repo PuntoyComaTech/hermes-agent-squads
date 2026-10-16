@@ -18,9 +18,7 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    `scripts/hpy squadctl.py apply --self --models local/models-builder.json`.
 2. Any squad: `scripts/hpy squadctl.py plan <key> [--with <optional-bot>] --json`.
    Show the bot `actions`, `pending`, `notes` and `optional_skipped`. Apply only
-   after the user's explicit OK. A `root` line changes the machine-wide
-   `<root>/config.yaml`: ask for it separately and add
-   `--set-root-kanban-cap` only on that OK. A `board` value
+   after the user's explicit OK. A `board` value
    `pending owner action: ...` is a command the user runs in their terminal.
    A `credentials <NAME>` note is a key the user puts in that bot's profile.
 3. If the notes list `no model assigned`, run `skills/assigning-models` first.
@@ -28,7 +26,9 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    [--bots a,b] [--skip-skills] [--confirm <id>] [--set-root-kanban-cap]`.
    A `pending` item (licence or disclosure)
    installs only on a later apply with `--confirm <id>`, after the user
-   answers its question.
+   answers its question. `--set-root-kanban-cap` is the only writer of the
+   machine-wide `kanban.max_in_progress_per_profile`; pass it only when the user
+   asks for that cap, since nothing else proposes it.
 5. Check: `scripts/hpy squadctl.py status <key>` and
    `scripts/hpy squadctl.py doctor`.
 6. Update: after `hermes profile update builder`, run step 2 for each squad

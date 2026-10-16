@@ -212,14 +212,13 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert web.config("web")["memory"]["memory_enabled"] is True
 
 
-def test_kanban_cap_is_never_written_by_a_plain_apply(web, capsys):
-    """`kanban.*` is machine-wide (the gateway owns the dispatcher): an apply reports it as an owner item only."""
+def test_kanban_cap_is_never_written_or_proposed_by_a_plain_apply(web, capsys):
+    """`kanban.*` is machine-wide (the gateway owns the dispatcher): a plain apply leaves it alone and says nothing."""
     fe = web.config("web-frontend")
     assert "kanban" not in fe
     assert not (web.root / "config.yaml").exists()
     _, out = web.run("apply", "web", capsys=capsys)
-    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1 "
-                           "(owner confirm: apply --set-root-kanban-cap)"]
+    assert out["root"] == []
     assert not (web.root / "config.yaml").exists()
     assert "kanban" not in web.config("web-qa")
 
@@ -234,12 +233,14 @@ def test_kanban_cap_is_set_only_with_the_root_flag(web, capsys):
     assert out["summary"] == {"unchanged": 5}
 
 
-def test_plan_reports_the_root_kanban_cap_when_missing(env, capsys):
+def test_plan_never_proposes_the_root_kanban_cap(env, capsys):
     env.squad("web")
     _, out = env.run("plan", "web", capsys=capsys)
-    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1 "
-                           "(owner confirm: apply --set-root-kanban-cap)"]
+    assert out["root"] == []
     assert not (env.root / "config.yaml").exists()  # plan writes nothing
+    _, out = env.run("plan", "web", "--set-root-kanban-cap", capsys=capsys)
+    assert out["root"] == ["set root kanban.max_in_progress_per_profile: unset -> 1"]
+    assert not (env.root / "config.yaml").exists()  # still a dry run
 
 
 def test_delegation_lane_and_passthrough(web):
