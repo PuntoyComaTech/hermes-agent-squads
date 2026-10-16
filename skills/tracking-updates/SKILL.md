@@ -53,7 +53,10 @@ the gate's stdout to this turn as `## Script Output`.
 2. A Hermes fact: record it as `skills/hermes-platform` step 2 says.
 3. A squad change: write the overlay (`skills/changing-bots`), then `plan`,
    user OK, `apply`.
-4. A new squads version: suggest `hermes profile update builder`; it keeps
+4. A new Hermes release: tell the user to run `hermes update` (it moves
+   release to release; `hermes update --set-channel main` follows every
+   commit). Never run it from a bot: it restarts every gateway.
+5. A new squads version: suggest `hermes profile update builder`; it keeps
    `local/`, memories, sessions and `.env`
    (`skills/hermes-platform/references/profiles-and-distributions.md`). Then
    `skills/installing-squads` step 6.
