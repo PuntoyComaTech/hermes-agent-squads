@@ -126,16 +126,46 @@ def env_set(path: Path, key: str, value: str) -> None:
     write_text(path, "\n".join(out) + "\n", 0o600)
 
 
+LIST_EDITS = ("_add", "_remove")
+
+
+def list_item_id(item):
+    """Identity of a list entry for `<list>_add` / `<list>_remove`: the string, or its `id` / `name` field."""
+    return item.get("id") or item.get("name") if isinstance(item, dict) else item
+
+
 def deep_merge(base, over):
-    """Dicts merge key-wise, anything else is replaced; a None value deletes the key."""
-    if not isinstance(base, dict) or not isinstance(over, dict):
+    """Dicts merge key-wise, anything else is replaced; a None value deletes the key. `<list>_add: [...]` appends
+    to the base list (an entry with the same id replaces the old one in place) and `<list>_remove: [ids]` drops
+    entries, so an overlay edits a repo list without freezing a copy of it."""
+    if not isinstance(over, dict):
         return over
-    out = dict(base)
+    fresh = not isinstance(base, dict)  # a new mapping keeps its own null values
+    out = {} if fresh else dict(base)
+    edits = []
     for k, v in over.items():
-        if v is None:
+        if k.endswith(LIST_EDITS):
+            edits.append((k, v))
+        elif v is None and fresh:
+            out[k] = None
+        elif v is None:
             out.pop(k, None)
         else:
-            out[k] = deep_merge(base[k], v) if k in base else v
+            out[k] = deep_merge(out[k], v) if isinstance(out.get(k), dict) else deep_merge(None, v)
+    for k, v in edits:
+        target = k.removesuffix("_add").removesuffix("_remove")
+        items = list(out.get(target) or [])
+        if k.endswith("_add"):
+            for new in v or []:
+                ids = [list_item_id(i) for i in items]
+                if list_item_id(new) in ids:
+                    items[ids.index(list_item_id(new))] = new
+                else:
+                    items.append(new)
+        else:
+            gone = set(v or [])
+            items = [i for i in items if list_item_id(i) not in gone]
+        out[target] = items
     return out
 
 
@@ -358,7 +388,8 @@ def load_spec(ctx: Ctx, key: str) -> dict:
     over = read_yaml(ctx.local / "squads" / key / "squad.yaml")
     if base is None and over is None:
         raise Fail(f"unknown squad {key!r}; available: {', '.join(available_squads(ctx)) or 'none'}")
-    spec = deep_merge(base, over) if base is not None and over is not None else (base or over)
+    # The first merge resolves list edits written in the repo manifest itself; the merged spec never carries them.
+    spec = deep_merge(deep_merge(None, base or {}), over or {})
     if key == "builder":
         spec = rename_builder_bot(spec, ctx.builder)
         # One version for the distribution: injected here so status, plan and installed.yaml all read it.
@@ -582,17 +613,35 @@ def resolve_keep(ctx: Ctx, entry: str) -> tuple[str, str]:
     raise Fail(f"unknown keep kind: {entry}")
 
 
-def read_owned(home: Path) -> set[str]:
-    """Skill paths (relative to `skills/`) a previous apply installed in this profile (OWNED_FILE)."""
+def read_owned(home: Path, field: str = "skills") -> set[str]:
+    """What a previous apply installed in this profile (OWNED_FILE): `skills` = paths relative to `skills/`,
+    `hub` = hub-lock names of hub keeps."""
     try:
         data = json.loads(_read(home / "skills" / OWNED_FILE) or "{}")
     except ValueError:
         return set()
-    return {s for s in data.get("skills") or [] if isinstance(s, str)}
+    return {s for s in data.get(field) or [] if isinstance(s, str)}
 
 
-def write_owned(home: Path, paths: set[str]) -> None:
-    write_text(home / "skills" / OWNED_FILE, json.dumps({"schema": 1, "skills": sorted(paths)}, indent=1) + "\n")
+def write_owned(home: Path, paths: set[str], hub: set[str] | None = None) -> None:
+    hub = read_owned(home, "hub") if hub is None else hub
+    doc = {"schema": 1, "skills": sorted(paths), **({"hub": sorted(hub)} if hub else {})}
+    write_text(home / "skills" / OWNED_FILE, json.dumps(doc, indent=1) + "\n")
+
+
+def hub_lock(home: Path) -> set[str]:
+    """Names in the profile's hub lock (`skills/.hub/lock.json` -> installed)."""
+    lock = home / "skills" / ".hub" / "lock.json"
+    try:
+        return set((json.loads(lock.read_text()).get("installed") or {}) if lock.is_file() else ())
+    except ValueError:
+        return set()
+
+
+def keep_hub_name(ident: str) -> str | None:
+    """Hub-lock name of a hub or official keep (`hub:a/b/name`, `official:cat/name`), else None."""
+    kind, _, rest = ident.partition(":")
+    return rest.rsplit("/", 1)[-1] if kind in ("hub", "official") else None
 
 
 def prune_skills(home: Path, keep: set[str], dry: bool, src_roots: tuple[Path, ...] = ()) -> tuple[list[str], list[str]]:
@@ -891,9 +940,11 @@ class Applier:
         cfg = (read_yaml(home / "config.yaml") or {}) if exists else {}
 
         keeps = []
+        locked = hub_lock(home)
         for entry in (bot.get("skills") or {}).get("keep") or []:
             ident, confirm = (entry, None) if isinstance(entry, str) else (entry["id"], entry["confirm"])
-            if confirm and ident not in ctx.confirmed:
+            # A gated hub keep already in the lock was confirmed when it was installed: no pending note.
+            if confirm and ident not in ctx.confirmed and keep_hub_name(ident) not in locked:
                 pending.append(f"keep {ident}: {confirm}")
                 continue
             keeps.append((ident, *resolve_keep(ctx, ident)))
@@ -1023,13 +1074,25 @@ class Applier:
                     shutil.rmtree(dest)
                 shutil.copytree(src, dest)
                 write_text(dest / SHA_MARK, sha + "\n")
-        lock = home / "skills" / ".hub" / "lock.json"
-        installed = set((json.loads(lock.read_text()).get("installed") or {}) if lock.is_file() else ())
+        installed = hub_lock(home)
+        wanted = {value.rsplit("/", 1)[-1] for _ident, kind, value in keeps if kind == "hub"}
         for _ident, kind, value in keeps:
             if kind == "hub" and value.rsplit("/", 1)[-1] not in installed:
                 acts.append(f"skills install {value}  [review first: hermes -p {name} skills inspect {value}]")
                 if not dry:
                     ctx.hermes("skills", "install", value, "--yes", profile=name)
+        # Hub keeps this squad installed and the manifest no longer lists: the hub lock shields them from
+        # prune_skills, so they leave through Hermes's own uninstall. A keep still pending confirmation is not dropped.
+        gated = {keep_hub_name(e["id"]) for e in (bot.get("skills") or {}).get("keep") or [] if isinstance(e, dict)}
+        owned_hub = read_owned(home, "hub")
+        for skill in sorted((owned_hub - wanted - gated) & installed):
+            acts.append(f"skills uninstall {skill} (hub keep no longer in the manifest)")
+            if not dry:
+                ctx.hermes("skills", "uninstall", skill, "--yes", profile=name)
+        if not dry:
+            hub = (wanted | (owned_hub & gated)) & hub_lock(home)
+            if hub != owned_hub:
+                write_owned(home, read_owned(home), hub)
         return acts, learned
 
     def backup(self, name: str) -> Path:

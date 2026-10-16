@@ -16,7 +16,13 @@ description: "Edits, adds, splits and retires the bots of a squad. Use when a bo
 1. Write the change to the overlay `local/squads/<key>/squad.yaml` (key
    `builder` for the builder). Merge rule (`deep_merge` in
    `scripts/squadctl.py`): maps merge per key, lists and scalars replace,
-   `null` deletes the key. Write every changed list or chain in full.
+   `null` deletes the key. For `skills.keep` and `plugins.enable` write
+   `keep_add` / `keep_remove` and `enable_add` / `enable_remove` (an entry
+   with the same id or name replaces the repo's), so later repo additions to
+   those lists still arrive. Write every other changed list or chain in full.
+   A hub keep this squad installed and the merged manifest no longer lists is
+   uninstalled by the next `apply` (`hermes skills uninstall <name> --yes`);
+   hub skills the bot or user installed stay.
 2. Put new or changed assets next to the overlay; they win over the repo
    copies: `local/squads/<key>/souls/<bot>.md`,
    `local/squads/<key>/skills/<skill>/` (`skills/authoring-skills`),

@@ -1336,6 +1336,72 @@ def test_deep_merge_replaces_lists_merges_dicts_and_deletes_none():
         "a": {"b": 1, "c": [3]}, "bots": {"x": 1, "z": 3}}
 
 
+def test_deep_merge_list_edits_keep_repo_list_updates_flowing():
+    base = {"keep": ["a", {"id": "b", "confirm": "old"}, "c"], "enable": ["x"], "auto_load": None}
+    over = {"keep_add": [{"id": "b", "confirm": "new"}, "d"], "keep_remove": ["c"], "enable_add": ["y"]}
+    assert squadctl.deep_merge(squadctl.deep_merge(None, base), over) == {
+        "keep": ["a", {"id": "b", "confirm": "new"}, "d"], "enable": ["x", "y"], "auto_load": None}
+    # the repo later adds "e": the overlay's edits still apply on top of it
+    base["keep"].append("e")
+    assert squadctl.deep_merge(base, over)["keep"] == ["a", {"id": "b", "confirm": "new"}, "e", "d"]
+
+
+def test_overlay_keep_add_and_enable_remove_follow_the_repo_lists(env, capsys):
+    env.squad("web")
+    overlay = env.local / "squads" / "web" / "squad.yaml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text(yaml.safe_dump({"bots": {"web-qa": {
+        "skills": {"keep_add": ["hub:skills-sh/acme/skills/extra-check"]},
+        "plugins": {"enable_remove": ["disk-cleanup"]}}}}))
+    repo = yaml.safe_load((env.src / "squads" / "web" / "squad.yaml").read_text())
+    repo_keep = repo["bots"]["web-qa"]["skills"]["keep"]
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert any("skills install skills-sh/acme/skills/extra-check" in a for a in qa["actions"])
+    assert sum(1 for a in qa["actions"] if a.startswith("skills install")) == 1 + sum(
+        1 for k in repo_keep if (k if isinstance(k, str) else k["id"]).startswith(("hub:", "official:")))
+    assert "disk-cleanup" not in (env.config("web-qa").get("plugins") or {}).get("enabled", [])
+    assert not any("disk-cleanup" in a for a in qa["actions"])
+
+
+def test_a_dropped_hub_keep_is_uninstalled_and_a_learned_hub_skill_stays(env, capsys):
+    env.squad("web", lambda s: s["bots"]["web-qa"]["skills"]["keep"].append("hub:skills-sh/acme/skills/old-check"))
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    home = env.root / "profiles" / "web-qa"
+    owned = json.loads((home / "skills" / ".squad-installed.json").read_text())
+    assert "old-check" in owned["hub"]
+    # the bot installed a hub skill of its own: never apply's to remove
+    lock = home / "skills" / ".hub" / "lock.json"
+    data = json.loads(lock.read_text())
+    data["installed"]["mine"] = {"identifier": "skills-sh/me/mine"}
+    lock.write_text(json.dumps(data))
+    env.squad("web")  # the manifest drops old-check
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert "skills uninstall old-check (hub keep no longer in the manifest)" in qa["actions"]
+    assert ["skills", "uninstall", "old-check", "--yes"] in [c["args"] for c in env.calls()]
+    assert set(json.loads(lock.read_text())["installed"]) >= {"mine"} and "old-check" not in json.loads(lock.read_text())["installed"]
+    _, again = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    assert again["summary"] == {"unchanged": 1}
+
+
+def test_a_confirmed_installed_hub_keep_is_not_pending(env, capsys):
+    gate = lambda s: s["bots"]["web-qa"]["skills"]["keep"].append(
+        {"id": "hub:skills-sh/acme/skills/remotion", "confirm": "Remotion needs a company licence from 4 people"})
+    env.squad("web", gate)
+    env.run("apply", "web", "--bots", "web-qa", "--confirm", "hub:skills-sh/acme/skills/remotion", capsys=capsys)
+    _, out = env.run("plan", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert not qa.get("pending") and qa["status"] == "unchanged"
+
+
+def test_confirm_text_may_carry_a_full_disclosure(env, capsys):
+    text = "Licence and data disclosure: " + "x" * 900
+    env.squad("web", lambda s: s["bots"]["web-qa"]["plugins"]["enable"].append({"name": "blender", "confirm": text}))
+    _, out = env.run("plan", "web", "--bots", "web-qa", capsys=capsys)
+    assert any(p.startswith("plugin blender: Licence") for p in out["bots"][0]["pending"])
+
+
 @pytest.mark.parametrize("req,have,ok", [(">=0.22.0", "0.22.0", True), (">=0.22.0", "0.21.9", False),
                                          (">=0.22", "0.22.1", True), (">1.0", "1.0.0", False), ("", "0.1.0", True)])
 def test_version_ok(req, have, ok):

@@ -167,6 +167,15 @@ def main():
             lock.write_text(json.dumps(data))
             (HOME / "skills" / "hub" / name).mkdir(parents=True, exist_ok=True)
             (HOME / "skills" / "hub" / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+        elif sub == "uninstall":  # tools/skills_hub_install.py uninstall_skill: lock entries only
+            name = args[0]
+            lock = HOME / "skills" / ".hub" / "lock.json"
+            data = json.loads(lock.read_text()) if lock.is_file() else {"installed": {}}
+            if name not in data["installed"]:
+                die(f"'{name}' is not a hub-installed skill (may be a builtin)")
+            del data["installed"][name]
+            lock.write_text(json.dumps(data))
+            shutil.rmtree(HOME / "skills" / "hub" / name, ignore_errors=True)
         else:
             die(f"fake: skills {sub}")
     elif cmd == "cron":
