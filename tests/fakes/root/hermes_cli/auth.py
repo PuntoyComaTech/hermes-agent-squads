@@ -11,3 +11,5 @@ PROVIDER_REGISTRY = {
     f"prov-{lane}": SimpleNamespace(id=f"prov-{lane}", api_key_env_vars=(f"PROV_{lane.upper()}_API_KEY",))
     for lane in LANES
 }
+# An external-process / OAuth provider declares no API-key env var (claude-subscription shape).
+PROVIDER_REGISTRY["prov-keyless"] = SimpleNamespace(id="prov-keyless", api_key_env_vars=())

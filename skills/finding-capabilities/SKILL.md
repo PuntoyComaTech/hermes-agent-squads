@@ -36,10 +36,8 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
 
 - Installing first and asking later: hub skills and community plugins install
   only after the user's OK with the disclosure shown.
-- Giving a capability to the whole squad: it goes on the bot whose role needs
-  it.
-- Connectors on a bot with `web` or `browser`: put them only on bots without
-  either.
+- Giving a capability to the whole squad, or a connector to a bot with `web`
+  or `browser`: `skills/designing-squads` -> Rules.
 
 ## Verification
 

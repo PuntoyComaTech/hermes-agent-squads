@@ -23,8 +23,8 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
 - **Structural decisions** append to `docs/decisions.md` with id, date, decision, why.
 - **No secrets**: never read or write `.env`, `auth.json` or credential values.
 - **Plan, user OK, apply** for anything that touches a profile; `profile export` before any prune or uninstall.
-- **Community plugins and hub skills** install only after quoting their disclosure and licence and getting an
-  explicit OK.
+- **Community plugins and hub skills**: `skills/finding-capabilities` steps 3-5. Squad rules (naming, visibility,
+  topology, credentials): `skills/designing-squads` -> Rules, Topology.
 
 ## Map
 
