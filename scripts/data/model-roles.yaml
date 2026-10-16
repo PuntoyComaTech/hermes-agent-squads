@@ -15,7 +15,9 @@
 #       "excluded": [slugs]                      # local/providers-exclude.txt; listed, never recommended
 #     },
 #     "squads": [{"key", "bots": [BotPick...], "shared": [Pick...]}],
-#     "lanes": [Pick...]
+#     "lanes": [Pick...],
+#     "fallback"?: [{provider, model, reasoning}],  # only when a pick runs on a quota_limited provider
+#     "fallback_reason"?: "..."
 #   }
 #   Pick    = {"lane", "model", "provider", "reasoning", "alternatives": [{model, provider, reasoning}x<=2],
 #              "reason"}                          # "lane" is the REQUESTED name, even for aliases
@@ -49,6 +51,24 @@ families:
   openai: [openai-codex, openai-api, copilot, github-copilot]
   open-weights: [opencode-go, opencode, openrouter, nous]
   google: [gemini, google*]
+
+# quota_limited: providers whose plan caps usage in time windows (subscriptions, premium-request plans). When any
+#   pick lands on one, the advisor adds a top-level `fallback` chain that `squadctl apply --models` writes to every
+#   bot as `fallback_providers`, `delegation.fallback_providers` and `agent.reasoning_overrides`.
+quota_limited: [claude-subscription*, openai-codex, copilot, github-copilot, opencode-go, xai-oauth]
+
+# fallback_chain: candidates in order, picked like a lane. Providers outside the quota-limited primaries come
+#   first; a model the primaries already use is never a fallback. `size` = chain length.
+fallback_chain:
+  why: "Keeps every bot working when its subscription window runs out: a strong model first, then a cheap one"
+  size: 2
+  candidates:
+    - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+    - {family: openai, match: 'gpt-5\.4', reasoning: high}
+    - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: high}
+    - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: xhigh, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+    - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+    - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
 
 lanes:
   manager:

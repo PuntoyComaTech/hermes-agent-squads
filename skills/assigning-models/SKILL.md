@@ -28,6 +28,9 @@ description: "Assigns a model per bot from connected providers. Use when a squad
    `reasoning` of that bot or lane).
 5. When the user puts the reviewer on the producer's model family, say it
    breaks `scripts/data/model-roles.yaml` -> `lanes.review.rule` and ask once.
+   When the advice has a `fallback` list (a pick runs on a `quota_limited`
+   provider), show it with the table: it applies to every bot of the install
+   and to their children. The user may edit, drop (`fallback: []`) or keep it.
 6. On OK run `scripts/hpy squadctl.py apply <key> --models local/models-<key>.json`
    (`--self` instead of `<key>` for the builder). `apply` saves the choice in
    `local/installed.yaml` and copies a user-installed provider plugin into
@@ -51,4 +54,6 @@ description: "Assigns a model per bot from connected providers. Use when a squad
 - `scripts/hpy squadctl.py plan <key> --json` notes list no `no model assigned`.
 - `scripts/hpy squadctl.py doctor` reports `<bot>:models` as `assigned` and no
   `<bot>:provider-plugin` warning.
-- `local/installed.yaml` -> `bots` and `lanes` match what the user accepted.
+- `local/installed.yaml` -> `bots`, `lanes` and `fallback` match what the user
+  accepted; each bot's `config.yaml` has the same `fallback_providers` and
+  `delegation.fallback_providers`.

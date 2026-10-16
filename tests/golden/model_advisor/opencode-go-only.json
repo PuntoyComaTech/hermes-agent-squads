@@ -402,5 +402,18 @@
       ]
     }
   ],
-  "lanes": []
+  "lanes": [],
+  "fallback": [
+    {
+      "provider": "opencode-go",
+      "model": "mimo-v2.6-pro",
+      "reasoning": "high"
+    },
+    {
+      "provider": "opencode-go",
+      "model": "deepseek-v4.1-flash",
+      "reasoning": "high"
+    }
+  ],
+  "fallback_reason": "quota-limited primary provider (opencode-go): Keeps every bot working when its subscription window runs out: a strong model first, then a cheap one"
 }

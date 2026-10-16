@@ -529,5 +529,18 @@
       ]
     }
   ],
-  "lanes": []
+  "lanes": [],
+  "fallback": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "reasoning": "high"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "reasoning": "xhigh"
+    }
+  ],
+  "fallback_reason": "quota-limited primary provider (claude-subscription-directsdk-experimental): Keeps every bot working when its subscription window runs out: a strong model first, then a cheap one"
 }
