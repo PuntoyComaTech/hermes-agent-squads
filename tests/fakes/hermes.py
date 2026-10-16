@@ -308,9 +308,7 @@ def main():
             die("fake: the auth prompt was answered 'yes' (a bearer key would be asked for next)")
         enabled = False
         if failing:
-            if ask(False):  # "Save config anyway (you can test later)?"
-                print("Cancelled.")
-            else:
+            if not ask(False):  # "Save config anyway (you can test later)?": yes saves it disabled
                 return
         elif ask(True):  # "Enable all N tools?"
             enabled = True
