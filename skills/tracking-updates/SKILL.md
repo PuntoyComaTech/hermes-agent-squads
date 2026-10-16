@@ -42,7 +42,9 @@ the gate's stdout to this turn as `## Script Output`.
 ```
 
 3. Reply with at most 5 lines (cron delivers them to `bot-chat:builder`).
-   Edit nothing else.
+   Edit nothing else. When the gate output is unreadable or a listed file is
+   missing, reply with `[CRON_FAILURE]` as the first line and the cause on the
+   next line: the run is recorded as failed and alerts once.
 
 ### Apply mode (builder)
 
