@@ -1379,6 +1379,45 @@ def test_overlay_keep_add_and_enable_remove_follow_the_repo_lists(env, capsys):
     assert not any("disk-cleanup" in a for a in qa["actions"])
 
 
+def test_plan_notes_enabled_plugins_the_manifest_does_not_declare_and_keeps_them(env, capsys):
+    """Declared = repo enable + overlay enable_add + the provider plugin key apply copies; the rest is a note."""
+    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-review"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text("name: prov-review\nkind: model-provider\n")
+    env.squad("web")
+    (env.hsrc / "plugins" / "extra-ok").mkdir(parents=True)
+    overlay = env.local / "squads" / "web" / "squad.yaml"
+    overlay.parent.mkdir(parents=True)
+    overlay.write_text(yaml.safe_dump({"bots": {"web-qa": {"plugins": {"enable_add": ["extra-ok"]}}}}))
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    cfg = env.config("web-qa")
+    assert "model-providers/prov-review" in cfg["plugins"]["enabled"]
+    cfg["plugins"]["enabled"] += ["hand-made"]
+    (env.root / "profiles" / "web-qa" / "config.yaml").write_text(yaml.safe_dump(cfg))
+    _, out = env.run("plan", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    plug = [n for n in qa["notes"] if n.startswith("plugin ")]
+    assert len(plug) == 1 and plug[0].startswith("plugin hand-made is enabled but not in the manifest; kept.")
+    assert "hermes -p web-qa plugins disable hand-made" in plug[0]
+    assert qa["status"] == "unchanged"
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    assert "hand-made" in env.config("web-qa")["plugins"]["enabled"]
+    assert not any(c["args"][:2] == ["plugins", "disable"] for c in env.calls())
+
+
+def test_plan_notes_profile_kanban_keys_the_dispatcher_never_reads(web, capsys):
+    cfg = web.config("web-qa")
+    cfg["kanban"] = {"max_in_progress_per_profile": 1, "failure_limit": 3, "auto_subscribe_on_create": False}
+    (web.root / "profiles" / "web-qa" / "config.yaml").write_text(yaml.safe_dump(cfg))
+    _, out = web.run("plan", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    kb = [n for n in qa["notes"] if n.startswith("kanban.")]
+    assert [n.split(" ", 1)[0] for n in kb] == ["kanban.failure_limit", "kanban.max_in_progress_per_profile"]
+    assert all("reads the root config only" in n and "hermes -p web-qa config unset kanban." in n for n in kb)
+    assert qa["status"] == "unchanged"
+    assert web.config("web-qa")["kanban"]["failure_limit"] == 3
+
+
 def test_a_dropped_hub_keep_is_uninstalled_and_a_learned_hub_skill_stays(env, capsys):
     env.squad("web", lambda s: s["bots"]["web-qa"]["skills"]["keep"].append("hub:skills-sh/acme/skills/old-check"))
     env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
