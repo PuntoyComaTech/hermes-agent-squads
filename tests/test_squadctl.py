@@ -75,6 +75,8 @@ class Env:
         self.models.write_text(yaml.safe_dump(models_doc()))
         (self.src / "squads" / "_schema").mkdir(parents=True)
         shutil.copy(REPO / "squads" / "_schema" / "squad.schema.json", self.src / "squads" / "_schema")
+        # The builder manifest is versionless: the release version is injected from distribution.yaml (C-13).
+        (self.src / "distribution.yaml").write_text(yaml.safe_dump({"name": "builder", "version": "2.0.0"}))
 
     # fixtures ----------------------------------------------------------------------------------------------
 
@@ -869,6 +871,26 @@ def test_apply_self_uses_the_profile_name_from_the_builder_flag(env, capsys):
     assert (job["name"], job["deliver"]) == ("builder-watch", "bot-chat:builder-test")
     assert env.config("builder-test")["terminal"]["cwd"] == str(home)
     assert not any(c["args"][:2] == ["profile", "create"] for c in env.calls())
+
+
+def test_builder_version_comes_from_distribution_yaml(env, capsys):
+    """One source of truth (C-13): the builder manifest is versionless and status reads distribution.yaml."""
+    env.squad("builder")
+    assert "version" not in yaml.safe_load((env.src / "builder.yaml").read_text())
+    (env.src / "distribution.yaml").write_text(yaml.safe_dump({"name": "builder", "version": "9.9.9"}))
+    env.seed_builder()
+    env.run("apply", "--self", capsys=capsys)
+    installed = yaml.safe_load((env.local / "installed.yaml").read_text())
+    assert installed["squads"]["builder"]["version"] == "9.9.9"
+    _, out = env.run("status", "builder", capsys=capsys)
+    assert out["squads"][0]["repo"] == "9.9.9"
+
+
+def test_a_squad_manifest_still_carries_its_version(env, capsys):
+    """Only the builder manifest is versionless; a squad without one is invalid."""
+    env.squad("web", mutate=lambda d: d.pop("version"))
+    _, out = env.run("plan", "web", expect=1, capsys=capsys)
+    assert "missing version" in out["error"]
 
 
 # --- uninstall --------------------------------------------------------------------------------------------------

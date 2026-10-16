@@ -5,7 +5,6 @@ schema: 2
 key: builder
 name: Builder
 description: "Creates, edits and maintains local Hermes squads"
-version: 2.1.0
 hermes_requires: ">=0.22.0"
 manager: builder
 defaults: {aux_lane: aux, vision_lane: vision}
