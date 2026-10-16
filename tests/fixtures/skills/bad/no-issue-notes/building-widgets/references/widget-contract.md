@@ -1,0 +1,121 @@
+# Widget contract
+
+## Contents
+
+- [Fields](#fields)
+- [States](#states)
+
+## Fields
+
+- `field_1`: string, required, shown in the widget header.
+- `field_2`: string, required, shown in the widget header.
+- `field_3`: string, required, shown in the widget header.
+- `field_4`: string, required, shown in the widget header.
+- `field_5`: string, required, shown in the widget header.
+- `field_6`: string, required, shown in the widget header.
+- `field_7`: string, required, shown in the widget header.
+- `field_8`: string, required, shown in the widget header.
+- `field_9`: string, required, shown in the widget header.
+- `field_10`: string, required, shown in the widget header.
+- `field_11`: string, required, shown in the widget header.
+- `field_12`: string, required, shown in the widget header.
+- `field_13`: string, required, shown in the widget header.
+- `field_14`: string, required, shown in the widget header.
+- `field_15`: string, required, shown in the widget header.
+- `field_16`: string, required, shown in the widget header.
+- `field_17`: string, required, shown in the widget header.
+- `field_18`: string, required, shown in the widget header.
+- `field_19`: string, required, shown in the widget header.
+- `field_20`: string, required, shown in the widget header.
+- `field_21`: string, required, shown in the widget header.
+- `field_22`: string, required, shown in the widget header.
+- `field_23`: string, required, shown in the widget header.
+- `field_24`: string, required, shown in the widget header.
+- `field_25`: string, required, shown in the widget header.
+- `field_26`: string, required, shown in the widget header.
+- `field_27`: string, required, shown in the widget header.
+- `field_28`: string, required, shown in the widget header.
+- `field_29`: string, required, shown in the widget header.
+- `field_30`: string, required, shown in the widget header.
+- `field_31`: string, required, shown in the widget header.
+- `field_32`: string, required, shown in the widget header.
+- `field_33`: string, required, shown in the widget header.
+- `field_34`: string, required, shown in the widget header.
+- `field_35`: string, required, shown in the widget header.
+- `field_36`: string, required, shown in the widget header.
+- `field_37`: string, required, shown in the widget header.
+- `field_38`: string, required, shown in the widget header.
+- `field_39`: string, required, shown in the widget header.
+- `field_40`: string, required, shown in the widget header.
+- `field_41`: string, required, shown in the widget header.
+- `field_42`: string, required, shown in the widget header.
+- `field_43`: string, required, shown in the widget header.
+- `field_44`: string, required, shown in the widget header.
+- `field_45`: string, required, shown in the widget header.
+- `field_46`: string, required, shown in the widget header.
+- `field_47`: string, required, shown in the widget header.
+- `field_48`: string, required, shown in the widget header.
+- `field_49`: string, required, shown in the widget header.
+- `field_50`: string, required, shown in the widget header.
+- `field_51`: string, required, shown in the widget header.
+- `field_52`: string, required, shown in the widget header.
+- `field_53`: string, required, shown in the widget header.
+- `field_54`: string, required, shown in the widget header.
+- `field_55`: string, required, shown in the widget header.
+- `field_56`: string, required, shown in the widget header.
+- `field_57`: string, required, shown in the widget header.
+- `field_58`: string, required, shown in the widget header.
+- `field_59`: string, required, shown in the widget header.
+- `field_60`: string, required, shown in the widget header.
+- `field_61`: string, required, shown in the widget header.
+- `field_62`: string, required, shown in the widget header.
+- `field_63`: string, required, shown in the widget header.
+- `field_64`: string, required, shown in the widget header.
+- `field_65`: string, required, shown in the widget header.
+- `field_66`: string, required, shown in the widget header.
+- `field_67`: string, required, shown in the widget header.
+- `field_68`: string, required, shown in the widget header.
+- `field_69`: string, required, shown in the widget header.
+- `field_70`: string, required, shown in the widget header.
+- `field_71`: string, required, shown in the widget header.
+- `field_72`: string, required, shown in the widget header.
+- `field_73`: string, required, shown in the widget header.
+- `field_74`: string, required, shown in the widget header.
+- `field_75`: string, required, shown in the widget header.
+- `field_76`: string, required, shown in the widget header.
+- `field_77`: string, required, shown in the widget header.
+- `field_78`: string, required, shown in the widget header.
+- `field_79`: string, required, shown in the widget header.
+- `field_80`: string, required, shown in the widget header.
+- `field_81`: string, required, shown in the widget header.
+- `field_82`: string, required, shown in the widget header.
+- `field_83`: string, required, shown in the widget header.
+- `field_84`: string, required, shown in the widget header.
+- `field_85`: string, required, shown in the widget header.
+- `field_86`: string, required, shown in the widget header.
+- `field_87`: string, required, shown in the widget header.
+- `field_88`: string, required, shown in the widget header.
+- `field_89`: string, required, shown in the widget header.
+- `field_90`: string, required, shown in the widget header.
+- `field_91`: string, required, shown in the widget header.
+- `field_92`: string, required, shown in the widget header.
+- `field_93`: string, required, shown in the widget header.
+- `field_94`: string, required, shown in the widget header.
+- `field_95`: string, required, shown in the widget header.
+- `field_96`: string, required, shown in the widget header.
+- `field_97`: string, required, shown in the widget header.
+- `field_98`: string, required, shown in the widget header.
+- `field_99`: string, required, shown in the widget header.
+- `field_100`: string, required, shown in the widget header.
+- `field_101`: string, required, shown in the widget header.
+- `field_102`: string, required, shown in the widget header.
+- `field_103`: string, required, shown in the widget header.
+- `field_104`: string, required, shown in the widget header.
+- `field_105`: string, required, shown in the widget header.
+- `field_106`: string, required, shown in the widget header.
+- `field_107`: string, required, shown in the widget header.
+
+## States
+
+- Loading, empty and error states each have a template block.
+- Upstream known issue #123456: the warning on start has no effect.

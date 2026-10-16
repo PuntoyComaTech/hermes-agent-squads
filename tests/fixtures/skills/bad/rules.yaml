@@ -23,6 +23,7 @@ rules:
   script-shellcheck: "a shell script has shellcheck findings"
   language-english: "Spanish stopword ratio above 3% (stopword list excludes English homographs: a, no, me, he, son, sin, come)"
   model-ids: "a model id appears outside model-roles.yaml and installed.yaml"
+  no-issue-notes: "an upstream issue number (#12345), a 'known issue' remark or a 'has no effect' note: if it changes nothing the bot does, it is not written"
   body-sections: "body lacks one of When to Use, Procedure, Pitfalls, Verification"
   evals-count: "evals/evals.json does not hold exactly 3 scenarios"
   soul-lines: "SOUL file longer than 6 lines"
