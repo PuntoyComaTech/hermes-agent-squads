@@ -5,7 +5,21 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 
 ## 2.0.3 - 2026-10-15
 
-Fixes from the builder's real `web` install.
+Fixes from the builder's real `web` install, and deploys through the vendors' own CLIs.
+
+### Changed (deploys)
+
+- Deploys ride on the CLIs' own logins (`gh auth login`, `cf auth login`, `wrangler login`; `vercel login` only
+  where a project targets Vercel). `web-deployer` no longer passes `CLOUDFLARE_API_TOKEN`,
+  `CLOUDFLARE_ACCOUNT_ID`, `GH_TOKEN` or `VERCEL_TOKEN` through its environment and no longer suggests
+  `vercel_mcp`; tokens stay documented as the CI/headless path only (D-036).
+- `web-deployer` declares `requires.apps: [cf, wrangler, gh]`. `squadctl doctor` reports each required app
+  (PATH, the macOS app path, or `npx --no-install` for an npm-packaged CLI) and then its stored login, reading
+  only the exit status of `gh auth status` / `cf auth whoami` / `wrangler whoami` — no account, masked token or
+  other probe output can reach a check.
+- `deploying-sites`: `cf` first (`cf cli search` before any remembered form, `cf schema`, `--dry-run`), Wrangler
+  only for what `cf` lacks or for a project that ships a Wrangler config (then `cf migrate` before any
+  `cf dev|build|deploy`); `deploy.md`'s third field is `creds` (logins by name, never values).
 
 ### Fixed
 

@@ -1144,8 +1144,11 @@ def test_app_launcher_prefers_path_then_npx(tmp_path, monkeypatch):
                         lambda argv, timeout=60: subprocess.CompletedProcess(argv, 0, "4.1.0\n", ""))
     assert squadctl.app_launcher("wrangler") == ["npx", "--no-install", "wrangler"]
     assert squadctl.app_launcher("gh") is None, "gh is not npm-packaged: no npx fallback"
-    monkeypatch.setattr(squadctl, "run_quiet", lambda argv, timeout=60: None)  # npx cannot resolve it
-    assert squadctl.app_launcher("wrangler") is None
+    monkeypatch.setattr(squadctl, "run_quiet",
+                        lambda argv, timeout=60: subprocess.CompletedProcess(argv, 1, "", "npx canceled"))
+    assert squadctl.app_launcher("wrangler") is None, "a non-zero npx means the CLI is not installed"
+    monkeypatch.setattr(squadctl, "run_quiet", lambda argv, timeout=60: None)
+    assert squadctl.app_launcher("wrangler") is None, "no npx at all"
 
 
 def test_login_probe_reads_the_exit_status_only(monkeypatch):

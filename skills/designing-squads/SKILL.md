@@ -62,6 +62,9 @@ Enforced by `squadctl` and `skill_lint.py` (`manager-naming`);
   with `squadctl apply <key> --with <name>`.
 - Credentials: env names in `passthrough` (never values), only on the bot that
   calls that API, never on a bot with `web` or `browser`.
+- CLIs a bot drives: `requires.apps`. `squadctl doctor` reports each one
+  installed and logged in (`gh auth login`, `cf auth login`, `wrangler login`,
+  once, by the user) and never prints a probe's output.
 - Squad skills ship in `local/squads/<key>/skills/` and need no quote; hub
   skills and community plugins follow `skills/finding-capabilities` steps 3-5.
 

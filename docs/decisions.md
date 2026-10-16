@@ -27,6 +27,7 @@
 | D-033 | Every site repo ships a blocking quality gate (strict TS, Biome, Prettier for `.astro`, ESLint sonarjs/boundaries/security/functional/unicorn, jscpd, knip, offline osv-scanner, Vitest + Playwright 80%) as real config files and scripts (V-03). |
 | D-034 | Named `cf` auth profiles per client folder; commands on such a site drop `CLOUDFLARE_API_TOKEN`/`ACCOUNT_ID` from their env. |
 | D-035 | Visible work in progress: live localhost in the Desktop preview pane; screenshots on messaging surfaces, delivered through Bot Chat (V-05). |
+| D-036 | Deploys ride on the vendors' own CLIs and their interactive logins (`gh auth login`, `cf auth login`, `wrangler login`; `vercel login` only for a project that targets Vercel). `web-deployer` declares `requires.apps: [cf, wrangler, gh]` and `squadctl doctor` reports each app installed and logged in, reading only the exit status; API tokens are the CI/headless path and are never passed into a profile's environment. |
 
 ## v2 architecture
 
@@ -55,6 +56,7 @@
   - stage `lane` (analysis cards on the review lane);
   - bot `website_blocklist` (maps to `security.website_blocklist`);
   - `{id|name, confirm}` objects in `skills.keep` and `plugins.enable` for items that need the user's OK (Remotion licence, PolyForm NC, blender);
+  - bot `requires.apps` (the CLIs a bot drives: `squadctl doctor` reports each one installed and, for the known ones, logged in — D-036);
   - cron `agent.reasoning` (digest at high);
   - optional top-level and `board` `description`.
   Stage names may start with a digit (`3d`). `board` is optional so `builder.yaml` validates.

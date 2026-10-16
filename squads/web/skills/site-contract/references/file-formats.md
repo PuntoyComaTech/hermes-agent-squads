@@ -20,7 +20,7 @@ type: static             # static: content pages | dynamic_seo: indexed pages bu
 stack: astro             # follows type: static astro, dynamic_seo nextjs, saas tanstack
 backend: false           # true enables the milestone chain's api stage
 provider: cloudflare     # cloudflare | vercel
-provider_profile: null   # cf named login for a client account; null = the deployer's passthrough token
+provider_profile: null   # cf named login for a client account; null = the deployer's own cf login
 languages: [es, en]
 design:
   source: own            # own (DESIGN.md here) | marketing (read the brand, never write)

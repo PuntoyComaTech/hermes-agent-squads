@@ -626,7 +626,8 @@ def app_launcher(name: str) -> list[str] | None:
         return [mac]
     if name in APP_NPX and shutil.which("npx"):
         argv = ["npx", "--no-install", name]
-        if run_quiet([*argv, "--version"]):
+        done = run_quiet([*argv, "--version"])
+        if done and done.returncode == 0:
             return argv
     return None
 
