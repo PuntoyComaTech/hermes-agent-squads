@@ -15,4 +15,4 @@ publish_at: <YYYY-MM-DDTHH:MM>
 - Proof points to use (from brand.md) and restrictions:
 - Sizes and length:
 - References (inputs, trend, previous piece):
-- Needs research: yes | no
+- Research needed: yes | no

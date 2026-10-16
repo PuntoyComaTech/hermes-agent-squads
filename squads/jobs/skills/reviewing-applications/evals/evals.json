@@ -3,19 +3,19 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Round 1: a bullet says the report time dropped from 6 hours to 2 hours; achievements.yaml records 6 hours to 20 minutes.",
+      "prompt": "The first review round: a bullet says the report time dropped from 6 hours to 2 hours; achievements.yaml records 6 hours to 20 minutes.",
       "expected_output": "Truthfulness FAIL, FIX with a content correction quoting the verified number; no digest card is filed.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "Round 1 is clean except the ATS lens lists two missing keywords with no supporting achievement.",
+      "prompt": "The first review round is clean except the ATS lens lists two missing keywords with no supporting achievement.",
       "expected_output": "Verdict FIX only if a finding is actionable for the writer; keywords without evidence are recorded as gaps, not faked into the CV.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "Round 2 after a correction still has one writing finding, everything else PASS.",
+      "prompt": "The second review round, after a correction, still has one writing finding; everything else PASS.",
       "expected_output": "NOT_APPROVED with the summary; no further writer card is created and status.json says not_approved.",
       "files": []
     }

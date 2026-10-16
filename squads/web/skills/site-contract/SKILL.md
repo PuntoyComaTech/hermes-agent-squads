@@ -5,7 +5,7 @@ description: "Defines the web squad's files, ids, gates and handoffs. Use when a
 
 # Site contract
 
-File and card formats: `references/file-formats.md`. Squad scripts run as `python3 "$HERMES_HOME/skills/squad-web/<skill>/scripts/<script>.py"`.
+File and card formats: `references/file-formats.md`. `scripts/check_site.py --site <slug> --id <ID> [--round R]` writes `reviews/<ID>-r<R>/checks.json` and is what a QA or deploy card runs against a preview. Squad scripts run as `python3 "$HERMES_HOME/skills/squad-web/<skill>/scripts/<script>.py"`.
 
 ## When to Use
 

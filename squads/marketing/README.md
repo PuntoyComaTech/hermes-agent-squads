@@ -6,7 +6,7 @@ Bots, lanes, skills, keeps, crons and the `piece` chain: `squad.yaml`. Only the 
 
 ## The piece chain
 
-`research` (only when the brief says `Needs research: yes`) -> `copy` -> `asset` -> `review` -> `approve`.
+`research` (only when the brief says `Research needed: yes`) -> `copy` -> `asset` -> `review` -> `approve`.
 
 - The reviewer returns `approve`, `fix` (up to `brand.md -> reviewer_rounds` rounds, then a re-review of the same card) or `escalate`.
 - The manager presents an approved piece; a change request starts a `-c<N>` round with the user's literal wording. Every reply is logged in `preferences.md`.

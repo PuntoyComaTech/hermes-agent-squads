@@ -12,12 +12,12 @@ description: "Drafts and versions brand.md positioning and proof. Use when onboa
 - Onboarding: the first `brand.md` draft.
 - The user repositions the brand, enters a new market or changes the offer.
 - Before a plan or a campaign: `brand.md -> updated` is older than the last research file.
-- After research: verbatim customer language and objections go into `brand.md`.
+- After research, verbatim customer language and objections go into `brand.md`.
 
 ## Procedure
 
 1. Read the brand's website, social profiles, product documents and the user's own copy before asking anything.
-2. Fill `templates/brand.md` in order: Facts, Audience, Competitors, Voice, Proof points.
+2. Fill `brand-contract` `templates/brand.md` in order: Facts, Audience, Competitors, Voice, Proof points.
 3. Collect verbatim customer phrases from reviews, comments, messages and the user's answers; note the source of each.
 4. Show the draft and ask what is wrong. A proof point the user cannot confirm stays `Verified: no`; a positioning claim they cannot support is cut.
 5. Version per `brand-contract` step 3.

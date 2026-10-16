@@ -9,7 +9,7 @@
     },
     {
       "id": 2,
-      "prompt": "Round 0 review finds one critical acceptance failure and the site allows 2 rounds.",
+      "prompt": "The first review round finds one critical acceptance failure and the site allows 2 rounds.",
       "expected_output": "Verdict FIX: files fix-r1 for the builder with no parents (skills=[the builder's skill], key web:milestone:<project>:<run-id>:fix-r1), then preview-r1 with parents=[fix-r1], kanban_link(parent_id=preview-r1, child_id=the qa card) and kanban_block(kind=dependency, reason=...); accept waits for the re-review.",
       "files": []
     },

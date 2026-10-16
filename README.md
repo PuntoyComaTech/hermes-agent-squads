@@ -70,7 +70,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     U([you: brand brief]) --> L["marketing (manager): plan + calendar"]
-    L --> R["marketing-research: dated evidence"]
+    L --> R["marketing-research (dated evidence)"]
     R --> C["marketing-creative: concepts + copy"]
     C --> P["marketing-producer: assets, landings, emails"]
     P --> V["marketing-reviewer: 5 lenses"]

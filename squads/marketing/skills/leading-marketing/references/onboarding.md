@@ -6,7 +6,7 @@ Ask only what research and the brand files leave open.
 
 1. Get the brand name and what exists: website, social profiles, Google Maps listing, product documents, files the user sent (note their paths).
 2. File one `research` card (marketing-research, `skills: [researching-markets]`, key per `brand-contract` step 5). Ask for: website facts, colors (HEX) and typefaces as seen, active social accounts, review themes with verbatim quotes, and three competitors with what they run today. Every claim comes back with a URL and a date; a claim without both is not used.
-3. Draft `brand.md` from `templates/brand.md` with `product-marketing`: Facts, Audience, Competitors and Voice from the research; every proof point `Verified: no` until the user confirms it; `status: draft`.
+3. Draft `brand.md` from `brand-contract` `templates/brand.md` with `product-marketing`: Facts, Audience, Competitors and Voice from the research; every proof point `Verified: no` until the user confirms it; `status: draft`.
 4. Ask the Required questions below, five per message at most. Write each answer into `brand.md` as it arrives and show the change.
 5. When the user approves `brand.md` (and `DESIGN.md` once the producer has written it): set `status: active`, add the `Changes` line `v<N> <date> approved`, and offer the 90-day plan.
 

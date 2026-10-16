@@ -433,7 +433,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="skill dir, SOUL file, squad.yaml, or a tree to scan (default: the repo root)")
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     parser.add_argument("--rules", action="store_true", help="list rule ids and exit")
-    parser.add_argument("--roles", type=Path, default=DEFAULT_ROLES, help="model-roles.yaml used to detect model ids")
+    parser.add_argument("--roles", type=Path, default=DEFAULT_ROLES, help="model-roles.yaml for model-id detection")
     parser.add_argument("--role", choices=["manager", "worker"], help="force the SKILL.md budget instead of inferring it")
     parser.add_argument("--require-shellcheck", action="store_true", help="fail when shellcheck is not installed")
     parser.add_argument("--no-scripts", action="store_true", help="skip the scripts/ checks (compile, --help, shellcheck)")
