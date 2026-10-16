@@ -697,27 +697,71 @@ def test_apply_needs_a_squad_or_self(env, capsys):
 
 # --- skills, plugins, confirm ---------------------------------------------------------------------------------------
 
-def test_prune_keeps_only_declared_skills_and_backs_up_first(env, capsys):
+def test_learned_skills_are_reported_never_removed(env, capsys):
+    """Skills apply did not install (skill_manage writes, user copies) stay and show as `learned`."""
     env.squad("web")
     env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     skills = env.root / "profiles" / "web-qa" / "skills"
+    owned = json.loads((skills / squadctl.OWNED_FILE).read_text())["skills"]
+    assert owned == ["squad-web/reviewing-sites", "squad-web/site-contract"]
     for stray in ("random-skill", "cat/other-skill"):
         (skills / stray).mkdir(parents=True)
         (skills / stray / "SKILL.md").write_text("x")
+    _, plan = env.run("plan", "web", "--bots", "web-qa", capsys=capsys)
+    assert plan["bots"][0]["learned"] == ["cat/other-skill", "random-skill"]
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert qa["status"] == "unchanged" and qa["learned"] == ["cat/other-skill", "random-skill"]
+    assert (skills / "random-skill" / "SKILL.md").is_file() and (skills / "cat" / "other-skill" / "SKILL.md").is_file()
+    assert not list((env.local / "backups").glob("web-qa-*.tar.gz"))
+
+
+def test_prune_removes_only_what_apply_installed_and_backs_up_first(env, capsys):
+    """A squad skill dropped from the manifest (owned path or .squad-sha marker) is removed; the hub lock is kept."""
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    skills = env.root / "profiles" / "web-qa" / "skills"
+    old = skills / "squad-web" / "old-skill"
+    old.mkdir()
+    (old / "SKILL.md").write_text("x")
+    (old / squadctl.SHA_MARK).write_text("abc\n")
     (skills / ".hub").mkdir(exist_ok=True)
     lock = skills / ".hub" / "lock.json"
     data = json.loads(lock.read_text()) if lock.is_file() else {"installed": {}}
     data["installed"]["kept-by-lock"] = {}
     lock.write_text(json.dumps(data))
-    (skills / "cat" / "kept-by-lock").mkdir()
+    (skills / "cat" / "kept-by-lock").mkdir(parents=True)
     (skills / "cat" / "kept-by-lock" / "SKILL.md").write_text("x")
     _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     (qa,) = out["bots"]
-    assert qa["actions"] == ["skills removed: 2 (cat/other-skill, random-skill)"]
-    assert not (skills / "random-skill").exists() and not (skills / "cat" / "other-skill").exists()
+    assert qa["actions"] == ["skills removed: 1 (squad-web/old-skill)"]
+    assert not old.exists()
     assert (skills / "cat" / "kept-by-lock" / "SKILL.md").is_file()
     assert (skills / "squad-web" / "reviewing-sites" / "SKILL.md").is_file()
     assert len(list((env.local / "backups").glob("web-qa-*.tar.gz"))) == 1
+
+
+def test_memory_is_on_by_default_and_adds_the_toolset(env, capsys):
+    """A bot without `memory:` gets built-in memory and the memory toolset; `memory: false` turns both off."""
+    def mutate(spec):
+        spec["bots"]["web-backend"].pop("memory", None)
+        spec["bots"]["web-qa"]["memory"] = False
+    env.squad("web", mutate)
+    env.run("apply", "web", capsys=capsys)
+    be, qa = env.config("web-backend"), env.config("web-qa")
+    assert be["memory"]["memory_enabled"] is True and be["memory"]["user_profile_enabled"] is True
+    assert "memory" in be["platform_toolsets"]["cli"] and "memory" not in be["agent"]["disabled_toolsets"]
+    assert qa["memory"]["memory_enabled"] is False and "memory" in qa["agent"]["disabled_toolsets"]
+    enables = [c["args"] for c in env.calls() if c["args"][:2] == ["tools", "enable"] and c.get("profile") == "web-backend"]
+    assert not enables or "memory" in enables[-1]
+
+
+def test_every_shipped_soul_says_what_its_memory_holds():
+    souls = [REPO / "SOUL.md", *(REPO / "squads").glob("*/souls/*.md")]
+    assert souls
+    for soul in souls:
+        lines = [ln for ln in soul.read_text().splitlines() if ln.startswith("Your memory holds")]
+        assert len(lines) == 1 and "secret" in lines[0], soul
 
 
 def test_changed_squad_skill_is_recopied_only_when_sha_differs(web, capsys):

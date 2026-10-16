@@ -36,6 +36,8 @@ MANAGED = {"web", "browser", "vision", "video", "image_gen", "video_gen", "deleg
            "clarify", "cronjob", "connections", "todo"}
 CRON_TOOLSETS = ["terminal", "file", "skills", "kanban", "todo"]
 SHA_MARK = ".squad-sha"
+# What apply installed in a bot's skills dir. Apply removes only these paths; any other skill is `learned`.
+OWNED_FILE = ".squad-installed.json"
 STALE_SECONDS = 24 * 3600
 PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
 
@@ -419,6 +421,17 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     return out
 
 
+def memory_on(bot: dict) -> bool:
+    """Built-in memory is on unless the manifest says `memory: false`."""
+    return bot.get("memory", True) is not False
+
+
+def bot_toolsets(bot: dict) -> list[str]:
+    """The manifest toolsets plus `memory` when memory is on: without the toolset the bot cannot write it."""
+    toolsets = list(bot["toolsets"])
+    return toolsets + ["memory"] if memory_on(bot) and "memory" not in toolsets else toolsets
+
+
 def live_bots(ctx: Ctx, spec: dict) -> list[str]:
     """Bots a live-state command (status, doctor, uninstall, project add) reports on: every required bot,
     plus an optional bot once its profile exists (optional bots install only via `apply --with`)."""
@@ -553,34 +566,61 @@ def resolve_keep(ctx: Ctx, entry: str) -> tuple[str, str]:
     raise Fail(f"unknown keep kind: {entry}")
 
 
-def prune_skills(home: Path, keep: set[str], dry: bool) -> list[str]:
-    """Remove every skill dir in the profile except `keep` (names): essential, squad, declared and hub installs."""
+def read_owned(home: Path) -> set[str]:
+    """Skill paths (relative to `skills/`) a previous apply installed in this profile (OWNED_FILE)."""
+    try:
+        data = json.loads(_read(home / "skills" / OWNED_FILE) or "{}")
+    except ValueError:
+        return set()
+    return {s for s in data.get("skills") or [] if isinstance(s, str)}
+
+
+def write_owned(home: Path, paths: set[str]) -> None:
+    write_text(home / "skills" / OWNED_FILE, json.dumps({"schema": 1, "skills": sorted(paths)}, indent=1) + "\n")
+
+
+def prune_skills(home: Path, keep: set[str], dry: bool, src_roots: tuple[Path, ...] = ()) -> tuple[list[str], list[str]]:
+    """(removed, learned) skill paths of one profile.
+
+    Only what apply installed is ever removed: a path in OWNED_FILE, a dir carrying SHA_MARK (squad skills copied
+    by any earlier apply) or a symlink into a squad source (`src_roots`). Everything else outside `keep` and the
+    hub lock is `learned` (written by the bot with skill_manage, or by the user) and stays."""
     skills = home / "skills"
     if not skills.is_dir():
-        return []
+        return [], []
     lock = skills / ".hub" / "lock.json"
     keep = keep | (set((json.loads(lock.read_text()).get("installed") or {}) if lock.is_file() else ()))
+    owned = read_owned(home)
     removed: list[str] = []
+    learned: list[str] = []
     for entry in sorted(skills.iterdir()):
         if entry.name.startswith("."):
             continue
         if entry.is_symlink():
-            removed.append(entry.name)
-            if not dry:
-                entry.unlink()
+            target = entry.resolve()
+            if entry.name in owned or any(r in target.parents or r == target for r in src_roots):
+                removed.append(entry.name)
+                if not dry:
+                    entry.unlink()
+            else:
+                learned.append(entry.name)
             continue
         if not entry.is_dir():
             continue
         children = [entry] if (entry / "SKILL.md").is_file() else [c for c in entry.iterdir() if c.is_dir()]
         for child in children:
-            if child.name in keep:
+            if child.name in keep or child.name.startswith("."):
                 continue
-            removed.append(entry.name if child == entry else f"{entry.name}/{child.name}")
+            rel = entry.name if child == entry else f"{entry.name}/{child.name}"
+            if rel not in owned and not (child / SHA_MARK).is_file():
+                learned.append(rel)
+                continue
+            removed.append(rel)
             if not dry:
                 shutil.rmtree(child)
         if not dry and entry.is_dir() and not any(entry.rglob("SKILL.md")):
             shutil.rmtree(entry)
-    return removed
+    return removed, learned
 
 
 def sched_matches(job: dict, wanted: str) -> bool:
@@ -703,7 +743,7 @@ class Applier:
     def config_plan(self, name: str, bot: dict, extra_dirs: list[str], notes: list[str],
                     live: dict | None = None) -> list:
         d, home = self.defaults, self.ctx.home(name)
-        toolsets = list(bot["toolsets"])
+        toolsets = bot_toolsets(bot)
         plan: list = []
         m = self.bot_model(name, bot)
         if m:
@@ -750,8 +790,8 @@ class Applier:
                  ["terminal.cwd", str(cwd), False],
                  ["terminal.env_passthrough", list(bot.get("passthrough") or []), False],
                  ["tools.connectors.enabled", bool(conn.get("enabled")), False],
-                 ["memory.memory_enabled", bool(bot.get("memory")), False],
-                 ["memory.user_profile_enabled", bool(bot.get("memory")), False],
+                 ["memory.memory_enabled", memory_on(bot), False],
+                 ["memory.user_profile_enabled", memory_on(bot), False],
                  ["curator.enabled", True, False], ["curator.consolidate", False, False]]
         if bot.get("website_blocklist"):
             plan += [["security.website_blocklist.enabled", True, False],
@@ -839,7 +879,7 @@ class Applier:
             if not dry:
                 ctx.apply_config(home, {"set": sets, "ui_meta_bots": meta})
                 if any(k == "platform_toolsets.cli" for k, *_ in diff) or created:
-                    ctx.hermes("tools", "enable", *bot["toolsets"], profile=name)
+                    ctx.hermes("tools", "enable", *bot_toolsets(bot), profile=name)
         acts += self.describe(diff, created)
         if created:
             # bundled keeps are external skill dirs: one visible line each, never folded into the key count
@@ -850,8 +890,10 @@ class Applier:
             (home / "workspace").mkdir(parents=True, exist_ok=True)
 
         # skills
+        learned: list[str] = []
         if not self.skip_skills:
-            acts += self.skills(name, bot, keeps, existed)
+            skill_acts, learned = self.skills(name, bot, keeps, existed)
+            acts += skill_acts
 
         # plugins, mcp
         acts += self.plugins(name, bot, cfg, pending)
@@ -886,7 +928,7 @@ class Applier:
         status = "unchanged" if not acts else ("created" if created else "changed")
         if dry and acts:
             status = "would-" + status.removesuffix("d")
-        return {"bot": name, "status": status, "actions": acts, "pending": pending, "notes": notes}
+        return {"bot": name, "status": status, "actions": acts, "pending": pending, "notes": notes, "learned": learned}
 
     def describe(self, diff: list, created: bool) -> list[str]:
         """Key diff as action lines. A new profile gets one summary line; auxiliary.* keys sharing a change merge."""
@@ -909,9 +951,11 @@ class Applier:
         s = json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else v
         return s if len(s) <= 80 else s[:77] + "..."
 
-    def skills(self, name: str, bot: dict, keeps: list, existed: bool) -> list[str]:
+    def skills(self, name: str, bot: dict, keeps: list, existed: bool) -> tuple[list[str], list[str]]:
+        """(actions, learned): learned skills are never removed, only reported."""
         ctx, dry, home = self.ctx, self.dry, self.ctx.home(name)
         acts: list[str] = []
+        learned: list[str] = []
         squad = (bot.get("skills") or {}).get("squad") or []
         if existed and not (home / ".no-bundled-skills").exists():
             acts.append("skills opt-out --remove")
@@ -920,13 +964,18 @@ class Applier:
         keep = {"hermes-agent", *squad} | {i.rsplit("/", 1)[-1] for _, k, i in keeps if k in ("hub", "local")}
         keep |= {Path(i).name for _, k, i in keeps if k == "dir"}
         if not self.self_mode and existed:
-            removed = prune_skills(home, keep, True)
+            roots = tuple(d.resolve() for d in squad_dirs(ctx, self.key))
+            removed, learned = prune_skills(home, keep, True, roots)
             if removed:
                 acts.append(f"skills removed: {len(removed)} ({', '.join(removed[:6])}{'...' if len(removed) > 6 else ''})")
                 if not dry:
                     self.backup(name)
-                    prune_skills(home, keep, False)
+                    prune_skills(home, keep, False, roots)
         dest_root = home / "skills" if self.self_mode else home / "skills" / f"squad-{self.key}"
+        if not self.self_mode and not dry:
+            owned = {f"squad-{self.key}/{s}" for s in squad}
+            if read_owned(home) != owned:
+                write_owned(home, owned)
         for skill in squad:
             src = asset(ctx, self.key, "skills", skill)
             if src is None or not (src / "SKILL.md").is_file():
@@ -951,7 +1000,7 @@ class Applier:
                 acts.append(f"skills install {value}  [review first: hermes -p {name} skills inspect {value}]")
                 if not dry:
                     ctx.hermes("skills", "install", value, "--yes", profile=name)
-        return acts
+        return acts, learned
 
     def backup(self, name: str) -> Path:
         out = self.ctx.local / "backups" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz"

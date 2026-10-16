@@ -34,7 +34,6 @@ bots:
     plugins: {enable: [disk-cleanup, security-guidance]}
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: []}
-    memory: false
   web-backend:
     role: worker
     title: Web backend
@@ -48,7 +47,6 @@ bots:
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: [supabase, neon_mcp]}
     delegation: {lane: code-complex}
-    memory: false
   web-qa:
     role: worker
     title: Web QA
@@ -59,7 +57,6 @@ bots:
              keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
     plugins: {enable: [disk-cleanup]}
     mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
-    memory: false
   web-deployer:
     role: worker
     title: Web deployer
@@ -71,7 +68,6 @@ bots:
     plugins: {enable: [disk-cleanup]}
     connectors: {enabled: false, suggest: [cloudflare_mcp]}
     requires: {apps: [cf, wrangler, gh]}
-    memory: false
   web-frontend-pro:
     optional: true
     role: worker
@@ -91,7 +87,6 @@ bots:
     mcp: {context7: {url: "https://mcp.context7.com/mcp"}}
     connectors: {enabled: false, suggest: []}
     requires: {apps: [blender>=5.1, uv]}
-    memory: false
 chains:
   onboarding:
     - {stage: repo, assignee: web-deployer, skill: deploying-sites}
