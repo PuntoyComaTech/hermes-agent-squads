@@ -1,12 +1,41 @@
-# Squad: Web
+# Web squad
 
-## Purpose
+**Describe a site, approve a plan, check a preview, say "publish".**
 
-Someone who does not program gets a website or web app built, reviewed and live. The user describes a site, approves a plan, checks a preview and says "publish".
+[← All squads](../../README.md)
 
-Each site is its own project folder and GitHub repository. Nothing reaches production, DNS, money or data without the user's explicit answer for that action.
+Someone who does not program gets a website or web app built, reviewed and live. Each site is its own project folder
+and GitHub repository. Nothing reaches production, DNS, money or data without your explicit answer for that action.
 
-## What the user sees
+## How it works
+
+```mermaid
+flowchart TD
+    U(["You: new site: a page for my bakery"]):::you
+    U --> W["web (manager)<br/>questions, plan, milestones"]:::lead
+    W --> P{"You: approve the plan?"}:::ask
+    P -->|"ok, site needs a backend"| BE["web-backend<br/>API and data"]:::bot
+    P -->|"ok"| FE
+    BE --> FE["web-frontend<br/>pages and design"]:::bot
+    FE --> PV["web-deployer<br/>preview link"]:::bot
+    PV --> QA["web-qa<br/>reviews the preview"]:::check
+    QA -->|"needs fixes"| FE
+    QA -->|"approved"| R{"You: publish, change or bug?"}:::ask
+    R -->|"change / bug"| FE
+    R -->|"publish + yes"| LIVE(["web-deployer: live URL"]):::done
+
+    classDef you fill:#ede9fe,stroke:#7c3aed,color:#1e1b4b
+    classDef lead fill:#fce7f3,stroke:#db2777,color:#831843
+    classDef bot fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef check fill:#ffedd5,stroke:#ea580c,color:#7c2d12
+    classDef ask fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+QA rounds are capped by `automation.reviewer_rounds`. The production deploy runs only with your literal confirmation
+in the card.
+
+## What you see
 
 ```text
 Panaderia Sol, preview ready (milestone 1 of 3: home and menu)
@@ -18,60 +47,67 @@ Screenshot attached.
 Reply: "publish", "change: ...", "bug: ... + screenshot"
 ```
 
-| The user says | What happens |
-|---|---|
+| You say | What happens |
+| --- | --- |
 | `new site: a page for my bakery with the menu` | Plain-language questions in rounds of at most 5, then a plan: pages, stack in one line, milestones, monthly cost |
-| `ok` | The plan is approved and the first milestone runs: backend if any, frontend, preview, QA, acceptance |
+| `ok` | The plan is approved and the first milestone runs |
 | `publish` | One Yes/No question naming what goes live and its cost; on "yes": merge, production deploy, live URL |
 | `change: add a gallery`, `bug: the form does not send` | A new work item and a new preview |
 | `connect my domain` | The planned DNS records, a Yes/No question, then the change and HTTPS |
 | `rollback` | After one Yes/No question, the previous version is live again |
-| `status` | Per site: current milestone, last preview, live URL, what waits for the user |
+| `status` | Per site: current milestone, last preview, live URL, what waits for you |
 
 ## Bots
 
-One manager (`web`) and four workers, plus the optional `web-frontend-pro` (3D, WebGL and complex motion; it installs only with `squadctl apply web --with web-frontend-pro`): `squad.yaml -> bots`. All bots are visible; the manager is filed under `Managers`, the workers under the `Web` section. Models come from the lanes in `scripts/data/model-roles.yaml`; `web-backend` runs `code-routine` and the manager pins the `code-complex` model per card on hard problems (skill `leading-web` step 6).
+| Bot | Does |
+| --- | --- |
+| `web` (manager) | Interviews you, writes `spec.md`, plans milestones, files the work, triages changes and accepts results |
+| `web-frontend` | UI, design system, motion and scroll animation |
+| `web-backend` | APIs, data, auth and tests; the manager gives it a stronger model per card on hard problems |
+| `web-qa` | Reviews each preview with five lenses and never fixes what it reviews |
+| `web-deployer` | GitHub flow, preview and production deploys, DNS and rollback; the only bot with deploy credentials |
+| `web-frontend-pro` (optional) | 3D, WebGL shaders, GSAP ScrollTrigger/Lenis and complex motion: `squadctl apply web --with web-frontend-pro` |
 
-## Stack
-
-Stacks, site types and pinned versions: `skills/building-frontend/scripts/stacks.json`. Hosting is Cloudflare by default; a server-rendered site past the free tier needs the paid Workers plan, stated in the plan and in the publish question.
-
-## Chain: milestone
-
-```mermaid
-flowchart TD
-  api["api: web-backend<br/>(site.yaml backend: true)"] --> ui["ui: web-frontend"]
-  ui --> preview["preview: web-deployer"]
-  preview --> qa["qa: web-qa"]
-  qa -- "FIX (automation.reviewer_rounds)" --> ui
-  qa -- "APPROVED" --> accept["accept: web"]
-  accept --> user(["user: publish, change, bug"])
-  user -- "publish" --> production["production: web-deployer"]
-```
-
-`production` runs only with the user's literal confirmation in the card.
-
-## Cron
-
-`web-watch` runs the builder's `scripts/board_watch.py` on the manager (`squad.yaml -> bots.web.cron`): it posts to the manager's Bot Chat when a card waits on the user or stalls.
+In the Desktop app the manager sits under `Managers` and the workers under `Web`.
 
 ## What the computer needs
 
-- Accounts the user creates: GitHub and Cloudflare (free tiers). The deployer guides a fine-grained GitHub token and a scoped Cloudflare token; both stay in its environment.
+- Accounts you create: GitHub and Cloudflare (free tiers). The deployer guides a fine-grained GitHub token and a
+  scoped Cloudflare token; both stay in its environment.
 - Node 22+, pnpm, git, `gh`, `cf` and Chrome. Playwright, axe-core and Lighthouse install inside each site repo.
+- Hosting is Cloudflare by default. A server-rendered site past the free tier needs the paid Workers plan, stated in
+  the plan and in the publish question. Stacks and pinned versions: `skills/building-frontend/scripts/stacks.json`.
+
+## Schedule
+
+| Job | When | Does |
+| --- | --- | --- |
+| `web-watch` | every 30 min | Tells you in the manager's chat when a card waits on you or stalls |
 
 ## Files
 
-| File | Contents |
-|---|---|
+| Path | Contents |
+| --- | --- |
 | `squad.yaml` | Manifest: bots, lanes, chains, cron, keeps |
 | `souls/` | One SOUL per bot |
 | `skills/` | `leading-web`, `building-frontend`, `building-backend`, `reviewing-sites`, `deploying-sites`, `site-contract` |
 | `skills/building-frontend/scripts/` | `scaffold_site.py`, `stacks.json` |
 | `skills/site-contract/scripts/` | `check_site.py` |
 
-## Extras
+## Your own extras
 
-The web bots cover sites, not taste: nobody in the repo ships site-cloning, reverse-engineering or
-personal-style skills. Add your own extras to a bot's `skills.keep` through the builder
-("add skill <name> to web-frontend"), and apply them with `squadctl apply web`.
+Ask the builder "add skill &lt;name&gt; to web-frontend". It keeps the skill in your local overlay, outside this repo.
+
+---
+
+<div align="center">
+
+Developed by **PuntoyComaTech**
+
+[![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?style=for-the-badge&logo=Instagram&logoColor=white)](https://www.instagram.com/puntoycomatech)
+[![X](https://img.shields.io/badge/X-%23000000.svg?style=for-the-badge&logo=X&logoColor=white)](https://x.com/PuntoyComaTech)
+[![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@PuntoyComaTech)
+[![TikTok](https://img.shields.io/badge/TikTok-%23000000.svg?style=for-the-badge&logo=TikTok&logoColor=white)](https://www.tiktok.com/@puntoycomatech)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/gabriel-rubio99/)
+
+</div>
