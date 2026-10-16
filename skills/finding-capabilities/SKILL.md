@@ -13,8 +13,9 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
 ## Procedure
 
 1. Search: `scripts/hpy catalog_search.py "<query>" ["<query>" ...]
-   [--kind plugin,skill,mcp] [--hub] [--json]`. Connector names match under
-   `mcp`.
+   [--kind plugin,skill,mcp] [--shelf <shelf>] [--hermes-version <X.Y.Z>]
+   [--hub] [--json]`. Pass the version from `hermes --version`. Connector
+   names match under `mcp`.
 2. Prefer a bundled or official skill over a hub one, and a skill over a
    plugin when the job is procedural.
 3. Skill candidate: run `hermes skills inspect <identifier>` and read its trust
@@ -22,9 +23,9 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
 4. Community plugin: read `plugin-catalog/<name>.yaml` in the Hermes tree.
    Presence there is the trust signal; risky behavior is disclosed in its
    `description` (`plugin-catalog/README.md` rule 13).
-5. Quote that disclosure and the licence to the user verbatim and get an explicit
-   OK. Non-commercial (PolyForm NC) and per-seat (Remotion) licences get their
-   own question.
+5. Quote that disclosure, the licence and any `known_issues` to the user
+   verbatim and get an explicit OK. Non-commercial (PolyForm NC) and per-seat
+   (Remotion) licences get their own question.
 6. Declare the result in the squad manifest or overlay:
   a `skills.keep` entry (`bundled:`,
    `official:<cat>/<name>`, `hub:`, `local:`), a `plugins.enable` entry or an
