@@ -86,7 +86,7 @@
       "description": "Disclosure or licence question the builder quotes; the item is installed only after the user's explicit OK.",
       "type": "string",
       "minLength": 10,
-      "maxLength": 300
+      "maxLength": 1200
     },
     "keepId": {
       "description": "bundled:<name> (Hermes source tree), official:<category>/<name> (optional skills), hub:<identifier>, local:<name> (already in the profile).",
@@ -185,7 +185,11 @@
           "properties": {
             "squad": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/skillName"}},
             "auto_load": {"oneOf": [{"$ref": "#/$defs/skillName"}, {"type": "null"}]},
-            "keep": {"type": "array", "items": {"$ref": "#/$defs/keep"}}
+            "keep": {"type": "array", "items": {"$ref": "#/$defs/keep"}},
+            "keep_add": {"description": "Overlay: entries appended to the repo's keep (same id replaces).",
+                         "type": "array", "items": {"$ref": "#/$defs/keep"}},
+            "keep_remove": {"description": "Overlay: keep ids dropped from the repo's keep.",
+                            "type": "array", "items": {"$ref": "#/$defs/keepId"}}
           }
         },
         "plugins": {
@@ -193,6 +197,10 @@
           "additionalProperties": false,
           "properties": {
             "enable": {"type": "array", "items": {"$ref": "#/$defs/plugin"}},
+            "enable_add": {"description": "Overlay: plugins appended to the repo's enable (same name replaces).",
+                           "type": "array", "items": {"$ref": "#/$defs/plugin"}},
+            "enable_remove": {"description": "Overlay: plugin names dropped from the repo's enable.",
+                              "type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
             "disable": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}}
           }
         },
