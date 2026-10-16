@@ -15,6 +15,11 @@
 - Precedence for a duplicate name: project, local (`~/.hermes/skills/`),
   `skills.create_dir`, `skills.external_dirs`; the shadowed copy is hidden and
   logged.
+- Project skills (`<repo>/.hermes/skills/`, `<repo>/.agents/skills/`; the repo
+  is the nearest ancestor with `.git`) load only after `hermes -p <bot> skills
+  trust <repo>`. Trust is per profile (`skills.trusted_project_dirs`);
+  `skills untrust <repo>` revokes it, and `skills.project_discovery: false`
+  stops the scan.
 - `skills.external_dirs` adds read-in-place skill directories;
   `skills.auto_load` lists skills loaded into every session.
 - Agent-created skills go to `~/.hermes/skills/`, or `skills.create_dir` when
