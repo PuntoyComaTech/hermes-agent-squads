@@ -1,62 +1,80 @@
-"""Real-hermes apply smoke test: `squadctl apply web` against the real `hermes` in a temp root.
+"""Contract with reality: squadctl against the real `hermes` binary in a temp root (never `~/.hermes`).
 
-Skipped by default. Run it with a real `hermes` on PATH and HERMES_REAL_SMOKE=1 (CI: the manually
-triggered `real-hermes-smoke` job). Everything lands in a temp HERMES_HOME; the real ~/.hermes is
-never written. It also proves the B2 fix: worker scripts ship inside their skill dirs, so web-qa can
-run check_site.py and web-frontend can run scaffold_site.py from $HERMES_HOME.
+- `plan` runs whenever `hermes` is on PATH: it reads real profiles and boards through the real CLI.
+- `apply` writes five profiles and takes a minute or more, so it also needs HERMES_REAL_SMOKE=1 (CI: the
+  manually triggered `real-hermes-smoke` job). It checks what the fake cannot: the toolsets real `tools enable`
+  accepted, the MCP servers real `mcp add` saved enabled, and the worker scripts shipped inside their skills.
+Lanes come from scripts/data/model-roles.yaml, so a lane rename cannot leave this file assigning dead lanes.
 """
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
+
+from _real import env_for, needs_hermes, temp_root
 
 REPO = Path(__file__).resolve().parents[1]
-pytestmark = [pytest.mark.real_hermes, pytest.mark.skipif(
-    os.environ.get("HERMES_REAL_SMOKE") != "1" or not shutil.which("hermes"),
-    reason="skipped by default: set HERMES_REAL_SMOKE=1 with a real `hermes` on PATH to run it")]
+pytestmark = [pytest.mark.real_hermes, needs_hermes]
 
 MODELS = {"provider": "smoke", "model": "smoke-model"}
 WEB_BOTS = ["web", "web-frontend", "web-backend", "web-qa", "web-deployer"]
-LANES = ["manager", "design", "lead", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
+LANES = sorted(yaml.safe_load((REPO / "scripts" / "data" / "model-roles.yaml").read_text())["lanes"])
 
 
 def models_file(tmp_path: Path) -> Path:
-    """A models file (installed.yaml shape) that assigns every bot and lane of the web squad."""
-    doc = {"bots": {name: dict(MODELS) for name in WEB_BOTS},
-           "lanes": {lane: dict(MODELS) for lane in LANES}}
+    """A models file (installed.yaml shape) that assigns every lane model-roles.yaml defines."""
     p = tmp_path / "models.json"  # JSON is a YAML subset: read_yaml accepts it
-    p.write_text(json.dumps(doc))
+    p.write_text(json.dumps({"bots": {}, "lanes": {lane: dict(MODELS) for lane in LANES}}))
     return p
 
 
 def squadctl(*args: str, root: Path, models: Path) -> subprocess.CompletedProcess:
-    env = {**os.environ, "HERMES_HOME": str(root)}
     return subprocess.run([str(REPO / "scripts" / "squadctl"), *args, "--models", str(models), "--json"],
-                          env=env, capture_output=True, text=True, timeout=900)
+                          env=env_for(root), capture_output=True, text=True, timeout=900)
 
 
-def test_apply_web_against_real_hermes(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    models = models_file(tmp_path)
-
-    plan = squadctl("plan", "web", root=root, models=models)
+def test_plan_web_against_real_hermes(tmp_path):
+    root = temp_root(tmp_path)
+    plan = squadctl("plan", "web", root=root, models=models_file(tmp_path))
     assert plan.returncode == 0, (plan.stdout + plan.stderr)[-600:]
-    assert json.loads(plan.stdout)["summary"] == {"would-create": 5}
+    out = json.loads(plan.stdout)
+    assert out["summary"] == {"would-create": 5} and out["board"] == "would-create"
+    notes = [n for b in out["bots"] for n in b.get("notes", [])]
+    assert not [n for n in notes if n.startswith("no model assigned")], notes
+    assert not any((root / "profiles").glob("web*")), "plan must not create profiles"
 
+
+@pytest.mark.skipif(os.environ.get("HERMES_REAL_SMOKE") != "1",
+                    reason="slow (writes 5 real profiles): set HERMES_REAL_SMOKE=1")
+def test_apply_web_against_real_hermes(tmp_path):
+    root = temp_root(tmp_path)
+    models = models_file(tmp_path)
     out = squadctl("apply", "web", "--yes", root=root, models=models)
     assert out.returncode == 0, (out.stdout + out.stderr)[-600:]
+    spec = yaml.safe_load((REPO / "squads" / "web" / "squad.yaml").read_text())
+
+    for bot in WEB_BOTS:
+        cfg = yaml.safe_load((root / "profiles" / bot / "config.yaml").read_text())
+        landed = set(cfg["platform_toolsets"]["cli"])
+        # real `tools enable` drops an unknown name and exits 0: every manifest toolset must have landed
+        assert set(spec["bots"][bot]["toolsets"]) <= landed, (bot, sorted(set(spec["bots"][bot]["toolsets"]) - landed))
+        # real `mcp add` can print "Cancelled." and exit 0: every declared server must be saved and enabled
+        for server in spec["bots"][bot].get("mcp") or {}:
+            assert cfg["mcp_servers"][server]["enabled"] is True, (bot, server)
 
     # worker scripts ship inside their skills (site-contract carries the QA script, building-frontend the scaffolder)
     qa = root / "profiles" / "web-qa" / "skills" / "squad-web" / "site-contract" / "scripts" / "check_site.py"
     fe = root / "profiles" / "web-frontend" / "skills" / "squad-web" / "building-frontend" / "scripts" / "scaffold_site.py"
-    assert qa.is_file(), f"check_site.py not installed at {qa}"
-    assert fe.is_file(), f"scaffold_site.py not installed at {fe}"
     for script in (qa, fe):
-        # the system python has no PyYAML: --help must still work (the B1 blocker)
+        assert script.is_file(), f"not installed: {script}"
+        # the system python has no PyYAML: --help must still work
         h = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True, timeout=120)
         assert h.returncode == 0 and h.stdout.strip(), h.stderr[-300:]
+
+    again = squadctl("apply", "web", "--yes", root=root, models=models)
+    assert again.returncode == 0, again.stdout[-600:]
+    assert json.loads(again.stdout)["summary"] == {"unchanged": 5}, again.stdout[-600:]

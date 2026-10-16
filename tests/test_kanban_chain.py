@@ -187,10 +187,10 @@ def test_help_works():
 
 @pytest.mark.skipif(not os.environ.get("RUN_HERMES_TESTS"), reason="needs the real hermes binary; set RUN_HERMES_TESTS=1")
 def test_real_hermes_chain_is_idempotent_on_a_temp_board(env, monkeypatch):
-    root = env["tmp"] / "hermes-root"
-    root.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(root))
-    hermes = lambda *a: subprocess.run(["hermes", *a], capture_output=True, text=True, check=True, env={**os.environ, "HERMES_HOME": str(root)})  # noqa: E731
+    from _real import env_for, scrub, temp_root
+    root = temp_root(env["tmp"])
+    scrub(monkeypatch, root)
+    hermes = lambda *a: subprocess.run(["hermes", *a], capture_output=True, text=True, check=True, env=env_for(root))  # noqa: E731
     hermes("profile", "create", "web", "--no-skills", "--no-alias")
     hermes("kanban", "boards", "create", "web", "--name", "Web")
     site = env["tmp"] / "site"
@@ -201,7 +201,7 @@ def test_real_hermes_chain_is_idempotent_on_a_temp_board(env, monkeypatch):
     for _ in range(2):
         proc = subprocess.run([sys.executable, str(SCRIPT), *args[:2], "--project", "demo", "--title", "T", *args[2:],
                                "--squads-dir", str(env["squads"]), "--home", str(root / "profiles" / "builder")],
-                              capture_output=True, text=True, env={**os.environ, "HERMES_HOME": str(root)})
+                              capture_output=True, text=True, env=env_for(root))
         assert proc.returncode == 0, proc.stdout
         ids.append([c["id"] for c in json.loads(proc.stdout)["cards"]])
     assert ids[0] == ids[1] and len(set(ids[0])) == 5
