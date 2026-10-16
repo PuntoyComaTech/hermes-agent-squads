@@ -81,24 +81,29 @@
         {
           "bot": "web-frontend",
           "role": "worker",
-          "lane": "design",
+          "lane": "frontend",
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
           "alternatives": [
+            {
+              "model": "claude-sonnet-5-5[1m]",
+              "provider": "claude-subscription-directsdk-experimental",
+              "reasoning": "high"
+            },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
               "reasoning": "high"
             }
           ],
-          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "frontend lane, candidate 1/6 (anthropic): UI quality is model-bound and pays per pixel: strong UI models at high effort",
           "extras": []
         },
         {
           "bot": "web-backend",
           "role": "worker",
-          "lane": "code",
+          "lane": "code-routine",
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
@@ -109,11 +114,11 @@
               "reasoning": "high"
             }
           ],
-          "reason": "code lane (alias of code-routine), candidate 4/6 (anthropic): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
+          "reason": "code-routine lane, candidate 4/6 (anthropic): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
           "extras": [
             {
               "use": "delegation",
-              "lane": "advisor",
+              "lane": "code-complex",
               "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
@@ -129,7 +134,7 @@
                   "reasoning": "high"
                 }
               ],
-              "reason": "advisor lane (alias of code-complex), candidate 1/5 (anthropic): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+              "reason": "code-complex lane, candidate 1/5 (anthropic): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
             }
           ]
         },
@@ -158,7 +163,7 @@
         {
           "bot": "web-deployer",
           "role": "worker",
-          "lane": "research",
+          "lane": "deploy",
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
@@ -169,7 +174,24 @@
               "reasoning": "high"
             }
           ],
-          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment",
+          "reason": "deploy lane, candidate 2/4 (anthropic): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
+          "extras": []
+        },
+        {
+          "bot": "web-frontend-pro",
+          "role": "worker",
+          "lane": "design-pro",
+          "model": "claude-opus-5-5[1m]",
+          "provider": "claude-subscription-directsdk-experimental",
+          "reasoning": "high",
+          "alternatives": [
+            {
+              "model": "claude-opus-5-5",
+              "provider": "anthropic",
+              "reasoning": "high"
+            }
+          ],
+          "reason": "design-pro lane, candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": []
         }
       ],

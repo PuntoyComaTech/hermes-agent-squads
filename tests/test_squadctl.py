@@ -26,7 +26,8 @@ sys.path.insert(0, str(SCRIPTS))
 import squadctl  # noqa: E402
 
 from _real import needs_hermes as real_hermes  # noqa: E402  (skipped only when hermes is not on PATH)
-LANES = ["manager", "lead", "design", "code", "advisor", "review", "copy", "research", "digest", "aux", "vision"]
+# Every lane model-roles.yaml defines (aliases included), so a fixture that moves to a new lane still resolves.
+LANES = sorted(yaml.safe_load((SCRIPTS / "data" / "model-roles.yaml").read_text())["lanes"])
 WEB_BOTS = ["web", "web-frontend", "web-backend", "web-qa", "web-deployer"]
 ALWAYS = yaml.safe_load((SCRIPTS / "data" / "always-disabled.yaml").read_text())["always_disabled"]
 WRITES = {("profile", "create"), ("profile", "delete"), ("profile", "describe"), ("profile", "export"),
@@ -193,22 +194,24 @@ def test_apply_web_creates_five_profiles(web):
 
 def test_apply_writes_model_toolsets_and_lanes(web):
     fe = web.config("web-frontend")
-    assert (fe["model"]["provider"], fe["model"]["default"]) == ("prov-design", "model-design")
+    assert (fe["model"]["provider"], fe["model"]["default"]) == ("prov-frontend", "model-frontend")
     assert fe["agent"]["reasoning_effort"] == "medium"
     assert web.config("web-backend")["agent"]["reasoning_effort"] == "medium"
-    assert fe["platform_toolsets"]["cli"] == ["browser", "file", "kanban", "skills", "terminal", "todo", "vision"]
+    assert fe["platform_toolsets"]["cli"] == ["browser", "delegation", "file", "image_gen", "kanban", "memory", "skills",
+                                              "terminal", "todo", "vision"]
     assert fe["platform_toolsets"]["cron"] == ["terminal", "file", "skills", "kanban", "todo"]
     disabled = fe["agent"]["disabled_toolsets"]
     assert set(ALWAYS) <= set(disabled)
-    assert {"web", "delegation", "memory", "cronjob"} <= set(disabled)
-    assert not {"terminal", "file", "skills", "kanban", "browser", "vision", "todo"} & set(disabled)
+    assert {"web", "cronjob"} <= set(disabled)
+    assert not {"terminal", "file", "skills", "kanban", "browser", "vision", "todo", "delegation", "memory"} & set(disabled)
     assert fe["auxiliary"]["compression"]["model"] == "model-aux"
     assert fe["auxiliary"]["vision"] == {"provider": "prov-vision", "model": "model-vision"}
     assert fe["skills"]["auto_load"] == ["building-frontend"]
     assert fe["terminal"]["cwd"] == str(web.root / "profiles" / "web-frontend" / "workspace")
     assert Path(fe["terminal"]["cwd"]).is_absolute()
-    assert fe["memory"]["memory_enabled"] is False
-    assert fe["skills"]["external_dirs"] == [str(web.hsrc / "skills" / "cat" / "claude-design")]
+    assert fe["memory"]["memory_enabled"] is True
+    assert fe["skills"]["external_dirs"] == [str(web.hsrc / "skills" / "cat" / d)
+                                             for d in ("claude-design", "design-md", "popular-web-designs")]
     assert web.config("web")["memory"]["memory_enabled"] is True
 
 
@@ -237,7 +240,7 @@ def test_doctor_warns_on_any_kanban_cap(web, capsys):
 
 
 def test_delegation_lane_and_passthrough(web):
-    assert web.config("web-backend")["delegation"] == {"provider": "prov-advisor", "model": "model-advisor",
+    assert web.config("web-backend")["delegation"] == {"provider": "prov-code-complex", "model": "model-code-complex",
                                                        "reasoning_effort": "medium"}
     assert "delegation" not in web.config("web-qa") or not web.config("web-qa")["delegation"].get("model")
     # Deploys run through the CLIs' own logins (D-036), so no bot passes a provider token through its env.
@@ -272,16 +275,16 @@ def test_plugins_mcp_cron_board_installed(web):
     assert "context7" in web.config("web-frontend")["mcp_servers"]
     assert "chrome-devtools" in web.config("web-qa")["mcp_servers"]
     (job,) = web.jobs("web")
-    assert (job["name"], job["script"], job["no_agent"]) == ("web-watch", "web_watch.py", True)
+    assert (job["name"], job["script"], job["no_agent"]) == ("web-watch", "board_watch.py", True)
     assert job["deliver"] == "bot-chat:web"
-    assert job["schedule"]["expr"] == "0 */4 * * *"
-    assert (web.root / "profiles" / "web" / "scripts" / "web_watch.py").is_file()
+    assert job["schedule"]["expr"] == "*/30 * * * *"
+    assert (web.root / "profiles" / "web" / "scripts" / "board_watch.py").is_file()
     assert web.jobs("web-qa") == []
     boards = json.loads((web.root / "boards.json").read_text())
     assert [(b["slug"], b["archived"]) for b in boards] == [("web", False)]
     installed = yaml.safe_load((web.local / "installed.yaml").read_text())
     assert installed["squads"]["web"]["bots"] == WEB_BOTS
-    assert installed["lanes"]["design"]["model"] == "model-design"
+    assert installed["lanes"]["frontend"]["model"] == "model-frontend"
 
 
 def test_board_creation_is_the_owner_errand_inside_a_kanban_worker(env, capsys, monkeypatch):
@@ -290,7 +293,8 @@ def test_board_creation_is_the_owner_errand_inside_a_kanban_worker(env, capsys, 
     env.squad("web")
     _, out = env.run("apply", "web", capsys=capsys)
     assert out["board"] == ("pending owner action: hermes kanban boards create "
-                            + shlex.join(["web", "--name", "Web", "--icon=🌐", "--color=#2F6FEB"]))
+                            + shlex.join(["web", "--name", "Web", "--icon=🌐", "--color=#2F6FEB",
+                                          "--description=Web sites: interview, build, preview, QA, deploy"]))
     assert out["summary"] == {"created": 5}
     assert not any(c["args"][:3] == ["kanban", "boards", "create"] for c in env.calls())
     _, st = env.run("status", "web", capsys=capsys)
@@ -312,20 +316,20 @@ def test_an_existing_board_is_reported_inside_a_kanban_worker(env, capsys, monke
 
 def test_provider_plugin_is_copied_into_the_bot_profile(env, capsys):
     """A provider that is a user plugin of the builder is `Unknown provider` elsewhere until it is copied."""
-    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-design"
+    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-frontend"
     plugin.mkdir(parents=True)
-    (plugin / "plugin.yaml").write_text("name: prov-design\nkind: model-provider\nversion: 1.0.0\n")
+    (plugin / "plugin.yaml").write_text("name: prov-frontend\nkind: model-provider\nversion: 1.0.0\n")
     (plugin / "__init__.py").write_text("registered = True\n")
     env.squad("web")
     _, out = env.run("apply", "web", capsys=capsys)
     fe = next(b for b in out["bots"] if b["bot"] == "web-frontend")
-    assert "provider plugin + prov-design" in fe["actions"]
-    dest = env.root / "profiles" / "web-frontend" / "plugins" / "model-providers" / "prov-design"
+    assert "provider plugin + prov-frontend" in fe["actions"]
+    dest = env.root / "profiles" / "web-frontend" / "plugins" / "model-providers" / "prov-frontend"
     assert (dest / "__init__.py").read_text() == "registered = True\n"
     # merged with the plugins.enable items of the spec, never replacing them
     assert env.config("web-frontend")["plugins"]["enabled"] == [
-        "disk-cleanup", "model-providers/prov-design", "security-guidance"]
-    assert "model-providers/prov-design" not in env.config("web-qa")["plugins"]["enabled"]  # only the bots that got it
+        "disk-cleanup", "model-providers/prov-frontend", "security-guidance"]
+    assert "model-providers/prov-frontend" not in env.config("web-qa")["plugins"]["enabled"]  # only the bots that got it
     _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
     assert out["bots"][0]["status"] == "unchanged"
 
@@ -372,7 +376,7 @@ def test_inventory_documents_profiles_read_only(web, capsys):
     rows = {r["profile"]: r for r in out["profiles"]}
     assert set(rows) == {"default", *WEB_BOTS}
     assert rows["web"]["squad"] == "web" and rows["web"]["section"] == "Managers"
-    assert rows["web-frontend"]["model"]["provider"] == "prov-design"
+    assert rows["web-frontend"]["model"]["provider"] == "prov-frontend"
     assert "do-not-read" not in json.dumps(out)
     assert web.writes_since(n) == []
     _, out = web.run("inventory", "--profiles", "web-qa", "--out", str(web.local / "fleet.yaml"), capsys=capsys)
@@ -386,22 +390,22 @@ def test_inventory_documents_profiles_read_only(web, capsys):
 def test_provider_key_is_copied_into_the_profile_only_with_yes(env, capsys, monkeypatch):
     """C-14: a key held only by the root is copied (name+value) into the bot env file (mode 600) on `apply --yes`;
     without the flag the owner item stands. The value never reaches output."""
-    monkeypatch.delenv("PROV_DESIGN_API_KEY", raising=False)
+    monkeypatch.delenv("PROV_FRONTEND_API_KEY", raising=False)
     env.squad("web")
     _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
     (fe,) = out["bots"]
-    assert any("credentials PROV_DESIGN_API_KEY" in n and "web-frontend" in n for n in fe["notes"])
+    assert any("credentials PROV_FRONTEND_API_KEY" in n and "web-frontend" in n for n in fe["notes"])
     env_file = env.root / "profiles" / "web-frontend" / ".env"
     assert not env_file.exists()
-    monkeypatch.setenv("PROV_DESIGN_API_KEY", "sk-val...rint")
+    monkeypatch.setenv("PROV_FRONTEND_API_KEY", "sk-val...rint")
     _, out = env.run("plan", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
     assert any("copied into web-frontend" in a for a in out["bots"][0]["actions"])
     assert not env_file.exists(), "plan writes nothing"
     assert "sk-val...rint" not in json.dumps(out)
     _, out = env.run("apply", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
     (fe,) = out["bots"]
-    assert "credentials PROV_DESIGN_API_KEY: copied into web-frontend (mode 600)" in fe["actions"]
-    assert env_file.read_text() == "PROV_DESIGN_API_KEY=sk-val...rint\n"
+    assert "credentials PROV_FRONTEND_API_KEY: copied into web-frontend (mode 600)" in fe["actions"]
+    assert env_file.read_text() == "PROV_FRONTEND_API_KEY=sk-val...rint\n"
     assert oct(env_file.stat().st_mode)[-3:] == "600"
     assert "sk-val...rint" not in json.dumps(out)
     _, out = env.run("apply", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
@@ -478,13 +482,13 @@ def test_dry_run_leaves_tree_equal(env, capsys):
 
 def test_dry_run_after_apply_shows_diff_without_writing(web, capsys):
     web.models.write_text(yaml.safe_dump({"lanes": {**models_doc()["lanes"],
-                                                    "design": {"provider": "p2", "model": "model-new"}}}))
+                                                    "frontend": {"provider": "p2", "model": "model-new"}}}))
     before = tree_hash(web.root)
     mark = len(web.calls())
     _, out = web.run("plan", "web", capsys=capsys)
     fe = next(b for b in out["bots"] if b["bot"] == "web-frontend")
     assert fe["status"] == "would-change"
-    assert "set model.default: model-design -> model-new" in fe["actions"]
+    assert "set model.default: model-frontend -> model-new" in fe["actions"]
     assert tree_hash(web.root) == before and web.writes_since(mark) == []
 
 
@@ -527,7 +531,7 @@ def test_missing_models_plan_warns_apply_refuses(env, capsys):
     env.squad("web")
     _, out = env.run("plan", "web", models=False, capsys=capsys)
     notes = [n for b in out["bots"] for n in b.get("notes", [])]
-    assert any("no model assigned for web-frontend (lane design)" in n for n in notes)
+    assert any("no model assigned for web-frontend (lane frontend)" in n for n in notes)
     _, err = env.run("apply", "web", models=False, expect=2, capsys=capsys)
     assert "model_advisor" in err["error"] and not (env.root / "profiles" / "web").exists()
 
@@ -574,17 +578,17 @@ def test_fallback_chain_reaches_every_bot_its_children_and_installed_yaml(env, c
 def test_models_file_accepts_model_advisor_json(env, capsys):
     env.squad("web")
     rows = [{"bot": b, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low", "extras": []}
-            for b, l in (("web", "manager"), ("web-frontend", "design"), ("web-backend", "code"), ("web-qa", "review"),
-                         ("web-deployer", "research"))]
-    rows[2]["extras"] = [{"use": "delegation", "lane": "advisor", "model": "adv-advisor", "provider": "adv",
+            for b, l in (("web", "manager"), ("web-frontend", "frontend"), ("web-backend", "code-routine"),
+                         ("web-qa", "review"), ("web-deployer", "deploy"))]
+    rows[2]["extras"] = [{"use": "delegation", "lane": "code-complex", "model": "adv-code-complex", "provider": "adv",
                           "reasoning": "medium"}]
     shared = [{"use": u, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low"}
               for u, l in (("aux", "aux"), ("vision", "vision"))]
     env.models.write_text(json.dumps({"bots": rows, "shared": shared}))
     env.run("apply", "web", capsys=capsys)
-    assert env.config("web-backend")["delegation"]["model"] == "adv-advisor"
+    assert env.config("web-backend")["delegation"]["model"] == "adv-code-complex"
     assert env.config("web-frontend")["auxiliary"]["vision"]["model"] == "adv-vision"
-    assert env.config("web-frontend")["model"]["default"] == "adv-design"
+    assert env.config("web-frontend")["model"]["default"] == "adv-frontend"
 
 
 def test_plan_self_resolves_lanes_from_the_real_model_advisor_json(env, capsys):
@@ -609,7 +613,7 @@ def test_vision_capable_main_model_gets_no_auxiliary_vision(env, capsys):
     (agent/image_routing.py), so only text-only main models get one (D-021)."""
     env.squad("web")
     doc = models_doc()
-    doc["lanes"]["design"]["model"] = "model-native-design"  # the fake image_routing calls it vision-capable
+    doc["lanes"]["frontend"]["model"] = "model-native-frontend"  # the fake image_routing calls it vision-capable
     env.models.write_text(yaml.safe_dump(doc))
     env.run("apply", "web", capsys=capsys)
     vision = (env.config("web-frontend").get("auxiliary") or {}).get("vision") or {}
@@ -622,7 +626,7 @@ def test_vision_capable_main_model_gets_no_auxiliary_vision(env, capsys):
 def test_a_vision_model_switch_clears_a_stale_auxiliary_vision(web, capsys):
     assert web.config("web-frontend")["auxiliary"]["vision"]["model"] == "model-vision"
     doc = models_doc()
-    doc["lanes"]["design"]["model"] = "model-native-design"
+    doc["lanes"]["frontend"]["model"] = "model-native-frontend"
     web.models.write_text(yaml.safe_dump(doc))
     web.run("apply", "web", capsys=capsys)
     assert web.config("web-frontend")["auxiliary"]["vision"] == {"provider": "", "model": ""}
@@ -636,11 +640,12 @@ def test_local_overlay_changes_one_bot_and_can_remove_one(env, capsys):
     overlay.parent.mkdir(parents=True)
     overlay.write_text(yaml.safe_dump({"bots": {"web-qa": {"toolsets": ["file", "skills", "kanban", "todo"]},
                                                 "web-deployer": None},
-                                       "chains": {"milestone": [{"stage": "ui", "assignee": "web-frontend"}]}}))
+                                       "chains": {"onboarding": None, "deploy-production": None,
+                                                  "milestone": [{"stage": "ui", "assignee": "web-frontend"}]}}))
     _, out = env.run("plan", "web", capsys=capsys)
     assert [b["bot"] for b in out["bots"]] == ["web", "web-frontend", "web-backend", "web-qa"]
     env.run("apply", "web", capsys=capsys)
-    assert env.config("web-qa")["platform_toolsets"]["cli"] == ["file", "kanban", "skills", "todo"]
+    assert env.config("web-qa")["platform_toolsets"]["cli"] == ["file", "kanban", "memory", "skills", "todo"]
     assert "browser" in env.config("web-qa")["agent"]["disabled_toolsets"]
 
 
@@ -936,7 +941,7 @@ def test_cron_args_get_a_wrapper(env, capsys):
     (job,) = env.jobs("web")
     assert job["script"] == "web-watch.sh"
     wrapper = env.root / "profiles" / "web" / "scripts" / "web-watch.sh"
-    assert wrapper.read_text() == '#!/usr/bin/env bash\nexec python3 "$(dirname "$0")/web_watch.py" --board web --quiet\n'
+    assert wrapper.read_text() == '#!/usr/bin/env bash\nexec python3 "$(dirname "$0")/board_watch.py" --board web --quiet\n'
     assert os.access(wrapper, os.X_OK)
     _, out = env.run("apply", "web", capsys=capsys)
     assert out["summary"] == {"unchanged": 5}
@@ -944,7 +949,7 @@ def test_cron_args_get_a_wrapper(env, capsys):
 
 def test_a_gate_that_imports_gate_lib_gets_it_beside_it(env, capsys):
     env.squad("web")
-    (env.src / "squads" / "web" / "scripts" / "web_watch.py").write_text("import gate_lib\nprint('{}')\n")
+    (env.src / "squads" / "web" / "scripts" / "board_watch.py").write_text("import gate_lib\nprint('{}')\n")
     env.run("apply", "web", capsys=capsys)
     scripts = env.root / "profiles" / "web" / "scripts"
     assert (scripts / "gate_lib.py").read_text() == (SCRIPTS / "gate_lib.py").read_text()
@@ -1170,7 +1175,7 @@ def test_chain_delegates_to_kanban_chain_and_is_idempotent(web, tmp_path, capsys
 def test_chain_unknown_name(env, capsys):
     env.squad("web")
     _, out = env.run("chain", "web", "nope", "--project", "p", "--title", "t", expect=1, capsys=capsys)
-    assert "chains: milestone" in out["error"]
+    assert "chains: onboarding, milestone" in out["error"]
 
 
 # --- status, doctor ---------------------------------------------------------------------------------------------
@@ -1182,9 +1187,9 @@ def test_status_empty_and_installed(env, capsys):
     env.run("apply", "web", capsys=capsys)
     _, out = env.run("status", capsys=capsys)
     (squad,) = out["squads"]
-    assert squad["installed"] == "3.0.0" and squad["board"] == "exists"
+    assert squad["installed"] == "3.1.1" and squad["board"] == "exists"
     assert [b["state"] for b in squad["bots"]] == ["ok"] * 5
-    assert squad["bots"][1]["model"] == "model-design"
+    assert squad["bots"][1]["model"] == "model-frontend"
 
 
 def test_status_shows_drift_and_missing(web, capsys):
@@ -1273,9 +1278,9 @@ def test_login_probe_reads_the_exit_status_only(monkeypatch):
 
 def test_doctor_flags_a_missing_provider_plugin_and_filters_by_squad(env, capsys):
     """`doctor [<squad>]` answers for one squad: it loads no other squad's spec and flags a missing plugin."""
-    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-design"
+    plugin = env.root / "profiles" / "builder" / "plugins" / "model-providers" / "prov-frontend"
     plugin.mkdir(parents=True)
-    (plugin / "plugin.yaml").write_text("name: prov-design\nkind: model-provider\n")
+    (plugin / "plugin.yaml").write_text("name: prov-frontend\nkind: model-provider\n")
     env.squad("web")
     env.run("apply", "web", "--bots", "web", capsys=capsys)  # the lead only: no copy has happened yet
     installed = yaml.safe_load(env.local.joinpath("installed.yaml").read_text())
