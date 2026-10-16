@@ -92,6 +92,17 @@ def test_draft_manager_naming():
         assert all("hidden" not in spec for spec in bots.values())
 
 
+def test_stage_lane_carries_no_per_card_effort():
+    """Per-card override is model+provider only: `hermes kanban create`, `set-model` and the
+    `kanban_create` tool have no reasoning-effort flag. The chain stage must not claim one, and the
+    reference must document the real path (dashboard `reasoning_effort`, V-07 profiles)."""
+    stage = SCHEMA["$defs"]["stage"]["properties"]
+    assert "reasoning" not in stage and set(stage) == {"stage", "assignee", "skill", "when", "lane"}
+    ref = (REPO / "skills" / "hermes-platform" / "references" / "kanban.md").read_text()
+    assert "reasoning-effort flag on `hermes kanban create`" in ref
+    assert "reasoning_effort" in ref and "V-07" in ref
+
+
 def test_shipped_manifests_validate_and_name_the_manager():
     """The shipped builder.yaml and squads/*/squad.yaml hold the same contract the fixtures hold."""
     paths = [REPO / "builder.yaml", *sorted((REPO / "squads").glob("*/squad.yaml"))]

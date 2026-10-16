@@ -8,8 +8,10 @@
 - Default effort is per profile. `agent.reasoning_overrides` maps a model name
   to an effort (config.yaml only, no CLI) and cron jobs take
   `--reasoning-effort` (`hermes_cli/config_defaults.py`; `hermes cron create
-  --help`). `kanban create` has no effort flag, so a lane that needs another
-  effort gets its own profile (`docs/decisions.md` V-07).
+  --help`). `kanban create` has no effort flag: per-card depth is writable only
+  through the kanban dashboard's `reasoning_effort` field
+  (`plugins/kanban/dashboard/plugin_api.py`), so from the CLI a lane that needs
+  another effort gets its own profile (`docs/decisions.md` V-07).
 - `hermes model` picks provider and model; `hermes model --refresh` re-fetches
   every provider's model list (`hermes model --help`).
 

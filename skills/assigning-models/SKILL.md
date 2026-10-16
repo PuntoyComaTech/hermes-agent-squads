@@ -40,6 +40,9 @@ description: "Assigns a model per bot from connected providers. Use when a squad
   `local/model-roles.yaml`, which merges over it.
 - Expecting the effort to follow `--model`: default effort is per profile;
   per-model overrides go in `agent.reasoning_overrides` (profile `config.yaml`).
+- Expecting a card to pin effort: `hermes kanban create`/`set-model` carry only
+  `--model`/`--provider`; per-card `reasoning_effort` is writable only from the
+  kanban dashboard (`skills/hermes-platform/references/kanban.md`).
 - A model change for one card is not a bot assignment: use the card's
   `--model`/`--provider` (`docs/decisions.md` V-07).
 
