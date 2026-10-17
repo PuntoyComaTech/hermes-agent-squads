@@ -44,6 +44,7 @@ bots:
     description: "Concepts, all copy and scripts; no web access"
     lane: copy
     toolsets: [file, skills, kanban, todo, vision]
+    withhold: [web]
     skills:
       squad: [writing-copy, brand-contract, marketing-psychology]
       auto_load: writing-copy

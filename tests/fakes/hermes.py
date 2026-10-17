@@ -344,6 +344,8 @@ def main():
             cfg.setdefault("plugins", {}).setdefault("enabled", [])
             cfg["plugins"]["enabled"] = [p for p in cfg["plugins"]["enabled"] if p != args[0]]
             save(HOME / "config.yaml", cfg)
+    elif cmd == "tools" and rest[:2] == ["post-setup", "agent_browser"]:
+        print("✓ Post-setup 'agent_browser' complete")
     elif cmd == "tools":
         need_profile()
         # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union).

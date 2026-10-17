@@ -1,12 +1,15 @@
 # Bootstrap config: copied on `hermes profile install`, kept on `hermes profile update` (unless --force-config).
 # No model block: `hermes -p builder model` picks it. `squadctl apply --self` rewrites these keys from builder.yaml.
+# Same base every squad bot gets (squadctl BASE_TOOLSETS + MANAGER_TOOLSETS): web search works before "set me up".
 platform_toolsets:
-  cli: [clarify, cronjob, file, kanban, memory, session_search, skills, terminal, todo]
+  cli: [browser, clarify, code_execution, cronjob, delegation, file, kanban, memory, session_search, skills, terminal,
+        todo, vision, web]
   cron: [terminal, file, skills, kanban, todo]
 agent:
-  disabled_toolsets: [a2a, bot_room, browser, catalog, code_execution, computer_use, connections, context_engine,
-                      delegation, desktop_ui, discord, discord_admin, feishu_doc, feishu_drive, image_gen, project,
-                      search, tts, video, video_gen, vision, web, x_search, yuanbao]
+  disabled_toolsets: [a2a, bot_room, catalog, computer_use, connections, context_engine, discord, discord_admin,
+                      feishu_doc, feishu_drive, image_gen, tts, video, video_gen, x_search, yuanbao]
+web:
+  keyless_fallback: true
 skills:
   auto_load: [hermes-platform]
 memory:

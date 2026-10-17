@@ -36,6 +36,7 @@ bots:
     description: "CV, letter and answers from verified achievements; renders PDF and DOCX"
     lane: copy
     toolsets: [file, skills, kanban, todo, terminal]
+    withhold: [web]
     skills:
       squad: [writing-applications, rendering-cv, preparing-interviews, jobs-contract]
       keep: [bundled:humanizer, bundled:docx, bundled:pdf]

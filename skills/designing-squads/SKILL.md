@@ -53,8 +53,10 @@ Enforced by `squadctl` and `skill_lint.py`.
 - One manager per squad: profile name `<key>`, `role: manager`, title
   `<Name> manager`. It is the only bot the user talks to and the one that adds
   Projects.
-- Workers: `<key>-<role>`, `role: worker`, only the toolsets their role
-  needs. Memory is on by default (squadctl adds the `memory` toolset); the
+- Workers: `<key>-<role>`, `role: worker`. Every bot gets the Hermes base
+  toolsets (`references/toolsets.md` in hermes-platform -> Squad usage);
+  `toolsets:` adds, `withhold:` removes a base toolset from a worker only for a
+  permission boundary. Never take tools from a manager. Memory is on by default (squadctl adds the `memory` toolset); the
   SOUL has one line on what it stores: job pitfalls and fixes, never secrets.
   `memory: false` only for a bot that must keep nothing between cards.
 - Skills a bot writes with `skill_manage` are `learned`: `squadctl plan`

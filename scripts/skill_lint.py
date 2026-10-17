@@ -70,6 +70,9 @@ CAPABILITY_MAX = 57
 MANAGER_LINES, WORKER_LINES, INDEX_LINES = 150, 120, 80
 REF_MAX, REF_TOC_AFTER, TOC_WINDOW = 200, 100, 20
 SOUL_LINES, SOUL_CHARS = 6, 800
+# Every squad bot's SOUL.md starts with this shared Hermes base (squadctl compose_soul); the builder's SOUL.md embeds it.
+BASE_SOUL = Path(__file__).resolve().parent.parent / "squads" / "_base" / "hermes-base.md"
+BASE_SOUL_CHARS = 2600
 SPANISH_MAX = 0.03
 EVALS_COUNT = 3
 HELP_TIMEOUT = 20
@@ -81,7 +84,7 @@ GERUND_ALLOWLIST = {INDEX_SKILL, "hermes-local-notes", "marketing-plan", "produc
                     "marketing-psychology"}
 ALLOWED_CHILDREN = {"references", "scripts", "templates", "assets", "evals"}
 IGNORED = {".DS_Store", "__pycache__"}
-SKIP_DIRS = {".git", "node_modules", "tests", "docs", "__pycache__", "_schema", ".github"}
+SKIP_DIRS = {".git", "node_modules", "tests", "docs", "__pycache__", "_schema", ".github"}  # _base is linted
 BODY_SECTIONS = ("when to use", "procedure", "pitfalls", "verification")
 NOT_THIRD_PERSON = {"you", "your", "i", "we", "our", "my", "this", "these", "use"}
 
@@ -161,6 +164,16 @@ class Linter:
     def lint_soul(self, path: Path) -> None:
         self.targets.append(str(path))
         text = path.read_text(encoding="utf-8")
+        base = BASE_SOUL.read_text(encoding="utf-8") if BASE_SOUL.is_file() else None
+        if path.resolve() == BASE_SOUL.resolve():
+            if len(text) > BASE_SOUL_CHARS:
+                self.add("soul-chars", path, f"{len(text)} characters, budget {BASE_SOUL_CHARS} for the Hermes base")
+            self.check_language(path, text)
+            self.check_model_ids(path, text)
+            self.check_issue_notes(path, text)
+            return
+        if base and text.startswith(base):
+            text = text[len(base):].lstrip("\n")
         lines = len(text.splitlines())
         if lines > SOUL_LINES:
             self.add("soul-lines", path, f"{lines} lines, budget {SOUL_LINES}")
@@ -430,7 +443,7 @@ def discover(root: Path) -> dict[str, list[Path]]:
             dirnames[:] = []
             continue
         for name in sorted(filenames):
-            if name == "SOUL.md" or (here.name == "souls" and name.endswith(".md")):
+            if name == "SOUL.md" or (here.name in ("souls", "_base") and name.endswith(".md")):
                 found["soul"].append(here / name)
             elif name in {"squad.yaml", "builder.yaml"}:
                 found["squad"].append(here / name)

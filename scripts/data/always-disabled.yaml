@@ -1,28 +1,22 @@
 # Toolsets never offered to any squad bot. squadctl writes
-#   disabled_toolsets = always_disabled + (MANAGED - bot.toolsets)
-# Every name verified against the Hermes toolset registry 2026-10-15
-# against hermes-agent toolsets.py TOOLSETS (a2a: plugin-registered, plugins/platforms/a2a/tools.py).
-# Dropped from the source list:
-#   setup, start_chat  retired toolset names (hermes_cli/observability/shared_metrics_contract.py)
-#   stt                config-only capability with zero tool schemas (hermes_cli/tools_config.py _CONFIG_ONLY_TOOLSETS)
-# Why disabled: no human answers interactively in a kanban or cron run, GUI-only surfaces, other
-# messaging platforms, or capabilities no squad needs (code_execution, computer_use, tts, x_search).
+#   disabled_toolsets = always_disabled + (MANAGED - bot toolsets)
+# where bot toolsets = the base set of its role (squadctl BASE_TOOLSETS / MANAGER_TOOLSETS) + the manifest's.
+# No name here may share a tool with a base toolset (tests/test_contracts.py checks it against the Hermes source):
+# `search` is web_search, so disabling it stripped web search from every bot that had `web`.
+# Why disabled: other messaging platforms, plugin installs without the owner (catalog), raw desktop/GUI control
+# (computer_use), group-chat turns (bot_room), speech and X search no squad uses.
 
 schema: 1
 always_disabled:
   - a2a
   - bot_room
   - catalog
-  - code_execution
   - computer_use
   - context_engine
-  - desktop_ui
   - discord
   - discord_admin
   - feishu_doc
   - feishu_drive
-  - project
-  - search
   - tts
   - x_search
   - yuanbao

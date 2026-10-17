@@ -34,7 +34,15 @@ AUX_TASKS = ("title_generation", "goal_judge", "curator", "compression", "kanban
 # Toolsets this tool switches on or off. kanban, skills, terminal and file are never put in disabled_toolsets: it
 # overrides everything, including the kanban tools the dispatcher gives workers.
 MANAGED = {"web", "browser", "vision", "video", "image_gen", "video_gen", "delegation", "memory", "session_search",
-           "clarify", "cronjob", "connections", "todo"}
+           "clarify", "cronjob", "connections", "todo", "code_execution"}
+# Every bot gets the toolsets the default Hermes profile works with; a manifest adds to them. A worker may `withhold`
+# one of the WITHHOLDABLE ones for a permission boundary; a manager never does (it routes and checks everything).
+BASE_TOOLSETS = ["file", "skills", "kanban", "todo", "terminal", "web", "delegation", "session_search", "code_execution"]
+MANAGER_TOOLSETS = ["clarify", "vision", "browser", "cronjob"]
+WITHHOLDABLE = {"terminal", "web", "delegation", "session_search", "code_execution"}
+# delegate_task children of a bot run on this lane unless the manifest names another (`delegation: {lane: ...}`).
+DEFAULT_DELEGATION_LANE = "research"
+BASE_SOUL = Path("squads") / "_base" / "hermes-base.md"
 CRON_TOOLSETS = ["terminal", "file", "skills", "kanban", "todo"]
 SHA_MARK = ".squad-sha"
 # What apply installed in a bot's skills dir. Apply removes only these paths; any other skill is `learned`.
@@ -450,12 +458,17 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     used = {v for k, v in (spec.get("defaults") or {}).items() if k.endswith("_lane")}
     for name, bot in bots.items():
         used.add(bot["lane"])
-        used.add((bot.get("delegation") or {}).get("lane"))
+        used.add(delegation_lane(bot))
         used |= {j["agent"]["lane"] for j in (bot.get("cron") or {}).values() if isinstance(j.get("agent"), dict)}
         if bot["role"] == "worker" and not name.startswith(f"{spec['key']}-"):
             out.append(f"worker {name} must be prefixed {spec['key']}-")
         if set(bot["toolsets"]) & always:
             out.append(f"{name} uses always-disabled toolsets {sorted(set(bot['toolsets']) & always)}")
+        held = set(bot.get("withhold") or [])
+        if held and bot["role"] == "manager":
+            out.append(f"manager {name} cannot withhold toolsets")
+        if held - WITHHOLDABLE:
+            out.append(f"{name} withholds {sorted(held - WITHHOLDABLE)}; only {sorted(WITHHOLDABLE)} can be withheld")
     for stages in (spec.get("chains") or {}).values():
         used |= {s.get("lane") for s in stages}
         out += [f"chain stage {s['stage']} assignee {s['assignee']} is not a bot"
@@ -470,9 +483,28 @@ def memory_on(bot: dict) -> bool:
 
 
 def bot_toolsets(bot: dict) -> list[str]:
-    """The manifest toolsets plus `memory` when memory is on: without the toolset the bot cannot write it."""
-    toolsets = list(bot["toolsets"])
-    return toolsets + ["memory"] if memory_on(bot) and "memory" not in toolsets else toolsets
+    """Base toolsets of the role, minus a worker's `withhold`, plus the manifest toolsets, plus `memory` when
+    memory is on (without the toolset the bot cannot write it)."""
+    base = BASE_TOOLSETS + (MANAGER_TOOLSETS if bot.get("role") == "manager" else [])
+    held = set() if bot.get("role") == "manager" else set(bot.get("withhold") or [])
+    out = [t for t in base if t not in held]
+    out += [t for t in bot["toolsets"] if t not in out]
+    return out + ["memory"] if memory_on(bot) and "memory" not in out else out
+
+
+def delegation_lane(bot: dict) -> str | None:
+    """Lane of the bot's delegate_task children: the manifest's, else DEFAULT_DELEGATION_LANE; none when the bot
+    withholds delegation."""
+    if "delegation" in (bot.get("withhold") or []) and bot.get("role") != "manager":
+        return None
+    d = bot.get("delegation") or {}
+    return d["lane"] if "lane" in d else DEFAULT_DELEGATION_LANE
+
+
+def compose_soul(ctx: "Ctx", role_text: str) -> str:
+    """SOUL.md of a squad bot: the Hermes base (identity, harness facts) then the bot's role lines."""
+    base = (SRC / BASE_SOUL).read_text(encoding="utf-8").rstrip("\n")
+    return f"{base}\n\n{role_text.rstrip(chr(10))}\n"
 
 
 def live_bots(ctx: Ctx, spec: dict) -> list[str]:
@@ -856,7 +888,7 @@ class Applier:
                 plan += [["model.base_url", "", False], ["model.api_mode", "", False]]
         else:
             notes.append(f"no model assigned for {name} (lane {bot['lane']})")
-        deleg = (bot.get("delegation") or {}).get("lane")
+        deleg = delegation_lane(bot)
         dm = self.lane_model(deleg) if deleg else None
         if deleg and not dm:
             notes.append(f"no model assigned for lane {deleg} (delegation of {name})")
@@ -892,6 +924,8 @@ class Applier:
                  ["memory.memory_enabled", memory_on(bot), False],
                  ["memory.user_profile_enabled", memory_on(bot), False],
                  ["curator.enabled", True, False], ["curator.consolidate", False, False]]
+        if "web" in toolsets:
+            plan.append(["web.keyless_fallback", True, False])
         if bot.get("website_blocklist"):
             plan += [["security.website_blocklist.enabled", True, False],
                      ["security.website_blocklist.domains", list(bot["website_blocklist"]), False]]
@@ -1028,10 +1062,11 @@ class Applier:
                 if not dry:
                     ctx.hermes("profile", "describe", name, "--text", bot["description"])
             soul = asset(ctx, self.key, "souls", f"{name}.md")
-            if soul and soul.read_text(encoding="utf-8") != _read(home / "SOUL.md"):
+            want = compose_soul(ctx, soul.read_text(encoding="utf-8")) if soul else None
+            if want and want != _read(home / "SOUL.md"):
                 acts.append("SOUL.md updated")
                 if not dry:
-                    write_text(home / "SOUL.md", soul.read_text(encoding="utf-8"))
+                    write_text(home / "SOUL.md", want)
         acts += self.cron(name, bot, existed, notes)
 
         for env in bot.get("passthrough") or []:
@@ -1470,6 +1505,8 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
             write_yaml(ctx.local / "installed.yaml", new)
     rows = [{k: v for k, v in b.items() if v or k in ("bot", "status")} for b in bots]
     out = {"squad": key, "dry_run": dry, "board": board, "summary": counts, "bots": rows}
+    if any("browser" in bot_toolsets(spec["bots"][n]) for n in names):
+        out["browser"] = ensure_browser(ctx, dry)
     skipped = [b for b in optional if b not in names]
     if skipped:
         out["optional_skipped"] = skipped
@@ -1564,6 +1601,31 @@ def check(name: str, status: str, detail: str) -> dict:
 
 
 KANBAN_CAP_KEY = "kanban.max_in_progress_per_profile"
+
+
+def ensure_browser(ctx: Ctx, dry: bool) -> str:
+    """The browser tools appear only once Hermes's managed agent-browser and Chromium exist. Hermes's own post-setup
+    hook installs them (idempotent, a no-op when present); without it a bot with `browser` silently has no browser."""
+    if dry:
+        return "would run `hermes tools post-setup agent_browser` (managed agent-browser + Chromium)"
+    out = ctx.hermes("tools", "post-setup", "agent_browser", check=False)
+    return "ready" if "complete" in out else f"not ready: run `hermes tools post-setup agent_browser` ({out.strip()[-160:]})"
+
+
+def web_check(ctx: Ctx, name: str, bot: dict) -> dict:
+    """`web_search` needs the web toolset and a backend: a configured one, or the keyless free tier (on by default)."""
+    if "web" not in bot_toolsets(bot):
+        return check(f"{name}:web", "info", "web withheld by the manifest")
+    cfg = read_yaml(ctx.home(name) / "config.yaml") or {}
+    disabled = set(pa.current(cfg, "agent.disabled_toolsets") or [])
+    if disabled & {"web", "search"}:
+        return check(f"{name}:web", "fail", f"disabled_toolsets holds {sorted(disabled & {'web', 'search'})}: "
+                     f"run `squadctl apply` for this squad")
+    web = cfg.get("web") or {}
+    if web.get("keyless_fallback") is False and not (web.get("backend") or web.get("search_backend")):
+        return check(f"{name}:web", "warn", "no web backend and web.keyless_fallback is false: run "
+                     f"`hermes -p {name} tools` and pick a web provider")
+    return check(f"{name}:web", "ok", web.get("search_backend") or web.get("backend") or "keyless free tier")
 
 
 def kanban_cap_checks(ctx: Ctx) -> list[dict]:
@@ -1662,6 +1724,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
                 status, detail = login_probe(re.split(r"[<>=~]", app)[0].strip())
                 out.append(check(f"{name}:login:{app}", status, detail))
             out += unpinned_cron_checks(ctx, key, name)
+            out.append(web_check(ctx, name, bot))
         if key == "jobs":
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
             projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
