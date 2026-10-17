@@ -349,10 +349,12 @@ def run(opts) -> dict:
 
     local = opts.hermes_version or local_hermes_version(opts.hermes_bin)
     installed_sq = installed_squads_version(Path(opts.home))
-    try:
-        remote_sq = remote_squads_version(opts)
-    except (OSError, RuntimeError) as exc:
-        remote_sq, errors = None, [*errors, f"squads: {exc}"[:200]]
+    remote_sq = None
+    if not opts.skip_squads:
+        try:
+            remote_sq = remote_squads_version(opts)
+        except (OSError, RuntimeError) as exc:
+            errors = [*errors, f"squads: {exc}"[:200]]
     rel = {"source": None, "releases": [], "etag": state.get("etag"), "not_modified": False}
     try:
         rel = fetch_releases(opts, state)
@@ -463,6 +465,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--atom-url", default=ATOM_URL, help="releases.atom fallback URL (tests)")
     ap.add_argument("--squads-url", default=SQUADS_RAW, help="raw base URL of the squads repo, without the ref")
     ap.add_argument("--squads-ref", default=SQUADS_REF, help="branch or tag to compare (default HEAD, the default branch)")
+    ap.add_argument("--skip-squads", action="store_true",
+                    help="ignore the squads repo (cron builder-update applies it without an agent)")
     ap.add_argument("--max-chars", type=int, default=15000, help="cap for the filtered output of one run")
     ap.add_argument("--timeout", type=int, default=20, help="HTTP timeout in seconds (default 20)")
     return ap
