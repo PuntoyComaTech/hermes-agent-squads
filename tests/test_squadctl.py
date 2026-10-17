@@ -1341,7 +1341,7 @@ def test_doctor_reports_the_jobs_project_and_profile_md(env, tmp_path, capsys):
     env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"jobs": {"version": "1.0.0"}}}))
     _, out = env.run("doctor", capsys=capsys)
     checks = {c["check"]: c for c in out["checks"]}
-    assert checks["jobs:project"]["status"] == "warn" and "project add jobs" in checks["jobs:project"]["detail"]
+    assert checks["jobs:project"]["status"] == "warn" and "+ in Desktop Projects" in checks["jobs:project"]["detail"]
     folder = tmp_path / "search"
     folder.mkdir()
     env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({
