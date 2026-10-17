@@ -1,38 +1,46 @@
 ---
 name: managing-projects
-description: "Registers Hermes Projects across manager and workers. Use when a squad starts working in a project folder."
+description: "Creates squad Projects and copies them to the workers. Use when a squad starts working in a new project folder."
 ---
 
 # Managing projects
 
 ## When to Use
 
-- A squad takes on a new site, brand, client or workspace: it becomes a Project.
+- A squad takes on a new site, brand, client or search: it becomes a Project.
 - The user asks where a project's sessions or worktrees live.
 
 ## Procedure
 
-1. Collect the project name and its real folder path; never impose a layout.
-2. Run `scripts/hpy squadctl.py project add <key> "<name>" <path> --dry-run`,
-   show it, then run it without `--dry-run`. It runs `hermes project create`
-   with the squad board in the manager and every worker.
-3. When the folder ships `.hermes/skills/` or `.agents/skills/`, show the
+1. Folder: `~/Projects/<squad>/<name>`, or the folder the user names. Never
+   the home root or a profile directory.
+2. Create it in the manager. A manager chat in the Desktop app
+   `tool_describe`s and `tool_call`s `desktop_project` with
+   `{"action": "create", "name": "<name>", "path": "<folder>"}`: the chat
+   moves into the project and the sidebar switches to Project grouping.
+   Otherwise: `hermes -p <manager> project create "<name>" <folder>`.
+3. Copy it to the workers: `scripts/hpy project_sync.py --manager <manager>`
+   (a manager runs `python3 $HERMES_HOME/scripts/project_sync.py`; add
+   `--dry-run` to preview). It creates the project in every worker that lacks
+   it and binds the squad board. A project made with "+" syncs the same way.
+4. Tell the user once: "Sessions: pick <manager> in the bottom selector to
+   see its projects; + creates another."
+5. When the folder ships `.hermes/skills/` or `.agents/skills/`, show the
    user those skill names and, after an explicit OK, run `hermes -p <bot>
    skills trust <path>` for the manager and every worker. Untrusted project
    skills never load.
-4. Cards then take `--project <slug>`.
-5. Later changes (`add-folder`, `set-primary`, `rename`, `archive`): run
+6. Cards then take `--project <slug>`.
+7. Later changes (`add-folder`, `set-primary`, `rename`, `archive`): run
    `hermes -p <bot> project <action> ...` for the manager and every worker.
 
 ## Pitfalls
 
 - Creating the project in the manager only: Project state is per profile,
-  so workers report "no projects yet".
+  so workers report "no projects yet" until `project_sync.py` runs.
 - Writing project rows into a database by hand: use `hermes project`.
 
 ## Verification
 
 - `hermes -p <bot> project list` shows the project in the manager and each worker.
-- `local/installed.yaml` -> `projects.<slug>.squads` lists the squad.
 - A trusted repo: `hermes -p <bot> config get skills.trusted_project_dirs`
   lists its path in the manager and each worker.

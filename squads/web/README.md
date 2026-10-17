@@ -4,8 +4,10 @@
 
 [← All squads](../../README.md)
 
-Someone who does not program gets a website or web app built, reviewed and live. Each site is its own project folder
-and GitHub repository. Nothing reaches production, DNS, money or data without your explicit answer for that action.
+Someone who does not program gets a website or web app built, reviewed and live. Each site is its own Hermes Project
+(`~/Projects/web/<site>`) and GitHub repository. Start one in the Desktop app: Sessions, pick `web` in the bottom
+selector, then "+" (New project); or just say "new site: ..." and the manager creates it. Nothing reaches production,
+DNS, money or data without your explicit answer for that action.
 
 ## How it works
 
@@ -108,6 +110,5 @@ Developed by **PuntoyComaTech**
 [![X](https://img.shields.io/badge/X-%23000000.svg?style=for-the-badge&logo=X&logoColor=white)](https://x.com/PuntoyComaTech)
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@PuntoyComaTech)
 [![TikTok](https://img.shields.io/badge/TikTok-%23000000.svg?style=for-the-badge&logo=TikTok&logoColor=white)](https://www.tiktok.com/@puntoycomatech)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/gabriel-rubio99/)
 
 </div>

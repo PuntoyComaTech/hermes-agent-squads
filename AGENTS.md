@@ -10,15 +10,23 @@ skills, tested scripts, a schema. Installed with `hermes profile install`, recon
 
 ## Installing for a user
 
-An agent asked to install this repo runs only
-`hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias`, then tells the user
-to run `hermes -p builder model` and `builder chat` -> "set me up". The builder asks which squads to install and
-which model each bot uses; the agent never installs squads or picks models for the user.
+A user asks for this with "Install github.com/PuntoyComaTech/hermes-agent-squads following its AGENTS.md". The agent
+runs only `hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias`, then tells
+the user, in this order:
+
+1. `hermes -p builder model`: pick the builder's model.
+2. `builder chat` (or `hermes -p builder chat`) and say "set me up"; the builder asks which squads to install and
+   which model each bot uses.
+3. Desktop app: Sessions, pick a squad manager in the bottom selector, "+" creates a project.
+
+The agent never installs squads or picks models for the user. Updates then run daily on their own (cron
+`builder-update`, `scripts/auto_update.py`); "update yourself" to the builder runs the same update now.
 
 ## Rules
 
 - **Use the tools** through `scripts/hpy <tool>.py` (the Hermes runtime interpreter): `squadctl.py` applies
-  changes, `skill_lint.py` gates skills, `model_advisor.py` assigns models, `kanban_chain.py` builds chains.
+  changes, `skill_lint.py` gates skills, `model_advisor.py` assigns models, `kanban_chain.py` builds chains,
+  `project_sync.py` copies a manager's projects to its workers, `auto_update.py` updates the builder and squads.
   Do not reimplement them.
 - **English only** in repo content; bots speak the user's language at runtime.
 - **Model ids only** in `scripts/data/model-roles.yaml` and `local/installed.yaml` (enforced).

@@ -40,3 +40,23 @@ def test_agents_install_only_the_builder():
     agents = (REPO / "AGENTS.md").read_text()
     assert "## Installing for a user" in agents and "never installs squads or picks models" in agents
     assert "install only the builder" in (REPO / "llms.txt").read_text()
+
+
+def test_scripts_named_in_readme_and_agents_exist():
+    names = set()
+    for doc in ("README.md", "AGENTS.md"):
+        names |= set(re.findall(r"(?<![\w/<>.-])([a-z][a-z0-9_]*\.py)\b", (REPO / doc).read_text()))
+    assert names, "no script named"
+    missing = sorted(n for n in names if not (REPO / "scripts" / n).is_file())
+    assert not missing, missing
+
+
+BOT_READ = [REPO / "SOUL.md", REPO / "AGENTS.md", REPO / "llms.txt", REPO / "CONTRIBUTING.md", *DOCS,
+            *(p for d in ("skills", "squads") for p in sorted((REPO / d).rglob("*"))
+              if p.is_file() and p.suffix in (".md", ".yaml", ".json", ".py") and "__pycache__" not in p.parts)]
+
+
+@pytest.mark.parametrize("stale", ["migrate_v1", "squadctl project add", "squadctl.py project add"])
+def test_no_retired_commands_in_bot_read_files_or_readmes(stale):
+    hits = [str(p.relative_to(REPO)) for p in BOT_READ if stale in p.read_text(errors="ignore")]
+    assert not hits, hits

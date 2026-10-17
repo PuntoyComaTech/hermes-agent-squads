@@ -6,6 +6,7 @@
 > user picks, suggests a model per bot, and creates new squads. MIT, no coding needed.
 
 Installing for a user: install only the builder (AGENTS.md -> Installing for a user); squads and models are the user's choice.
+Updates: the builder-update cron runs scripts/auto_update.py daily with no agent; "update yourself" runs it now.
 
 Rules for agents: read AGENTS.md first. Verified Hermes behavior lives in
 skills/hermes-platform/references/ (every fact cites a docs path under website/docs or a
@@ -30,7 +31,7 @@ scripts/data/model-roles.yaml and local/installed.yaml.
 - [skills/changing-bots/SKILL.md](skills/changing-bots/SKILL.md): edits and scaling via overlay and apply
 - [skills/authoring-skills/SKILL.md](skills/authoring-skills/SKILL.md): skill format and lint gate
 - [skills/finding-capabilities/SKILL.md](skills/finding-capabilities/SKILL.md): plugins, skills, MCP, connectors
-- [skills/tracking-updates/SKILL.md](skills/tracking-updates/SKILL.md): upstream digest and apply mode
+- [skills/tracking-updates/SKILL.md](skills/tracking-updates/SKILL.md): Hermes release digest and apply mode
 - [skills/contributing-upstream/SKILL.md](skills/contributing-upstream/SKILL.md): issues, PRs, maintainer mode
 
 ## Squads

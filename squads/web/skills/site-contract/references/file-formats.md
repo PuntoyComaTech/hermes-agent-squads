@@ -80,7 +80,7 @@ Each criterion is testable: page, action, expected result.
 ## Out of scope
 ## Open questions (at most 5)
 ## Changes
-- v2, 2026-10-12, "add a gallery" -> M4
+- <change-n>, <YYYY-MM-DD>, "<request>" -> M<n>
 ```
 
 ## 3. `milestones/<ID>.md`
@@ -98,7 +98,7 @@ round: 0
 commit: null
 pr_url: null
 preview_url: null
-updated: 2026-10-05T10:12-05:00
+updated: <ISO 8601>
 ---
 ## Scope
 ## Acceptance criteria (copied from spec.md)
@@ -113,7 +113,7 @@ Names only. Secrets the user must provide.
 ## Migrations
 File, destructive yes/no, what it changes.
 ## History
-- 2026-10-05 10:12, building (web-frontend)
+- <YYYY-MM-DD HH:MM>, <stage> (<bot>)
 ```
 
 Every stage appends one History line; the building bot is the only one that edits the other sections after `built`.
