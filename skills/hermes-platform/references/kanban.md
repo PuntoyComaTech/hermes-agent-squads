@@ -66,9 +66,6 @@ lane; Dispatcher config.
 
 ## Worker lifecycle
 
-- Workers call `kanban_show`, work in `$HERMES_KANBAN_WORKSPACE`, call
-  `kanban_heartbeat` at least hourly on long runs, and end with
-  `kanban_complete`, `kanban_request_review` or `kanban_block`.
 - `kanban_block` requires `reason`; `kind` is `dependency`, `needs_input`,
   `capability` or `transient`.
 - Exiting 0 while the task is still `running` is a protocol violation. A failed

@@ -1,6 +1,6 @@
 ---
 name: tracking-updates
-description: "Digests Hermes releases and proposes each change to the user. Use when the builder-watch cron fires or the user asks what changed in Hermes."
+description: "Digests Hermes releases and proposes each change. Use when Hermes ships a release or the user asks what changed upstream."
 ---
 
 # Tracking updates
@@ -20,6 +20,9 @@ description: "Digests Hermes releases and proposes each change to the user. Use 
 gate `scripts/watch_upstream.py` (`--help` lists the signals). A quiet tick
 prints `{"wakeAgent": false}` and no agent runs. On a change Hermes prepends
 the gate's stdout to this turn as `## Script Output`.
+
+Squads updates are not digested here: the `builder-update` cron applies them
+with no agent (`skills/installing-squads` step 6).
 
 1. Read only the files listed in `context.filtered` and `context.overflow`
    (priority bullets over the cap), plus `context.hermes` (local version
@@ -50,8 +53,8 @@ the gate's stdout to this turn as `## Script Output`.
 
 ### Apply mode (builder)
 
-1. Propose each item to the user one by one ("vX.Y.Z adds X; your web squad
-   can use it for Y; apply?"). Apply only after an explicit yes.
+1. Propose each item to the user one by one ("Hermes vX.Y.Z adds X; your web
+   squad can use it for Y; apply?"). Apply only after an explicit yes.
 2. A Hermes fact: record it as `skills/hermes-platform` step 2 says.
 3. A squad change: write the overlay (`skills/changing-bots`), then `plan`,
    user OK, `apply`.
