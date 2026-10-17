@@ -1,4 +1,4 @@
-# Marketing squad
+# Marketing squad: AI marketing team for Hermes Agent
 
 **Your brand's marketing, planned and produced, reviewed piece by piece.**
 

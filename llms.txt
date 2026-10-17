@@ -1,8 +1,9 @@
 # hermes-agent-squads
 
-> Profile distribution that installs AI agent squads for Hermes Agent (NousResearch): web,
-> marketing and jobs, plus a builder bot that creates and maintains local squads. One
-> command installs the builder; squads are manifests, skills and tested scripts.
+> Ready-to-install AI agent teams (squads) for Hermes Agent by Nous Research: a web squad
+> that builds and publishes websites, a marketing squad, and a jobs squad that finds openings
+> and writes applications. One command installs the builder bot; it installs the squads the
+> user picks, suggests a model per bot, and creates new squads. MIT, no coding needed.
 
 Installing for a user: install only the builder (AGENTS.md -> Installing for a user); squads and models are the user's choice.
 
@@ -13,7 +14,7 @@ scripts/data/model-roles.yaml and local/installed.yaml.
 
 ## Start
 
-- [README.md](README.md): install in 3 commands, Desktop setup, squad overview
+- [README.md](README.md): what it is, builder flow, install, squads, FAQ
 - [AGENTS.md](AGENTS.md): contributor contract
 - [CHANGELOG.md](CHANGELOG.md): what shipped
 - [builder.yaml](builder.yaml): the builder bot spec

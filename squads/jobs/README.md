@@ -1,4 +1,4 @@
-# Jobs squad
+# Jobs squad: AI job search and applications for Hermes Agent
 
 **Matching openings with a tailored CV and letter. It applies only when you say "apply".**
 
