@@ -20,7 +20,7 @@ Read `AGENTS.md` first; its Rules apply here, to people and to AI agents.
 | Squad folder | `squads/<key>/` (`squad.yaml`, `souls/`, `skills/`, `scripts/`, `README.md`) | `squads/marketing/` |
 | Profiles (bots) | `<key>-<role>`; the manager is `<key>`; the base bot is `builder` | `jobs-writer`, `web-frontend` |
 | Builder skills | `<gerund>` in `skills/`, frontmatter `name` equal to the directory | `installing-squads` |
-| Project folders | Anywhere the user keeps them; registered as native Projects, never assumed | `~/Projects/acme-site` |
+| Project folders | `~/Projects/<key>/<name>` by default, or the folder the user names; native Hermes Projects | `~/Projects/web/acme-site` |
 | Scripts | `snake_case.py` | `plan_week.py` |
 | Cron jobs | `<key>-<job>`, kebab-case | `web-watch`, `builder-watch` |
 | YAML and JSON keys | `snake_case` | `approval_mode` |
@@ -57,8 +57,6 @@ HERMES_HOME=$T $T/profiles/builder-test/scripts/squadctl plan --self --builder b
   and tests together, and bumps the squad `version`.
 - Something shared by every squad (a lane, a script, a lint rule) goes in `scripts/` or `AGENTS.md`, with a decision
   in `docs/decisions.md`.
-- A change to the layout (profiles, folders, state files) ships a migration: `scripts/migrate_v1.py` for v1 installs,
-  a new script for anything later.
 
 ## Decisions
 

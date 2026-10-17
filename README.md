@@ -36,18 +36,33 @@ Nothing is created without your OK, and every squad is optional.
 
 ## Install
 
-You need Hermes Agent with at least one model provider connected (`hermes model`).
+You need Hermes Agent 0.22 or newer with at least one model provider connected (`hermes model`).
 
-```bash
-hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias
-hermes -p builder model     # the builder's own model
-builder chat                # then say: "set me up"
+### Recommended: let your AI install it
+
+Paste this line into a Hermes chat on your default profile:
+
+```text
+Install github.com/PuntoyComaTech/hermes-agent-squads following its AGENTS.md
 ```
 
-`builder chat` needs `~/.local/bin` on your `PATH`; `hermes -p builder chat` always works.
+It installs the builder only and leaves the squad and model choices to you ([AGENTS.md](AGENTS.md)).
 
-**Installing through an AI assistant?** Point it at this repo. It installs the builder only and leaves the squad and
-model choices to you ([AGENTS.md](AGENTS.md)).
+### Step by step
+
+```bash
+hermes profile install github.com/PuntoyComaTech/hermes-agent-squads --name builder --alias   # 1. install the builder
+hermes -p builder model                                                                      # 2. pick its model
+builder chat                                                                                 # 3. say: "set me up"
+```
+
+4. Choose your squads (Web, Marketing, Jobs, Everything, or only the builder) and accept or change the suggested
+   models.
+5. In the Desktop app, open **Sessions**, pick a squad manager in the bottom selector and press **"+"** (New project).
+   Each project is one site, brand or job search, and its chats are grouped under it. You can also tell the manager
+   what you want; it creates the project for you.
+
+`builder chat` needs `~/.local/bin` on your `PATH`; `hermes -p builder chat` always works.
 
 ## Squads
 
@@ -66,7 +81,8 @@ sending, applying, deploying and spending always wait for your explicit yes.
 **What is a squad?** A small team of AI agents in Hermes Agent: one manager you chat with, workers with one job each,
 and a reviewer. They coordinate through a Kanban board.
 
-**Do I need to code?** No. You install with three commands and then chat with the builder and the managers.
+**Do I need to code?** No. You paste one line into your AI (or run three commands) and then chat with the builder
+and the managers.
 
 **Is it free?** Yes, MIT open source. You pay only your own AI provider, if it charges.
 
@@ -80,10 +96,27 @@ always wait for your explicit yes.
 
 **What do I need?** Hermes Agent 0.22 or newer (macOS, Linux or Windows) and one connected model provider.
 
+**Where are my projects?** In the Desktop app: Sessions, pick the squad's manager in the bottom selector. Its
+projects live in `~/Projects/<squad>/`.
+
 ## Updates
 
-Ask the builder "what changed upstream?", or run `hermes profile update builder` and ask it to update your squads.
-It shows what would change before touching anything.
+Updates are automatic: every day at 06:30 the builder checks this repo and updates itself and your installed squads,
+with no AI model and no tokens. To update now, tell the builder **"update yourself"**; it runs the same update and
+lists what changed.
+
+An update keeps what is yours: learned skills, memories, your model choices and your SOUL additions (lines you put in
+`local/squads/<squad>/souls/<bot>.append.md`). A squad with work in progress is updated on the next run. Hermes
+itself updates separately (`hermes update`); ask the builder "what changed upstream?" for a digest of new Hermes
+releases.
+
+## Mac tips
+
+- **Keep-awake (automatic).** While a squad's board has running work, its manager keeps the Mac awake
+  (`caffeinate`), and lets it sleep again when the work is done.
+- **Spotlight.** Add `~/Projects` to System Settings › Spotlight › Search Privacy. Spotlight then stops indexing
+  project folders (`node_modules`, builds), which saves a lot of CPU and disk activity. No admin rights; remove it
+  from the list to undo.
 
 ## Contributing
 
