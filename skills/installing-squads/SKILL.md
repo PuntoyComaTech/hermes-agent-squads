@@ -39,8 +39,6 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    browser. A `:web` check that is not `ok` is fixed before the user works.
    After the first install, tell the user once: "Sessions: pick a manager in
    the bottom selector to see its projects; + creates a new one."
-6. Update ("update yourself"): `scripts/hpy auto_update.py --force`, the same
-   script the `builder-update` cron runs daily. Report the list it prints.
 6. Update ("update yourself"): run
    `scripts/hpy auto_update.py --force` and reply with its output. It is the
    same script the daily `builder-update` cron runs: it updates the builder

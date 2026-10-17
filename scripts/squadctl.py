@@ -1933,7 +1933,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
             projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
             out.append(check("jobs:project", "ok" if projs else "warn", ", ".join(p["path"] for p in projs)
-                             or "none: scripts/squadctl project add jobs <name> <path>"))
+                             or "none: the jobs manager creates one with + in Desktop Projects"))
             for p in projs:
                 ok = (Path(p["path"]) / "profile.md").is_file()
                 out.append(check("jobs:profile.md", "ok" if ok else "warn",
