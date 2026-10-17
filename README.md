@@ -1,11 +1,12 @@
-# hermes-agent-squads
+# hermes-agent-squads: AI agent teams for Hermes Agent
 
 [![CI](https://github.com/PuntoyComaTech/hermes-agent-squads/actions/workflows/ci.yml/badge.svg)](https://github.com/PuntoyComaTech/hermes-agent-squads/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Hermes Agent](https://img.shields.io/badge/Hermes%20Agent-NousResearch-7c3aed)](https://github.com/NousResearch/hermes-agent)
 
-Teams of AI bots ("squads") for [Hermes Agent](https://github.com/NousResearch/hermes-agent) that do real work for
-you: build websites, run a brand's marketing, or search and apply for jobs.
+Ready-to-install teams of AI agents ("squads") for [Hermes Agent](https://github.com/NousResearch/hermes-agent) by
+Nous Research. They build websites, run a brand's marketing, and find jobs and write the applications. You talk to
+them in plain language; no coding needed.
 
 You install one bot, the **builder**. It asks which squads you want, suggests a model for each bot from the AI
 providers you already use, and installs only what you approve. Later it creates squads for your own goals, changes
@@ -59,6 +60,25 @@ model choices to you ([AGENTS.md](AGENTS.md)).
 
 Every squad has one manager you talk to, workers that pass work through a Kanban board, and a reviewer. Publishing,
 sending, applying, deploying and spending always wait for your explicit yes.
+
+## FAQ
+
+**What is a squad?** A small team of AI agents in Hermes Agent: one manager you chat with, workers with one job each,
+and a reviewer. They coordinate through a Kanban board.
+
+**Do I need to code?** No. You install with three commands and then chat with the builder and the managers.
+
+**Is it free?** Yes, MIT open source. You pay only your own AI provider, if it charges.
+
+**Which AI models does it use?** The ones you already have connected in Hermes Agent (Anthropic, OpenAI, OpenRouter,
+local models and others). The builder suggests a model and reasoning effort per bot; you decide.
+
+**Will the agents publish, send or spend on their own?** No. Publishing, sending, applying, deploying and spending
+always wait for your explicit yes.
+
+**Can I make my own squad?** Yes. Tell the builder your goal; it designs the squad with you and installs it.
+
+**What do I need?** Hermes Agent 0.22 or newer (macOS, Linux or Windows) and one connected model provider.
 
 ## Updates
 

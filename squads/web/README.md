@@ -1,4 +1,4 @@
-# Web squad
+# Web squad: AI website builder for Hermes Agent
 
 **Describe a site, approve a plan, check a preview, say "publish".**
 

@@ -3,6 +3,13 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.0.11 - 2026-10-16
+
+### Changed
+
+- README and squad READMEs: descriptive titles, a plain first paragraph and a short FAQ so people and AI search
+  find and quote the project. `llms.txt` summary matches.
+
 ## 2.0.10 - 2026-10-16
 
 ### Fixed
