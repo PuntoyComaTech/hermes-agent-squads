@@ -84,7 +84,17 @@
             }
           ],
           "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "web-frontend",
@@ -101,7 +111,17 @@
             }
           ],
           "reason": "frontend lane, candidate 5/6 (open-weights): UI quality is model-bound and pays per pixel: strong UI models at high effort",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "web-backend",
@@ -144,7 +164,17 @@
           "reasoning": "xhigh",
           "alternatives": [],
           "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "web-deployer",
@@ -155,7 +185,17 @@
           "reasoning": "high",
           "alternatives": [],
           "reason": "deploy lane, candidate 1/4 (open-weights): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "web-frontend-pro",
@@ -172,7 +212,17 @@
             }
           ],
           "reason": "design-pro lane, candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         }
       ],
       "shared": [
@@ -214,7 +264,17 @@
             }
           ],
           "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "marketing-research",
@@ -225,7 +285,17 @@
           "reasoning": "medium",
           "alternatives": [],
           "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "marketing-creative",
@@ -242,7 +312,17 @@
             }
           ],
           "reason": "copy lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "marketing-producer",
@@ -259,7 +339,17 @@
             }
           ],
           "reason": "design lane (alias of design-pro), candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "marketing-reviewer",
@@ -270,7 +360,17 @@
           "reasoning": "xhigh",
           "alternatives": [],
           "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         }
       ],
       "shared": [
@@ -312,7 +412,17 @@
             }
           ],
           "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "jobs-scout",
@@ -324,6 +434,15 @@
           "alternatives": [],
           "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
           "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            },
             {
               "use": "chain:application/analyze",
               "lane": "review",
@@ -350,7 +469,17 @@
             }
           ],
           "reason": "copy lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         },
         {
           "bot": "jobs-reviewer",
@@ -361,7 +490,17 @@
           "reasoning": "xhigh",
           "alternatives": [],
           "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
-          "extras": []
+          "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            }
+          ]
         }
       ],
       "shared": []
@@ -385,6 +524,15 @@
           ],
           "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
+            {
+              "use": "delegation",
+              "lane": "research",
+              "model": "deepseek-v4.1-flash",
+              "provider": "opencode-go",
+              "reasoning": "medium",
+              "alternatives": [],
+              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+            },
             {
               "use": "cron:builder-watch",
               "lane": "digest",

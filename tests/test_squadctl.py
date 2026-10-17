@@ -197,13 +197,15 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert (fe["model"]["provider"], fe["model"]["default"]) == ("prov-frontend", "model-frontend")
     assert fe["agent"]["reasoning_effort"] == "medium"
     assert web.config("web-backend")["agent"]["reasoning_effort"] == "medium"
-    assert fe["platform_toolsets"]["cli"] == ["browser", "delegation", "file", "image_gen", "kanban", "memory", "skills",
-                                              "terminal", "todo", "vision"]
+    assert fe["platform_toolsets"]["cli"] == ["browser", "code_execution", "delegation", "file", "image_gen", "kanban",
+                                              "memory", "session_search", "skills", "terminal", "todo", "vision", "web"]
     assert fe["platform_toolsets"]["cron"] == ["terminal", "file", "skills", "kanban", "todo"]
     disabled = fe["agent"]["disabled_toolsets"]
     assert set(ALWAYS) <= set(disabled)
-    assert {"web", "cronjob"} <= set(disabled)
-    assert not {"terminal", "file", "skills", "kanban", "browser", "vision", "todo", "delegation", "memory"} & set(disabled)
+    assert {"cronjob", "video"} <= set(disabled)
+    assert not {"terminal", "file", "skills", "kanban", "browser", "vision", "todo", "delegation", "memory", "web",
+                "search", "code_execution", "session_search"} & set(disabled)
+    assert fe["web"]["keyless_fallback"] is True
     assert fe["auxiliary"]["compression"]["model"] == "model-aux"
     assert fe["auxiliary"]["vision"] == {"provider": "prov-vision", "model": "model-vision"}
     assert fe["skills"]["auto_load"] == ["building-frontend"]
@@ -242,7 +244,9 @@ def test_doctor_warns_on_any_kanban_cap(web, capsys):
 def test_delegation_lane_and_passthrough(web):
     assert web.config("web-backend")["delegation"] == {"provider": "prov-code-complex", "model": "model-code-complex",
                                                        "reasoning_effort": "medium"}
-    assert "delegation" not in web.config("web-qa") or not web.config("web-qa")["delegation"].get("model")
+    # every bot without its own delegation lane delegates on the cheap research lane
+    assert web.config("web-qa")["delegation"]["model"] == "model-research"
+    assert web.config("web")["delegation"]["model"] == "model-research"
     # Deploys run through the CLIs' own logins (D-036), so no bot passes a provider token through its env.
     assert web.config("web-deployer")["terminal"]["env_passthrough"] == []
     assert web.config("web-qa")["terminal"]["env_passthrough"] == []
@@ -266,7 +270,9 @@ def test_skills_copied_with_sha_marker_and_soul(web):
         assert (d / "SKILL.md").is_file() and (d / "references" / "a.md").is_file()
         assert len((d / ".squad-sha").read_text().strip()) == 64
         assert not d.is_symlink()
-    assert (home / "SOUL.md").read_text() == "You are web-frontend.\n"
+    soul = (home / "SOUL.md").read_text()
+    base = (REPO / "squads" / "_base" / "hermes-base.md").read_text()
+    assert soul.startswith(base.rstrip("\n")) and soul.endswith("\n\nYou are web-frontend.\n")
     assert not (home / "skills" / "squad-web" / "leading-web").exists()
 
 
@@ -583,7 +589,7 @@ def test_models_file_accepts_model_advisor_json(env, capsys):
     rows[2]["extras"] = [{"use": "delegation", "lane": "code-complex", "model": "adv-code-complex", "provider": "adv",
                           "reasoning": "medium"}]
     shared = [{"use": u, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low"}
-              for u, l in (("aux", "aux"), ("vision", "vision"))]
+              for u, l in (("aux", "aux"), ("vision", "vision"), ("delegation", "research"))]
     env.models.write_text(json.dumps({"bots": rows, "shared": shared}))
     env.run("apply", "web", capsys=capsys)
     assert env.config("web-backend")["delegation"]["model"] == "adv-code-complex"
@@ -645,7 +651,9 @@ def test_local_overlay_changes_one_bot_and_can_remove_one(env, capsys):
     _, out = env.run("plan", "web", capsys=capsys)
     assert [b["bot"] for b in out["bots"]] == ["web", "web-frontend", "web-backend", "web-qa"]
     env.run("apply", "web", capsys=capsys)
-    assert env.config("web-qa")["platform_toolsets"]["cli"] == ["file", "kanban", "memory", "skills", "todo"]
+    # an overlay narrows the manifest toolsets; the Hermes base stays
+    assert env.config("web-qa")["platform_toolsets"]["cli"] == ["code_execution", "delegation", "file", "kanban", "memory",
+                                                              "session_search", "skills", "terminal", "todo", "web"]
     assert "browser" in env.config("web-qa")["agent"]["disabled_toolsets"]
 
 
@@ -1546,3 +1554,35 @@ def test_real_hermes_runtime_help(tmp_path):
     out = subprocess.run([str(SCRIPTS / "squadctl"), "--help"], capture_output=True, text=True, timeout=60,
                          env={"PATH": os.environ["PATH"], "HOME": os.environ["HOME"]})
     assert out.returncode == 0 and "plan" in out.stdout
+
+
+def test_every_bot_gets_the_hermes_base_and_a_worker_can_withhold(web):
+    """Root fix: no bot loses web_search, terminal or delegation by accident; managers get the full base."""
+    for bot in WEB_BOTS:
+        cfg = web.config(bot)
+        disabled = set(cfg["agent"]["disabled_toolsets"])
+        assert not {"search", "desktop_ui", "project", "terminal", "delegation"} & disabled, bot
+        soul = (web.root / "profiles" / bot / "SOUL.md").read_text()
+        assert soul.startswith("You are a Hermes Agent bot"), bot
+    mgr = set(web.config("web")["platform_toolsets"]["cli"])
+    assert {"terminal", "web", "browser", "delegation", "clarify", "cronjob", "code_execution"} <= mgr
+
+
+def test_withhold_is_only_for_workers_and_known_toolsets(env, capsys):
+    env.squad("web", lambda s: s["bots"]["web"].update(withhold=["terminal"]))
+    _, out = env.run("plan", "web", expect=1, capsys=capsys)
+    assert "cannot withhold" in out["error"]
+
+
+def test_doctor_fails_a_bot_whose_web_search_is_disabled(web, capsys):
+    cfg_path = web.root / "profiles" / "web-qa" / "config.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text())
+    cfg["agent"]["disabled_toolsets"].append("search")
+    cfg_path.write_text(yaml.safe_dump(cfg))
+    _, out = web.run("doctor", capsys=capsys, expect=1)
+    rows = {c["check"]: c for c in out["checks"]}
+    assert rows["web-qa:web"]["status"] == "fail" and rows["web:web"]["status"] == "ok"
+
+
+def test_apply_installs_the_managed_browser_once_a_bot_has_browser(web):
+    assert any(c["args"][:3] == ["tools", "post-setup", "agent_browser"] for c in web.calls())

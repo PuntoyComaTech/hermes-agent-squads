@@ -3,6 +3,34 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.1.0 - 2026-10-17
+
+Every squad bot now starts from what makes the default Hermes profile work: Hermes context, web search, terminal and
+delegation.
+
+### Fixed
+
+- `always_disabled` held `search`, which is `web_search`: every bot lost web search even with `web` on. It also held
+  `desktop_ui` and `project`, so managers could never open the preview pane beside the chat, and `code_execution`.
+- Bots had a role-only SOUL: they did not know they run inside Hermes. Every bot's SOUL.md now starts with
+  `squads/_base/hermes-base.md` (identity, harness facts: preview pane, background servers, deferred tools,
+  delegation to cheaper models, keyless web search, how to ask for a missing tool).
+- Managers had no terminal, browser or cron. Bot toolsets are now the role's base (`BASE_TOOLSETS`, plus
+  `MANAGER_TOOLSETS` for the manager) plus the manifest's; a worker drops a base toolset only with `withhold:`
+  (web-deployer: web, code_execution; marketing-creative and jobs-writer: web). Managers never withhold.
+- Delegation ran on the bot's own model. Every bot's `delegation.model` now comes from the cheap `research` lane
+  unless its manifest names another lane.
+- A clean machine had no browser for the bots: `apply` runs `hermes tools post-setup agent_browser`. The builder's
+  bootstrap config has web, browser and delegation before "set me up".
+
+### Added
+
+- `squadctl doctor`: a `<bot>:web` check (toolset on, `search` not disabled, a backend or the keyless tier).
+- `leading-web`: live view step (dev server in the background + preview pane).
+- Tests: no always-disabled toolset shares a tool with the base (checked against the Hermes source), every bot gets
+  the Hermes base and its SOUL, managers cannot withhold, doctor fails a bot without web search, apply installs the
+  browser.
+
 ## 2.0.11 - 2026-10-16
 
 ### Changed

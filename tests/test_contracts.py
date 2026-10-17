@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import re
+import sys
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -290,6 +291,27 @@ def test_always_disabled_names_exist_in_hermes():
     plugin_text = "\n".join(p.read_text() for p in (HERMES_SRC / "plugins").rglob("*.py"))
     for name in ALWAYS_DISABLED:
         assert f'"{name}":' in static or f'toolset="{name}"' in plugin_text, name
+
+
+@pytest.mark.skipif(not (HERMES_SRC / "toolsets.py").is_file(), reason="Hermes source tree not available")
+def test_always_disabled_never_strips_a_base_tool():
+    """`search` (web_search) in always_disabled removed web search from every bot that had `web`."""
+    import ast
+    tree = ast.parse((HERMES_SRC / "toolsets.py").read_text())
+    tools = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and isinstance(v, ast.Call) and v.args[1:]:
+                    lst = v.args[1]
+                    if isinstance(lst, ast.List):
+                        tools[k.value] = {e.value for e in lst.elts if isinstance(e, ast.Constant)}
+    sys.path.insert(0, str(REPO / "scripts"))
+    import squadctl
+    base = set(squadctl.BASE_TOOLSETS) | set(squadctl.MANAGER_TOOLSETS)
+    base_tools = set().union(*(tools.get(t, set()) for t in base))
+    for name in ALWAYS_DISABLED:
+        assert not tools.get(name, set()) & base_tools, (name, tools.get(name, set()) & base_tools)
 
 
 # Auxiliary slots squadctl leaves on the main model (references/models-and-auxiliary.md -> Auxiliary slots).

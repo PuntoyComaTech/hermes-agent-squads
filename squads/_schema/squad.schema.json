@@ -178,7 +178,10 @@
         "description": {"type": "string", "minLength": 10, "maxLength": 160},
         "lane": {"$ref": "#/$defs/lane"},
         "reasoning": {"$ref": "#/$defs/reasoning"},
-        "toolsets": {"$ref": "#/$defs/toolsets"},
+        "toolsets": {"$ref": "#/$defs/toolsets", "description": "Toolsets added to the role's base set (squadctl BASE_TOOLSETS, plus MANAGER_TOOLSETS for the manager)."},
+        "withhold": {"description": "Workers only: base toolsets this bot must not have (a permission boundary).",
+                     "type": "array", "uniqueItems": true,
+                     "items": {"enum": ["terminal", "web", "delegation", "session_search", "code_execution"]}},
         "skills": {
           "type": "object",
           "additionalProperties": false,

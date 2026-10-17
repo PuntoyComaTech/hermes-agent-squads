@@ -110,7 +110,8 @@ def test_review_with_one_family_says_so(capsys):
 def test_review_chain_stage_lane_is_an_extra(capsys, all_families):
     _, result = advise(capsys, cache=all_families, squads=["jobs"])
     extras = bots(result, "jobs")["jobs-scout"]["extras"]
-    assert [e["use"] for e in extras] == ["chain:application/analyze"] and extras[0]["lane"] == "review"
+    assert [e["use"] for e in extras] == ["delegation", "chain:application/analyze"]
+    assert [e["lane"] for e in extras] == ["research", "review"]
 
 
 def test_delegation_and_shared_lanes(capsys):

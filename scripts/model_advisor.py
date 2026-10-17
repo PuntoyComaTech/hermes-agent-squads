@@ -468,10 +468,17 @@ def find_squad(ref: str) -> Path:
     raise AdvisorError(f"squad not found: {ref}")
 
 
+# Same default as squadctl.DEFAULT_DELEGATION_LANE: delegate_task children run on a cheap lane unless the manifest
+# names another or a worker withholds delegation.
+DEFAULT_DELEGATION_LANE = "research"
+
+
 def bot_extras(doc: dict, name: str, bot: dict) -> list[tuple[str, str]]:
     extras = []
-    if (bot.get("delegation") or {}).get("lane"):
-        extras.append(("delegation", bot["delegation"]["lane"]))
+    d = bot.get("delegation") or {}
+    lane = d["lane"] if "lane" in d else DEFAULT_DELEGATION_LANE
+    if lane and not ("delegation" in (bot.get("withhold") or []) and bot.get("role") != "manager"):
+        extras.append(("delegation", lane))
     for job, spec in (bot.get("cron") or {}).items():
         if isinstance(spec.get("agent"), dict):
             extras.append((f"cron:{job}", spec["agent"]["lane"]))

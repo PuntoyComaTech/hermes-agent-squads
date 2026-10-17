@@ -34,7 +34,9 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    installs only on a later apply with `--confirm <id>`, after the user
    answers its question.
 5. Check: `scripts/hpy squadctl.py status <key>` and
-   `scripts/hpy squadctl.py doctor`.
+   `scripts/hpy squadctl.py doctor`. Every bot starts with web search (keyless,
+   no API key), terminal and delegation; `apply` installs Hermes's managed
+   browser. A `:web` check that is not `ok` is fixed before the user works.
 6. Update: after `hermes profile update builder`, run step 2 for each squad
    `status` lists.
 7. Remove: `scripts/hpy squadctl.py uninstall <key> --dry-run`, show it; on OK

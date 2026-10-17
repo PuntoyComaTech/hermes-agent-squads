@@ -49,7 +49,7 @@ flowchart TD
 
 | Bot | Does |
 | --- | --- |
-| `jobs` (manager) | Profile interview, digests, apply, change or no decisions, tracking. Holds your personal data; no web access |
+| `jobs` (manager) | Profile interview, digests, apply, change or no decisions, tracking. Holds your personal data |
 | `jobs-scout` | Searches, applies the hard filter, saves the opening, then analyzes fit and the company |
 | `jobs-writer` | CV, letter and answers from verified achievements; renders PDF, DOCX and ATS text |
 | `jobs-reviewer` | Five lenses: truthfulness, ATS, recruiter, hiring manager, writing |

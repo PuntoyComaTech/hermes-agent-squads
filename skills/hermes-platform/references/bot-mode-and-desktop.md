@@ -39,3 +39,18 @@
   see boards.
 - The kanban dispatcher runs in the gateway regardless of the plugin
   (`kanban.dispatch_in_gateway`).
+
+## Preview pane and GUI tools
+
+- `desktop_preview(action="open", url=...)` opens a web URL, a localhost dev
+  server or a file in the pane beside the chat; `close` and `read` complete it.
+  It lives in the `desktop_ui` toolset, which Hermes adds to Desktop-app chats
+  only, and it is deferred: the model calls it through `tool_describe` and
+  `tool_call` (it is listed in the `tool_search` catalog). Kanban workers and
+  cron runs never have it.
+- Never put `desktop_ui` or `project` in `agent.disabled_toolsets`: they are
+  the client's own surface and squad bots need them in their Desktop chat.
+- Showing a site while a worker builds it: the manager starts the dev server with
+  `terminal(background=true, persist_on_release=true)` and opens
+  `http://localhost:<port>` with `desktop_preview`. The browser tool reaches
+  localhost directly (`browser.auto_local_for_private_urls`, default on).

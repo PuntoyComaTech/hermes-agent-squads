@@ -63,6 +63,7 @@ bots:
     description: "GitHub flow, preview and production deploys, DNS and rollback; the only bot with deploy credentials"
     lane: deploy
     toolsets: [file, skills, kanban, todo, terminal]
+    withhold: [web, code_execution]
     skills: {squad: [deploying-sites, site-contract], auto_load: deploying-sites,
              keep: [official:web-development/publish-site, bundled:github]}
     plugins: {enable: [disk-cleanup]}
