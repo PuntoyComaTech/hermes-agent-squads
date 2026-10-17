@@ -3,14 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "The web squad will build a site in ~/work/acme-site. Register it properly.",
-      "expected_output": "squadctl project add web 'Acme Site' ~/work/acme-site so the project exists in the manager and every worker, verified with hermes -p <bot> project list.",
+      "prompt": "The web squad starts a site called Acme Site and has no project yet.",
+      "expected_output": "Creates ~/Projects/web/acme-site, calls desktop_project create (or hermes -p web project create outside Desktop), runs project_sync.py so every worker has it, verifies with hermes -p <bot> project list, and tells the user to pick web in the Sessions selector.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "The manager sees the project but web-frontend says 'No projects yet'.",
-      "expected_output": "Explains that Project state is per profile and re-runs squadctl project add, which creates the project only in the profiles that lack it, then verifies with project list.",
+      "expected_output": "Explains that Project state is per profile and runs project_sync.py, which creates the project only in the workers that lack it, then verifies with project list.",
       "files": []
     },
     {

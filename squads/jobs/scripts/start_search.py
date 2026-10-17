@@ -95,8 +95,8 @@ def resolve_project(bin_name: str, manager: str, explicit: str | None) -> tuple[
     else:
         rows = project_slugs(hermes(bin_name, "-p", manager, "project", "list", check=False))
         if not rows:
-            raise SetupGap("no project on the jobs manager: create it with "
-                           "`squadctl project add jobs <name> <path>`")
+            raise SetupGap("no project on the jobs manager: Sessions, pick jobs, \"+\" "
+                           "(or ask the manager to start a search)")
         slug = next((s for s, active in rows if active), rows[0][0])
         show = hermes(bin_name, "-p", manager, "project", "show", slug, check=False)
     path = project_path(show)
