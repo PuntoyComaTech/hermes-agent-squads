@@ -19,7 +19,7 @@
 - Contrarian vs. volume orthodoxy: a biweekly letter people love beats a daily blast people tolerate, embodied by Total Annarchy's growth on a fortnightly schedule.
 - Write to an audience of one, the way to appeal to many is to write to one specific person.
 - Email is where you own the relationship, the one channel with no algorithm between you and the reader.
-- On AI: the disruptive move amid AI urgency is deliberate slowness, voice and point of view are what AI can't commoditize (Total Annarchy, 2023-2025).
+- On AI: the disruptive move amid AI urgency is deliberate slowness, voice and point of view are what AI can't commoditize (Total Annarchy, 2023).
 
 ## Signature questions
 

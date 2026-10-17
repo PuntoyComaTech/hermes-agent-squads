@@ -35,7 +35,7 @@ In the milestone note's Advisor section:
 ## Advisor
 Q: session cookies or rotating tokens for the client portal?
 A: cookies (HttpOnly, SameSite=Lax); tokens only if a mobile app appears.
-Decision: cookies. Recorded 2026-10-12.
+Decision: cookies. Recorded <YYYY-MM-DD>.
 ```
 
 ## Verification

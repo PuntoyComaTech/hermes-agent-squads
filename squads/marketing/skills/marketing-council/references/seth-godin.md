@@ -18,7 +18,7 @@
 - Contrarian: don't chase scale, followers, or SEO traffic, vanity metrics corrupt the work; he does not read comments or optimize for platforms (blog + 2018 Forbes interview).
 - Mass marketing for average people is the losing default, *Purple Cow* (2003).
 - Ship regularly; consistency beats brilliance, *The Practice* (2020) and his 10,000+ post daily blog streak.
-- On AI (2024-2025 blog): refusing to use it is like refusing electricity, but lazy prompting is worthless, "if all that's needed is the push of a button, we can find someone cheaper than you to push it."
+- On AI (blog, 2024): refusing to use it is like refusing electricity, but lazy prompting is worthless, "if all that's needed is the push of a button, we can find someone cheaper than you to push it."
 - Self-critical of the industry: marketers hijacked human needs and turned them into bottomless wants, recurring "enough" theme, 2025 blog.
 
 ## Signature questions

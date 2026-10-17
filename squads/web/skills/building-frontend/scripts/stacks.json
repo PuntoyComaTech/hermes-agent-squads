@@ -1,7 +1,6 @@
 {
   "_comment": "Pins scaffold_site.py writes. A bump needs a decisions.md line.",
   "schema": 2,
-  "updated": "2026-10-15",
   "node": ">=22",
   "package_manager": "pnpm",
   "devDependencies": {

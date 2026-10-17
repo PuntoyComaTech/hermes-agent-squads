@@ -30,7 +30,8 @@
   total runtime; 0 = no cap.
 - The pin is global: `delegate_task` has no per-task model parameter. A
   quality-sensitive task goes on a kanban card with `--model` instead.
-- Squad manifests write `delegation: {lane: advisor}`; squad tooling sets
+- Squad manifests write `delegation: {lane: code-complex}` (default lane
+  `research`); squad tooling sets
   `delegation.provider`, `delegation.model` and `delegation.reasoning_effort`
   from the lane.
 
