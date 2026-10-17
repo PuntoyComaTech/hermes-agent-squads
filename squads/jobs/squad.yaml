@@ -22,6 +22,7 @@ bots:
       jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
       jobs-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
       jobs-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
+      jobs-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   jobs-scout:
     role: worker
     title: Jobs scout

@@ -3,6 +3,32 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.2.0 - 2026-10-17
+
+One update path, bots composed from the installed Hermes, and squad Projects in the Desktop.
+
+### Changed
+
+- SOUL.md is composed from the installed Hermes identity, the Hermes base, the bot's role and an optional
+  `local/squads/<key>/souls/<bot>.append.md` (kept across updates). A SOUL the user edited stays pending until
+  `--confirm soul:<bot>`, then is backed up.
+- Base toolsets come from the installed Hermes instead of a hard-coded list.
+- One update path: `scripts/auto_update.py`, run daily by the no-agent cron `builder-update` and by "update yourself",
+  updates the builder profile and runs `squadctl upgrade` on every installed squad. It keeps learned skills,
+  memories, model choices and SOUL edits, and skips a squad with running cards until the next run.
+
+### Added
+
+- `keep_awake.py` cron (`<squad>-awake`): holds sleep off on macOS while cards run.
+- `project_sync.py`: copies a manager's Projects to every worker of its squad and binds the squad board; cron
+  `<squad>-projects` every 10 minutes (web, marketing, jobs). `apply <squad>` runs `project_sync.py --setup`, which
+  creates `~/Projects/<squad>` and points each bot's Desktop repo scan at it.
+- `web-frontend-pro` soul.
+
+### Removed
+
+- v1 migration (`migrate_v1.py`) and the old lane aliases.
+
 ## 2.1.0 - 2026-10-17
 
 Every squad bot now starts from what makes the default Hermes profile work: Hermes context, web search, terminal and

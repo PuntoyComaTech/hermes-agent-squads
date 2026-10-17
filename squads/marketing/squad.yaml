@@ -27,6 +27,7 @@ bots:
       marketing-report: {schedule: "0 8 1 * *", script: report_gate.py, agent: false}
       marketing-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
       marketing-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
+      marketing-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   marketing-research:
     role: worker
     title: Marketing research
