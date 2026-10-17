@@ -274,24 +274,73 @@ def main():
     elif cmd == "project":
         need_profile()
         sub, args = rest[0], rest[1:]
+        # one tab-separated row per project: slug, name, board=<slug|None>, path=<primary>, folders=<a|b>
         store = HOME / "projects.txt"
-        lines = store.read_text().splitlines() if store.is_file() else []
-        if sub == "list":
-            # real shape (projects_cmd.py): "<*| > <slug:<24> <name>  [N folder(s)]"
-            print("\n".join(f"  {ln.split()[0]:<24} {ln.split()[1]}  [1 folder(s)]" for ln in lines)
-                  or "No projects yet.")
-        elif sub == "show":
-            row = next((ln for ln in lines if ln.split()[:1] == [args[0]]), None)
+        rows = [dict(zip(("slug", "name", "board", "path", "folders"), ln.split("\t")))
+                for ln in (store.read_text().splitlines() if store.is_file() else []) if ln.strip()]
+        for r in rows:
+            r["board"] = r.get("board", "board=None").split("=", 1)[1]
+            r["path"] = r.get("path", "path=").split("=", 1)[1]
+            r["folders"] = [f for f in r.get("folders", "folders=").split("=", 1)[1].split("|") if f] or [r["path"]]
+
+        def write():
+            store.write_text("".join(f"{r['slug']}\t{r['name']}\tboard={r['board']}\tpath={r['path']}\t"
+                                     f"folders={'|'.join(r['folders'])}\n" for r in rows))
+
+        def find(ident):
+            row = next((r for r in rows if r["slug"] == ident), None)
             if row is None:
-                die(f"no such project: {args[0]}")
-            path = row.split("path=", 1)[1].split()[0] if "path=" in row else ""
-            print(f"Project: {row.split()[1] if len(row.split()) > 1 else args[0]}")
-            print(f"   primary: {path}")
-            print(f"   * {path}")
+                die(f"project: no such project: {ident}")
+            return row
+
+        active = (HOME / "projects.active").read_text().strip() if (HOME / "projects.active").is_file() else ""
+        if sub in ("list", "ls"):
+            # real shape (projects_cmd._cmd_list): "<*| > <slug:<24> <name>  [N folder(s)]"
+            print("\n".join(f"{'*' if r['slug'] == active else ' '} {r['slug']:<24} {r['name']}  "
+                            f"[{len(r['folders'])} folder(s)]" for r in rows)
+                  or "No projects yet. Create one with `hermes project create <name>`.")
+        elif sub == "show":
+            # real shape (projects_cmd._print_project)
+            r = find(args[0])
+            print(f"{r['slug']}  [p_{r['slug']}]")
+            print(f"  name:    {r['name']}")
+            if r["board"] != "None":
+                print(f"  board:   {r['board']}")
+            if r["path"]:
+                print(f"  primary: {r['path']}")
+            print("  folders:")
+            for f in r["folders"]:
+                print(f"   {' *' if f == r['path'] else '  '} {f}")
         elif sub == "create":
-            slug = opt("--slug")
-            lines.append(f"{slug}  {args[0]}  board={opt('--board')}  path={args[1]}")
-            store.write_text("\n".join(lines) + "\n")
+            bare, skip = [], False
+            for a in args:
+                if skip:
+                    skip = False
+                elif a in ("--slug", "--primary", "--board", "--description", "--icon", "--color"):
+                    skip = True
+                elif not a.startswith("--"):
+                    bare.append(a)
+            folders = [str(Path(f).expanduser().absolute()) for f in bare[1:]]
+            slug = opt("--slug") or bare[0].lower().replace(" ", "-")
+            if any(r["slug"] == slug for r in rows):
+                die(f"project: slug already exists: {slug}")
+            primary = opt("--primary") or (folders[0] if folders else "")
+            rows.append({"slug": slug, "name": bare[0], "board": opt("--board") or "None", "path": primary,
+                         "folders": folders or [primary]})
+            write()
+            if "--use" in args:
+                (HOME / "projects.active").write_text(slug)
+            print(f"Created project {slug} (p_{slug})")
+        elif sub == "bind-board":
+            r = find(args[0])
+            r["board"] = args[1] if len(args) > 1 and args[1] else "None"
+            write()
+            print(f"Bound {r['slug']} -> board {args[1]}" if r["board"] != "None" else f"Unbound board from {r['slug']}")
+        elif sub == "use":
+            if args:
+                find(args[0])
+            (HOME / "projects.active").write_text(args[0] if args else "")
+            print(f"Active project: {args[0]}" if args else "Cleared active project")
         else:
             die(f"fake: project {sub}")
     elif cmd == "mcp":
