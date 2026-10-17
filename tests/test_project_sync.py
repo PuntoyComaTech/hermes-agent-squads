@@ -136,6 +136,20 @@ def test_unreadable_worker_fails(env):
     assert "acme" in projects(env, "web-qa")
 
 
+def test_setup_points_the_desktop_repo_scan_at_the_squad_folder(env):
+    custom = env["root"] / "profiles" / "web-qa" / "config.yaml"
+    custom.write_text("desktop:\n  repo_scan_roots:\n  - ~/code\n")
+    dry = json.loads(sync(env, "--setup", "--dry-run", "--json"))
+    assert dry["created_folder"] and not (env["tmp"] / "home" / "Projects" / "web").exists()
+    out = sync(env, "--setup")
+    assert (env["tmp"] / "home" / "Projects" / "web").is_dir()
+    assert "web: set" in out and "web-frontend: set" in out and "web-qa: custom repo_scan_roots kept" in out
+    for bot in ("web", "web-frontend"):
+        assert hermes(env, "-p", bot, "config", "get", "desktop.repo_scan_roots").strip() == "- ~/Projects/web"
+    assert "~/code" in custom.read_text()
+    assert sync(env, "--setup") == "web-qa: custom repo_scan_roots kept: ['~/code']\n"
+
+
 def test_help_runs_without_hermes():
     p = subprocess.run([sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True)
     assert p.returncode == 0 and "--dry-run" in p.stdout
