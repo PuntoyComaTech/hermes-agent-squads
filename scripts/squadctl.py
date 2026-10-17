@@ -1583,7 +1583,30 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool, models: dict | None = 
     skipped = [b for b in optional if b not in names]
     if skipped:
         out["optional_skipped"] = skipped
+    if not a.self_mode and spec.get("board"):
+        out["projects"] = project_setup(ctx, spec, dry)
     return out
+
+
+def project_setup(ctx: Ctx, spec: dict, dry: bool) -> dict | str:
+    """`project_sync.py --setup` for a squad with a board: ~/Projects/<squad> and the Desktop repo scan of every bot.
+    A failure is reported, never fatal: the apply itself already succeeded."""
+    script = HERE / "project_sync.py"
+    argv = [shutil.which("python3") or sys.executable, str(script), "--manager", spec["manager"],
+            "--squad", spec["key"], "--hermes-root", str(ctx.root), "--setup", "--json"]
+    if dry:
+        return "would run: " + shlex.join(argv[1:-1])
+    if not script.is_file():
+        return f"skipped: {script} not found"
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=600, stdin=subprocess.DEVNULL,
+                           env={**os.environ, "HERMES_HOME": str(ctx.root)})
+        rep = json.loads(p.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        return f"project_sync --setup failed: {e}"
+    if p.returncode != 0:
+        rep["error"] = (p.stderr or "").strip()[:400] or f"exit {p.returncode}"
+    return rep
 
 
 def cmd_apply(ctx: Ctx, a: argparse.Namespace, force_dry: bool = False) -> int:
@@ -1651,7 +1674,10 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
     whose board has running cards (the next run retries). A provider key held only by the root stays a note: copying
     it needs the owner's `apply --yes`."""
     installed, models = effective_models(ctx, None)
-    keys = ["builder"] if ctx.home(ctx.builder).is_dir() else []
+    # The builder's home always exists (local/ lives in it), so it is no sign the builder was applied: upgrade it
+    # when `apply --self` recorded it, or when this checkout ships its manifest.
+    keys = ["builder"] if "builder" in installed["squads"] or (
+        ctx.home(ctx.builder).is_dir() and (ctx.src / "builder.yaml").is_file()) else []
     keys += sorted(k for k in installed["squads"] if k != "builder")
     report: dict = {"dry_run": a.dry_run, "applied": {}, "unchanged": [], "waiting": [], "pending": [],
                     "lanes_added": {}, "models_kept": [], "errors": []}

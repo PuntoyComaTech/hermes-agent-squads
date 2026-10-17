@@ -22,6 +22,7 @@ bots:
     cron:
       web-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
       web-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
+      web-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   web-frontend:
     role: worker
     title: Web frontend

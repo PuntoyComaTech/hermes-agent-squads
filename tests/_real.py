@@ -31,7 +31,8 @@ def temp_root(tmp_path: Path) -> Path:
 
 def env_for(root: Path, **extra: str) -> dict:
     env = {k: v for k, v in os.environ.items() if k not in LEAKED}
-    return {**env, "HERMES_HOME": str(root), **extra}
+    # apply runs project_sync.py --setup, which creates ~/Projects/<squad>: keep it beside the temp root
+    return {**env, "HERMES_HOME": str(root), "HERMES_REAL_HOME": str(root.parent), **extra}
 
 
 def scrub(monkeypatch, root: Path) -> None:

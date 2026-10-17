@@ -83,6 +83,10 @@ class Env:
         monkeypatch.delenv("HERMES_DELEGATED_CHILD_CONTEXT", raising=False)
         monkeypatch.setenv("FAKE_HERMES_LOG", str(self.log))
         monkeypatch.setenv("FAKE_HERMES_SRC", str(self.hsrc))
+        # apply runs project_sync.py --setup, which creates ~/Projects/<squad>: keep it inside the test dir
+        self.home = tmp / "home"
+        self.home.mkdir()
+        monkeypatch.setenv("HERMES_REAL_HOME", str(self.home))
         self.models.write_text(yaml.safe_dump(models_doc()))
         (self.src / "squads" / "_schema").mkdir(parents=True)
         shutil.copy(REPO / "squads" / "_schema" / "squad.schema.json", self.src / "squads" / "_schema")
@@ -978,8 +982,10 @@ def test_apply_self_creates_builder_watch_on_the_digest_lane(env, capsys):
     for skill in ("hermes-platform", "installing-squads"):
         assert (home / "skills" / skill / "SKILL.md").is_file()
     assert env.config("builder")["terminal"]["cwd"] == str(home)
-    (job,) = env.jobs("builder")
+    update, job = sorted(env.jobs("builder"), key=lambda j: j["name"])
+    assert (update["name"], update["no_agent"], update["script"]) == ("builder-update", True, "auto_update.py")
     assert (job["name"], job["no_agent"], job["deliver"]) == ("builder-watch", False, "bot-chat:builder")
+    assert job["script"] == "watch_upstream.py"  # no args, so no wrapper script
     assert (job["model"], job["provider"], job["reasoning_effort"], job["skills"]) == (
         "model-digest", "prov-digest", "high", ["tracking-updates"])
     meta = yaml.safe_load((home / "profile.yaml").read_text())["ui_meta"]["hermes-bots"]
@@ -1007,19 +1013,20 @@ def test_agent_cron_is_pinned_and_doctor_warns_on_an_unpinned_one(env, capsys):
     env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
     env.seed_builder()
     env.run("apply", "--self", capsys=capsys)
-    create = next(c["args"] for c in env.calls() if c["args"][:2] == ["cron", "create"])
+    create = next(c["args"] for c in env.calls() if c["args"][:2] == ["cron", "create"] and "builder-watch" in c["args"])
     assert create[create.index("--model") + 1] == "model-digest"
     assert create[create.index("--provider") + 1] == "prov-digest"
     path = env.root / "profiles" / "builder" / "cron" / "jobs.json"
     data = json.loads(path.read_text())
-    data["jobs"][0]["model"] = data["jobs"][0]["provider"] = None
+    watch = next(j for j in data["jobs"] if j["name"] == "builder-watch")
+    watch["model"] = watch["provider"] = None
     path.write_text(json.dumps(data))
     _, doc = env.run("doctor", "builder", expect=None, capsys=capsys)
     (warn,) = [c for c in doc["checks"] if c["check"] == "builder:cron:builder-watch"]
     assert warn["status"] == "warn" and "no model pin" in warn["detail"]
     _, out = env.run("apply", "--self", capsys=capsys)
     assert "cron ~ builder-watch" in out["bots"][0]["actions"]
-    assert env.jobs("builder")[0]["model"] == "model-digest"
+    assert next(j for j in env.jobs("builder") if j["name"] == "builder-watch")["model"] == "model-digest"
     _, doc = env.run("doctor", "builder", expect=None, capsys=capsys)
     assert not [c for c in doc["checks"] if c["check"].startswith("builder:cron:")]
 
@@ -1044,8 +1051,9 @@ def test_apply_self_uses_the_profile_name_from_the_builder_flag(env, capsys):
     assert [b["bot"] for b in out["bots"]] == ["builder-test"] and out["summary"] == {"changed": 1}
     assert (home / "skills" / "hermes-platform" / "SKILL.md").is_file()
     assert not (env.root / "profiles" / "builder" / "config.yaml").exists()  # no profile was created there
-    (job,) = env.jobs("builder-test")
-    assert (job["name"], job["deliver"]) == ("builder-watch", "bot-chat:builder-test")
+    jobs = {j["name"]: j for j in env.jobs("builder-test")}
+    assert sorted(jobs) == ["builder-update", "builder-watch"]
+    assert {j["deliver"] for j in jobs.values()} == {"bot-chat:builder-test"}
     assert env.config("builder-test")["terminal"]["cwd"] == str(home)
     assert not any(c["args"][:2] == ["profile", "create"] for c in env.calls())
 
@@ -1587,3 +1595,67 @@ def test_doctor_fails_a_bot_whose_web_search_is_disabled(web, capsys):
 
 def test_apply_installs_the_managed_browser_once_a_bot_has_browser(web):
     assert any(c["args"][:3] == ["tools", "post-setup", "agent_browser"] for c in web.calls())
+
+
+# --- projects ---------------------------------------------------------------------------------------------------
+
+def test_apply_runs_project_sync_setup_for_a_squad_with_a_board(web, capsys):
+    """After `apply <squad>`: ~/Projects/<squad> exists and every bot's Desktop repo scan points at it."""
+    assert (web.home / "Projects" / "web").is_dir()
+    for bot in WEB_BOTS:
+        assert web.config(bot)["desktop"]["repo_scan_roots"] == ["~/Projects/web"], bot
+    _, out = web.run("apply", "web", capsys=capsys)
+    assert out["summary"] == {"unchanged": 5}
+    assert out["projects"]["ok"] and {b["result"] for b in out["projects"]["bots"]} == {"ok"}
+
+
+def test_project_setup_keeps_a_custom_scan_list_and_plan_only_reports_it(env, capsys):
+    env.squad("web")
+    _, plan = env.run("plan", "web", capsys=capsys)
+    assert plan["projects"].startswith("would run: ") and "--setup" in plan["projects"]
+    assert not (env.home / "Projects").exists()
+    env.run("apply", "web", "--bots", "web", capsys=capsys)
+    subprocess.run(["hermes", "-p", "web", "config", "set", "desktop.repo_scan_roots", '["~/code"]'], check=True,
+                   capture_output=True)
+    _, out = env.run("apply", "web", "--bots", "web", capsys=capsys)
+    (row,) = [b for b in out["projects"]["bots"] if b["bot"] == "web"]
+    assert row["result"].startswith("custom repo_scan_roots kept")
+    assert env.config("web")["desktop"]["repo_scan_roots"] == ["~/code"]
+
+
+def test_self_apply_runs_no_project_setup(env, capsys):
+    env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
+    env.seed_builder()
+    _, out = env.run("apply", "--self", capsys=capsys)
+    assert "projects" not in out and not (env.home / "Projects").exists()
+
+
+def test_squads_with_a_board_sync_projects_every_ten_minutes():
+    for key in ("web", "marketing", "jobs"):
+        spec = yaml.safe_load((REPO / "squads" / key / "squad.yaml").read_text())
+        assert spec.get("board"), key
+        job = spec["bots"][spec["manager"]]["cron"][f"{key}-projects"]
+        assert job == {"schedule": "*/10 * * * *", "script": "project_sync.py", "agent": False}, key
+
+
+def test_projects_cron_installs_project_sync_from_the_repo_scripts(env, capsys):
+    """The manager's cron runs project_sync.py with no arguments: the script defaults come from its $HERMES_HOME."""
+    (env.src / "scripts").mkdir(exist_ok=True)
+    shutil.copy(SCRIPTS / "project_sync.py", env.src / "scripts" / "project_sync.py")
+    env.squad("web", lambda s: s["bots"]["web"]["cron"].update(
+        {"web-projects": {"schedule": "*/10 * * * *", "script": "project_sync.py", "agent": False}}))
+    (env.src / "squads" / "web" / "scripts" / "project_sync.py").unlink()  # Env.squad stubs every cron script
+    env.run("apply", "web", capsys=capsys)
+    job = next(j for j in env.jobs("web") if j["name"] == "web-projects")
+    assert (job["script"], job["no_agent"], job["deliver"]) == ("project_sync.py", True, "bot-chat:web")
+    installed = env.root / "profiles" / "web" / "scripts" / "project_sync.py"
+    assert installed.read_text() == (SCRIPTS / "project_sync.py").read_text()
+    folder = env.home / "Projects" / "web" / "acme"
+    folder.mkdir(parents=True)
+    run = lambda *a: subprocess.run(["hermes", *a], capture_output=True, text=True, check=True)  # noqa: E731
+    run("-p", "web", "project", "create", "Acme", str(folder), "--slug", "acme")
+    p = subprocess.run([sys.executable, str(installed)], capture_output=True, text=True,
+                       env={**os.environ, "HERMES_HOME": str(env.root / "profiles" / "web")})
+    assert p.returncode == 0, p.stderr
+    assert "web-qa create" in p.stdout and "web bind-board web" in p.stdout
+    assert "acme" in run("-p", "web-qa", "project", "list").stdout
