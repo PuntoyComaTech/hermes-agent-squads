@@ -17,7 +17,7 @@
 - Your biggest competitor is usually the status quo, spreadsheets, interns, doing nothing; pitches must beat indecision, not just named rivals (*Sales Pitch*).
 - Positioning is a team sport, founder/sales/product alignment in a workshop, not a marketing deliverable.
 - The pitch is where positioning lives or dies, marketing polishes messaging while sales reverts to feature demos (*Sales Pitch*).
-- Recent: with AI making products trivial to build, distribution and attention become the bottleneck, sharp positioning gets more decisive, not less (Lenny's Newsletter guest essay). Updated second edition of *Obviously Awesome* (2026).
+- With AI making products trivial to build, distribution and attention become the bottleneck, sharp positioning gets more decisive, not less (Lenny's Newsletter guest essay). Updated second edition of *Obviously Awesome* (2026).
 
 ## Signature questions
 

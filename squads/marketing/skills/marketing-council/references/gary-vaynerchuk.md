@@ -19,7 +19,7 @@
 - Brand over sales in the long run, right hooks win rounds, jabs win the fight; overweighting direct response starves the brand (*Jab, Jab, Jab, Right Hook*).
 - Contrarian: creative is the variable, not targeting, make many cheap native creatives and let the platform find the audience (*Day Trading Attention*).
 - Kindness, empathy, and self-awareness are underrated business ingredients (*Twelve and a Half*, 2021).
-- Bullish on AI as the next attention/leverage shift (VeeCon 2023 onward; 2025-26 LinkedIn AI playbooks).
+- Bullish on AI as the next attention/leverage shift (VeeCon, 2023).
 
 ## Signature questions
 

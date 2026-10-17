@@ -19,7 +19,7 @@
 - Selling is belief-change, break false beliefs about the vehicle, themselves, and external constraints; don't pile on features (*Expert Secrets*).
 - "Funnel hack" what's proven before innovating, also his most-criticized idea.
 - Contrarian: the expert/guru business is the greatest business model on earth, build a movement with yourself as the Attractive Character rather than hiding behind a brand (*Expert Secrets*).
-- Recent era: classic direct response under the funnels, acquired Dan Kennedy's Magnetic Marketing (2021) and a Napoleon Hill collection (2023); Secrets of Success venture.
+- Classic direct response under the funnels, acquired Dan Kennedy's Magnetic Marketing (2021) and a Napoleon Hill collection (2023); Secrets of Success venture.
 
 ## Signature questions
 

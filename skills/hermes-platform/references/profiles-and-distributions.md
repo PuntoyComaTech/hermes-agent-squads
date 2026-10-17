@@ -31,8 +31,8 @@
   (shell wrapper), `--force` (overwrite a same-name profile, user data kept),
   `-y`.
 - `distribution_owned` in the manifest lists exactly the paths the distribution
-  copies and later updates; without it (legacy) the whole payload is owned
-  except user paths such as `memories`, `sessions` and `local`.
+  copies and later updates; without it the whole payload is owned except user
+  paths such as `memories`, `sessions` and `local`.
 - `hermes profile update <name>` re-fetches the recorded source and overwrites
   distribution-owned files plus the skills and cron jobs it ships; skills and
   cron jobs the user added stay. User data (memories, sessions, auth, `.env`) is
