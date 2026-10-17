@@ -344,6 +344,27 @@ def main():
             print(f"Active project: {args[0]}" if args else "Cleared active project")
         else:
             die(f"fake: project {sub}")
+    elif cmd == "config" and rest[:1] in (["get"], ["set"]):
+        need_profile()
+        # real shape (hermes_cli/config.py): `get` prints a scalar or a YAML block, exit 1 "Config key not set: k";
+        # `set` parses a JSON/YAML list literal into a list
+        cfg = load(HOME / "config.yaml", {})
+        keys = rest[1].split(".")
+        if rest[0] == "set":
+            node = cfg
+            for k in keys[:-1]:
+                node = node.setdefault(k, {})
+            node[keys[-1]] = yaml.safe_load(rest[2]) if rest[2][:1] in "[{" else rest[2]
+            save(HOME / "config.yaml", cfg)
+            print(f"✓ Set {rest[1]} = {node[keys[-1]]}")
+        else:
+            node = cfg
+            for k in keys:
+                if not isinstance(node, dict) or k not in node:
+                    die(f"Config key not set: {rest[1]}")
+                node = node[k]
+            print(yaml.safe_dump(node, default_flow_style=False).strip() if isinstance(node, (list, dict)) and node
+                  else ("[]" if node == [] else node))
     elif cmd == "mcp":
         need_profile()
         assert rest[0] == "add"
