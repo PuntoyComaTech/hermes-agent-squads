@@ -9,6 +9,10 @@ with `desktop_project`) exists only in the manager. This script reads `hermes -p
   - in the manager, when the project has no board: `project bind-board <slug> <board>`.
 A project whose primary folder is the home directory or inside the Hermes root is skipped and reported.
 
+`--setup` (once per squad, after apply): create ~/Projects/<squad> and set `desktop.repo_scan_roots: [~/Projects/<squad>]`
+in the manager and every worker whose list is empty, so the Desktop Projects sidebar of those profiles lists only this
+squad's folders instead of every git repo under the home directory. A custom list is kept.
+
 Squad members are the profiles holding `skills/squad-<squad>/` (written by squadctl apply); without any, the
 profiles named `<squad>-*`. Defaults come from $HERMES_HOME when it is `<root>/profiles/<manager>`, so the manager's
 cron runs it with no arguments: `--no-agent`, non-empty stdout goes to the manager's Bot Chat, and a run with nothing
@@ -210,6 +214,45 @@ def save_seen(path: Path, notices: set[str]) -> None:
     os.replace(tmp, path)
 
 
+def scan_roots(h: Hermes, bot: str) -> list[str] | None:
+    """`desktop.repo_scan_roots` of a bot; [] when unset or empty, None when unreadable."""
+    proc = h.run(bot, "config", "get", "desktop.repo_scan_roots")
+    if proc.returncode != 0:
+        return [] if "not set" in (proc.stdout + proc.stderr) else None
+    out = proc.stdout.strip()
+    if out in ("", "[]"):
+        return []
+    return [ln.strip()[2:].strip() for ln in out.splitlines() if ln.strip().startswith("- ")]
+
+
+def setup(h: Hermes, squad: str, bots: list[str], dry: bool) -> dict:
+    """Create ~/Projects/<squad> and point every squad bot's Desktop repo scan at it (only where the list is empty)."""
+    folder = real_home() / "Projects" / squad
+    want = f"~/Projects/{squad}"
+    report: dict = {"folder": str(folder), "dry_run": dry, "bots": [], "ok": True}
+    if not folder.is_dir():
+        report["created_folder"] = True
+        if not dry:
+            folder.mkdir(parents=True, exist_ok=True)
+    for bot in bots:
+        roots = scan_roots(h, bot)
+        if roots is None:
+            report["ok"] = False
+            report["bots"].append({"bot": bot, "result": "config unreadable"})
+        elif roots in ([want], [str(folder)]):
+            report["bots"].append({"bot": bot, "result": "ok"})
+        elif roots:
+            report["bots"].append({"bot": bot, "result": f"custom repo_scan_roots kept: {roots}"})
+        else:
+            report["bots"].append({"bot": bot, "result": "would set" if dry else "set"})
+            if not dry:
+                proc = h.run(bot, "config", "set", "desktop.repo_scan_roots", json.dumps([want]))
+                if proc.returncode != 0:
+                    report["ok"] = False
+                    report["bots"][-1]["result"] = f"set failed: {(proc.stderr or proc.stdout).strip()}"
+    return report
+
+
 def main(argv: list[str] | None = None) -> int:
     root, manager = defaults()
     p = argparse.ArgumentParser(description="Copy the manager's Hermes Projects to every worker of its squad and "
@@ -222,6 +265,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--hermes-root", type=Path, default=root, help=f"Hermes root holding profiles/ (default: {root})")
     p.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN") or "hermes",
                    help="hermes executable (default: $HERMES_BIN, else `hermes` on PATH)")
+    p.add_argument("--setup", action="store_true",
+                   help="instead of syncing: create ~/Projects/<squad> and set desktop.repo_scan_roots to it in the "
+                        "manager and every worker whose list is empty, so the Desktop Projects sidebar lists only "
+                        "this squad's folders")
     p.add_argument("--dry-run", action="store_true", help="show what would change; change nothing")
     p.add_argument("--json", action="store_true", help="print the full report as JSON")
     a = p.parse_args(argv)
@@ -234,6 +281,17 @@ def main(argv: list[str] | None = None) -> int:
     squad = a.squad or a.manager
     workers = [w.strip() for w in a.workers.split(",") if w.strip()] if a.workers else \
         members(a.hermes_root, squad, a.manager)
+    if a.setup:
+        rep = setup(Hermes(binary, a.hermes_root), squad, [a.manager, *workers], a.dry_run)
+        if a.json:
+            print(json.dumps(rep, indent=2))
+        else:
+            changed = [r for r in rep["bots"] if r["result"] != "ok"]
+            if rep.get("created_folder"):
+                print(f"{'would create' if a.dry_run else 'created'} {rep['folder']}")
+            for r in changed:
+                print(f"{r['bot']}: {r['result']}")
+        return 0 if rep["ok"] else 1
     report = sync(Hermes(binary, a.hermes_root), a.manager, squad, a.board or squad, workers, a.dry_run)
     if a.json:
         print(json.dumps(report, indent=2))
