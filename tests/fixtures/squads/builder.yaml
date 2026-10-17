@@ -16,6 +16,10 @@ bots:
     plugins: {enable: [disk-cleanup]}
     memory: true
     cron:
+      builder-update:
+        schedule: "30 6 * * *"
+        script: auto_update.py
+        agent: false
       builder-watch:
         schedule: "0 7 * * *"
         script: watch_upstream.py

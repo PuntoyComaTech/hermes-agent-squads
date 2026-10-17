@@ -71,8 +71,6 @@ def load_squad(squad: str, squads_dir: Path, home: Path) -> dict:
     if not repo.is_file() and not local.is_file():
         raise ChainError(f"squad {squad!r} not found in {squads_dir} or {local.parent}")
     doc = deep_merge(load_yaml(repo) if repo.is_file() else {}, load_yaml(local) if local.is_file() else {})
-    if "lead" in doc and "manager" not in doc:
-        raise ChainError(f"squad {squad!r}: field 'lead' was renamed to 'manager' (S3); update the manifest")
     for field in ("manager", "bots", "chains"):
         if not doc.get(field):
             raise ChainError(f"squad {squad!r} has no {field}")

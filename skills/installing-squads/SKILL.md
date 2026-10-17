@@ -37,16 +37,17 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    `scripts/hpy squadctl.py doctor`. Every bot starts with web search (keyless,
    no API key), terminal and delegation; `apply` installs Hermes's managed
    browser. A `:web` check that is not `ok` is fixed before the user works.
-6. Update: after `hermes profile update builder`, run step 2 for each squad
-   `status` lists.
+6. Update ("update yourself", "update my installation"): run
+   `scripts/hpy auto_update.py --force` and reply with its output. It is the
+   same script the daily `builder-update` cron runs: it updates the builder
+   when the repo has a new version, then brings every installed bot up to
+   date. Lines starting `Needs you:` are `--confirm` items for step 4.
 7. Remove: `scripts/hpy squadctl.py uninstall <key> --dry-run`, show it; on OK
    run it without `--dry-run` (`--keep-profiles` keeps the profiles). It exports
    each profile to `local/backups/`, removes `<key>-*` cron jobs, deletes the
    profiles, archives the board and leaves project folders and
    `local/squads/<key>/` in place.
-8. Coming from v1: `scripts/hpy migrate_v1.py --dry-run`, show it; on OK run
-   it without `--dry-run`.
-9. Document the local fleet without touching it: `scripts/hpy squadctl.py
+8. Document the local fleet without touching it: `scripts/hpy squadctl.py
    inventory [--profiles a,b] --out local/fleet.yaml`. It reads config, ui_meta,
    skills and cron of every profile, never `.env` or `auth.json`, and writes
    only under `local/`. The result is local data: never published

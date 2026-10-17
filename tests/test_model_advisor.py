@@ -91,14 +91,14 @@ def test_review_prefers_a_family_no_producer_uses(capsys, all_families):
 
 
 def test_review_lane_avoids_requested_producer_family(capsys, all_families):
-    _, result = advise(capsys, "--lane", "review", "--producer-lane", "design", cache=all_families)
+    _, result = advise(capsys, "--lane", "review", "--producer-lane", "design-pro", cache=all_families)
     pick = result["lanes"][0]
     assert pick["provider"] == "opencode-go" and pick["model"] == "mimo-v2.6-pro"
     _, plain = advise(capsys, "--lane", "review", cache=all_families)
     # with no producer in scope the rule does not apply: the strongest available model wins
     # (claude-subscription, the first provider_pref, serves the [1m] variant only in the fixtures)
     assert plain["lanes"][0]["model"] == "claude-opus-5-5[1m]"
-    _, vs_open = advise(capsys, "--lane", "review", "--producer-lane", "code", cache=all_families)
+    _, vs_open = advise(capsys, "--lane", "review", "--producer-lane", "code-routine", cache=all_families)
     assert vs_open["lanes"][0]["provider"] != "opencode-go"
 
 
@@ -131,14 +131,14 @@ def test_lane_table_without_squads_lists_every_lane(capsys):
 
 def test_regex_survives_provider_renames(capsys):
     # a Copilot catalog serving claude-opus-5.5 gets it on the design lane via provider_pref
-    _, dotted = advise(capsys, "--lane", "design", cache="copilot-opencode-go", providers="copilot")
+    _, dotted = advise(capsys, "--lane", "design-pro", cache="copilot-opencode-go", providers="copilot")
     assert dotted["lanes"][0]["model"] == "claude-opus-5.5" and dotted["lanes"][0]["provider"] == "copilot"
-    _, dashed = advise(capsys, "--lane", "design", cache="anthropic-only", providers="anthropic")
+    _, dashed = advise(capsys, "--lane", "design-pro", cache="anthropic-only", providers="anthropic")
     assert dashed["lanes"][0]["model"] == "claude-opus-5-5"
 
 
 def test_providers_list_restricts_to_named_providers(capsys):
-    _, result = advise(capsys, "--lane", "code", providers="copilot")
+    _, result = advise(capsys, "--lane", "code-routine", providers="copilot")
     assert [p["slug"] for p in result["providers"]["authenticated"]] == ["copilot"]
     assert result["lanes"][0]["provider"] == "copilot"
 
@@ -146,7 +146,7 @@ def test_providers_list_restricts_to_named_providers(capsys):
 def test_fallback_cheapest_for_unknown_provider(tmp_path, capsys):
     cache = tmp_path / "custom.json"
     cache.write_text(json.dumps({"custom-x": {"at": NOW, "models": ["big-model-1", "tiny-mini", "other"]}}))
-    _, result = advise(capsys, "--lane", "design", "--lane", "aux", cache=cache)
+    _, result = advise(capsys, "--lane", "design-pro", "--lane", "aux", cache=cache)
     for pick in result["lanes"]:
         assert (pick["model"], pick["provider"]) == ("tiny-mini", "custom-x")
         assert "no candidate matches" in pick["reason"]
@@ -154,8 +154,8 @@ def test_fallback_cheapest_for_unknown_provider(tmp_path, capsys):
 
 def test_local_override_replaces_lane_candidates(tmp_path, capsys):
     local = tmp_path / "model-roles.yaml"
-    local.write_text("lanes:\n  design:\n    candidates:\n      - {family: open-weights, match: 'glm-5\\.3', reasoning: low}\n")
-    code = ma.main(["--lane", "design", "--json", "--providers", "cache", "--local-roles", str(local),
+    local.write_text("lanes:\n  design-pro:\n    candidates:\n      - {family: open-weights, match: 'glm-5\\.3', reasoning: low}\n")
+    code = ma.main(["--lane", "design-pro", "--json", "--providers", "cache", "--local-roles", str(local),
                     "--cache", str(FIX / "caches" / "copilot-opencode-go.json")])
     out = json.loads(capsys.readouterr().out)
     assert code == 0 and out["roles"] == ["base", "local"]
@@ -186,7 +186,7 @@ def test_squadctl_reads_the_advisor_fallback(capsys):
 
 
 def test_alternatives_are_distinct_and_capped(capsys):
-    _, result = advise(capsys, "--lane", "lead", cache="anthropic-only")
+    _, result = advise(capsys, "--lane", "manager", cache="anthropic-only")
     pick = result["lanes"][0]
     alts = [(a["model"], a["provider"]) for a in pick["alternatives"]]
     assert len(alts) == 2 and len(set(alts)) == 2 and (pick["model"], pick["provider"]) not in alts
@@ -195,9 +195,9 @@ def test_alternatives_are_distinct_and_capped(capsys):
 # --- providers, cache, errors -----------------------------------------------------------------------------------
 
 def test_stale_cache_entries_are_reported(capsys):
-    _, fresh = advise(capsys, "--lane", "lead", cache="anthropic-only")
+    _, fresh = advise(capsys, "--lane", "manager", cache="anthropic-only")
     assert fresh["providers"]["stale"] == []
-    args = ["--lane", "lead", "--json", "--providers", "cache", "--now", str(NOW + 8 * 86400),
+    args = ["--lane", "manager", "--json", "--providers", "cache", "--now", str(NOW + 8 * 86400),
             "--cache", str(FIX / "caches" / "anthropic-only.json")]
     ma.main(args)
     stale = json.loads(capsys.readouterr().out)["providers"]["stale"]
@@ -211,7 +211,7 @@ def test_detection_models_fill_providers_missing_from_cache(monkeypatch, capsys)
     monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
     monkeypatch.setattr(ma, "probe_auth_list", lambda *a: None)
     monkeypatch.setattr(ma, "scope_providers", lambda home: set())  # no subprocesses in tests
-    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    code, result = advise(capsys, "--lane", "code-routine", providers="auto", cache="copilot-opencode-go")
     assert code == 0 and result["providers"]["source"] == "in-process"
     by_slug = {p["slug"]: p for p in result["providers"]["authenticated"]}
     assert by_slug["nous"]["models"] == ["deepseek-v4.1-flash", "claude-opus-5.5"], \
@@ -225,7 +225,7 @@ def test_detection_models_are_used_for_a_provider_without_cache(monkeypatch, cap
     monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
     monkeypatch.setattr(ma, "probe_auth_list", lambda *a: None)
     monkeypatch.setattr(ma, "scope_providers", lambda home: set())  # no subprocesses in tests
-    _, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    _, result = advise(capsys, "--lane", "code-routine", providers="auto", cache="copilot-opencode-go")
     assert (result["lanes"][0]["model"], result["lanes"][0]["provider"]) == ("deepseek-v4.1-flash", "nous")
 
 
@@ -236,7 +236,7 @@ def test_detection_falls_back_through_runtime_to_auth_list(monkeypatch, capsys):
               "opencode-go (1 credentials):\n  #1  OPENCODE_GO_API_KEY  api_key id=242ecf priority=0 env:X <-\n")
     monkeypatch.setattr(ma.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, sample, ""))
     assert ma.probe_auth_list() == [{"slug": "copilot", "models": []}, {"slug": "opencode-go", "models": []}]
-    code, result = advise(capsys, "--lane", "lead", providers="auto")
+    code, result = advise(capsys, "--lane", "manager", providers="auto")
     assert code == 0 and result["providers"]["source"] == "auth-list"
     assert "sk-should-not-be-read" not in json.dumps(result)
 
@@ -259,7 +259,7 @@ def test_pool_only_provider_is_detected(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(ma.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, sample, ""))
     assert ma.probe_auth_list() == [{"slug": "opencode-go", "models": []},
                                     {"slug": "custom:together.ai", "models": []}]
-    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    code, result = advise(capsys, "--lane", "code-routine", providers="auto", cache="copilot-opencode-go")
     assert code == 0 and result["providers"]["source"] == "auth-list"
     assert {p["slug"] for p in result["providers"]["authenticated"]} == {"opencode-go", "custom:together.ai"}
     assert result["lanes"][0]["provider"] == "opencode-go", "a pool-only provider is picked like any other"
@@ -268,7 +268,7 @@ def test_pool_only_provider_is_detected(tmp_path, monkeypatch, capsys):
 def test_no_provider_is_a_structured_error(monkeypatch, capsys):
     for name in ("probe_in_process", "probe_runtime", "probe_auth_list"):
         monkeypatch.setattr(ma, name, lambda: None)
-    code, result = advise(capsys, "--lane", "lead", providers="auto")
+    code, result = advise(capsys, "--lane", "manager", providers="auto")
     assert code == 2 and "no authenticated provider" in result["error"]
 
 
@@ -293,18 +293,18 @@ def test_cache_file_is_never_modified(tmp_path, capsys):
     cache = tmp_path / "c.json"
     cache.write_text((FIX / "caches" / "anthropic-only.json").read_text())
     before = cache.read_bytes()
-    advise(capsys, "--lane", "lead", cache=cache)
+    advise(capsys, "--lane", "manager", cache=cache)
     assert cache.read_bytes() == before
 
 
-# --- exclusions, key homes, aliases ------------------------------------------------------------------------------
+# --- exclusions, key homes ---------------------------------------------------------------------------------------
 
 def test_excluded_provider_is_detected_but_never_recommended(tmp_path, capsys):
     ex = tmp_path / "providers-exclude.txt"
     ex.write_text("# never recommend this one\ncopilot\n")
     _, before = advise(capsys, "--lane", "review", cache="copilot-opencode-go")
     assert before["lanes"][0]["provider"] == "copilot", "sanity: copilot would be picked"
-    _, after = advise(capsys, "--lane", "review", "--lane", "code", "--exclude-file", str(ex),
+    _, after = advise(capsys, "--lane", "review", "--lane", "code-routine", "--exclude-file", str(ex),
                       cache="copilot-opencode-go")
     listed = {p["slug"]: p for p in after["providers"]["authenticated"]}
     assert listed["copilot"]["excluded"] is True, "excluded providers are still detected and reported"
@@ -347,7 +347,7 @@ def test_detection_unions_every_probe_without_short_circuit(monkeypatch, capsys)
     monkeypatch.setattr(ma, "probe_in_process", lambda: [{"slug": "nous", "models": []}])
     monkeypatch.setattr(ma, "probe_runtime", lambda *a: None)
     monkeypatch.setattr(ma, "probe_auth_list", lambda *a: [{"slug": "opencode-go", "models": []}])
-    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    code, result = advise(capsys, "--lane", "code-routine", providers="auto", cache="copilot-opencode-go")
     assert code == 0 and result["providers"]["source"] == "in-process+auth-list"
     assert {p["slug"] for p in result["providers"]["authenticated"]} == {"nous", "opencode-go"}
 
@@ -361,7 +361,7 @@ def test_env_file_key_names_are_detected_without_reading_values(tmp_path, monkey
     for name in ("probe_in_process", "probe_runtime", "probe_auth_list"):
         monkeypatch.setattr(ma, name, lambda *a: None)
     monkeypatch.setattr(ma, "registry_env_map", lambda: {})  # no Hermes runtime import in tests
-    code, result = advise(capsys, "--lane", "code", providers="auto", cache="copilot-opencode-go")
+    code, result = advise(capsys, "--lane", "code-routine", providers="auto", cache="copilot-opencode-go")
     assert code == 0 and result["providers"]["source"] == "env"
     assert [p["slug"] for p in result["providers"]["authenticated"]] == ["opencode-go"]
     assert "sk-super-secret-value" not in json.dumps(result), "values never leave the env file"
@@ -380,36 +380,6 @@ def test_key_locations_counts_env_file_keys_per_scope(tmp_path, monkeypatch):
     key_in, report = ma.key_locations(["opencode-go", "anthropic"])
     assert key_in == {"opencode-go": ["root"], "anthropic": ["profile"]}
     assert report == ["provider opencode-go authenticated at root but not in profile builder"]
-
-
-def test_alias_lanes_resolve_and_keep_the_requested_name(capsys):
-    _, result = advise(capsys, "--lane", "lead", "--lane", "design", "--lane", "code",
-                       cache="copilot-opencode-go")
-    by = {p["lane"]: p for p in result["lanes"]}
-    assert set(by) == {"lead", "design", "code"}, "the requested name is kept for squad.yaml resolution"
-    assert "alias of manager" in by["lead"]["reason"]
-    assert "alias of design-pro" in by["design"]["reason"]
-    assert "alias of code-routine" in by["code"]["reason"]
-
-
-def test_alias_lane_picks_match_the_canonical_lane(capsys):
-    _, old = advise(capsys, "--lane", "lead", "--lane", "advisor", cache="anthropic-only")
-    _, new = advise(capsys, "--lane", "manager", "--lane", "code-complex", cache="anthropic-only")
-    for alias, live in zip(old["lanes"], new["lanes"]):
-        assert (alias["model"], alias["provider"], alias["reasoning"]) == (live["model"], live["provider"],
-                                                                          live["reasoning"])
-
-
-def test_local_override_of_an_alias_name_wins(tmp_path, capsys):
-    local = tmp_path / "model-roles.yaml"
-    local.write_text("lanes:\n  lead:\n    candidates:\n      - {family: open-weights, match: 'glm-5\\.3', reasoning: low}\n")
-    code = ma.main(["--lane", "lead", "--json", "--providers", "cache",
-                    "--local-roles", str(local), "--exclude-file", str(tmp_path / "nope.txt"),
-                    "--cache", str(FIX / "caches" / "copilot-opencode-go.json")])
-    out = json.loads(capsys.readouterr().out)
-    assert code == 0
-    assert (out["lanes"][0]["model"], out["lanes"][0]["reasoning"]) == ("glm-5.3", "low")
-    assert "alias of manager" in out["lanes"][0]["reason"]
 
 
 def test_help_works_without_network(temp_home):

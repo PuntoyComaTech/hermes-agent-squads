@@ -26,6 +26,7 @@ bots:
       marketing-plan-week: {schedule: "0 8 * * 1", script: plan_week.py, agent: false}
       marketing-report: {schedule: "0 8 1 * *", script: report_gate.py, agent: false}
       marketing-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
+      marketing-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
   marketing-research:
     role: worker
     title: Marketing research
@@ -42,7 +43,7 @@ bots:
     role: worker
     title: Marketing creative
     description: "Concepts, all copy and scripts; no web access"
-    lane: copy
+    lane: manager
     toolsets: [file, skills, kanban, todo, vision]
     withhold: [web]
     skills:
@@ -55,7 +56,7 @@ bots:
     role: worker
     title: Marketing producer
     description: "Statics, carousels, landings, emails, documents and short HyperFrames clips"
-    lane: design
+    lane: design-pro
     toolsets: [file, skills, kanban, todo, terminal, vision, image_gen, browser]
     skills:
       squad: [producing-assets, brand-contract]

@@ -1,6 +1,6 @@
 ---
 name: tracking-updates
-description: "Digests upstream changes and proposes each to the user. Use when Hermes or the squads repo ships an update."
+description: "Digests Hermes releases and proposes each change to the user. Use when the builder-watch cron fires or the user asks what changed in Hermes."
 ---
 
 # Tracking updates
@@ -8,7 +8,9 @@ description: "Digests upstream changes and proposes each to the user. Use when H
 ## When to Use
 
 - The `builder-watch` cron wakes the builder with a `## Script Output` block.
-- The user asks what changed upstream or what to apply.
+- The user asks what changed in Hermes or what to apply.
+- The squads themselves are not this skill: `builder-update` applies them with no agent
+  (`skills/installing-squads` step 6).
 
 ## Procedure
 
@@ -20,8 +22,8 @@ prints `{"wakeAgent": false}` and no agent runs. On a change Hermes prepends
 the gate's stdout to this turn as `## Script Output`.
 
 1. Read only the files listed in `context.filtered` and `context.overflow`
-   (priority bullets over the cap), plus `context.squads` (version delta and
-   changelog excerpt).
+   (priority bullets over the cap), plus `context.hermes` (local version
+   change).
 2. Write `local/state/digests/<date>.json`:
 
 ```json
@@ -55,11 +57,9 @@ the gate's stdout to this turn as `## Script Output`.
    user OK, `apply`.
 4. A new Hermes release: tell the user to run `hermes update` (it moves
    release to release; `hermes update --set-channel main` follows every
-   commit). Never run it from a bot: it restarts every gateway.
-5. A new squads version: suggest `hermes profile update builder`; it keeps
-   `local/`, memories, sessions and `.env`
-   (`skills/hermes-platform/references/profiles-and-distributions.md`). Then
-   `skills/installing-squads` step 6.
+   commit). Never run it from a bot: it restarts every gateway. After it, the
+   next `builder-update` brings every bot's SOUL and toolsets to the new
+   Hermes.
 
 ## Pitfalls
 

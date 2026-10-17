@@ -28,7 +28,7 @@ bots:
     role: worker
     title: Jobs writer
     description: "CV, letter and answers from verified achievements; renders PDF and DOCX"
-    lane: copy
+    lane: manager
     toolsets: [file, skills, kanban, todo, terminal]
     skills: {squad: [writing-applications, rendering-cv, jobs-contract], keep: [bundled:humanizer]}
   jobs-reviewer:

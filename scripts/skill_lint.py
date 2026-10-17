@@ -196,8 +196,6 @@ class Linter:
         bots, key = doc.get("bots") or {}, doc.get("key")
         name = doc.get("name") or key
         problems = []
-        if "lead" in doc and "manager" not in doc:
-            problems.append("field 'lead' was renamed to 'manager'")
         managers = [b for b, s in bots.items() if (s or {}).get("role") == "manager"]
         if bots and managers != [doc.get("manager")]:
             problems.append(f"exactly one bot must have role manager and match the manager field (got {managers})")

@@ -31,14 +31,14 @@ bots:
     role: worker
     title: Marketing creative
     description: "Concepts, all copy and scripts; no web access"
-    lane: copy
+    lane: manager
     toolsets: [file, skills, kanban, todo, vision]
     skills: {squad: [writing-copy, brand-contract], keep: [bundled:humanizer]}
   marketing-producer:
     role: worker
     title: Marketing producer
     description: "Statics, carousels, landings, emails, documents and short HyperFrames clips"
-    lane: design
+    lane: design-pro
     toolsets: [file, skills, kanban, todo, terminal, vision, image_gen, browser]
     skills: {squad: [producing-assets, brand-contract], keep: [official:creative/hyperframes]}
     plugins: {enable: [disk-cleanup, security-guidance]}
