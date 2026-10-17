@@ -243,6 +243,24 @@ class Ctx:
             self._runtime = (argv[0], root.group(1))
         return self._runtime
 
+    def default_identity(self) -> str:
+        """DEFAULT_AGENT_IDENTITY of the installed Hermes (agent/prompt_builder.py): the identity the default profile
+        runs with. Read from the runtime on every apply, so a Hermes update reaches every bot's SOUL.md."""
+        if getattr(self, "_identity", None) is None:
+            py, hroot = self.runtime()
+            code = ("import sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; import hermes_bootstrap; "
+                    "from agent.prompt_builder import DEFAULT_AGENT_IDENTITY as d; sys.stdout.write(d)") % hroot
+            try:
+                p = subprocess.run([py, "-I", "-c", code], capture_output=True, text=True, timeout=120,
+                                   stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise Fail(f"cannot read Hermes's default identity: {exc}") from None
+            if p.returncode != 0 or not p.stdout.strip():
+                raise Fail("cannot read DEFAULT_AGENT_IDENTITY from the installed Hermes "
+                           f"(agent/prompt_builder.py): {(p.stderr or '').strip()[-300:]}")
+            self._identity = p.stdout.strip()
+        return self._identity
+
     def sees_images(self, provider: str, model: str) -> bool:
         """True when Hermes routes images to this model natively (agent.image_routing, `auto` mode, no
         auxiliary.vision). False when it is text-only or the runtime cannot tell."""
@@ -501,10 +519,20 @@ def delegation_lane(bot: dict) -> str | None:
     return d["lane"] if "lane" in d else DEFAULT_DELEGATION_LANE
 
 
-def compose_soul(ctx: "Ctx", role_text: str) -> str:
-    """SOUL.md of a squad bot: the Hermes base (identity, harness facts) then the bot's role lines."""
+def compose_soul(ctx: "Ctx", role_text: str, append: str | None = None) -> str:
+    """SOUL.md of a squad bot, in order: the installed Hermes's own default identity (a profile SOUL.md replaces it,
+    so it is copied from the running Hermes, never written here), the squad harness facts, the bot's role lines,
+    then the user's `local/squads/<key>/souls/<bot>.append.md`."""
     base = (SRC / BASE_SOUL).read_text(encoding="utf-8").rstrip("\n")
-    return f"{base}\n\n{role_text.rstrip(chr(10))}\n"
+    parts = [ctx.default_identity(), base, role_text.rstrip("\n"), (append or "").rstrip("\n")]
+    return "\n\n".join(p for p in parts if p) + "\n"
+
+
+SOUL_MARK = ".squad-soul-sha"  # in the bot home: sha256 of the SOUL.md squadctl last wrote
+
+
+def text_sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def live_bots(ctx: Ctx, spec: dict) -> list[str]:
@@ -1061,12 +1089,7 @@ class Applier:
                 acts.append("profile describe")
                 if not dry:
                     ctx.hermes("profile", "describe", name, "--text", bot["description"])
-            soul = asset(ctx, self.key, "souls", f"{name}.md")
-            want = compose_soul(ctx, soul.read_text(encoding="utf-8")) if soul else None
-            if want and want != _read(home / "SOUL.md"):
-                acts.append("SOUL.md updated")
-                if not dry:
-                    write_text(home / "SOUL.md", want)
+        acts += self.soul(name, home, exists, pending, notes)
         acts += self.cron(name, bot, existed, notes)
 
         for env in bot.get("passthrough") or []:
@@ -1088,6 +1111,41 @@ class Applier:
         if dry and acts:
             status = "would-" + status.removesuffix("d")
         return {"bot": name, "status": status, "actions": acts, "pending": pending, "notes": notes, "learned": learned}
+
+    def soul(self, name: str, home: Path, exists: bool, pending: list[str], notes: list[str]) -> list[str]:
+        """Write SOUL.md = Hermes identity + squad base + role + the user's append file. A live SOUL.md the user
+        edited (its sha is not the one squadctl last wrote) is never replaced silently: it stays pending until
+        `--confirm soul:<bot>`, and the edit is first saved to local/backups/."""
+        ctx = self.ctx
+        key = "builder" if self.self_mode else name  # the builder profile may be renamed; its role file is not
+        role = asset(ctx, self.key, "souls", f"{key}.md")
+        if not role:
+            return []
+        append = ctx.local / "squads" / self.key / "souls" / f"{key}.append.md"
+        want = compose_soul(ctx, role.read_text(encoding="utf-8"), _read(append) or None)
+        live, path, mark = _read(home / "SOUL.md"), home / "SOUL.md", home / SOUL_MARK
+        if want == live:
+            if exists and _read(mark).strip() != text_sha(want) and not self.dry:
+                write_text(mark, text_sha(want) + "\n")
+            return []
+        written = _read(mark).strip()
+        # Without a marker (installs before 2.2.0) a SOUL.md that ends with the role lines, or is the file the
+        # distribution ships, was written by squadctl or `hermes profile update`, not by the user.
+        ours = (not written and live.rstrip("\n").endswith(role.read_text(encoding="utf-8").rstrip("\n"))) or \
+            (self.self_mode and live == _read(ctx.src / "SOUL.md"))
+        edited = bool(live.strip()) and exists and text_sha(live) != written and not ours
+        if edited and f"soul:{name}" not in ctx.confirmed:
+            pending.append(f"soul:{name}: SOUL.md was edited outside squadctl. Keep the edit: move the added lines "
+                           f"to {append} (kept on every update). Replace it: --confirm soul:{name} (backup first)")
+            return []
+        if not self.dry:
+            if edited:
+                keep = ctx.local / "backups" / f"{name}-SOUL-{time.strftime('%Y%m%d-%H%M%S')}.md"
+                write_text(keep, live)
+                notes.append(f"previous SOUL.md saved to {keep}")
+            write_text(path, want)
+            write_text(mark, text_sha(want) + "\n")
+        return ["SOUL.md updated"]
 
     def describe(self, diff: list, created: bool) -> list[str]:
         """Key diff as action lines. A new profile gets one summary line; auxiliary.* keys sharing a change merge."""
@@ -1518,6 +1576,107 @@ def cmd_apply(ctx: Ctx, a: argparse.Namespace, force_dry: bool = False) -> int:
     return 0
 
 
+def running_cards(ctx: Ctx, board: str | None) -> int:
+    if not board:
+        return 0
+    out = ctx.hermes("kanban", "--board", board, "list", "--status", "running", "--json", check=False)
+    try:
+        cards = json.loads(out or "[]")
+    except ValueError:
+        return 0
+    if isinstance(cards, dict):
+        cards = cards.get("tasks") or cards.get("items") or []
+    return len(cards) if isinstance(cards, list) else 0
+
+
+def fill_missing_lanes(ctx: Ctx, models: dict, lanes: list[str], dry: bool) -> dict:
+    """Lanes a new version added: the advisor's first pick for each (the cheapest capable model of the user's own
+    providers), so an update never stops on `no model assigned`."""
+    if not lanes:
+        return {}
+    argv = [sys.executable, str(HERE / "model_advisor.py"), *[x for ln in lanes for x in ("--lane", ln)],
+            "--providers", "auto", "--json"]
+    env = {**os.environ, "HERMES_HOME": str(ctx.local.parent)}
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=300, env=env, stdin=subprocess.DEVNULL)
+        rows = json.loads(p.stdout).get("lanes") or []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        rows = []
+    picked = {r["lane"]: {k: r[k] for k in ("provider", "model", "reasoning") if r.get(k)} for r in rows
+              if r.get("lane") in lanes and r.get("provider") and r.get("model")}
+    if not dry:
+        models["lanes"].update(picked)
+    return picked
+
+
+def adopt_live_models(ctx: Ctx, spec: dict, models: dict) -> list[str]:
+    """A model the user switched outside squadctl (Desktop, `hermes model`) becomes that bot's pin, so the update
+    keeps it instead of reverting it."""
+    kept = []
+    for name, bot in spec["bots"].items():
+        cfg = (read_yaml(ctx.home(name) / "config.yaml") if ctx.home(name).is_dir() else None) or {}
+        live = cfg.get("model") if isinstance(cfg.get("model"), dict) else {}
+        want = model_for(models, bot["lane"], name)
+        if not live.get("default") or not want:
+            continue
+        if (live.get("provider"), live.get("default")) != (want["provider"], want["model"]):
+            effort = pa.current(cfg, "agent.reasoning_effort")
+            models["bots"][name] = {"provider": live.get("provider"), "model": live["default"],
+                                    **({"reasoning": effort} if effort else {})}
+            kept.append(f"{name}: {live['default']}")
+    return kept
+
+
+def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
+    """Bring the builder and every installed squad to this checkout's version, unattended and token-free. Keeps
+    learned skills, memories, `local/`, the user's model choices and SOUL edits (those stay pending). Skips a squad
+    whose board has running cards (the next run retries)."""
+    ctx.yes = True
+    installed, models = effective_models(ctx, None)
+    keys = ["builder", *sorted(k for k in installed["squads"] if k != "builder")]
+    report: dict = {"dry_run": a.dry_run, "applied": {}, "unchanged": [], "waiting": [], "pending": [],
+                    "lanes_added": {}, "models_kept": [], "errors": []}
+    specs = {}
+    for key in keys:
+        try:
+            specs[key] = load_spec(ctx, key)
+        except Fail as e:
+            report["errors"].append(f"{key}: {e}")
+    for key, spec in specs.items():
+        if key != "builder":
+            report["models_kept"] += adopt_live_models(ctx, spec, models)
+    missing = set()
+    for key, spec in specs.items():
+        ap = Applier(ctx, spec, models, True, False, key == "builder")
+        for name in live_bots(ctx, spec):
+            missing |= {m.split("lane ", 1)[1].split(" ", 1)[0] for m in ap.missing_models(name) if "lane " in m}
+    report["lanes_added"] = fill_missing_lanes(ctx, models, sorted(missing), a.dry_run)
+    if not a.dry_run and (report["lanes_added"] or report["models_kept"]):
+        write_yaml(ctx.local / "installed.yaml", save_models(installed, models))
+    for key, spec in specs.items():
+        busy = running_cards(ctx, (spec.get("board") or {}).get("slug")) if key != "builder" else 0
+        if busy:
+            report["waiting"].append(f"{key}: {busy} running card(s)")
+            continue
+        optional = [b for b, s in spec["bots"].items() if s.get("optional") and ctx.home(b).is_dir()]
+        args = argparse.Namespace(squad=None if key == "builder" else key, self_mode=key == "builder", bots=None,
+                                  with_bots=[",".join(optional)] if optional else None, models=None,
+                                  skip_skills=False, confirm=None, yes=True, dry_run=a.dry_run)
+        try:
+            out = run_apply(ctx, args, a.dry_run)
+        except Fail as e:
+            report["errors"].append(f"{key}: {e}")
+            continue
+        acts = sum(len(b.get("actions") or []) for b in out["bots"])
+        report["pending"] += [f"{b['bot']}: {p}" for b in out["bots"] for p in b.get("pending") or []]
+        if acts:
+            report["applied"][key] = {"version": spec["version"], "bots": len(out["bots"]), "actions": acts}
+        else:
+            report["unchanged"].append(key)
+    emit(ctx, report)
+    return 1 if report["errors"] else 0
+
+
 def cmd_status(ctx: Ctx, a: argparse.Namespace) -> int:
     installed, models = effective_models(ctx, None)
     keys = [a.squad] if a.squad else sorted(installed["squads"])
@@ -1877,6 +2036,11 @@ def build_parser() -> argparse.ArgumentParser:
     apply_args(sp)
     sp.add_argument("--dry-run", action="store_true", help="same as plan")
     sp.set_defaults(fn=cmd_apply)
+    sp = sub.add_parser("upgrade", parents=[common],
+                        help="unattended: apply this version to the builder and every installed squad, keeping local "
+                             "skills, memories, models and SOUL edits (run by scripts/auto_update.py)")
+    sp.add_argument("--dry-run", action="store_true", help="report what would change; write nothing")
+    sp.set_defaults(fn=cmd_upgrade)
     sp = sub.add_parser("status", parents=[common], help="installed squads against the live profiles")
     sp.add_argument("squad", nargs="?", help="squad key (default: every installed squad)")
     sp.set_defaults(fn=cmd_status)

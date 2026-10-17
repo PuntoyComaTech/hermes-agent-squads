@@ -1,6 +1,6 @@
 # The builder bot (squad-bot schema, squads/_schema/squad.schema.json). Applied by `scripts/squadctl apply --self`.
 # The profile itself comes from `hermes profile install`; apply --self sets the model and lanes (from
-# local/installed.yaml), skills, plugins, ui_meta and the builder-watch cron. No board: the builder files no cards.
+# local/installed.yaml), skills, plugins, ui_meta and the builder-update and builder-watch crons. No board: the builder files no cards.
 schema: 2
 key: builder
 name: Builder
@@ -23,8 +23,13 @@ bots:
     plugins: {enable: [disk-cleanup]}
     memory: true
     cron:
+      builder-update:
+        schedule: "30 6 * * *"
+        script: auto_update.py
+        agent: false
       builder-watch:
         schedule: "0 7 * * *"
         script: watch_upstream.py
+        args: [--skip-squads]
         agent: {lane: digest, skill: tracking-updates, reasoning: high}
-asks: ["set me up", "add a squad", "change a bot", "what changed upstream"]
+asks: ["set me up", "add a squad", "change a bot", "update yourself", "what changed upstream"]
