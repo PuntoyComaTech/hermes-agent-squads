@@ -12,8 +12,7 @@ Inputs
              values are never read out, printed or stored.
   models     <HERMES_HOME>/provider_models_cache.json ({slug: {fp, at, models[]}}); falls back to the models the
              detection call returned (providers such as nous have no cache entry).
-  lanes      scripts/data/model-roles.yaml, overridden per lane/family by <builder>/local/model-roles.yaml;
-             deprecated lane names (lead, design, code, advisor, copy) resolve through `alias_of`.
+  lanes      scripts/data/model-roles.yaml, overridden per lane/family by <builder>/local/model-roles.yaml.
   excluded   <builder>/local/providers-exclude.txt (one slug per line): those providers are detected and
              reported but never recommended.
 
@@ -303,32 +302,10 @@ class Advisor:
         self.quota_globs = list(roles.get("quota_limited") or [])
         self.fallback_spec = roles.get("fallback_chain") or {}
 
-    def resolve(self, lane: str) -> str:
-        """Follow alias_of (lead -> manager ...) to the live lane; cycle-safe."""
-        seen = set()
-        while True:
-            spec = self.lanes.get(lane)
-            if spec is None:
-                raise AdvisorError(f"unknown lane: {lane}")
-            target = spec.get("alias_of")
-            if not target:
-                return lane
-            if target in seen or target not in self.lanes:
-                raise AdvisorError(f"broken lane alias: {lane} -> {target}")
-            seen.add(lane)
-            lane = target
-
-    def real_lanes(self) -> list[str]:
-        """Lane names that are not aliases (the alias entries resolve to these)."""
-        return [name for name, spec in self.lanes.items() if not spec.get("alias_of")]
-
     def lane_spec(self, lane: str) -> dict:
-        """Effective lane spec: the canonical lane's, overlaid with any keys the requested (alias)
-        entry sets itself, so a local override of an old lane name wins over its alias target."""
-        real = self.resolve(lane)
-        spec = dict(self.lanes[real])
-        if real != lane:
-            spec.update({k: v for k, v in self.lanes[lane].items() if k != "alias_of"})
+        spec = self.lanes.get(lane)
+        if not isinstance(spec, dict) or "candidates" not in spec:
+            raise AdvisorError(f"unknown lane: {lane}")
         return spec
 
     def family_of(self, slug: str) -> str | None:
@@ -363,7 +340,6 @@ class Advisor:
         return {"model": best[1], "provider": best[2], "family": self.family_of(best[2]), "reasoning": reasoning}
 
     def pick(self, lane: str, avoid: dict[str, int] | None = None, _depth: int = 0) -> dict:
-        real = self.resolve(lane)
         spec = self.lane_spec(lane)
         default = spec["reasoning"]
         cands = list(spec["candidates"])
@@ -373,7 +349,7 @@ class Advisor:
             order.sort(key=lambda i: avoid.get(cands[i]["family"], 0))
         hits = [(i, h) for i in order for h in self.candidate_hits(cands[i], default)]
         why = str(spec.get("why", "")).split(";")[0].strip()
-        shown = f"{lane} lane" + (f" (alias of {real})" if real != lane else "")
+        shown = f"{lane} lane"
         if hits:
             idx, best = hits[0]
             reason = f"{shown}, candidate {idx + 1}/{total} ({best['family']}): {why}"
@@ -382,7 +358,7 @@ class Advisor:
             return {"lane": lane, **best, "alternatives": self.alternatives(hits), "reason": reason}
         mode = spec.get("fallback", "cheapest")
         best = None
-        if mode == "first-choice-provider" and real != "manager" and _depth == 0:
+        if mode == "first-choice-provider" and lane != "manager" and _depth == 0:
             lead = self.pick("manager", _depth=1)
             best = {k: lead[k] for k in ("model", "provider", "family")} | {"reasoning": default}
             mode = "manager pick"
@@ -492,15 +468,15 @@ def bot_extras(doc: dict, name: str, bot: dict) -> list[tuple[str, str]]:
 def advise_squad(adv: Advisor, doc: dict) -> dict:
     bots = doc["bots"]
     producers = {n: adv.pick(b["lane"]) for n, b in bots.items()
-                 if adv.resolve(b["lane"]) != "review" and b.get("role") not in ("manager", "lead")}
+                 if b["lane"] != "review" and b.get("role") != "manager"}
     if not producers:
-        producers = {n: adv.pick(b["lane"]) for n, b in bots.items() if adv.resolve(b["lane"]) != "review"}
+        producers = {n: adv.pick(b["lane"]) for n, b in bots.items() if b["lane"] != "review"}
     avoid: dict[str, int] = {}
     for p in producers.values():
         avoid[p["family"]] = avoid.get(p["family"], 0) + 1
 
     def pick(lane: str) -> dict:
-        return adv.pick(lane, avoid) if adv.resolve(lane) == "review" else adv.pick(lane)
+        return adv.pick(lane, avoid) if lane == "review" else adv.pick(lane)
 
     out = []
     for name, bot in bots.items():
@@ -593,7 +569,7 @@ def run(args: argparse.Namespace) -> dict:
                       "report": report, "excluded": [s for s in slugs if s in excluded]},
         "squads": [advise_squad(adv, load_yaml(find_squad(ref))) for ref in args.squads],
     }
-    lanes = args.lane or ([] if args.squads else adv.real_lanes())
+    lanes = args.lane or ([] if args.squads else list(adv.lanes))
     avoid = None
     if args.producer_lane:
         avoid = {}

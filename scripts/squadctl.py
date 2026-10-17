@@ -34,11 +34,17 @@ AUX_TASKS = ("title_generation", "goal_judge", "curator", "compression", "kanban
 # Toolsets this tool switches on or off. kanban, skills, terminal and file are never put in disabled_toolsets: it
 # overrides everything, including the kanban tools the dispatcher gives workers.
 MANAGED = {"web", "browser", "vision", "video", "image_gen", "video_gen", "delegation", "memory", "session_search",
-           "clarify", "cronjob", "connections", "todo", "code_execution"}
-# Every bot gets the toolsets the default Hermes profile works with; a manifest adds to them. A worker may `withhold`
-# one of the WITHHOLDABLE ones for a permission boundary; a manager never does (it routes and checks everything).
-BASE_TOOLSETS = ["file", "skills", "kanban", "todo", "terminal", "web", "delegation", "session_search", "code_execution"]
-MANAGER_TOOLSETS = ["clarify", "vision", "browser", "cronjob"]
+           "clarify", "cronjob", "connections", "todo", "code_execution", "tts", "computer_use"}
+# Base toolsets of a squad bot = what the installed Hermes gives a fresh default profile on `cli`
+# (hermes_cli.tools_config._get_platform_tools({}, "cli"), Ctx.default_toolsets), minus always-disabled, minus
+# OPT_IN, minus `memory` (follows the manifest's `memory:`), plus `kanban` (default-off in Hermes; the board is how
+# squad bots work). OPT_IN only make sense with a person at the machine or a paid backend, the same set Hermes drops
+# from its unattended bundles (toolsets.py _CODING_TOOLS and hermes-api-server drop image_generate, text_to_speech,
+# computer_use; connections is gated by a portal account): a manifest lists them when a bot needs them.
+OPT_IN = {"image_gen", "tts", "computer_use", "connections"}
+# Workers run as Kanban cards with nobody to ask: clarify, vision, browser and cron are manager base only (a worker
+# manifest adds them). A worker may `withhold` a WITHHOLDABLE toolset for a permission boundary; a manager never does.
+MANAGER_ONLY = {"clarify", "vision", "browser", "cronjob"}
 WITHHOLDABLE = {"terminal", "web", "delegation", "session_search", "code_execution"}
 # delegate_task children of a bot run on this lane unless the manifest names another (`delegation: {lane: ...}`).
 DEFAULT_DELEGATION_LANE = "research"
@@ -207,6 +213,8 @@ class Ctx:
         self.builder = a.builder
         self.json = a.json
         self._runtime: tuple[str, str] | None = None
+        self._identity: str | None = None
+        self._defaults: set[str] | None = None
         self._vision: dict[tuple[str, str], bool] = {}
         self._env_keys: dict[str, list[str]] = {}
         self.confirmed = set(getattr(a, "confirm", None) or [])
@@ -243,23 +251,37 @@ class Ctx:
             self._runtime = (argv[0], root.group(1))
         return self._runtime
 
+    def in_runtime(self, what: str, code: str) -> str:
+        """stdout of `code` run by the installed Hermes's interpreter with its source tree importable. A failure is
+        a Fail naming `what`: these facts come only from the runtime, never from a copy kept here."""
+        py, hroot = self.runtime()
+        boot = "import sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; import hermes_bootstrap; " % hroot
+        try:
+            p = subprocess.run([py, "-I", "-c", boot + code], capture_output=True, text=True, timeout=120,
+                               stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise Fail(f"cannot read {what} from the installed Hermes: {exc}") from None
+        if p.returncode != 0 or not p.stdout.strip():
+            raise Fail(f"cannot read {what} from the installed Hermes: {(p.stderr or '').strip()[-300:]}")
+        return p.stdout
+
     def default_identity(self) -> str:
         """DEFAULT_AGENT_IDENTITY of the installed Hermes (agent/prompt_builder.py): the identity the default profile
-        runs with. Read from the runtime on every apply, so a Hermes update reaches every bot's SOUL.md."""
-        if getattr(self, "_identity", None) is None:
-            py, hroot = self.runtime()
-            code = ("import sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; import hermes_bootstrap; "
-                    "from agent.prompt_builder import DEFAULT_AGENT_IDENTITY as d; sys.stdout.write(d)") % hroot
-            try:
-                p = subprocess.run([py, "-I", "-c", code], capture_output=True, text=True, timeout=120,
-                                   stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
-            except (OSError, subprocess.SubprocessError) as exc:
-                raise Fail(f"cannot read Hermes's default identity: {exc}") from None
-            if p.returncode != 0 or not p.stdout.strip():
-                raise Fail("cannot read DEFAULT_AGENT_IDENTITY from the installed Hermes "
-                           f"(agent/prompt_builder.py): {(p.stderr or '').strip()[-300:]}")
-            self._identity = p.stdout.strip()
+        runs with. Read on every apply, so a Hermes update reaches every bot's SOUL.md."""
+        if self._identity is None:
+            self._identity = self.in_runtime("DEFAULT_AGENT_IDENTITY (agent/prompt_builder.py)", (
+                "from agent.prompt_builder import DEFAULT_AGENT_IDENTITY as d; sys.stdout.write(d)")).strip()
         return self._identity
+
+    def default_toolsets(self) -> set[str]:
+        """Toolsets a fresh default profile gets on `cli` in the installed Hermes (tools_config._get_platform_tools
+        with an empty config, no MCP servers)."""
+        if self._defaults is None:
+            out = self.in_runtime("the default cli toolsets (hermes_cli.tools_config)", (
+                "import json; from hermes_cli.tools_config import _get_platform_tools as g; "
+                "print(json.dumps(sorted(g({}, 'cli', include_default_mcp_servers=False))))"))
+            self._defaults = set(json.loads(out.strip().splitlines()[-1]))
+        return self._defaults
 
     def sees_images(self, provider: str, model: str) -> bool:
         """True when Hermes routes images to this model natively (agent.image_routing, `auto` mode, no
@@ -440,8 +462,6 @@ def load_spec(ctx: Ctx, key: str) -> dict:
 
 def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
     """Cross-field rules of the schema; the full JSON schema runs when jsonschema exists."""
-    if "lead" in spec and "manager" not in spec:
-        return ["field 'lead' was renamed to 'manager': update the manifest and the bot roles"]
     out: list[str] = []
     try:
         import jsonschema
@@ -500,12 +520,17 @@ def memory_on(bot: dict) -> bool:
     return bot.get("memory", True) is not False
 
 
-def bot_toolsets(bot: dict) -> list[str]:
+def base_toolsets(ctx: "Ctx", role: str) -> list[str]:
+    """The role's base toolsets, derived from the installed Hermes's default profile (see OPT_IN)."""
+    base = (ctx.default_toolsets() - set(load_always_disabled()) - OPT_IN - {"memory"}) | {"kanban"}
+    return sorted(base if role == "manager" else base - MANAGER_ONLY)
+
+
+def bot_toolsets(ctx: "Ctx", bot: dict) -> list[str]:
     """Base toolsets of the role, minus a worker's `withhold`, plus the manifest toolsets, plus `memory` when
     memory is on (without the toolset the bot cannot write it)."""
-    base = BASE_TOOLSETS + (MANAGER_TOOLSETS if bot.get("role") == "manager" else [])
     held = set() if bot.get("role") == "manager" else set(bot.get("withhold") or [])
-    out = [t for t in base if t not in held]
+    out = [t for t in base_toolsets(ctx, str(bot.get("role"))) if t not in held]
     out += [t for t in bot["toolsets"] if t not in out]
     return out + ["memory"] if memory_on(bot) and "memory" not in out else out
 
@@ -523,7 +548,7 @@ def compose_soul(ctx: "Ctx", role_text: str, append: str | None = None) -> str:
     """SOUL.md of a squad bot, in order: the installed Hermes's own default identity (a profile SOUL.md replaces it,
     so it is copied from the running Hermes, never written here), the squad harness facts, the bot's role lines,
     then the user's `local/squads/<key>/souls/<bot>.append.md`."""
-    base = (SRC / BASE_SOUL).read_text(encoding="utf-8").rstrip("\n")
+    base = (ctx.src / BASE_SOUL).read_text(encoding="utf-8").rstrip("\n")
     parts = [ctx.default_identity(), base, role_text.rstrip("\n"), (append or "").rstrip("\n")]
     return "\n\n".join(p for p in parts if p) + "\n"
 
@@ -715,40 +740,30 @@ def keep_hub_name(ident: str) -> str | None:
     return rest.rsplit("/", 1)[-1] if kind in ("hub", "official") else None
 
 
-def prune_skills(home: Path, keep: set[str], dry: bool, src_roots: tuple[Path, ...] = ()) -> tuple[list[str], list[str]]:
+def prune_skills(home: Path, keep: set[str], dry: bool) -> tuple[list[str], list[str]]:
     """(removed, learned) skill paths of one profile.
 
-    Only what apply installed is ever removed: a path in OWNED_FILE, a dir carrying SHA_MARK (squad skills copied
-    by any earlier apply) or a symlink into a squad source (`src_roots`). Everything else outside `keep` and the
-    hub lock is `learned` (written by the bot with skill_manage, or by the user) and stays."""
+    Only what apply installed (OWNED_FILE) is ever removed. Everything else outside `keep` and the hub lock is
+    `learned` (written by the bot with skill_manage, or by the user) and stays."""
     skills = home / "skills"
     if not skills.is_dir():
         return [], []
-    lock = skills / ".hub" / "lock.json"
-    keep = keep | (set((json.loads(lock.read_text()).get("installed") or {}) if lock.is_file() else ()))
+    keep = keep | hub_lock(home)
     owned = read_owned(home)
     removed: list[str] = []
     learned: list[str] = []
     for entry in sorted(skills.iterdir()):
-        if entry.name.startswith("."):
+        if entry.name.startswith(".") or not entry.is_dir():
             continue
         if entry.is_symlink():
-            target = entry.resolve()
-            if entry.name in owned or any(r in target.parents or r == target for r in src_roots):
-                removed.append(entry.name)
-                if not dry:
-                    entry.unlink()
-            else:
-                learned.append(entry.name)
-            continue
-        if not entry.is_dir():
+            learned.append(entry.name)
             continue
         children = [entry] if (entry / "SKILL.md").is_file() else [c for c in entry.iterdir() if c.is_dir()]
         for child in children:
             if child.name in keep or child.name.startswith("."):
                 continue
             rel = entry.name if child == entry else f"{entry.name}/{child.name}"
-            if rel not in owned and not (child / SHA_MARK).is_file():
+            if rel not in owned:
                 learned.append(rel)
                 continue
             removed.append(rel)
@@ -901,7 +916,7 @@ class Applier:
     def config_plan(self, name: str, bot: dict, extra_dirs: list[str], notes: list[str],
                     live: dict | None = None) -> list:
         d, home = self.defaults, self.ctx.home(name)
-        toolsets = bot_toolsets(bot)
+        toolsets = bot_toolsets(self.ctx, bot)
         plan: list = []
         m = self.bot_model(name, bot)
         if m:
@@ -1055,7 +1070,7 @@ class Applier:
             if not dry:
                 ctx.apply_config(home, {"set": sets, "ui_meta_bots": meta})
                 if any(k == "platform_toolsets.cli" for k, *_ in diff) or created:
-                    out = ctx.hermes("tools", "enable", *bot_toolsets(bot), profile=name)
+                    out = ctx.hermes("tools", "enable", *bot_toolsets(ctx, bot), profile=name)
                     # Hermes prints one "Unknown toolset 'x'" (or "not available on platform") line per rejected
                     # name and still exits 0: the bot would silently lack the tool.
                     bad = re.findall(r"(?:Unknown toolset|Toolset) '([^']+)'", out)
@@ -1129,11 +1144,10 @@ class Applier:
                 write_text(mark, text_sha(want) + "\n")
             return []
         written = _read(mark).strip()
-        # Without a marker (installs before 2.2.0) a SOUL.md that ends with the role lines, or is the file the
-        # distribution ships, was written by squadctl or `hermes profile update`, not by the user.
-        ours = (not written and live.rstrip("\n").endswith(role.read_text(encoding="utf-8").rstrip("\n"))) or \
-            (self.self_mode and live == _read(ctx.src / "SOUL.md"))
-        edited = bool(live.strip()) and exists and text_sha(live) != written and not ours
+        # No marker: squadctl never wrote this SOUL.md (a new profile, Hermes's seeded default): it is replaced.
+        # The builder's SOUL.md as `hermes profile update` ships it is the distribution's, not a user edit.
+        shipped = self.self_mode and live == _read(ctx.src / "SOUL.md")
+        edited = bool(written and live.strip()) and text_sha(live) != written and not shipped
         if edited and f"soul:{name}" not in ctx.confirmed:
             pending.append(f"soul:{name}: SOUL.md was edited outside squadctl. Keep the edit: move the added lines "
                            f"to {append} (kept on every update). Replace it: --confirm soul:{name} (backup first)")
@@ -1181,13 +1195,12 @@ class Applier:
         keep = {"hermes-agent", *squad} | {i.rsplit("/", 1)[-1] for _, k, i in keeps if k in ("hub", "local")}
         keep |= {Path(i).name for _, k, i in keeps if k == "dir"}
         if not self.self_mode and existed:
-            roots = tuple(d.resolve() for d in squad_dirs(ctx, self.key))
-            removed, learned = prune_skills(home, keep, True, roots)
+            removed, learned = prune_skills(home, keep, True)
             if removed:
                 acts.append(f"skills removed: {len(removed)} ({', '.join(removed[:6])}{'...' if len(removed) > 6 else ''})")
                 if not dry:
                     self.backup(name)
-                    prune_skills(home, keep, False, roots)
+                    prune_skills(home, keep, False)
         dest_root = home / "skills" if self.self_mode else home / "skills" / f"squad-{self.key}"
         if not self.self_mode and not dry:
             owned = {f"squad-{self.key}/{s}" for s in squad}
@@ -1514,12 +1527,14 @@ def save_models(installed: dict, models: dict) -> dict:
     return out
 
 
-def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
+def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool, models: dict | None = None) -> dict:
+    """One squad's apply. `models` (upgrade) replaces the models read from installed.yaml and --models."""
     if bool(a.squad) == bool(a.self_mode):
         raise Fail("give a squad key or --self")
     key = "builder" if a.self_mode else a.squad
     spec = load_spec(ctx, key)
-    installed, models = effective_models(ctx, a.models)
+    installed, read = effective_models(ctx, a.models)
+    models = models or read
     if not dry:
         ver = hermes_version(ctx)
         if ver and not version_ok(spec.get("hermes_requires", ""), ver):
@@ -1563,7 +1578,7 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool) -> dict:
             write_yaml(ctx.local / "installed.yaml", new)
     rows = [{k: v for k, v in b.items() if v or k in ("bot", "status")} for b in bots]
     out = {"squad": key, "dry_run": dry, "board": board, "summary": counts, "bots": rows}
-    if any("browser" in bot_toolsets(spec["bots"][n]) for n in names):
+    if any("browser" in bot_toolsets(ctx, spec["bots"][n]) for n in names):
         out["browser"] = ensure_browser(ctx, dry)
     skipped = [b for b in optional if b not in names]
     if skipped:
@@ -1589,19 +1604,22 @@ def running_cards(ctx: Ctx, board: str | None) -> int:
     return len(cards) if isinstance(cards, list) else 0
 
 
-def fill_missing_lanes(ctx: Ctx, models: dict, lanes: list[str], dry: bool) -> dict:
-    """Lanes a new version added: the advisor's first pick for each (the cheapest capable model of the user's own
-    providers), so an update never stops on `no model assigned`."""
-    if not lanes:
-        return {}
+def advisor_lanes(ctx: Ctx, lanes: list[str]) -> list[dict]:
+    """`model_advisor.py --lane ... --json` picks (`lanes` rows) from the user's own authenticated providers."""
     argv = [sys.executable, str(HERE / "model_advisor.py"), *[x for ln in lanes for x in ("--lane", ln)],
             "--providers", "auto", "--json"]
     env = {**os.environ, "HERMES_HOME": str(ctx.local.parent)}
     try:
         p = subprocess.run(argv, capture_output=True, text=True, timeout=300, env=env, stdin=subprocess.DEVNULL)
-        rows = json.loads(p.stdout).get("lanes") or []
+        return json.loads(p.stdout).get("lanes") or []
     except (OSError, subprocess.SubprocessError, ValueError):
-        rows = []
+        return []
+
+
+def fill_missing_lanes(ctx: Ctx, models: dict, lanes: list[str], dry: bool) -> dict:
+    """Lanes a new version added: the advisor's first pick for each, so an update never stops on
+    `no model assigned`."""
+    rows = advisor_lanes(ctx, lanes) if lanes else []
     picked = {r["lane"]: {k: r[k] for k in ("provider", "model", "reasoning") if r.get(k)} for r in rows
               if r.get("lane") in lanes and r.get("provider") and r.get("model")}
     if not dry:
@@ -1617,7 +1635,7 @@ def adopt_live_models(ctx: Ctx, spec: dict, models: dict) -> list[str]:
         cfg = (read_yaml(ctx.home(name) / "config.yaml") if ctx.home(name).is_dir() else None) or {}
         live = cfg.get("model") if isinstance(cfg.get("model"), dict) else {}
         want = model_for(models, bot["lane"], name)
-        if not live.get("default") or not want:
+        if not live.get("provider") or not live.get("default") or not want:
             continue
         if (live.get("provider"), live.get("default")) != (want["provider"], want["model"]):
             effort = pa.current(cfg, "agent.reasoning_effort")
@@ -1630,10 +1648,11 @@ def adopt_live_models(ctx: Ctx, spec: dict, models: dict) -> list[str]:
 def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
     """Bring the builder and every installed squad to this checkout's version, unattended and token-free. Keeps
     learned skills, memories, `local/`, the user's model choices and SOUL edits (those stay pending). Skips a squad
-    whose board has running cards (the next run retries)."""
-    ctx.yes = True
+    whose board has running cards (the next run retries). A provider key held only by the root stays a note: copying
+    it needs the owner's `apply --yes`."""
     installed, models = effective_models(ctx, None)
-    keys = ["builder", *sorted(k for k in installed["squads"] if k != "builder")]
+    keys = ["builder"] if ctx.home(ctx.builder).is_dir() else []
+    keys += sorted(k for k in installed["squads"] if k != "builder")
     report: dict = {"dry_run": a.dry_run, "applied": {}, "unchanged": [], "waiting": [], "pending": [],
                     "lanes_added": {}, "models_kept": [], "errors": []}
     specs = {}
@@ -1642,14 +1661,13 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
             specs[key] = load_spec(ctx, key)
         except Fail as e:
             report["errors"].append(f"{key}: {e}")
-    for key, spec in specs.items():
-        if key != "builder":
-            report["models_kept"] += adopt_live_models(ctx, spec, models)
+    for spec in specs.values():
+        report["models_kept"] += adopt_live_models(ctx, spec, models)
     missing = set()
     for key, spec in specs.items():
         ap = Applier(ctx, spec, models, True, False, key == "builder")
         for name in live_bots(ctx, spec):
-            missing |= {m.split("lane ", 1)[1].split(" ", 1)[0] for m in ap.missing_models(name) if "lane " in m}
+            missing |= {ln for m in ap.missing_models(name) for ln in re.findall(r"lane ([a-z0-9][a-z0-9-]*)", m)}
     report["lanes_added"] = fill_missing_lanes(ctx, models, sorted(missing), a.dry_run)
     if not a.dry_run and (report["lanes_added"] or report["models_kept"]):
         write_yaml(ctx.local / "installed.yaml", save_models(installed, models))
@@ -1661,16 +1679,17 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
         optional = [b for b, s in spec["bots"].items() if s.get("optional") and ctx.home(b).is_dir()]
         args = argparse.Namespace(squad=None if key == "builder" else key, self_mode=key == "builder", bots=None,
                                   with_bots=[",".join(optional)] if optional else None, models=None,
-                                  skip_skills=False, confirm=None, yes=True, dry_run=a.dry_run)
+                                  skip_skills=False, confirm=None, yes=False, dry_run=a.dry_run)
         try:
-            out = run_apply(ctx, args, a.dry_run)
+            out = run_apply(ctx, args, a.dry_run, models)
         except Fail as e:
             report["errors"].append(f"{key}: {e}")
             continue
-        acts = sum(len(b.get("actions") or []) for b in out["bots"])
+        changed = [b for b in out["bots"] if b.get("actions")]
         report["pending"] += [f"{b['bot']}: {p}" for b in out["bots"] for p in b.get("pending") or []]
-        if acts:
-            report["applied"][key] = {"version": spec["version"], "bots": len(out["bots"]), "actions": acts}
+        if changed:
+            report["applied"][key] = {"version": spec["version"], "bots": len(changed),
+                                      "actions": sum(len(b["actions"]) for b in changed)}
         else:
             report["unchanged"].append(key)
     emit(ctx, report)
@@ -1773,7 +1792,7 @@ def ensure_browser(ctx: Ctx, dry: bool) -> str:
 
 def web_check(ctx: Ctx, name: str, bot: dict) -> dict:
     """`web_search` needs the web toolset and a backend: a configured one, or the keyless free tier (on by default)."""
-    if "web" not in bot_toolsets(bot):
+    if "web" not in bot_toolsets(ctx, bot):
         return check(f"{name}:web", "info", "web withheld by the manifest")
     cfg = read_yaml(ctx.home(name) / "config.yaml") or {}
     disabled = set(pa.current(cfg, "agent.disabled_toolsets") or [])

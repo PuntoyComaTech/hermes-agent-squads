@@ -15,12 +15,13 @@
 
 ## Squad usage
 
-- Every bot starts from the toolsets the default Hermes profile works with
-  (`scripts/squadctl.py` -> `BASE_TOOLSETS`: file, skills, kanban, todo,
-  terminal, web, delegation, session_search, code_execution); the manager also
-  gets `MANAGER_TOOLSETS` (clarify, vision, browser, cronjob). `toolsets:` in a
-  manifest adds to that base; a worker drops a base toolset only with
-  `withhold:` for a permission boundary. A manager never withholds.
+- Every bot starts from the toolsets the installed Hermes gives a fresh
+  default profile (`squadctl.py` -> `base_toolsets`, read from the runtime),
+  minus `always_disabled`, minus `OPT_IN` (image_gen, tts, computer_use,
+  connections), plus kanban. Workers also lose `MANAGER_ONLY` (clarify,
+  vision, browser, cronjob). `toolsets:` in a manifest adds to that base; a
+  worker drops a base toolset only with `withhold:` for a permission
+  boundary. A manager never withholds.
 - `agent.disabled_toolsets` = `always_disabled + (MANAGED - bot toolsets)`.
   `always_disabled` never shares a tool with the base: `search` is
   `web_search`, so disabling it removes web search even when `web` is on.

@@ -246,7 +246,8 @@ def main():
                     store.write_text(json.dumps(cards))
                 print(json.dumps({"id": cards[key]["id"]}))
             else:
-                print(json.dumps(list(cards.values())))
+                status = opt("--status")
+                print(json.dumps([c for c in cards.values() if not status or c.get("status") == status]))
             return
         assert rest[0] == "boards", rest
         sub, args = rest[1], rest[2:]

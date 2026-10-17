@@ -21,6 +21,7 @@ bots:
     cron:
       jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
       jobs-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
+      jobs-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
   jobs-scout:
     role: worker
     title: Jobs scout
@@ -34,7 +35,7 @@ bots:
     role: worker
     title: Jobs writer
     description: "CV, letter and answers from verified achievements; renders PDF and DOCX"
-    lane: copy
+    lane: manager
     toolsets: [file, skills, kanban, todo, terminal]
     withhold: [web]
     skills:
@@ -53,7 +54,7 @@ bots:
     role: worker
     title: Jobs applier
     description: "Submits simple forms only after the user's apply; otherwise prepares a manual kit"
-    lane: copy
+    lane: manager
     toolsets: [file, skills, kanban, todo, browser]
     skills: {squad: [submitting-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}

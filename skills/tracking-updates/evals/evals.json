@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "One digest item says a config key changed. Apply it to the web squad.",
-      "expected_output": "Proposes the change first (vX adds Y; apply?), then on OK writes the overlay and runs plan -> apply, or suggests hermes profile update builder for a new distribution version.",
+      "expected_output": "Proposes the change first (vX adds Y; apply?), then on OK writes the overlay and runs plan -> apply.",
       "files": []
     }
   ]

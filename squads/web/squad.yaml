@@ -21,6 +21,7 @@ bots:
     memory: true
     cron:
       web-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
+      web-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
   web-frontend:
     role: worker
     title: Web frontend

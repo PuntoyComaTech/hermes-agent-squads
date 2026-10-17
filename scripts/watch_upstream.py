@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Daily upstream gate for the builder: zero LLM tokens unless something changed.
 
-Checks three signals and prints ONE cron gate line (last stdout line, see gate_lib.py):
+Checks two signals and prints ONE cron gate line (last stdout line, see gate_lib.py):
   {"wakeAgent": false}                          nothing new, the tick ends
   {"wakeAgent": true, "context": {...}}         the digest agent runs on the filtered files
 
@@ -9,8 +9,7 @@ Signals:
   1. Hermes releases: GitHub releases API with a stored ETag (unchanged list = HTTP 304, no body),
      releases.atom as fallback. Only final vX.Y.Z tags count; rc.*, +canary and calver tags are skipped.
   2. Local Hermes: `hermes --version` differs from the last reviewed version.
-  3. Squads repo: `distribution.yaml` on --squads-ref (default HEAD, the branch `hermes profile update` clones)
-     has a version other than the installed and the last reviewed one.
+The squads repo is not watched here: cron builder-update (scripts/auto_update.py) applies it with no agent.
 
 On a change the full release bodies go to <state>/releases/<tag>.md and a keyword-filtered copy
 (profile, skill, kanban, cron, plugin, MCP, goal, delegation, memory, credentials, deprecations, config keys ...)
@@ -20,7 +19,7 @@ run is capped at --max-chars (default 15000) in total; priority bullets over the
 (listed in `context.overflow`), never dropped.
 
 State: $HERMES_HOME/local/state/watch.json (override with --state-dir). First run seeds the baseline from the
-local Hermes and the installed squads version. A wake only marks the change `pending`: it becomes `reviewed` once a
+local Hermes. A wake only marks the change `pending`: it becomes `reviewed` once a
 digest file (<state>/digests/*.json, skill tracking-updates) is newer than the wake, so a failed digest turn wakes
 the agent again on the next run. Use --dry-run to check without writing state or files.
 """
@@ -45,9 +44,6 @@ import gate_lib  # noqa: E402
 
 RELEASES_URL = "https://api.github.com/repos/NousResearch/hermes-agent/releases?per_page=5"
 ATOM_URL = "https://github.com/NousResearch/hermes-agent/releases.atom"
-SQUADS_RAW = "https://raw.githubusercontent.com/PuntoyComaTech/hermes-agent-squads"
-# `hermes profile update` re-clones the default branch (`git clone --depth 1`, no ref), so HEAD is what an update installs.
-SQUADS_REF = "HEAD"
 FINAL_TAG = re.compile(r"^v(\d{1,3})\.(\d+)\.(\d+)$")  # v0.22.1; calver (v2026.9.24), rc.N-v0.22.1, +canary excluded
 MAX_NEW_RELEASES = 3
 ERROR_WAKE_AFTER = 3  # consecutive failed runs before a silent gate wakes the agent with the error
@@ -276,7 +272,7 @@ def filter_release(body: str, tag: str, max_chars: int) -> tuple[str, str]:
     return out, overflow
 
 
-# --- local and squads signals -----------------------------------------------------------------------------------
+# --- local signal ------------------------------------------------------------------------------------------------
 
 def local_hermes_version(hermes_bin: str) -> str | None:
     try:
@@ -287,47 +283,10 @@ def local_hermes_version(hermes_bin: str) -> str | None:
     return match.group(1) if match else None
 
 
-def manifest_version(text: str) -> str | None:
-    match = re.search(r"^version:\s*[\"']?(\d+\.\d+\.\d+[^\s\"']*)", text, re.M)
-    return match.group(1) if match else None
-
-
 def base_version(version: str | None) -> str | None:
     """A git install reports `0.22.0+2.gd97007c`; only the release part is a change, so a build bump
     (every `hermes update`) never wakes the digest agent."""
     return version.split("+")[0] if version else version
-
-
-def installed_squads_version(home: Path) -> str | None:
-    try:
-        return manifest_version((home / "distribution.yaml").read_text())
-    except OSError:
-        return None
-
-
-def squads_base(opts) -> str:
-    return f"{opts.squads_url.rstrip('/')}/{opts.squads_ref}"
-
-
-def remote_squads_version(opts) -> str | None:
-    status, _, body = http_get(f"{squads_base(opts)}/distribution.yaml", {}, opts.timeout)
-    if status == 404:
-        return None  # not published yet
-    if status != 200:
-        raise RuntimeError(f"squads distribution.yaml HTTP {status}")
-    return manifest_version(body.decode("utf-8", "replace"))
-
-
-def changelog_excerpt(opts, version: str, limit: int = 1500) -> str:
-    try:
-        status, _, body = http_get(f"{squads_base(opts)}/CHANGELOG.md", {}, opts.timeout)
-    except OSError:
-        return ""
-    if status != 200:
-        return ""
-    text = body.decode("utf-8", "replace")
-    match = re.search(rf"^##[^\n]*\b{re.escape(version)}\b[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-    return (match.group(0) if match else text)[:limit].strip()
 
 
 # --- run --------------------------------------------------------------------------------------------------------
@@ -348,13 +307,6 @@ def run(opts) -> dict:
         state["reviewed"] = pending.get("reviewed") or state.get("reviewed")
 
     local = opts.hermes_version or local_hermes_version(opts.hermes_bin)
-    installed_sq = installed_squads_version(Path(opts.home))
-    remote_sq = None
-    if not opts.skip_squads:
-        try:
-            remote_sq = remote_squads_version(opts)
-        except (OSError, RuntimeError) as exc:
-            errors = [*errors, f"squads: {exc}"[:200]]
     rel = {"source": None, "releases": [], "etag": state.get("etag"), "not_modified": False}
     try:
         rel = fetch_releases(opts, state)
@@ -367,7 +319,6 @@ def run(opts) -> dict:
     reviewed = state.get("reviewed") or {
         "release": f"v{local.split('+')[0]}" if local else newest,
         "hermes": local,
-        "squads": installed_sq,
     }
     seen, ahead = reviewed.get("release"), version_tuple(newest)
     is_newer = bool(newest and newest != seen and (not version_tuple(seen) or (ahead and ahead > version_tuple(seen))))
@@ -381,7 +332,6 @@ def run(opts) -> dict:
     changes = {
         "release": bool(fresh),
         "hermes": bool(local and base_version(local) != base_version(reviewed.get("hermes"))),
-        "squads": bool(remote_sq and installed_sq and remote_sq != installed_sq and remote_sq != reviewed.get("squads")),
     }
     wake = any(changes.values())
 
@@ -415,8 +365,6 @@ def run(opts) -> dict:
         context["release_files"] = files
     if changes["hermes"]:
         context["hermes"] = {"from": reviewed.get("hermes"), "to": local}
-    if changes["squads"]:
-        context["squads"] = {"from": installed_sq, "to": remote_sq, "changelog_excerpt": changelog_excerpt(opts, remote_sq)}
 
     error_count = 0 if (wake or not errors) else int(state.get("error_count", 0)) + 1
     if errors and not wake and error_count >= ERROR_WAKE_AFTER:
@@ -428,7 +376,6 @@ def run(opts) -> dict:
     advanced = {
         "release": newest if changes["release"] else reviewed.get("release"),
         "hermes": local or reviewed.get("hermes"),
-        "squads": remote_sq if changes["squads"] else reviewed.get("squads"),
     }
     now = int(time.time())
     new_state = {
@@ -445,7 +392,7 @@ def run(opts) -> dict:
     if not opts.dry_run:
         gate_lib.save_state("watch", new_state, sdir)
     report = {"wake": wake, "source": rel["source"], "not_modified": rel["not_modified"], "newest": newest,
-              "reviewed": reviewed, "pending": new_state.get("pending"), "local": local, "squads_installed": installed_sq, "squads_remote": remote_sq,
+              "reviewed": reviewed, "pending": new_state.get("pending"), "local": local,
               "changes": changes, "errors": errors, "first_run": first_run, "dry_run": opts.dry_run}
     return {"wake": wake, "context": context, "report": report}
 
@@ -463,10 +410,6 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--hermes-version", help="use this local version instead of running `hermes --version`")
     ap.add_argument("--releases-url", default=RELEASES_URL, help="GitHub releases API URL (tests)")
     ap.add_argument("--atom-url", default=ATOM_URL, help="releases.atom fallback URL (tests)")
-    ap.add_argument("--squads-url", default=SQUADS_RAW, help="raw base URL of the squads repo, without the ref")
-    ap.add_argument("--squads-ref", default=SQUADS_REF, help="branch or tag to compare (default HEAD, the default branch)")
-    ap.add_argument("--skip-squads", action="store_true",
-                    help="ignore the squads repo (cron builder-update applies it without an agent)")
     ap.add_argument("--max-chars", type=int, default=15000, help="cap for the filtered output of one run")
     ap.add_argument("--timeout", type=int, default=20, help="HTTP timeout in seconds (default 20)")
     return ap

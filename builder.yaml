@@ -30,6 +30,5 @@ bots:
       builder-watch:
         schedule: "0 7 * * *"
         script: watch_upstream.py
-        args: [--skip-squads]
         agent: {lane: digest, skill: tracking-updates, reasoning: high}
 asks: ["set me up", "add a squad", "change a bot", "update yourself", "what changed upstream"]

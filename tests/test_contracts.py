@@ -4,12 +4,16 @@ import json
 import os
 import re
 import sys
+import tempfile
 from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _real import needs_hermes  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 FIX = REPO / "tests" / "fixtures"
@@ -23,9 +27,6 @@ DRAFTS = SQUADS + ["builder"]
 CACHES = sorted(p.stem for p in (FIX / "caches").glob("*.json"))
 PLAN_LANES = {"manager", "frontend", "design-pro", "code-complex", "code-routine", "review", "deploy",
               "research", "digest", "aux", "vision"}
-# Deprecated lane names kept as {alias_of: ...} so old squad.yaml files still resolve (a later card renames them).
-ALIAS_LANES = {"lead": "manager", "design": "design-pro", "code": "code-routine", "advisor": "code-complex",
-               "copy": "manager"}
 
 
 def load_draft(name):
@@ -187,14 +188,7 @@ def test_schema_rejects(case):
 # --- model-roles ------------------------------------------------------------------------------------------------
 
 def test_model_roles_covers_every_plan_lane():
-    assert set(ROLES["lanes"]) == PLAN_LANES | set(ALIAS_LANES)
-
-
-def test_alias_lanes_point_at_live_lanes():
-    for alias, target in ALIAS_LANES.items():
-        assert ROLES["lanes"][alias] == {"alias_of": target}, alias
-        assert target in PLAN_LANES
-    assert all(ROLES["lanes"][lane].get("alias_of") not in ALIAS_LANES for lane in ALIAS_LANES), "no alias chains"
+    assert set(ROLES["lanes"]) == PLAN_LANES
 
 
 @pytest.mark.parametrize("lane", sorted(PLAN_LANES))
@@ -293,6 +287,17 @@ def test_always_disabled_names_exist_in_hermes():
         assert f'"{name}":' in static or f'toolset="{name}"' in plugin_text, name
 
 
+def real_default_toolsets() -> list[str]:
+    """`_get_platform_tools({}, "cli")` of the installed Hermes, through squadctl's own runtime probe."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import argparse
+    import squadctl
+    ctx = squadctl.Ctx(argparse.Namespace(hermes_root=tempfile.mkdtemp(), src=None, local="/nonexistent",
+                                         builder="builder", json=True))
+    return sorted(ctx.default_toolsets())
+
+
+@needs_hermes
 @pytest.mark.skipif(not (HERMES_SRC / "toolsets.py").is_file(), reason="Hermes source tree not available")
 def test_always_disabled_never_strips_a_base_tool():
     """`search` (web_search) in always_disabled removed web search from every bot that had `web`."""
@@ -306,9 +311,7 @@ def test_always_disabled_never_strips_a_base_tool():
                     lst = v.args[1]
                     if isinstance(lst, ast.List):
                         tools[k.value] = {e.value for e in lst.elts if isinstance(e, ast.Constant)}
-    sys.path.insert(0, str(REPO / "scripts"))
-    import squadctl
-    base = set(squadctl.BASE_TOOLSETS) | set(squadctl.MANAGER_TOOLSETS)
+    base = set(real_default_toolsets()) - set(ALWAYS_DISABLED)
     base_tools = set().union(*(tools.get(t, set()) for t in base))
     for name in ALWAYS_DISABLED:
         assert not tools.get(name, set()) & base_tools, (name, tools.get(name, set()) & base_tools)
@@ -348,6 +351,29 @@ def test_fake_tools_enable_accepts_what_real_hermes_accepts():
     fake = set(text.split('KNOWN_TOOLSETS = frozenset("""', 1)[1].split('"""', 1)[0].split())
     real = hermes_configurable_toolsets()
     assert fake == real, {"only_fake": sorted(fake - real), "only_real": sorted(real - fake)}
+
+
+@needs_hermes
+def test_fake_default_toolsets_match_the_installed_hermes():
+    """The fake runtime's default cli toolsets are a copy of the real ones; squad base toolsets derive from them."""
+    text = (REPO / "tests" / "fakes" / "root" / "hermes_cli" / "tools_config.py").read_text()
+    fake = set(text.split('DEFAULT_CLI = frozenset("""', 1)[1].split('"""', 1)[0].split())
+    assert fake == set(real_default_toolsets())
+
+
+@needs_hermes
+def test_base_toolsets_rule():
+    """Manager base = Hermes default cli toolsets - always-disabled - opt-in - memory + kanban; workers lose the
+    manager-only ones. Opt-in toolsets come only from a manifest."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import argparse
+    import squadctl
+    ctx = squadctl.Ctx(argparse.Namespace(hermes_root=tempfile.mkdtemp(), src=None, local="/nonexistent",
+                                         builder="builder", json=True))
+    mgr, worker = set(squadctl.base_toolsets(ctx, "manager")), set(squadctl.base_toolsets(ctx, "worker"))
+    assert {"file", "skills", "kanban", "terminal", "web", "delegation", "browser", "clarify", "cronjob"} <= mgr
+    assert not (mgr | worker) & (squadctl.OPT_IN | set(ALWAYS_DISABLED) | {"memory"})
+    assert worker == mgr - squadctl.MANAGER_ONLY and squadctl.WITHHOLDABLE <= worker
 
 
 @pytest.mark.skipif(not (HERMES_SRC / "hermes_cli" / "tools_config.py").is_file(),

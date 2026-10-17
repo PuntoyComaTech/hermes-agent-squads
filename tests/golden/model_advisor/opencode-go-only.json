@@ -300,7 +300,7 @@
         {
           "bot": "marketing-creative",
           "role": "worker",
-          "lane": "copy",
+          "lane": "manager",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -311,7 +311,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "copy lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -327,7 +327,7 @@
         {
           "bot": "marketing-producer",
           "role": "worker",
-          "lane": "design",
+          "lane": "design-pro",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "xhigh",
@@ -338,7 +338,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "design lane (alias of design-pro), candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "design-pro lane, candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": [
             {
               "use": "delegation",
@@ -457,7 +457,7 @@
         {
           "bot": "jobs-writer",
           "role": "worker",
-          "lane": "copy",
+          "lane": "manager",
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
@@ -468,7 +468,7 @@
               "reasoning": "high"
             }
           ],
-          "reason": "copy lane (alias of manager), candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",

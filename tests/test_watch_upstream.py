@@ -30,8 +30,6 @@ class Upstream:
         self.routes = {
             "/releases": (200, (FIX / "releases.json").read_bytes()),
             "/atom": (200, (FIX / "releases.atom.xml").read_bytes()),
-            "/squads/HEAD/distribution.yaml": (200, (FIX / "squads-distribution.yaml").read_bytes()),
-            "/squads/HEAD/CHANGELOG.md": (200, (FIX / "squads-changelog.md").read_bytes()),
         }
         self.etag = ETAG
         self.log: list[tuple[str, int]] = []
@@ -84,7 +82,7 @@ def seed(home, **reviewed):
 
 def run_gate(up, home, *extra, hermes_version=LOCAL, capsys=None):
     args = ["--home", str(home), "--releases-url", f"{up.base}/releases", "--atom-url", f"{up.base}/atom",
-            "--squads-url", f"{up.base}/squads", "--hermes-version", hermes_version, *extra]
+            "--hermes-version", hermes_version, *extra]
     assert wu.main(args) == 0
     out = capsys.readouterr().out
     assert len(out.strip().splitlines()) == 1, "a gate prints exactly one line"
@@ -106,13 +104,13 @@ def digest(home):
 # --- gate contract ----------------------------------------------------------------------------------------------
 
 def test_same_tag_does_not_wake(up, home, capsys):
-    seed(home, release="v0.22.1", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.1", hermes=LOCAL)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
     assert not (home / "local" / "state" / "releases").exists()
 
 
 def test_new_tag_wakes_with_a_filtered_file_under_the_cap(up, home, capsys):
-    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.0", hermes=LOCAL)
     out = run_gate(up, home, capsys=capsys)
     ctx = out["context"]
     assert out["wakeAgent"] is True and ctx["tags"] == ["v0.22.1"] and ctx["changed"] == ["release"]
@@ -128,14 +126,14 @@ def test_new_tag_wakes_with_a_filtered_file_under_the_cap(up, home, capsys):
 
 
 def test_two_new_tags_share_the_cap(up, home, capsys):
-    seed(home, release="v0.21.7", hermes=LOCAL, squads=None)
+    seed(home, release="v0.21.7", hermes=LOCAL)
     ctx = run_gate(up, home, capsys=capsys)["context"]
     assert ctx["tags"] == ["v0.22.1", "v0.22.0"]
     assert sum(len(Path(p).read_text()) for p in ctx["filtered"]) <= 15000
 
 
 def test_second_run_after_a_digest_is_silent(up, home, capsys):
-    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.0", hermes=LOCAL)
     assert run_gate(up, home, capsys=capsys)["wakeAgent"] is True
     digest(home)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
@@ -144,7 +142,7 @@ def test_second_run_after_a_digest_is_silent(up, home, capsys):
 
 def test_a_failed_digest_turn_wakes_again(up, home, capsys):
     """No digest file after a wake (the agent turn failed): the change is not lost, the next run reports it."""
-    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.0", hermes=LOCAL)
     assert run_gate(up, home, capsys=capsys)["wakeAgent"] is True
     again = run_gate(up, home, capsys=capsys)
     assert again["wakeAgent"] is True and again["context"]["tags"] == ["v0.22.1"]
@@ -152,7 +150,7 @@ def test_a_failed_digest_turn_wakes_again(up, home, capsys):
 
 
 def test_a_digest_older_than_the_wake_does_not_confirm_it(up, home, capsys):
-    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.0", hermes=LOCAL)
     digest(home)
     old = home / "local" / "state" / "digests" / "2026-10-15.json"
     os.utime(old, (1, 1))
@@ -161,7 +159,7 @@ def test_a_digest_older_than_the_wake_does_not_confirm_it(up, home, capsys):
 
 
 def test_etag_gives_304_and_stored_etag_survives(up, home, capsys):
-    seed(home, release="v0.22.1", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.1", hermes=LOCAL)
     run_gate(up, home, capsys=capsys)
     assert up.hits("/releases", 200) == [200] and state(home)["etag"] == ETAG
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
@@ -185,14 +183,14 @@ def test_rc_canary_prerelease_and_calver_tags_are_skipped(up, home, capsys):
              {**stub, "tag_name": "v0.22.2", "draft": True}, {**stub, "tag_name": "v2026.10.15"}]
     up.set_api(extra + api)
     up.etag = "W/\"changed\""
-    seed(home, release="v0.22.1", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.1", hermes=LOCAL)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
     assert state(home)["latest_tag"] == "v0.22.1"
 
 
 def test_api_rate_limit_falls_back_to_atom(up, home, capsys):
     up.routes["/releases"] = (403, b"")
-    seed(home, release="v0.21.7", hermes=LOCAL, squads=None)
+    seed(home, release="v0.21.7", hermes=LOCAL)
     out = run_gate(up, home, "--json", capsys=capsys)
     assert out["report"]["source"] == "atom" and out["context"]["tags"] == ["v0.22.1"]  # rc and canary entries skipped
     text = Path(out["context"]["filtered"][0]).read_text()
@@ -205,10 +203,10 @@ def test_atom_parser_orders_by_date_and_drops_non_final():
     assert [r["tag"] for r in rels] == ["v0.22.1"]
 
 
-# --- local hermes and squads signals ----------------------------------------------------------------------------
+# --- local hermes signal -------------------------------------------------------------------------------------------
 
 def test_local_hermes_change_wakes(up, home, capsys):
-    seed(home, release="v0.22.1", hermes="0.21.7", squads=None)
+    seed(home, release="v0.22.1", hermes="0.21.7")
     out = run_gate(up, home, capsys=capsys)
     assert out["context"]["changed"] == ["hermes"] and out["context"]["hermes"] == {"from": "0.21.7", "to": LOCAL}
     digest(home)
@@ -217,7 +215,7 @@ def test_local_hermes_change_wakes(up, home, capsys):
 
 def test_a_new_build_suffix_of_the_same_release_is_silent(up, home, capsys):
     """`hermes update` on a git install changes only +N.g<sha>; that is not a Hermes change to digest."""
-    seed(home, release="v0.22.1", hermes="0.22.0+1.g1111111", squads=None)
+    seed(home, release="v0.22.1", hermes="0.22.0+1.g1111111")
     assert run_gate(up, home, hermes_version="0.22.0+9.gdeadbee", capsys=capsys) == {"wakeAgent": False}
 
 
@@ -229,32 +227,11 @@ def test_local_version_parsed_from_the_hermes_binary(tmp_path):
     assert wu.local_hermes_version(str(tmp_path / "missing")) is None
 
 
-def test_squads_version_on_main_wakes_once(up, home, capsys):
-    (home / "distribution.yaml").write_text('name: builder\nversion: 2.0.0\n')
-    seed(home, release="v0.22.1", hermes=LOCAL, squads="2.0.0")
-    out = run_gate(up, home, capsys=capsys)
-    sq = out["context"]["squads"]
-    assert sq["from"] == "2.0.0" and sq["to"] == "2.1.0" and "web animation" in sq["changelog_excerpt"]
-    assert "2.0.0 - 2026-10-15" not in sq["changelog_excerpt"]
-    digest(home)
-    assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # reviewed, not installed: no daily nagging
-
-
-def test_squads_not_published_or_not_installed_is_silent(up, home, capsys):
-    seed(home, release="v0.22.1", hermes=LOCAL, squads=None)
-    up.routes["/squads/HEAD/distribution.yaml"] = (404, b"")
-    assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
-    up.routes["/squads/HEAD/distribution.yaml"] = (200, (FIX / "squads-distribution.yaml").read_bytes())
-    assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # no installed distribution.yaml
-
-
-# --- baseline, failures, dry run --------------------------------------------------------------------------------
-
 def test_first_run_baseline_is_the_local_version(up, home, capsys):
     out = run_gate(up, home, capsys=capsys)  # local 0.22.0, newest final v0.22.1
     assert out["context"]["tags"] == ["v0.22.1"] and out["context"]["release_from"] == "v0.22.0"
-    assert state(home)["reviewed"] == {"release": "v0.22.0", "hermes": LOCAL, "squads": None}
-    assert state(home)["pending"]["reviewed"] == {"release": "v0.22.1", "hermes": LOCAL, "squads": None}
+    assert state(home)["reviewed"] == {"release": "v0.22.0", "hermes": LOCAL}
+    assert state(home)["pending"]["reviewed"] == {"release": "v0.22.1", "hermes": LOCAL}
 
 
 def test_first_run_with_a_local_build_ahead_of_the_release_is_silent(up, home, capsys):
@@ -262,9 +239,9 @@ def test_first_run_with_a_local_build_ahead_of_the_release_is_silent(up, home, c
 
 
 def test_dead_network_is_silent_until_the_third_failure(home, capsys):
-    seed(home, release="v0.22.1", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.1", hermes=LOCAL)
     dead = "http://127.0.0.1:1"
-    args = ["--home", str(home), "--releases-url", dead, "--atom-url", dead, "--squads-url", dead,
+    args = ["--home", str(home), "--releases-url", dead, "--atom-url", dead,
             "--hermes-version", LOCAL, "--timeout", "2"]
     for _ in range(2):
         assert wu.main(args) == 0
@@ -276,7 +253,7 @@ def test_dead_network_is_silent_until_the_third_failure(home, capsys):
 
 
 def test_dry_run_writes_nothing(up, home, capsys):
-    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.0", hermes=LOCAL)
     before = (home / "local" / "state" / "watch.json").read_text()
     out = run_gate(up, home, "--dry-run", capsys=capsys)
     assert out["wakeAgent"] is True
@@ -331,28 +308,12 @@ def test_overflow_file_is_written_and_listed(up, home, capsys):
     api[0]["body"] = (FIX / "release-v0.22.0.md").read_text()
     up.set_api(api)
     up.etag = "W/\"fixture-v0.22.0\""
-    seed(home, release="v0.22.0", hermes=LOCAL, squads=None)
+    seed(home, release="v0.22.0", hermes=LOCAL)
     ctx = run_gate(up, home, "--max-chars", "3000", capsys=capsys)["context"]
     (over,) = [Path(p) for p in ctx["overflow"]]
     assert over.name == "v0.22.1.overflow.md" and "Workers ride out provider trouble" in (
         over.read_text() + Path(ctx["filtered"][0]).read_text())
 
-
-def test_squads_ref_selects_the_branch(up, home, capsys):
-    up.routes["/squads/v2/distribution.yaml"] = up.routes.pop("/squads/HEAD/distribution.yaml")
-    up.routes["/squads/v2/CHANGELOG.md"] = up.routes.pop("/squads/HEAD/CHANGELOG.md")
-    (home / "distribution.yaml").write_text('name: builder\nversion: 2.0.0\n')
-    seed(home, release="v0.22.1", hermes=LOCAL, squads="2.0.0")
-    assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}  # HEAD 404: not published there
-    assert run_gate(up, home, "--squads-ref", "v2", capsys=capsys)["context"]["squads"]["to"] == "2.1.0"
-
-
-def test_manifest_version():
-    assert wu.manifest_version('name: b\nversion: "2.1.0"\n') == "2.1.0"
-    assert wu.manifest_version("name: b\n") is None
-
-
-# --- cli --------------------------------------------------------------------------------------------------------
 
 def test_help_works_without_network():
     proc = subprocess.run([sys.executable, str(SCRIPTS / "watch_upstream.py"), "--help"], capture_output=True, text=True,
@@ -363,3 +324,11 @@ def test_help_works_without_network():
 @needs_hermes
 def test_real_hermes_version_is_parsed():
     assert re.match(r"\d+\.\d+\.\d+", wu.local_hermes_version("hermes") or "")
+
+
+def test_squads_repo_is_not_watched(up, home, capsys):
+    """Squad updates are cron builder-update's job (auto_update.py, no agent): this gate never fetches them."""
+    (home / "distribution.yaml").write_text("name: builder\nversion: 1.0.0\n")
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
+    assert not [p for p, _ in up.log if "squads" in p]

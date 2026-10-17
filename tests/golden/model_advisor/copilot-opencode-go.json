@@ -524,7 +524,7 @@
         {
           "bot": "marketing-creative",
           "role": "worker",
-          "lane": "copy",
+          "lane": "manager",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
@@ -540,7 +540,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -567,7 +567,7 @@
         {
           "bot": "marketing-producer",
           "role": "worker",
-          "lane": "design",
+          "lane": "design-pro",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "high",
@@ -583,7 +583,7 @@
               "reasoning": "xhigh"
             }
           ],
-          "reason": "design lane (alias of design-pro), candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "design-pro lane, candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": [
             {
               "use": "delegation",
@@ -806,7 +806,7 @@
         {
           "bot": "jobs-writer",
           "role": "worker",
-          "lane": "copy",
+          "lane": "manager",
           "model": "claude-opus-5.5",
           "provider": "copilot",
           "reasoning": "medium",
@@ -822,7 +822,7 @@
               "reasoning": "medium"
             }
           ],
-          "reason": "copy lane (alias of manager), candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",

@@ -20,10 +20,9 @@
 #     "fallback_reason"?: "..."
 #   }
 #   Pick    = {"lane", "model", "provider", "reasoning", "alternatives": [{model, provider, reasoning}x<=2],
-#              "reason"}                          # "lane" is the REQUESTED name, even for aliases
+#              "reason"}
 #   BotPick = Pick + {"bot", "role", "extras": [Pick + {"use"}]}
-#   `squadctl plan` keys bots by "bot" and lanes by "lane"; an alias keeps the requested key so a
-#   squad.yaml written against an old lane name still resolves.
+#   `squadctl plan` keys bots by "bot" and lanes by "lane".
 #
 # families: model family -> provider slugs (globs over provider_models_cache.json keys) that serve it natively.
 #   A family is "present" for a user when any of its providers is authenticated and not excluded.
@@ -34,9 +33,6 @@
 #   name heuristic (flash, mini, haiku, nano); `first-choice-provider` = the manager lane's pick.
 # rule: `different-family-from-producer` (review) skips candidates of the producer lanes' families
 #   whenever another family is present.
-# alias_of: deprecated lane name -> its current lane (kept so existing squad.yaml files still resolve;
-#   a later card renames them in the manifests). Alias entries are keys of `lanes` on purpose, so
-#   `squadctl`'s "lane is not in model-roles.yaml" check passes unchanged.
 # exclusions: <builder>/local/providers-exclude.txt lists one provider slug per line; excluded
 #   providers are still DETECTED (Hermes cannot disable a provider; copilot is still seen via
 #   `gh auth token`) but never recommended.
@@ -202,9 +198,3 @@ lanes:
       - {family: openai, match: 'gpt-5\.4', reasoning: low}
     fallback: first-choice-provider
 
-  # Deprecated names, resolved through alias_of so existing squad.yaml files keep working.
-  lead: {alias_of: manager}
-  design: {alias_of: design-pro}
-  code: {alias_of: code-routine}
-  advisor: {alias_of: code-complex}
-  copy: {alias_of: manager}

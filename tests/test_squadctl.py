@@ -28,6 +28,7 @@ import squadctl  # noqa: E402
 from _real import needs_hermes as real_hermes  # noqa: E402  (skipped only when hermes is not on PATH)
 # Every lane model-roles.yaml defines (aliases included), so a fixture that moves to a new lane still resolves.
 LANES = sorted(yaml.safe_load((SCRIPTS / "data" / "model-roles.yaml").read_text())["lanes"])
+FAKE_IDENTITY = "You are Hermes Agent (fake runtime identity). Be direct."  # tests/fakes/root/agent/prompt_builder.py
 WEB_BOTS = ["web", "web-frontend", "web-backend", "web-qa", "web-deployer"]
 ALWAYS = yaml.safe_load((SCRIPTS / "data" / "always-disabled.yaml").read_text())["always_disabled"]
 WRITES = {("profile", "create"), ("profile", "delete"), ("profile", "describe"), ("profile", "export"),
@@ -85,6 +86,7 @@ class Env:
         self.models.write_text(yaml.safe_dump(models_doc()))
         (self.src / "squads" / "_schema").mkdir(parents=True)
         shutil.copy(REPO / "squads" / "_schema" / "squad.schema.json", self.src / "squads" / "_schema")
+        shutil.copytree(REPO / "squads" / "_base", self.src / "squads" / "_base")
         # The builder manifest is versionless: the release version is injected from distribution.yaml (C-13).
         (self.src / "distribution.yaml").write_text(yaml.safe_dump({"name": "builder", "version": "2.0.0"}))
 
@@ -271,8 +273,8 @@ def test_skills_copied_with_sha_marker_and_soul(web):
         assert len((d / ".squad-sha").read_text().strip()) == 64
         assert not d.is_symlink()
     soul = (home / "SOUL.md").read_text()
-    base = (REPO / "squads" / "_base" / "hermes-base.md").read_text()
-    assert soul.startswith(base.rstrip("\n")) and soul.endswith("\n\nYou are web-frontend.\n")
+    base = (REPO / "squads" / "_base" / "hermes-base.md").read_text().rstrip("\n")
+    assert soul == f"{FAKE_IDENTITY}\n\n{base}\n\nYou are web-frontend.\n"
     assert not (home / "skills" / "squad-web" / "leading-web").exists()
 
 
@@ -660,7 +662,6 @@ def test_local_overlay_changes_one_bot_and_can_remove_one(env, capsys):
 @pytest.mark.parametrize("mutate,message", [
     (lambda s: s["bots"]["web"].update(role="worker"), "role manager"),
     (lambda s: s["bots"]["web"].update(title="Web lead"), "manager title must be"),
-    (lambda s: (s.pop("manager"), s.update(lead="web")), "renamed to 'manager'"),
     (lambda s: s["bots"]["web-qa"].update(toolsets=["file", "kanban", "a2a"]), "always-disabled"),
     (lambda s: s["bots"]["web-qa"].update(lane="nonexistent"), "nonexistent"),
     (lambda s: s["chains"]["milestone"][0].update(assignee="ghost"), "ghost"),
@@ -758,14 +759,14 @@ def test_learned_skills_are_reported_never_removed(env, capsys):
 
 
 def test_prune_removes_only_what_apply_installed_and_backs_up_first(env, capsys):
-    """A squad skill dropped from the manifest (owned path or .squad-sha marker) is removed; the hub lock is kept."""
+    """A squad skill dropped from the manifest (an owned path) is removed; the hub lock is kept."""
     env.squad("web")
     env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     skills = env.root / "profiles" / "web-qa" / "skills"
     old = skills / "squad-web" / "old-skill"
     old.mkdir()
     (old / "SKILL.md").write_text("x")
-    (old / squadctl.SHA_MARK).write_text("abc\n")
+    squadctl.write_owned(skills.parent, squadctl.read_owned(skills.parent) | {"squad-web/old-skill"})
     (skills / ".hub").mkdir(exist_ok=True)
     lock = skills / ".hub" / "lock.json"
     data = json.loads(lock.read_text()) if lock.is_file() else {"installed": {}}
@@ -1563,7 +1564,7 @@ def test_every_bot_gets_the_hermes_base_and_a_worker_can_withhold(web):
         disabled = set(cfg["agent"]["disabled_toolsets"])
         assert not {"search", "desktop_ui", "project", "terminal", "delegation"} & disabled, bot
         soul = (web.root / "profiles" / bot / "SOUL.md").read_text()
-        assert soul.startswith("You are a Hermes Agent bot"), bot
+        assert soul.startswith(FAKE_IDENTITY + "\n\nYou are one bot of a Hermes squad"), bot
     mgr = set(web.config("web")["platform_toolsets"]["cli"])
     assert {"terminal", "web", "browser", "delegation", "clarify", "cronjob", "code_execution"} <= mgr
 

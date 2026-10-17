@@ -57,8 +57,8 @@ HERMES_HOME=$T $T/profiles/builder-test/scripts/squadctl plan --self --builder b
   and tests together, and bumps the squad `version`.
 - Something shared by every squad (a lane, a script, a lint rule) goes in `scripts/` or `AGENTS.md`, with a decision
   in `docs/decisions.md`.
-- A change to the layout (profiles, folders, state files) ships a migration: `scripts/migrate_v1.py` for v1 installs,
-  a new script for anything later.
+- A change to the layout (profiles, folders, state files) must keep `squadctl upgrade` (run by
+  `scripts/auto_update.py`) able to bring an installed bot to the new layout unattended.
 
 ## Decisions
 
