@@ -59,9 +59,10 @@ flowchart TD
 
 ## Brands
 
-One brand is one Hermes Project: `scripts/squadctl project add marketing "<Brand>" <path>`. `brand.md` stays `draft`
-until you approve onboarding; only `active` brands get calendars and reports. A `PAUSE` file in the brand folder stops
-its schedule.
+One brand is one Hermes Project in `~/Projects/marketing/`. In the Desktop app: Sessions, pick `marketing` in the
+bottom selector, then "+" (New project); or tell the manager about a new brand and it creates the project. `brand.md`
+stays `draft` until you approve onboarding; only `active` brands get calendars and reports. A `PAUSE` file in the brand
+folder stops its schedule.
 
 ## Schedule
 
@@ -93,6 +94,5 @@ Developed by **PuntoyComaTech**
 [![X](https://img.shields.io/badge/X-%23000000.svg?style=for-the-badge&logo=X&logoColor=white)](https://x.com/PuntoyComaTech)
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@PuntoyComaTech)
 [![TikTok](https://img.shields.io/badge/TikTok-%23000000.svg?style=for-the-badge&logo=TikTok&logoColor=white)](https://www.tiktok.com/@puntoycomatech)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/gabriel-rubio99/)
 
 </div>

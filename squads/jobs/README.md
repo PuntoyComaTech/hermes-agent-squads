@@ -64,7 +64,8 @@ with the link and the ready answers.
 
 - PDF: WeasyPrint (`pip install weasyprint`) or Chromium/Chrome. DOCX: python-docx. Page counts: `pdfinfo`
   (poppler). Without them the writer tells you what is missing; nothing is installed for you.
-- One search is one Hermes Project: `scripts/squadctl project add jobs <name> <path>`.
+- One search is one Hermes Project in `~/Projects/jobs/`. In the Desktop app: Sessions, pick `jobs` in the bottom
+  selector, then "+" (New project); or tell the manager to start a search and it creates the project.
 
 ## Schedule
 
@@ -97,6 +98,5 @@ Developed by **PuntoyComaTech**
 [![X](https://img.shields.io/badge/X-%23000000.svg?style=for-the-badge&logo=X&logoColor=white)](https://x.com/PuntoyComaTech)
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@PuntoyComaTech)
 [![TikTok](https://img.shields.io/badge/TikTok-%23000000.svg?style=for-the-badge&logo=TikTok&logoColor=white)](https://www.tiktok.com/@puntoycomatech)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/gabriel-rubio99/)
 
 </div>
