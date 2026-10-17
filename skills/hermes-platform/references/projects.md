@@ -21,4 +21,10 @@
 
 ## Squad usage
 
-- `squadctl project add` runs `project create` in every bot of the squad.
+- The manager creates the project (`desktop_project` create, "+" in the
+  sidebar, or `hermes -p <manager> project create`); `project_sync.py` copies
+  it to every worker and binds the squad board.
+- Desktop Project grouping is a device-wide sidebar setting with no config
+  key. It turns on when the user creates a project with "+", opens a folder,
+  or goes to a project with ⌘K, or when the selected chat's agent calls
+  `desktop_project` create or switch with a path.
