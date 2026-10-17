@@ -229,3 +229,10 @@ def test_open_pr_pushes_a_branch_then_uses_real_gh_flags(monkeypatch):
     assert push[:3] == ["git", "push", "--force"] and push[-1].startswith("HEAD:refs/heads/release/")
     assert pr[:3] == ["gh", "pr", "create"] and "--push" not in pr
     assert pr[pr.index("--head") + 1] == push[-1].removeprefix("HEAD:refs/heads/")
+
+
+def test_run_cmd_drops_the_hermes_runtime_pythonpath(monkeypatch):
+    monkeypatch.setenv("PYTHONPATH", "/hermes/site-packages")
+    monkeypatch.setenv("PYTHONHOME", "/hermes")
+    p = release.run_cmd(["python3", "-c", "import os; print(os.environ.get('PYTHONPATH'), os.environ.get('PYTHONHOME'))"])
+    assert p.stdout.strip() == "None None"

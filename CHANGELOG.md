@@ -10,6 +10,11 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 - README and squad READMEs: descriptive titles, a plain first paragraph and a short FAQ so people and AI search
   find and quote the project. `llms.txt` summary matches.
 
+### Fixed
+
+- `release.py` no longer passes the Hermes runtime's `PYTHONPATH`/`PYTHONHOME` to the `--python` interpreter, which
+  broke `jsonschema` in the test venv.
+
 ## 2.0.10 - 2026-10-16
 
 ### Fixed

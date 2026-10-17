@@ -31,6 +31,10 @@ CHANGELOG_RE = r"^##\s+{version}\b"
 # --- helpers ----------------------------------------------------------------------------------------------------------
 
 def run_cmd(argv: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
+    # scripts/hpy exports the Hermes runtime's PYTHONPATH/PYTHONHOME; another interpreter must not inherit them.
+    env = dict(os.environ if env is None else env)
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
     return subprocess.run(argv, capture_output=True, text=True, cwd=SRC, env=env, timeout=1800)
 
 
