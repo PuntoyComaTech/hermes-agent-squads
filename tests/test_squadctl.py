@@ -1341,7 +1341,7 @@ def test_doctor_reports_the_jobs_project_and_profile_md(env, tmp_path, capsys):
     env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"jobs": {"version": "1.0.0"}}}))
     _, out = env.run("doctor", capsys=capsys)
     checks = {c["check"]: c for c in out["checks"]}
-    assert checks["jobs:project"]["status"] == "warn" and "+ in Desktop Projects" in checks["jobs:project"]["detail"]
+    assert checks["jobs:project"]["status"] == "warn" and "+ in Desktop Sessions" in checks["jobs:project"]["detail"]
     folder = tmp_path / "search"
     folder.mkdir()
     env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({
@@ -1600,10 +1600,10 @@ def test_apply_installs_the_managed_browser_once_a_bot_has_browser(web):
 # --- projects ---------------------------------------------------------------------------------------------------
 
 def test_apply_runs_project_sync_setup_for_a_squad_with_a_board(web, capsys):
-    """After `apply <squad>`: ~/Projects/<squad> exists and every bot's Desktop repo scan points at it."""
-    assert (web.home / "Projects" / "web").is_dir()
+    """After `apply <squad>`: no squad folder is imposed and no bot's Desktop repo scan is pinned to one."""
+    assert not (web.home / "Projects").exists()
     for bot in WEB_BOTS:
-        assert web.config(bot)["desktop"]["repo_scan_roots"] == ["~/Projects/web"], bot
+        assert not (web.config(bot).get("desktop") or {}).get("repo_scan_roots"), bot
     _, out = web.run("apply", "web", capsys=capsys)
     assert out["summary"] == {"unchanged": 5}
     assert out["projects"]["ok"] and {b["result"] for b in out["projects"]["bots"]} == {"ok"}
@@ -1621,6 +1621,17 @@ def test_project_setup_keeps_a_custom_scan_list_and_plan_only_reports_it(env, ca
     (row,) = [b for b in out["projects"]["bots"] if b["bot"] == "web"]
     assert row["result"].startswith("custom repo_scan_roots kept")
     assert env.config("web")["desktop"]["repo_scan_roots"] == ["~/code"]
+
+
+def test_apply_runs_the_project_sync_of_the_source_being_applied(env, capsys):
+    """`apply --src <checkout>` ran the builder's installed project_sync.py, so a fixed setup in the new version
+    never ran and the old one re-created the squad folder: the --src copy must win."""
+    (env.src / "scripts").mkdir(exist_ok=True)
+    (env.src / "scripts" / "project_sync.py").write_text(
+        'import json\nprint(json.dumps({"ok": True, "bots": [], "from": "src"}))\n')
+    env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web", capsys=capsys)
+    assert out["projects"].get("from") == "src", out["projects"]
 
 
 def test_self_apply_runs_no_project_setup(env, capsys):

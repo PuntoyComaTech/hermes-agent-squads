@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Finds openings, filters and analyzes them, writes and reviews tailored applications"
-version: 3.1.1
+version: 3.2.0
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, analysis, CV, review, apply"}
 section: {id: jobs, name: Jobs}

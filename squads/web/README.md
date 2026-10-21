@@ -5,8 +5,8 @@
 [← All squads](../../README.md)
 
 Someone who does not program gets a website or web app built, reviewed and live. Each site is its own Hermes Project
-(`~/Projects/web/<site>`) and GitHub repository. Start one in the Desktop app: Sessions, pick `web` in the bottom
-selector, then "+" (New project); or just say "new site: ..." and the manager creates it. Nothing reaches production,
+(a folder you choose: empty, or a repo you already have) and GitHub repository. Start one in the Desktop app:
+Sessions, pick `web` in the bottom selector, then "+" (New project), and say "new site: ..." in a chat inside it. Nothing reaches production,
 DNS, money or data without your explicit answer for that action.
 
 ## How it works

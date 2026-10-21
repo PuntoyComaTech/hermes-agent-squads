@@ -64,8 +64,8 @@ with the link and the ready answers.
 
 - PDF: WeasyPrint (`pip install weasyprint`) or Chromium/Chrome. DOCX: python-docx. Page counts: `pdfinfo`
   (poppler). Without them the writer tells you what is missing; nothing is installed for you.
-- One search is one Hermes Project in `~/Projects/jobs/`. In the Desktop app: Sessions, pick `jobs` in the bottom
-  selector, then "+" (New project); or tell the manager to start a search and it creates the project.
+- One search is one Hermes Project, in a folder you choose. In the Desktop app: Sessions, pick `jobs` in the bottom
+  selector, then "+" (New project), and start the search in a chat inside it.
 
 ## Schedule
 

@@ -58,9 +58,9 @@ builder chat                                                                    
 
 4. Choose your squads (Web, Marketing, Jobs, Everything, or only the builder) and accept or change the suggested
    models.
-5. In the Desktop app, open **Sessions**, pick a squad manager in the bottom selector and press **"+"** (New project).
-   Each project is one site, brand or job search, and its chats are grouped under it. You can also tell the manager
-   what you want; it creates the project for you.
+5. In the Desktop app, open **Sessions**, pick a squad manager in the bottom selector, press **"+"** (New project)
+   and choose its folder: any folder you like, new or an existing repo. Each project is one site, brand or job
+   search; open chats inside it and the manager and its workers work in that folder.
 
 `builder chat` needs `~/.local/bin` on your `PATH`; `hermes -p builder chat` always works.
 
@@ -96,8 +96,8 @@ always wait for your explicit yes.
 
 **What do I need?** Hermes Agent 0.22 or newer (macOS, Linux or Windows) and one connected model provider.
 
-**Where are my projects?** In the Desktop app: Sessions, pick the squad's manager in the bottom selector. Its
-projects live in `~/Projects/<squad>/`.
+**Where are my projects?** In the Desktop app: Sessions, pick the squad's manager in the bottom selector. Each
+project lives in the folder you chose when you created it; squads never pick or move folders.
 
 ## Updates
 
@@ -114,7 +114,7 @@ releases.
 
 - **Keep-awake (automatic).** While a squad's board has running work, its manager keeps the Mac awake
   (`caffeinate`), and lets it sleep again when the work is done.
-- **Spotlight.** Add `~/Projects` to System Settings › Spotlight › Search Privacy. Spotlight then stops indexing
+- **Spotlight.** Add the folder that holds your projects to System Settings › Spotlight › Search Privacy. Spotlight then stops indexing
   project folders (`node_modules`, builds), which saves a lot of CPU and disk activity. No admin rights; remove it
   from the list to undo.
 

@@ -9,9 +9,10 @@ with `desktop_project`) exists only in the manager. This script reads `hermes -p
   - in the manager, when the project has no board: `project bind-board <slug> <board>`.
 A project whose primary folder is the home directory or inside the Hermes root is skipped and reported.
 
-`--setup` (once per squad, after apply): create ~/Projects/<squad> and set `desktop.repo_scan_roots: [~/Projects/<squad>]`
-in the manager and every worker whose list is empty, so the Desktop Projects sidebar of those profiles lists only this
-squad's folders instead of every git repo under the home directory. A custom list is kept.
+`--setup` (squadctl apply runs it): the user picks every project folder, so squads impose no layout. Older squad
+versions created ~/Projects/<squad> and set `desktop.repo_scan_roots: [~/Projects/<squad>]` in each bot; setup resets
+exactly that value to `[]` (Hermes then scans nothing and lists the user's projects). Any other list is kept; no folder
+is created or deleted.
 
 Squad members are the profiles holding `skills/squad-<squad>/` (written by squadctl apply); without any, the
 profiles named `<squad>-*`. Defaults come from $HERMES_HOME when it is `<root>/profiles/<manager>`, so the manager's
@@ -152,7 +153,7 @@ def sync(h: Hermes, manager: str, squad: str, board: str | None, workers: list[s
         row.update(name=info["name"] or slug, primary=info["primary"], board=info["board"])
         why = unsafe(info["primary"], h.root)
         if why:
-            row["skipped"] = f"primary folder is {why}; move the project under ~/Projects/{squad}/<name>"
+            row["skipped"] = f"primary folder is {why}; give the project its own folder (set-primary)"
             continue
         if board and not info["board"]:
             row["actions"].append({"bot": manager, "action": f"bind-board {board}"})
@@ -226,30 +227,25 @@ def scan_roots(h: Hermes, bot: str) -> list[str] | None:
 
 
 def setup(h: Hermes, squad: str, bots: list[str], dry: bool) -> dict:
-    """Create ~/Projects/<squad> and point every squad bot's Desktop repo scan at it (only where the list is empty)."""
-    folder = real_home() / "Projects" / squad
-    want = f"~/Projects/{squad}"
-    report: dict = {"folder": str(folder), "dry_run": dry, "bots": [], "ok": True}
-    if not folder.is_dir():
-        report["created_folder"] = True
-        if not dry:
-            folder.mkdir(parents=True, exist_ok=True)
+    """Reset the `desktop.repo_scan_roots: [~/Projects/<squad>]` older squad versions set to `[]`; keep any other list."""
+    legacy = (f"~/Projects/{squad}", str(real_home() / "Projects" / squad))
+    report: dict = {"dry_run": dry, "bots": [], "ok": True}
     for bot in bots:
         roots = scan_roots(h, bot)
         if roots is None:
             report["ok"] = False
             report["bots"].append({"bot": bot, "result": "config unreadable"})
-        elif roots in ([want], [str(folder)]):
+        elif not roots:
             report["bots"].append({"bot": bot, "result": "ok"})
-        elif roots:
-            report["bots"].append({"bot": bot, "result": f"custom repo_scan_roots kept: {roots}"})
-        else:
-            report["bots"].append({"bot": bot, "result": "would set" if dry else "set"})
+        elif len(roots) == 1 and roots[0] in legacy:
+            report["bots"].append({"bot": bot, "result": "would reset" if dry else "reset"})
             if not dry:
-                proc = h.run(bot, "config", "set", "desktop.repo_scan_roots", json.dumps([want]))
+                proc = h.run(bot, "config", "set", "desktop.repo_scan_roots", "[]")
                 if proc.returncode != 0:
                     report["ok"] = False
-                    report["bots"][-1]["result"] = f"set failed: {(proc.stderr or proc.stdout).strip()}"
+                    report["bots"][-1]["result"] = f"reset failed: {(proc.stderr or proc.stdout).strip()}"
+        else:
+            report["bots"].append({"bot": bot, "result": f"custom repo_scan_roots kept: {roots}"})
     return report
 
 
@@ -266,9 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN") or "hermes",
                    help="hermes executable (default: $HERMES_BIN, else `hermes` on PATH)")
     p.add_argument("--setup", action="store_true",
-                   help="instead of syncing: create ~/Projects/<squad> and set desktop.repo_scan_roots to it in the "
-                        "manager and every worker whose list is empty, so the Desktop Projects sidebar lists only "
-                        "this squad's folders")
+                   help="instead of syncing: reset the desktop.repo_scan_roots [~/Projects/<squad>] that older "
+                        "squad versions set to [] in the manager and every worker; any other list is kept")
     p.add_argument("--dry-run", action="store_true", help="show what would change; change nothing")
     p.add_argument("--json", action="store_true", help="print the full report as JSON")
     a = p.parse_args(argv)
@@ -287,8 +282,6 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(rep, indent=2))
         else:
             changed = [r for r in rep["bots"] if r["result"] != "ok"]
-            if rep.get("created_folder"):
-                print(f"{'would create' if a.dry_run else 'created'} {rep['folder']}")
             for r in changed:
                 print(f"{r['bot']}: {r['result']}")
         return 0 if rep["ok"] else 1

@@ -46,7 +46,7 @@ One subagent per lens, clean context, no writes. Each finding: page, what is wro
 ## 5. Security and SEO
 
 - Secrets: any `secret-*`, `repo-secrets` or `repo-committed-env` failure in `checks.json` is critical and stops the chain.
-- Dependencies: `pnpm -C repo audit --audit-level high` lists none; no unexpected `postinstall`.
+- Dependencies: `pnpm -C <repo> audit --audit-level high` lists none; no unexpected `postinstall`.
 - Headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` or CSP `frame-ancestors`, HSTS on https; a CSP or a written reason why not.
 - Mixed content: no `http://` asset on an https page; cookies `Secure` and `SameSite=Lax` or `Strict`.
 - Forms: no sensitive data in the URL; POST over https; honeypot or rate limit on public forms.

@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "The web squad starts a site called Acme Site and has no project yet.",
-      "expected_output": "Creates ~/Projects/web/acme-site, calls desktop_project create (or hermes -p web project create outside Desktop), runs project_sync.py so every worker has it, verifies with hermes -p <bot> project list, and tells the user to pick web in the Sessions selector.",
+      "expected_output": "Asks the user to create it with + in Sessions (web selected) in a folder they choose, or, when they name the folder, calls desktop_project create with that path (hermes -p web project create outside Desktop); never picks a folder itself; runs project_sync.py so every worker has it, verifies with hermes -p <bot> project list, and tells the user to pick web in the Sessions selector.",
       "files": []
     },
     {

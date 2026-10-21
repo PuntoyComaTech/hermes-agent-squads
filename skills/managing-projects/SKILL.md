@@ -12,19 +12,20 @@ description: "Creates squad Projects and copies them to the workers. Use when a 
 
 ## Procedure
 
-1. Folder: `~/Projects/<squad>/<name>`, or the folder the user names. Never
-   the home root or a profile directory.
-2. Create it in the manager. A manager chat in the Desktop app
-   `tool_describe`s and `tool_call`s `desktop_project` with
-   `{"action": "create", "name": "<name>", "path": "<folder>"}`: the chat
-   moves into the project and the sidebar switches to Project grouping.
+1. Folder: the user picks it, new or an existing repo. Never choose one for
+   them, never the home root or a profile directory.
+2. The user creates it: Desktop Sessions, the manager in the bottom selector,
+   "+", then chats inside it (the chat's working directory is the project's
+   primary folder). When the user names a folder in chat instead, a manager
+   chat `tool_call`s `desktop_project` with
+   `{"action": "create", "name": "<name>", "path": "<their folder>"}`.
    Otherwise: `hermes -p <manager> project create "<name>" <folder>`.
 3. Copy it to the workers: `scripts/hpy project_sync.py --manager <manager>`
    (a manager runs `python3 $HERMES_HOME/scripts/project_sync.py`; add
    `--dry-run` to preview). It creates the project in every worker that lacks
    it and binds the squad board. A project made with "+" syncs the same way.
 4. Tell the user once: "Sessions: pick <manager> in the bottom selector to
-   see its projects; + creates another."
+   see its projects; + creates another in a folder you choose."
 5. When the folder ships `.hermes/skills/` or `.agents/skills/`, show the
    user those skill names and, after an explicit OK, run `hermes -p <bot>
    skills trust <path>` for the manager and every worker. Untrusted project

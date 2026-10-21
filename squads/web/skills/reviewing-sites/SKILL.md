@@ -16,7 +16,7 @@ description: "Reviews a deployed site preview with five lenses. Use when a qa ca
 1. `kanban_show`. Read the card body, `spec.md`, the milestone note, `site.yaml` and the newest `deploys/<ID>-preview-*.json`. No deploy record, or `ok: false`: `kanban_block(kind="needs_input", reason="no deployed preview for <ID>")`.
 2. Round `R` = the number of `reviews/<ID>-r*.json` files that exist (0 on the first run).
 3. From the site folder run:
-   `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/check_site.py" --site <slug> --id <ID> --round <R> --url <preview-url> --browser --lighthouse --lighthouse-runs 3 --repo repo`
+   `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/check_site.py" --site <slug> --id <ID> --round <R> --url <preview-url> --browser --lighthouse --lighthouse-runs 3 --repo <repo>` (`<repo>`: site-contract step 2)
    It writes `reviews/<ID>-r<R>/checks.json` and `screenshots/`. Exit 2 (Chrome, Node or a repo devDependency missing): `kanban_block(kind="capability", reason="<the error line>")`, never a finding.
 4. Look at the screenshots, mobile first, then desktop. Then open the preview in the browser (that origin only) and walk the acceptance criteria. On a resumed card, verify each requested change first, then the whole site.
 5. Run five `delegate_task` subagents, one per lens in `references/lenses.md`, each with the URL, the criteria, the paths of `checks.json` and the screenshots, and its lens section.

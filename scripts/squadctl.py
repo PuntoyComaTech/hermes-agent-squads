@@ -1620,9 +1620,11 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool, models: dict | None = 
 
 
 def project_setup(ctx: Ctx, spec: dict, dry: bool) -> dict | str:
-    """`project_sync.py --setup` for a squad with a board: ~/Projects/<squad> and the Desktop repo scan of every bot.
-    A failure is reported, never fatal: the apply itself already succeeded."""
-    script = HERE / "project_sync.py"
+    """`project_sync.py --setup` for a squad with a board: resets the legacy ~/Projects/<squad> Desktop repo scan.
+    A failure is reported, never fatal: the apply itself already succeeded. The script comes from --src (the version
+    being applied), falling back to the one beside squadctl."""
+    script = next((s for s in (ctx.src / "scripts" / "project_sync.py", HERE / "project_sync.py") if s.is_file()),
+                  HERE / "project_sync.py")
     argv = [shutil.which("python3") or sys.executable, str(script), "--manager", spec["manager"],
             "--squad", spec["key"], "--hermes-root", str(ctx.root), "--setup", "--json"]
     if dry:
@@ -1984,7 +1986,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
             projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
             out.append(check("jobs:project", "ok" if projs else "warn", ", ".join(p["path"] for p in projs)
-                             or "none: the jobs manager creates one with + in Desktop Projects"))
+                             or "none: create one with + in Desktop Sessions (jobs selected) and chat inside it"))
             for p in projs:
                 ok = (Path(p["path"]) / "profile.md").is_file()
                 out.append(check("jobs:profile.md", "ok" if ok else "warn",

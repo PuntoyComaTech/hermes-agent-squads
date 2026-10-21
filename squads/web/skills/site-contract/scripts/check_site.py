@@ -3,7 +3,7 @@
 
 Writes `reviews/<ID>-r<R>/checks.json` (`smoke.json` with --smoke) below --root, plus `screenshots/` and
 `lighthouse/` beside it. The browser pass and Lighthouse run from the site repo (--repo, default
-<root>/repo): Node, Chrome, and the repo's `@playwright/test`, `axe-core` and `lighthouse` devDependencies.
+<root>/<site.yaml repo.path>, else <root>/repo): Node, Chrome, and the repo's `@playwright/test`, `axe-core` and `lighthouse` devDependencies.
 
 Exit 0 checks ran (read `all_ok`), 1 site unreachable, 2 usage error or a requested tool could not run.
 """
@@ -110,6 +110,8 @@ def read_site_yaml(text: str) -> dict:
         value = value.strip()
         if path == ["type"]:
             out["type"] = _number(value)
+        elif path == ["repo", "path"] and value:
+            out.setdefault("repo", {})["path"] = value.strip("\"'")
         elif path[:2] == ["automation", "thresholds"] and len(path) == 3 and value:
             if value.startswith("{"):
                 pairs = (item.partition(":") for item in value.strip("{}").split(",") if ":" in item)
@@ -183,12 +185,22 @@ class Checker:
         self.checks: list[dict] = []
         self.scores: dict = {}
         self.root = Path(args.root).expanduser().resolve()
-        self.repo = Path(args.repo).expanduser().resolve() if args.repo else self.root / "repo"
+        self.repo = Path(args.repo).expanduser().resolve() if args.repo else (self.root / self.repo_path()).resolve()
         self.base = (args.url or "").rstrip("/")
         self.site_type = None
         self.thresholds = args.thresholds_json and json.loads(args.thresholds_json) or self.thresholds_from_site()
 
     # --- helpers ---------------------------------------------------------------------------------
+
+    def repo_path(self) -> str:
+        """`site.yaml -> repo.path` (`.` when the project folder is the repo), else `repo`."""
+        spec = self.root / "site.yaml"
+        try:
+            repo = read_site_yaml(spec.read_text(encoding="utf-8")).get("repo") if spec.is_file() else None
+        except Exception:
+            repo = None
+        value = repo.get("path") if isinstance(repo, dict) else None
+        return str(value) if value not in (None, "") else "repo"
 
     def thresholds_from_site(self) -> dict:
         spec = self.root / "site.yaml"
@@ -498,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--browser", action="store_true", help="Playwright pass: axe (WCAG 2.2 AA), screenshots, console errors")
     p.add_argument("--lighthouse", action="store_true", help="Lighthouse mobile pass: scores, LCP, CLS, TBT against thresholds")
     p.add_argument("--lighthouse-runs", type=int, default=1, help="Lighthouse runs per page; the median is judged (default: 1)")
-    p.add_argument("--repo", help="site repo: secret scan target and where node tools run (default: <root>/repo)")
+    p.add_argument("--repo", help="site repo: secret scan target and where node tools run (default: <root>/<site.yaml repo.path>, else <root>/repo)")
     p.add_argument("--root", default=".", help="site project folder (default: current directory)")
     p.add_argument("--thresholds-json", help="override site.yaml automation.thresholds")
     p.add_argument("--json", action="store_true", help="print the whole result")
