@@ -3,6 +3,27 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.4.0 - 2026-10-20
+
+Updates keep what the bots learned.
+
+### Fixed
+
+- Updates no longer overwrite skill improvements made on the machine. Hermes's background skill review patches the
+  skills a session used, shipped ones included; `hermes profile update` (builder) and `squadctl apply`/`upgrade`
+  (squad bots) replaced those skills whole. Both now merge the local edit with the new version (`scripts/merge3.py`,
+  three-way, stdlib): an edit to a file the update did not change is kept, separate changes are combined, an overlap
+  installs the new version and reports `Needs you` with the local copy in `local/backups/`.
+- Runtime dot files under `skills/` (`.usage.json`, `.curator_ledger.jsonl`) are no longer reported as edited
+  shipped files; edits are backed up only when an update actually replaces files.
+
+### Changed
+
+- `authoring-skills`: check every hand-off between stages and create every skill a manifest names before `plan`.
+- `changing-bots`: confirm each listed squad skill exists before `plan`.
+- `contributing-upstream`: run the release in the background, update the builder after it, and two test pitfalls
+  (paths with spaces, `PYTHONPATH` in a Hermes shell).
+
 ## 2.3.1 - 2026-10-20
 
 ### Fixed

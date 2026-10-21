@@ -40,7 +40,9 @@ description: "Edits, adds, splits and retires the bots of a squad. Use when a bo
    overlay every squad skill that names it, with the bot replaced.
    Move its open cards first: `hermes kanban --board <slug> list --assignee <bot> --json`,
    then `hermes kanban --board <slug> reassign <id> <new-bot> --reclaim` per card.
-6. Run `scripts/hpy squadctl.py plan <key> --json` (`--self` for the builder),
+6. Before planning, confirm each skill a bot lists in `skills.squad` exists in
+   the overlay or repo (`SKILL.md` present); plan warns on a missing one.
+   Run `scripts/hpy squadctl.py plan <key> --json` (`--self` for the builder),
    show the diff and apply only after the user's explicit OK:
    `scripts/hpy squadctl.py apply <key>`. A new lane without a model needs
    `skills/assigning-models` first.

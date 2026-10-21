@@ -43,7 +43,11 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    `scripts/hpy auto_update.py --force` and reply with its output. It is the
    same script the daily `builder-update` cron runs: it updates the builder
    when the repo has a new version, then brings every installed bot up to
-   date. Lines starting `Needs you:` are `--confirm` items for step 4.
+   date. Lines starting `Needs you:` are `--confirm` items for step 4, or a
+   skill edited here and changed upstream: the new version is installed and
+   the local copy is in the named backup; move what still applies into the
+   new version (generic rules go upstream, `skills/contributing-upstream`).
+   Local skill edits that do not overlap the update are merged and kept.
 7. Remove: `scripts/hpy squadctl.py uninstall <key> --dry-run`, show it; on OK
    run it without `--dry-run` (`--keep-profiles` keeps the profiles). It exports
    each profile to `local/backups/`, removes `<key>-*` cron jobs, deletes the

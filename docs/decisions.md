@@ -48,6 +48,7 @@
 - **V-15** Cron jobs are created with `hermes cron create`; no `jobs.json` is shipped.
 - **V-16** Only managers create cards on another squad's board.
 - **V-17** The scout does job analysis; analysis cards pin the review lane with per-card `--model`.
+- **V-18** (2026-10-20) Local skill edits survive updates. Hermes's background skill review patches the skills a session used, shipped ones included, while `hermes profile update` and `squadctl apply` replaced shipped skills whole (a backup was the only trace). Both now merge three ways (`scripts/merge3.py`) against the copy shipped by the last update (`local/state/shipped/`, `local/state/skill-base/<bot>/`): an untouched file keeps the edit, separate changes combine, an overlap installs the new version and reports `Needs you` with the backup. Generic lessons still belong upstream; the merge only stops the silent loss.
 
 ## Contracts (2026-10-15)
 

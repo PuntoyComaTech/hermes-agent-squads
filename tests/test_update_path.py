@@ -217,6 +217,7 @@ class Upd:
         (bindir / "hermes").chmod(0o755)
         monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
         monkeypatch.setenv("HERMES_HOME", str(self.home))
+        self.installed_version = "2.2.0"
         self.versions("2.2.0", "2.2.0")
         self.reports(EMPTY, EMPTY)
 
@@ -311,7 +312,10 @@ def test_auto_update_saves_edited_shipped_files(upd, capsys):
     f.write_text("v1\n")
     upd.run(capsys)  # silent tick records the shipped files
     f.write_text("edited\n")
-    code, out, _ = upd.run(capsys, "--force")
+    code, out, _ = upd.run(capsys, "--force")  # no new release: nothing is replaced, nothing to back up
+    assert code == 0 and "edited shipped file" not in out and f.read_text() == "edited\n"
+    upd.versions("2.2.0", "2.3.0")
+    code, out, _ = upd.run(capsys)
     assert code == 0 and "1 edited shipped file(s) saved to" in out
     (copy,) = (upd.home / "local" / "backups").glob("edits-*/skills/x/SKILL.md")
     assert copy.read_text() == "edited\n"
@@ -395,3 +399,114 @@ def test_keep_awake_cron_lands_on_the_manager(installed, capsys):
     assert "cron + web-awake" in out["bots"][0]["actions"]
     job = next(j for j in installed.jobs("web") if j["name"] == "web-awake")
     assert (job["no_agent"], job["script"], job["schedule"]["expr"]) == (True, "keep_awake.py", "*/4 * * * *")
+
+
+# --- local skill edits survive an update --------------------------------------------------------------------------
+
+LEARNED_RULE = "6. Check every hand-off between stages.\n"
+
+
+def release(upd, version, files):
+    """`hermes profile update` stub: writes the new shipped files, then auto_update merges the local edits back."""
+    upd.versions(upd.installed_version, version)
+    lines = "".join(f"mkdir -p \"$(dirname '{upd.home / rel}')\"; printf '%s' '{text}' > '{upd.home / rel}'\n"
+                    for rel, text in files.items())
+    (upd.log.parent / "bin" / "hermes").write_text(HERMES_STUB.format(log=upd.log) + lines)
+
+
+def ship(upd, version, files):
+    """Install `version` with `files` as if a previous update shipped them, then record them as the base."""
+    for rel, text in files.items():
+        (upd.home / rel).parent.mkdir(parents=True, exist_ok=True)
+        (upd.home / rel).write_text(text)
+    upd.installed_version = version
+    upd.versions(version, version)
+    upd.run(upd.capsys, "--force")
+
+
+def test_a_learned_skill_edit_survives_an_update_that_did_not_touch_it(upd, capsys):
+    upd.capsys = capsys
+    ship(upd, "2.2.0", {"skills/authoring/SKILL.md": "1. Write.\n2. Lint.\n", "skills/other/SKILL.md": "old\n"})
+    edited = upd.home / "skills" / "authoring" / "SKILL.md"
+    edited.write_text("1. Write.\n2. Lint.\n" + LEARNED_RULE)  # the background skill review patched it
+    release(upd, "2.3.0", {"skills/authoring/SKILL.md": "1. Write.\n2. Lint.\n", "skills/other/SKILL.md": "new\n"})
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and "Kept your edits to 1 skill file(s)" in out
+    assert edited.read_text().endswith(LEARNED_RULE)
+    assert (upd.home / "skills" / "other" / "SKILL.md").read_text() == "new\n"
+    (copy,) = (upd.home / "local" / "backups").glob("edits-*/skills/authoring/SKILL.md")
+    assert copy.read_text().endswith(LEARNED_RULE)
+
+
+def test_a_learned_edit_merges_into_an_updated_skill_and_survives_the_next_update_too(upd, capsys):
+    upd.capsys = capsys
+    ship(upd, "2.2.0", {"skills/authoring/SKILL.md": "# A\n\n1. Write.\n2. Lint.\n\n## Pitfalls\n\n- old\n"})
+    edited = upd.home / "skills" / "authoring" / "SKILL.md"
+    edited.write_text("# A\n\n1. Write.\n2. Lint.\n" + LEARNED_RULE + "\n## Pitfalls\n\n- old\n")
+    release(upd, "2.3.0", {"skills/authoring/SKILL.md": "# A\n\n1. Write.\n2. Lint.\n\n## Pitfalls\n\n- new upstream\n"})
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and "Merged your edits into 1 updated skill file(s)" in out
+    assert edited.read_text() == "# A\n\n1. Write.\n2. Lint.\n" + LEARNED_RULE + "\n## Pitfalls\n\n- new upstream\n"
+    upd.installed_version = "2.3.0"
+    release(upd, "2.4.0", {"skills/authoring/SKILL.md": "# A v2\n\n1. Write.\n2. Lint.\n\n## Pitfalls\n\n- new upstream\n"})
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and "Merged your edits" in out
+    assert edited.read_text().startswith("# A v2\n") and LEARNED_RULE in edited.read_text()
+
+
+def test_a_conflicting_edit_installs_the_new_version_and_asks(upd, capsys):
+    upd.capsys = capsys
+    ship(upd, "2.2.0", {"skills/authoring/SKILL.md": "1. Write.\n2. Lint.\n"})
+    edited = upd.home / "skills" / "authoring" / "SKILL.md"
+    edited.write_text("1. Write.\n2. Lint with --strict.\n")
+    release(upd, "2.3.0", {"skills/authoring/SKILL.md": "1. Write.\n2. Lint with skill_lint.py.\n"})
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and "Needs you: skills/authoring/SKILL.md changed both here and upstream" in out
+    assert edited.read_text() == "1. Write.\n2. Lint with skill_lint.py.\n"
+    (copy,) = (upd.home / "local" / "backups").glob("edits-*/skills/authoring/SKILL.md")
+    assert copy.read_text() == "1. Write.\n2. Lint with --strict.\n"
+
+
+def test_an_edit_that_went_upstream_is_not_reported(upd, capsys):
+    upd.capsys = capsys
+    ship(upd, "2.2.0", {"skills/authoring/SKILL.md": "1. Write.\n"})
+    (upd.home / "skills" / "authoring" / "SKILL.md").write_text("1. Write.\n" + LEARNED_RULE)
+    release(upd, "2.3.0", {"skills/authoring/SKILL.md": "1. Write.\n" + LEARNED_RULE})
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and "Kept your edits" not in out and "Merged" not in out and "Needs you" not in out
+
+
+def test_runtime_dot_files_are_not_counted_as_edits(upd, capsys):
+    upd.capsys = capsys
+    ship(upd, "2.2.0", {"skills/a/SKILL.md": "x\n", "skills/.usage.json": "{}"})
+    (upd.home / "skills" / ".usage.json").write_text('{"a": 3}')
+    release(upd, "2.3.0", {"skills/a/SKILL.md": "x\n"})
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and "edited shipped file" not in out
+
+
+def test_upgrade_merges_a_bot_edit_into_an_updated_squad_skill(installed, capsys):
+    """squadctl copies squad skills into each bot; the bot's own edit (background skill review) must survive."""
+    dest = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites" / "SKILL.md"
+    src = installed.src / "squads" / "web" / "skills" / "reviewing-sites" / "SKILL.md"
+    dest.write_text(dest.read_text() + "LEARNED: check the mobile menu.\n")
+    src.write_text("UPSTREAM HEADER\n" + src.read_text())
+    out = upgrade(installed, capsys)
+    assert not out["errors"]
+    text = dest.read_text()
+    assert text.startswith("UPSTREAM HEADER\n") and text.endswith("LEARNED: check the mobile menu.\n")
+    again = upgrade(installed, capsys)  # merged copy is stable: no re-copy, edit still there
+    assert again["applied"] == {} and dest.read_text() == text
+
+
+def test_upgrade_reports_a_conflicting_bot_edit_and_keeps_a_copy(installed, capsys):
+    dest = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites" / "SKILL.md"
+    src = installed.src / "squads" / "web" / "skills" / "reviewing-sites" / "SKILL.md"
+    first = dest.read_text().splitlines(True)
+    dest.write_text("".join(["LOCAL TITLE\n", *first[1:]]))
+    src.write_text("".join(["UPSTREAM TITLE\n", *first[1:]]))
+    out = upgrade(installed, capsys)
+    assert any("skill reviewing-sites: edited here and changed upstream" in p for p in out["pending"])
+    assert dest.read_text().startswith("UPSTREAM TITLE\n")
+    (copy,) = (installed.local / "backups").glob("skill-edits-*/web-qa/reviewing-sites/SKILL.md")
+    assert copy.read_text().startswith("LOCAL TITLE\n")

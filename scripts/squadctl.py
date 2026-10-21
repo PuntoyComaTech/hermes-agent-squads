@@ -27,6 +27,7 @@ HERE = Path(__file__).resolve().parent
 SRC = HERE.parent
 sys.path.insert(0, str(HERE))
 import _profile_apply as pa  # noqa: E402  (stdlib-only helpers shared with the in-runtime writer)
+import merge3  # noqa: E402  (three-way merge: local skill edits survive an update)
 
 AUX_TASKS = ("title_generation", "goal_judge", "curator", "compression", "kanban_decomposer", "triage_specifier",
              "background_review", "profile_describer", "memory_query_rewrite", "approval", "review", "skills_hub",
@@ -1089,7 +1090,7 @@ class Applier:
         # skills
         learned: list[str] = []
         if not self.skip_skills:
-            skill_acts, learned = self.skills(name, bot, keeps, existed)
+            skill_acts, learned = self.skills(name, bot, keeps, existed, pending)
             acts += skill_acts
 
         # plugins, mcp
@@ -1182,8 +1183,11 @@ class Applier:
         s = json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else v
         return s if len(s) <= 80 else s[:77] + "..."
 
-    def skills(self, name: str, bot: dict, keeps: list, existed: bool) -> tuple[list[str], list[str]]:
-        """(actions, learned): learned skills are never removed, only reported."""
+    def skills(self, name: str, bot: dict, keeps: list, existed: bool,
+               pending: list[str] | None = None) -> tuple[list[str], list[str]]:
+        """(actions, learned): learned skills are never removed, only reported. A squad skill the bot edited is
+        merged with the new version; a conflict keeps a copy and adds a `pending` line."""
+        pending = [] if pending is None else pending
         ctx, dry, home = self.ctx, self.dry, self.ctx.home(name)
         acts: list[str] = []
         learned: list[str] = []
@@ -1217,12 +1221,39 @@ class Applier:
             have = _read(dest / SHA_MARK).strip() if dest.is_dir() else None
             if have == sha:
                 continue
-            acts.append(f"skill {'~' if dest.is_dir() else '+'} {skill}")
+            base = ctx.local / "state" / "skill-base" / name / skill  # the copy last installed: the merge base
+            # The bot (background skill review) or the user edited its copy since the last install: merge, never
+            # overwrite. The marker holds the source tree sha, so an edited copy no longer matches its own marker.
+            edited = dest.is_dir() and bool(have) and tree_sha(dest) != have
+            if edited:
+                files, conflicts = merge3.merge_trees(base if base.is_dir() else None, dest, src)
+                if conflicts or not base.is_dir():
+                    keep = ctx.local / "backups" / f"skill-edits-{time.strftime('%Y%m%d-%H%M%S')}" / name / skill
+                    acts.append(f"skill ~ {skill} (your edits conflict with the update: new version installed)")
+                    pending.append(f"skill {skill}: edited here and changed upstream ({', '.join(conflicts) or 'no merge base'}); "
+                                   f"your copy is in {keep}: move what still applies into the new version")
+                    if not dry:
+                        shutil.copytree(dest, keep, ignore=shutil.ignore_patterns(SHA_MARK))
+                else:
+                    acts.append(f"skill ~ {skill} (update merged with your edits)")
+                    if not dry:
+                        shutil.rmtree(dest)
+                        for rel, data in files.items():
+                            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+                            (dest / rel).write_bytes(data)
+                        write_text(dest / SHA_MARK, sha + "\n")
+                        shutil.rmtree(base, ignore_errors=True)
+                        shutil.copytree(src, base, ignore=shutil.ignore_patterns(SHA_MARK, "__pycache__"))
+                        continue
+            else:
+                acts.append(f"skill {'~' if dest.is_dir() else '+'} {skill}")
             if not dry:
                 if dest.is_dir():
                     shutil.rmtree(dest)
                 shutil.copytree(src, dest)
                 write_text(dest / SHA_MARK, sha + "\n")
+                shutil.rmtree(base, ignore_errors=True)
+                shutil.copytree(src, base, ignore=shutil.ignore_patterns(SHA_MARK, "__pycache__"))
         installed = hub_lock(home)
         wanted = {value.rsplit("/", 1)[-1] for _ident, kind, value in keeps if kind == "hub"}
         for _ident, kind, value in keeps:

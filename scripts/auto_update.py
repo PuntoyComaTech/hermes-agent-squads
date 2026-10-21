@@ -7,7 +7,11 @@ The one update path: cron `builder-update` runs it daily with --no-agent, and th
      behind this checkout: print nothing (a silent cron tick). --force always continues.
   2. Save a copy of every shipped file edited since the last update (local/backups/edits-<stamp>/).
   3. Only when the repo version is higher: `hermes profile update <builder> --yes`. It replaces only the files the
-     distribution ships; memories, sessions, .env, config.yaml, local/ and learned skills stay.
+     distribution ships; memories, sessions, .env, config.yaml, local/ and learned skills stay. Hermes replaces a
+     shipped skill directory whole, so local edits to it (the background skill review patches the skills it used)
+     would be lost: each edited file under skills/ is merged three ways afterwards (merge3.py) against the copy
+     shipped by the last update (local/state/shipped/). An edit to a file the update did not change is kept as is;
+     non-overlapping changes are combined; an overlap keeps the new version and reports `Needs you` with the backup.
   4. `squadctl upgrade`: applies this checkout to the builder and every installed squad. It keeps learned skills,
      memories, the user's model choices and SOUL edits, fills only lanes the new version added, and skips a squad
      whose board has running cards (retried on the next run).
@@ -35,10 +39,15 @@ try:
 except ImportError:  # Windows: no lock, one cron tick runs at a time anyway
     fcntl = None
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import merge3  # noqa: E402
+
 RAW = "https://raw.githubusercontent.com/PuntoyComaTech/hermes-agent-squads/HEAD"
 SHIPPED = ("SOUL.md", "builder.yaml", "skills", "scripts", "squads")
+MERGED = ("skills",)  # where local edits are learned lessons: merged, not overwritten
 SKIP = {"__pycache__", ".squad-sha", ".DS_Store"}
 SHAS = "dist-files.json"
+SNAPSHOT = "shipped"  # local/state/shipped/<path>: each shipped file as the last update left it (the merge base)
 
 
 def home() -> Path:
@@ -68,25 +77,93 @@ def shipped_files(h: Path) -> dict[str, str]:
         p = h / root
         files = [p] if p.is_file() else (sorted(p.rglob("*")) if p.is_dir() else [])
         for f in files:
-            if f.is_file() and not SKIP & set(f.relative_to(h).parts):
+            parts = f.relative_to(h).parts
+            # dot entries (.usage.json, .curator_ledger.jsonl, .hub/) are runtime state, never shipped content
+            if f.is_file() and not SKIP & set(parts) and not any(p.startswith(".") for p in parts):
                 out[str(f.relative_to(h))] = hashlib.sha256(f.read_bytes()).hexdigest()
     return out
 
 
-def save_local_edits(h: Path, state: Path) -> list[str]:
-    """Shipped files whose content changed since the last update are copied to local/backups/edits-<stamp>/."""
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def edited_files(h: Path, state: Path) -> dict[str, bytes]:
+    """{path: current bytes} of shipped files whose content changed since the last update."""
     rec = state / SHAS
     if not rec.is_file():
-        return []
+        return {}
     before = json.loads(rec.read_text())
-    edited = [f for f, sha in shipped_files(h).items() if f in before and before[f] != sha]
-    if not edited:
-        return []
+    return {f: (h / f).read_bytes() for f, s in shipped_files(h).items() if f in before and before[f] != s}
+
+
+def save_local_edits(h: Path, edits: dict[str, bytes]) -> Path | None:
+    """Copy edited shipped files to local/backups/edits-<stamp>/ before anything replaces them."""
+    if not edits:
+        return None
     dest = h / "local" / "backups" / f"edits-{time.strftime('%Y%m%d-%H%M%S')}"
-    for f in edited:
+    for f, data in edits.items():
         (dest / f).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(h / f, dest / f)
-    return [f"{len(edited)} edited shipped file(s) saved to {dest}"]
+        (dest / f).write_bytes(data)
+    return dest
+
+
+def merge_back(h: Path, state: Path, edits: dict[str, bytes]) -> dict:
+    """After `hermes profile update`: re-apply local edits under MERGED roots.
+
+    Returns {kept, merged, conflicts: [paths], shipped: {path: bytes}}. `shipped` is the new shipped content of every
+    file written here (the next merge base). base = the file as the last update shipped it (local/state/shipped/; with
+    no snapshot yet, the new shipped file when its hash equals the one recorded at the last update, i.e. the update
+    did not change it). A conflict leaves the new version on disk; the edit stays in the backup."""
+    recorded = json.loads((state / SHAS).read_text()) if (state / SHAS).is_file() else {}
+    out: dict = {"kept": [], "merged": [], "conflicts": [], "shipped": {}}
+    for f, ours in sorted(edits.items()):
+        if not f.startswith(tuple(f"{r}/" for r in MERGED)):
+            continue
+        path = h / f
+        theirs = path.read_bytes() if path.is_file() else None
+        if ours == theirs:
+            continue  # the update shipped the very same edit (it went upstream)
+        snap = state / SNAPSHOT / f
+        if snap.is_file():
+            base = snap.read_bytes()
+        elif theirs is not None and recorded.get(f) == sha(theirs):
+            base = theirs
+        else:
+            base = None
+        result, clean = merge3.merge_bytes(base, ours, theirs) if base is not None else (theirs, False)
+        if not clean:
+            out["conflicts"].append(f)
+            continue
+        if result is None:
+            continue
+        if theirs is not None:
+            out["shipped"][f] = theirs
+        if result != theirs:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(result)
+        out["kept" if theirs == base else "merged"].append(f)
+    return out
+
+
+def write_snapshot(h: Path, state: Path, shipped: dict[str, bytes] | None = None) -> None:
+    """Record what this update shipped: hashes of every shipped file and copies under MERGED (the next merge base).
+
+    A file that holds a re-applied local edit is recorded with its shipped content (`shipped`), not the edited one,
+    so the next update still sees the edit and merges it again instead of overwriting it."""
+    shipped = shipped or {}
+    files = shipped_files(h)
+    files.update({f: sha(data) for f, data in shipped.items()})
+    snap, tmp = state / SNAPSHOT, state / f"{SNAPSHOT}.new"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    for f in files:
+        if f.startswith(tuple(f"{r}/" for r in MERGED)):
+            (tmp / f).parent.mkdir(parents=True, exist_ok=True)
+            (tmp / f).write_bytes(shipped[f] if f in shipped else (h / f).read_bytes())
+    shutil.rmtree(snap, ignore_errors=True)
+    tmp.rename(snap)
+    (state / SHAS).write_text(json.dumps(files))
 
 
 def squads_in(h: Path) -> dict[str, str]:
@@ -177,22 +254,41 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if not lag.get("applied") and not lag.get("lanes_added"):
             if not (state / SHAS).is_file():
-                (state / SHAS).write_text(json.dumps(shipped_files(h)))
+                write_snapshot(h, state)
             return 0
 
-    notes = save_local_edits(h, state)
+    edits = edited_files(h, state)
+    backup = save_local_edits(h, edits) if rose else None  # only `hermes profile update` replaces files
     before = squads_in(h)
+    merged: dict = {"kept": [], "merged": [], "conflicts": [], "shipped": {}}
     if rose:
         p = run(["hermes", "profile", "update", h.name, "--yes"], root)
         if p.returncode != 0:
             print(f"Squads update {old} -> {new} failed at `hermes profile update`: "
                   f"{(p.stderr or p.stdout).strip()[-400:]}", file=sys.stderr)
             return 1
+        merged = merge_back(h, state, edits)
     rep, err = upgrade(h, root, dry=False)
     if rep is None:
         print(f"squadctl upgrade failed: {err}", file=sys.stderr)
         return 1
-    (state / SHAS).write_text(json.dumps(shipped_files(h)))
+    if rose or not (state / SNAPSHOT).is_dir():
+        write_snapshot(h, state, merged["shipped"])
+    else:
+        # no new release: local edits stay exactly as they are and stay counted as edits
+        recorded = json.loads((state / SHAS).read_text()) if (state / SHAS).is_file() else {}
+        (state / SHAS).write_text(json.dumps({**shipped_files(h), **{f: recorded[f] for f in edits if f in recorded}}))
+    notes = []
+    if merged["kept"]:
+        notes.append(f"Kept your edits to {len(merged['kept'])} skill file(s) the update did not change: "
+                     + ", ".join(merged["kept"]))
+    if merged["merged"]:
+        notes.append(f"Merged your edits into {len(merged['merged'])} updated skill file(s): "
+                     + ", ".join(merged["merged"]))
+    notes += [f"Needs you: {f} changed both here and upstream; the new version is installed, your edit is in "
+              f"{backup / f}" for f in merged["conflicts"] if backup]
+    if backup:
+        notes.append(f"{len(edits)} edited shipped file(s) saved to {backup}")
 
     after = squads_in(h)
     lines = [f"Squads updated {old} -> {new}" if rose else

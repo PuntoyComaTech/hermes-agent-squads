@@ -23,7 +23,13 @@ description: "Writes skills that pass skill_lint.py. Use when a squad or the bui
    and a refusal or escalation.
 5. Cite every platform fact with its docs or source path. Run
    `hermes skills inspect <id>` before naming any skill identifier.
-6. Run `scripts/hpy skill_lint.py <skill-dir>`.
+6. Check every hand-off between stages: for each value one skill reads from
+   another stage's output (a store file, a key, a status), the producing skill
+   must have an explicit step that writes it. A consumer with no producer step
+   fails silently at runtime.
+7. Create every skill that `squad.yaml` names before `squadctl plan`: plan warns
+   on a named skill with no SKILL.md, and the bot runs without it.
+8. Run `scripts/hpy skill_lint.py <skill-dir>`.
 
 ## Pitfalls
 

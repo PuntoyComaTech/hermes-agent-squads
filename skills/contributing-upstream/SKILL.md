@@ -47,13 +47,26 @@ prints `true`:
 4. In `local/hermes-agent-squads`, run
    `scripts/hpy release.py --dry-run --python .venv/bin/python`, then the same
    without `--dry-run`. All gates green: it pushes to main. A red gate: it opens
-   a PR (`release.py --help`).
+   a PR (`release.py --help`). The gates run the full pytest suite (about 9
+   minutes): start the release with `terminal(background=true, notify=true)`
+   and poll with `process_manage`; do not block on it.
+5. Update the builder from the same repo with `scripts/hpy auto_update.py
+   --force` (builder profile). It overwrites installed shipped skills; each
+   locally edited one is copied to `local/backups/edits-<timestamp>/` first.
+   Diff every backup against the repo copy and move any rule still needed into
+   the repo skill, in the next release. Installed copies are not the source.
 
 ## Pitfalls
 
 - Sending user data, real names, URLs of the user's projects or credentials:
   upstream content is fictional and generic only.
 - Bundling unrelated refactors into a fix PR.
+- Test fixtures that write fake binaries or `#!` shebangs must quote the
+  interpreter and repo paths: a checkout path with a space (a projects folder
+  with a space in its name) splits the shebang and fails the test on a
+  machine where it passes elsewhere.
+- A Hermes shell exports `PYTHONPATH`, which hides the test venv's packages:
+  run pip and pytest with `env -u PYTHONPATH`.
 
 ## Verification
 
