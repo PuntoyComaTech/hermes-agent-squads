@@ -3,6 +3,13 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.5.1 - 2026-10-21
+
+### Changed
+
+- `managing-projects`: pitfalls for bot-chosen folders, what `project_sync.py --setup` does, and repos without a
+  `repo/` subfolder; gateway channels name the project folder in their prompt.
+
 ## 2.5.0 - 2026-10-21
 
 ### Changed

@@ -51,7 +51,7 @@ print(json.dumps({{"id": task["id"]}}))
 
 def write_fake(path: Path, body: str) -> None:
     """A fake `hermes`: the Python body next to it plus a sh launcher. A `#!<python>` shebang breaks when the
-    interpreter path holds a space (a checkout under "Proyectos personales"); the launcher quotes it."""
+    interpreter path holds a space (a checkout folder with a space in its name); the launcher quotes it."""
     path.with_suffix(".py").write_text(body)
     path.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(path.with_suffix('.py')))} \"$@\"\n")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
