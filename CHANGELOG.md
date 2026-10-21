@@ -3,6 +3,12 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.4.1 - 2026-10-20
+
+### Changed
+
+- `contributing-upstream`: after an update, read every `Needs you:` line, move generic rules from the backups upstream and keep squad-, fleet- or user-specific ones local; never clear a merge conflict by overwriting the installed skill.
+
 ## 2.4.0 - 2026-10-20
 
 Updates keep what the bots learned.

@@ -51,10 +51,14 @@ prints `true`:
    minutes): start the release with `terminal(background=true, notify=true)`
    and poll with `process_manage`; do not block on it.
 5. Update the builder from the same repo with `scripts/hpy auto_update.py
-   --force` (builder profile). It overwrites installed shipped skills; each
-   locally edited one is copied to `local/backups/edits-<timestamp>/` first.
-   Diff every backup against the repo copy and move any rule still needed into
-   the repo skill, in the next release. Installed copies are not the source.
+   --force` (builder profile). Hermes replaces shipped skills whole, so
+   auto_update three-way merges each locally edited skill file back: kept when
+   the update did not change it, combined when the changes are separate, and
+   on an overlap the new version is installed and the edit stays in
+   `local/backups/edits-<timestamp>/`. Read every `Needs you:` line, diff each
+   backup against the repo copy, and move the generic rules into the repo skill
+   in the next release; squad-, fleet- or user-specific rules stay local.
+   Installed copies are not the source.
 
 ## Pitfalls
 
@@ -67,6 +71,10 @@ prints `true`:
   machine where it passes elsewhere.
 - A Hermes shell exports `PYTHONPATH`, which hides the test venv's packages:
   run pip and pytest with `env -u PYTHONPATH`.
+- Generic lessons learned on this machine go upstream; lessons that name a
+  squad, fleet or user stay in local notes. Never clear a merge conflict by
+  overwriting the installed skill: the other side's edit is the only copy of
+  that lesson (`auto_update.py` keeps it in the backup).
 
 ## Verification
 
