@@ -1,6 +1,7 @@
 """kanban_chain: squad.yaml chains -> dependent, idempotent cards. A fake `hermes` records every call."""
 import json
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -15,7 +16,7 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "kanban_chain.py"
 FIXTURE_SQUADS = REPO / "tests" / "fixtures" / "squads"
 
-FAKE_HERMES = '''#!{python}
+FAKE_HERMES = '''
 import json, os, sys
 argv = sys.argv[1:]
 db = os.environ["FAKE_KANBAN_DB"]
@@ -48,6 +49,14 @@ print(json.dumps({{"id": task["id"]}}))
 '''
 
 
+def write_fake(path: Path, body: str) -> None:
+    """A fake `hermes`: the Python body next to it plus a sh launcher. A `#!<python>` shebang breaks when the
+    interpreter path holds a space (a checkout under "Proyectos personales"); the launcher quotes it."""
+    path.with_suffix(".py").write_text(body)
+    path.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(path.with_suffix('.py')))} \"$@\"\n")
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     home = tmp_path / "root" / "profiles" / "builder"
@@ -57,8 +66,7 @@ def env(tmp_path, monkeypatch):
         (squads / src.stem).mkdir(parents=True)
         shutil.copy(src, squads / src.stem / "squad.yaml")
     fake = tmp_path / "hermes"
-    fake.write_text(FAKE_HERMES.format(python=sys.executable))
-    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    write_fake(fake, FAKE_HERMES.format())
     db = tmp_path / "kanban.json"
     monkeypatch.setenv("FAKE_KANBAN_DB", str(db))
     monkeypatch.setenv("FAKE_PROJECT_PRIMARY", str(tmp_path / "project"))
@@ -147,8 +155,7 @@ def test_explicit_workspace_overrides_the_default(env):
 
 def test_unresolvable_primary_warns_and_files_without_workspace(env):
     stub = env["tmp"] / "hermes-show-fails"
-    stub.write_text(f"#!{sys.executable}\n"
-                    "import json, os, sys\n"
+    write_fake(stub, "import json, os, sys\n"
                     "argv = sys.argv[1:]\n"
                     "if argv[:2] == ['project', 'show']:\n"
                     "    raise SystemExit(1)\n"

@@ -1,0 +1,96 @@
+{
+  "about": "Hermes docs (paths under <Hermes source root>/website/docs) each hermes-platform reference was verified against. watch_upstream.py hashes these files; a change wakes the digest with the references it touches. _shared docs touch every reference.",
+  "verified_against": "0.22.2",
+  "references": {
+    "_shared": [
+      "reference/cli-commands.md",
+      "user-guide/configuration.md"
+    ],
+    "approvals-and-security.md": [
+      "user-guide/security.md",
+      "user-guide/features/credential-vault.md"
+    ],
+    "bot-mode-and-desktop.md": [
+      "user-guide/bot-mode.md",
+      "user-guide/desktop.md",
+      "user-guide/features/bot-screen.md"
+    ],
+    "bot-to-bot.md": [
+      "user-guide/bot-mode.md"
+    ],
+    "cron-and-gates.md": [
+      "user-guide/features/cron.md",
+      "developer-guide/cron-internals.md",
+      "guides/cron-troubleshooting.md"
+    ],
+    "delegation.md": [
+      "user-guide/features/delegation.md"
+    ],
+    "gateways-and-messaging.md": [
+      "user-guide/messaging/index.md",
+      "user-guide/multi-profile-gateways.md",
+      "developer-guide/gateway-session-lifecycle.md"
+    ],
+    "hooks.md": [
+      "user-guide/features/hooks.md",
+      "developer-guide/observer-hooks.md"
+    ],
+    "kanban.md": [
+      "user-guide/features/kanban.md",
+      "user-guide/features/kanban-worker-lanes.md",
+      "user-guide/features/kanban-multi-gateway.md",
+      "user-guide/features/goals.md"
+    ],
+    "mcp.md": [
+      "user-guide/features/mcp.md",
+      "reference/mcp-config-reference.md"
+    ],
+    "memory.md": [
+      "user-guide/features/memory.md",
+      "user-guide/features/memory-providers.md"
+    ],
+    "models-and-auxiliary.md": [
+      "user-guide/configuring-models.md",
+      "user-guide/features/fallback-providers.md",
+      "user-guide/features/credential-pools.md",
+      "user-guide/features/provider-routing.md",
+      "user-guide/features/vision.md",
+      "developer-guide/context-compression-and-caching.md"
+    ],
+    "plugins.md": [
+      "user-guide/features/plugins.md",
+      "user-guide/features/plugin-catalog.md",
+      "user-guide/features/built-in-plugins.md",
+      "developer-guide/plugins/index.md",
+      "developer-guide/plugins/catalog-submission.md",
+      "developer-guide/desktop-plugin-sdk.md"
+    ],
+    "profiles-and-distributions.md": [
+      "user-guide/profiles.md",
+      "user-guide/profile-distributions.md",
+      "reference/profile-commands.md",
+      "getting-started/updating.md"
+    ],
+    "projects.md": [
+      "user-guide/desktop.md"
+    ],
+    "skills-format-and-sources.md": [
+      "user-guide/features/skills.md",
+      "user-guide/features/curator.md",
+      "developer-guide/creating-skills.md"
+    ],
+    "soul-and-context-files.md": [
+      "user-guide/features/context-files.md",
+      "user-guide/features/personality.md",
+      "user-guide/which-file-does-what.md"
+    ],
+    "tool-search-and-connectors.md": [
+      "user-guide/features/tool-search.md",
+      "user-guide/features/tool-gateway.md"
+    ],
+    "toolsets.md": [
+      "reference/toolsets-reference.md",
+      "user-guide/features/tools.md"
+    ]
+  }
+}

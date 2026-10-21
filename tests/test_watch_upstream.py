@@ -2,6 +2,8 @@
 import json
 import os
 import re
+import shlex
+import shutil
 import stat
 import subprocess
 import sys
@@ -221,7 +223,7 @@ def test_a_new_build_suffix_of_the_same_release_is_silent(up, home, capsys):
 
 def test_local_version_parsed_from_the_hermes_binary(tmp_path):
     fake = tmp_path / "hermes"
-    fake.write_text(f"#!/bin/sh\ncat {FIX / 'hermes-version.txt'}\necho 'Install directory: x'\n")
+    fake.write_text(f"#!/bin/sh\ncat {shlex.quote(str(FIX / 'hermes-version.txt'))}\necho 'Install directory: x'\n")
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
     assert wu.local_hermes_version(str(fake)) == LOCAL
     assert wu.local_hermes_version(str(tmp_path / "missing")) is None
@@ -332,3 +334,164 @@ def test_squads_repo_is_not_watched(up, home, capsys):
     seed(home, release="v0.22.1", hermes=LOCAL)
     assert run_gate(up, home, capsys=capsys) == {"wakeAgent": False}
     assert not [p for p, _ in up.log if "squads" in p]
+
+
+# --- docs signal --------------------------------------------------------------------------------------------------
+
+DOC_MAP = {"verified_against": "0.22.2", "references": {
+    "_shared": ["reference/cli-commands.md"],
+    "kanban.md": ["user-guide/features/kanban.md"],
+    "cron-and-gates.md": ["user-guide/features/cron.md"],
+}}
+
+
+@pytest.fixture
+def src(tmp_path):
+    """A fake Hermes source root with the three mapped docs, an unmapped page and a generated skill page."""
+    root = tmp_path / "hermes-src"
+    docs = root / "website" / "docs"
+    for rel, text in {"reference/cli-commands.md": "# CLI\n- hermes kanban\n",
+                      "user-guide/features/kanban.md": "# Kanban\n- scratch workspaces persist\n",
+                      "user-guide/features/cron.md": "# Cron\n- scripts inherit env\n",
+                      "user-guide/features/other.mdx": "# Other\n",
+                      "user-guide/skills/bundled/foo.md": "# generated\n"}.items():
+        (docs / rel).parent.mkdir(parents=True, exist_ok=True)
+        (docs / rel).write_text(text)
+    (tmp_path / "doc-map.json").write_text(json.dumps(DOC_MAP))
+    return root
+
+
+def docs_gate(up, home, src, capsys, *extra):
+    return run_gate(up, home, "--hermes-src", str(src), "--doc-map", str(src.parent / "doc-map.json"), *extra,
+                    capsys=capsys)
+
+
+def test_docs_first_run_seeds_the_baseline_silently(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)  # a state written before the docs signal existed
+    assert docs_gate(up, home, src, capsys) == {"wakeAgent": False}
+    snap = state(home)["reviewed"]["docs"]
+    assert set(snap["files"]) == {"reference/cli-commands.md", "user-guide/features/kanban.md",
+                                  "user-guide/features/cron.md"}
+    assert "user-guide/features/other.mdx" in snap["pages"]
+    assert not [p for p in snap["pages"] if p.startswith("user-guide/skills/")]  # generated pages are skipped
+    assert len(list((home / "local" / "state" / "docs" / "blobs").glob("*.md"))) == 3
+    assert docs_gate(up, home, src, capsys) == {"wakeAgent": False}
+
+
+def test_a_changed_doc_wakes_with_a_diff_and_the_affected_reference(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    kanban = src / "website" / "docs" / "user-guide" / "features" / "kanban.md"
+    kanban.write_text("# Kanban\n- scratch workspaces are deleted on completion\n")
+    out = docs_gate(up, home, src, capsys)
+    ctx = out["context"]
+    assert out["wakeAgent"] is True and ctx["changed"] == ["docs"]
+    assert ctx["docs"]["references"] == ["kanban.md"] and ctx["docs"]["verified_against"] == "0.22.2"
+    assert ctx["docs"]["changed"] == [{"path": "user-guide/features/kanban.md", "refs": ["kanban.md"],
+                                       "status": "changed"}]
+    diff = Path(ctx["docs"]["diff"]).read_text()
+    assert "-- scratch workspaces persist" in diff and "+- scratch workspaces are deleted on completion" in diff
+    assert "References: kanban.md" in diff
+
+
+def test_a_docs_wake_repeats_until_the_digest_exists(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    (src / "website" / "docs" / "user-guide" / "features" / "cron.md").write_text("# Cron\n- scripts get a sanitized env\n")
+    assert docs_gate(up, home, src, capsys)["wakeAgent"] is True
+    second = docs_gate(up, home, src, capsys)  # the digest turn failed: the same change wakes again
+    assert second["wakeAgent"] is True and "-- scripts inherit env" in Path(second["context"]["docs"]["diff"]).read_text()
+    digest(home)
+    assert docs_gate(up, home, src, capsys) == {"wakeAgent": False}
+    # the superseded reviewed copy is pruned once the new one is reviewed
+    blobs = home / "local" / "state" / "docs" / "blobs"
+    assert len(list(blobs.glob("*.md"))) == 3
+
+
+def test_a_shared_doc_touches_every_reference(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    (src / "website" / "docs" / "reference" / "cli-commands.md").write_text("# CLI\n- hermes kanban\n- hermes pause\n")
+    ctx = docs_gate(up, home, src, capsys)["context"]
+    assert ctx["docs"]["references"] == ["*"]
+
+
+def test_new_deleted_and_removed_pages_are_reported(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    docs = src / "website" / "docs"
+    (docs / "user-guide" / "features" / "loops.md").write_text("# Loops\n")
+    (docs / "user-guide" / "features" / "other.mdx").unlink()
+    (docs / "user-guide" / "features" / "cron.md").unlink()
+    (docs / "user-guide" / "skills" / "bundled" / "bar.md").write_text("# generated\n")
+    ctx = docs_gate(up, home, src, capsys)["context"]["docs"]
+    assert ctx["new_pages"] == ["user-guide/features/loops.md"]
+    assert ctx["deleted_pages"] == ["user-guide/features/cron.md", "user-guide/features/other.mdx"]
+    assert ctx["changed"] == [{"path": "user-guide/features/cron.md", "refs": ["cron-and-gates.md"],
+                               "status": "removed"}]
+    text = Path(ctx["diff"]).read_text()
+    assert "## New docs pages" in text and "user-guide/features/loops.md" in text
+
+
+def test_a_big_docs_diff_spills_whole_sections_to_overflow(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    docs = src / "website" / "docs" / "user-guide" / "features"
+    (docs / "kanban.md").write_text("# Kanban\n" + "".join(f"- line {i} " + "k" * 80 + "\n" for i in range(60)))
+    (docs / "cron.md").write_text("# Cron\n" + "".join(f"- line {i} " + "c" * 80 + "\n" for i in range(60)))
+    ctx = docs_gate(up, home, src, capsys, "--max-chars", "6000")["context"]["docs"]
+    diff, over = Path(ctx["diff"]).read_text(), Path(ctx["overflow"]).read_text()
+    assert len(diff) <= 6000
+    assert ("## user-guide/features/cron.md" in diff) != ("## user-guide/features/cron.md" in over)
+    assert ("## user-guide/features/kanban.md" in diff) != ("## user-guide/features/kanban.md" in over)
+
+
+def test_docs_dry_run_writes_nothing(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    before = (home / "local" / "state" / "watch.json").read_text()
+    (src / "website" / "docs" / "user-guide" / "features" / "kanban.md").write_text("# Kanban\n- new\n")
+    assert docs_gate(up, home, src, capsys, "--dry-run")["wakeAgent"] is True
+    assert (home / "local" / "state" / "watch.json").read_text() == before
+    assert not list((home / "local" / "state" / "docs").glob("*.diff.md"))
+
+
+def test_no_docs_tree_skips_the_signal(up, home, tmp_path, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    out = run_gate(up, home, "--hermes-src", str(tmp_path / "pip-install"), "--json", capsys=capsys)
+    assert out["wakeAgent"] is False and out["report"]["docs"].startswith("skipped")
+    assert "docs" not in state(home)["reviewed"]
+
+
+def test_install_directory_is_read_from_hermes_version(tmp_path, src):
+    fake = tmp_path / "hermes"
+    fake.write_text(f"#!/bin/sh\ncat {shlex.quote(str(FIX / 'hermes-version.txt'))}\n"
+                    f"echo {shlex.quote('Install directory: ' + str(src))}\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    assert wu.hermes_version_info(str(fake)) == (LOCAL, str(src))
+
+
+def test_a_docs_and_a_release_change_wake_once_together(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    seed_state = state(home)
+    seed_state["reviewed"]["release"] = "v0.22.0"
+    gate_lib.save_state("watch", seed_state, home / "local" / "state")
+    (src / "website" / "docs" / "user-guide" / "features" / "kanban.md").write_text("# Kanban\n- new\n")
+    ctx = docs_gate(up, home, src, capsys)["context"]
+    assert ctx["changed"] == ["release", "docs"] and ctx["tags"] == ["v0.22.1"]
+    digest(home)
+    assert docs_gate(up, home, src, capsys) == {"wakeAgent": False}
+
+
+def test_shipped_doc_map_points_at_real_docs_and_every_reference():
+    """Every hermes-platform reference has docs in the map; with a Hermes checkout, every mapped path exists."""
+    data = wu.load_doc_map(wu.DOC_MAP)
+    refs = {p.name for p in (REPO / "skills" / "hermes-platform" / "references").glob("*.md")}
+    assert set(data["references"]) - {"_shared"} == refs
+    assert re.fullmatch(r"\d+\.\d+\.\d+", data["verified_against"])
+    _, where = wu.hermes_version_info("hermes") if shutil.which("hermes") else (None, None)
+    docs = Path(where or "/nonexistent") / "website" / "docs"
+    if docs.is_dir():
+        missing = [p for paths in data["references"].values() for p in paths if not (docs / p).is_file()]
+        assert not missing, f"doc-sources.json names docs this Hermes does not have: {missing}"

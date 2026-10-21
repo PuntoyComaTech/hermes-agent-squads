@@ -1,6 +1,6 @@
 ---
 name: tracking-updates
-description: "Digests Hermes releases and proposes each change. Use when Hermes ships a release or the user asks what changed upstream."
+description: "Digests Hermes releases and docs, proposes each change. Use when builder-watch wakes or the user asks what changed upstream."
 ---
 
 # Tracking updates
@@ -8,7 +8,7 @@ description: "Digests Hermes releases and proposes each change. Use when Hermes 
 ## When to Use
 
 - The `builder-watch` cron wakes the builder with a `## Script Output` block.
-- The user asks what changed in Hermes or what to apply.
+- The user asks what changed in Hermes, what to apply, or for an audit of the references.
 - The squads themselves are not this skill: `builder-update` applies them with no agent
   (`skills/installing-squads` step 6).
 
@@ -17,17 +17,23 @@ description: "Digests Hermes releases and proposes each change. Use when Hermes 
 ### Digest mode (cron)
 
 `builder-watch` (`builder.yaml` -> `bots.builder.cron.builder-watch`) runs the
-gate `scripts/watch_upstream.py` (`--help` lists the signals). A quiet tick
-prints `{"wakeAgent": false}` and no agent runs. On a change Hermes prepends
-the gate's stdout to this turn as `## Script Output`.
+gate `scripts/watch_upstream.py` (`--help` lists the three signals: releases,
+local version, local docs). A quiet tick prints `{"wakeAgent": false}` and no
+agent runs. On a change Hermes prepends the gate's stdout to this turn as
+`## Script Output`; `context.changed` names the signals that fired.
 
-Squads updates are not digested here: the `builder-update` cron applies them
-with no agent (`skills/installing-squads` step 6).
-
-1. Read only the files listed in `context.filtered` and `context.overflow`
-   (priority bullets over the cap), plus `context.hermes` (local version
-   change).
-2. Write `local/state/digests/<date>.json`:
+1. Read only what the context lists:
+   - `release`: the files in `context.filtered` and `context.overflow`
+     (priority bullets over the cap);
+   - `hermes`: `context.hermes` (local version change);
+   - `docs`: the diff in `context.docs.diff` (and `context.docs.overflow`).
+     `context.docs.references` names the `skills/hermes-platform/references/`
+     files the changed docs feed (`*` = all); `new_pages` are docs no reference
+     maps yet.
+2. For each docs change, compare the diff with the named reference and keep
+   only changes that make a reference line wrong or leave out a behavior a
+   squad depends on. Formatting and wording changes are no item.
+3. Write `local/state/digests/<date>.json`:
 
 ```json
 {
@@ -38,6 +44,7 @@ with no agent (`skills/installing-squads` step 6).
       "area": "profiles | skills | kanban | cron | plugins | mcp | connectors | desktop | projects | gateways | other",
       "change": "one line, dated facts only",
       "evidence": "path or URL the change was read from",
+      "reference": "references/<file>.md the change makes stale, or none",
       "affects": "which installed squad or bot this touches, or none",
       "action": "update-reference | new-capability | deprecation | config-change | none",
       "confidence": "high | medium | low"
@@ -46,35 +53,57 @@ with no agent (`skills/installing-squads` step 6).
 }
 ```
 
-3. Reply with at most 5 lines (cron delivers them to `bot-chat:builder`).
+4. Reply with at most 5 lines (cron delivers them to `bot-chat:builder`).
    Edit nothing else. When the gate output is unreadable or a listed file is
    missing, reply with `[CRON_FAILURE]` as the first line and the cause on the
    next line: the run is recorded as failed and alerts once.
 
 ### Apply mode (builder)
 
-1. Propose each item to the user one by one ("Hermes vX.Y.Z adds X; your web
-   squad can use it for Y; apply?"). Apply only after an explicit yes.
-2. A Hermes fact: record it as `skills/hermes-platform` step 2 says.
+1. Propose each item to the user one by one ("Hermes vX.Y.Z changes X; your
+   web squad uses it for Y; apply?"). Apply only after an explicit yes.
+2. A Hermes fact (`update-reference`): verify it in the live Hermes first
+   (`--help`, the source). The references are distribution-owned, so a local
+   edit is overwritten by the next update: record it in
+   `skills/hermes-local-notes/SKILL.md` (`skills/hermes-platform` step 3) and
+   send the reference fix upstream (`skills/contributing-upstream`). When a
+   release rewrites a reference, bump `verified_against` in
+   `scripts/data/doc-sources.json` with it.
 3. A squad change: write the overlay (`skills/changing-bots`), then `plan`,
    user OK, `apply`.
 4. A new Hermes release: tell the user to run `hermes update` (it moves
    release to release; `hermes update --set-channel main` follows every
    commit). Never run it from a bot: it restarts every gateway. After it, the
    next `builder-update` brings every bot's SOUL and toolsets to the new
-   Hermes.
+   Hermes, and the next `builder-watch` diffs the new docs.
+
+### Audit mode (each minor release, or on request)
+
+The docs signal sees only the mapped docs. Once per minor release:
+
+1. Fan out read-only `delegate_task` children, 2-4 references each, with the
+   paths from `scripts/data/doc-sources.json`. Each returns items
+   `{kind: wrong|stale|missing, claim, fact, evidence, priority}`.
+2. Verify every `wrong` and `high` item in the source yourself: children are
+   self-reports.
+3. Write `local/state/audits/<date>.json`, then run Apply mode on the items.
+   A docs page an item cites that the map lacks goes into the map.
 
 ## Pitfalls
 
 - Acting on a `confidence: low` item: research it first or drop it.
 - Skipping the digest file: a change stays pending until
   `local/state/digests/<date>.json` is newer than the wake, so the next tick
-  wakes again.
+  wakes again with the same diff.
+- Editing `skills/hermes-platform/references/` in the installed profile:
+  `builder-update` replaces it (a backup is kept); fixes go upstream.
+- Docs describe intent; the source wins when they disagree (example: a
+  documented flag the CLI lacks). Record such a gap as `wrong`.
 
 ## Verification
 
 - The digest file matches the JSON shape and every `evidence` points at a real
   file or URL.
 - No repository file changed in digest mode.
-- Applied items appear in the overlay or `skills/hermes-local-notes/` after
-  the user's yes.
+- Applied items appear in the overlay, `skills/hermes-local-notes/` or an
+  upstream PR after the user's yes.

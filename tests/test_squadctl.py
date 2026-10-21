@@ -1659,3 +1659,25 @@ def test_projects_cron_installs_project_sync_from_the_repo_scripts(env, capsys):
     assert p.returncode == 0, p.stderr
     assert "web-qa create" in p.stdout and "web bind-board web" in p.stdout
     assert "acme" in run("-p", "web-qa", "project", "list").stdout
+
+
+def test_doctor_warns_on_a_paused_squad_cron_job(env, capsys):
+    """A paused squad job never fires (profile update installs new jobs paused; a user may pause one): doctor says
+    so with the resume command, ignores jobs of other squads, and apply never resumes it on its own."""
+    env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
+    env.seed_builder()
+    env.run("apply", "--self", capsys=capsys)
+    path = env.root / "profiles" / "builder" / "cron" / "jobs.json"
+    data = json.loads(path.read_text())
+    watch = next(j for j in data["jobs"] if j["name"] == "builder-watch")
+    watch.update(enabled=False, state="paused", paused_reason="Installed from a profile distribution; review it")
+    data["jobs"].append({"id": "other1", "name": "mine-nightly", "enabled": False, "state": "paused"})
+    path.write_text(json.dumps(data))
+    _, doc = env.run("doctor", "builder", expect=None, capsys=capsys)
+    (warn,) = [c for c in doc["checks"] if c["check"] == "builder:cron:builder-watch"]
+    assert warn["status"] == "warn" and "paused (Installed from a profile distribution" in warn["detail"]
+    assert f"hermes -p builder cron resume {watch['id']}" in warn["detail"]
+    assert not [c for c in doc["checks"] if "mine-nightly" in c["check"]]
+    env.run("apply", "--self", capsys=capsys)
+    again = next(j for j in json.loads(path.read_text())["jobs"] if j["name"] == "builder-watch")
+    assert again["enabled"] is False

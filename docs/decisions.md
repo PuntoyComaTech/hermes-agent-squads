@@ -44,6 +44,7 @@
 - **V-11** `always_disabled` toolsets live in `scripts/data/always-disabled.yaml` (C-07).
 - **V-12** All bots are visible. Every bot has built-in memory unless its manifest sets `memory: false`; each SOUL names what its memory holds (job pitfalls and fixes, never secrets). `apply` removes only skills it installed (`skills/.squad-installed.json` or the `.squad-sha` marker); skills a bot wrote with `skill_manage` are reported as `learned` and kept. Desktop sections are stamped per bot on `ui_meta.hermes-bots` (`sectionId`/`sectionName`): every squad's manager under `Managers`, one section per squad for its workers; a bot belongs to exactly one section and the Desktop rebuilds the section records from the members (C-11).
 - **V-14** Updates: zero-LLM `watch_upstream.py` gate, then a digest-lane agent; apply only through the builder with the user's OK.
+  (2026-10-20) The gate also diffs the local Hermes docs mapped in `scripts/data/doc-sources.json`, because releases notes alone let the references drift; a full reference audit (read-only subagents) runs once per minor release.
 - **V-15** Cron jobs are created with `hermes cron create`; no `jobs.json` is shipped.
 - **V-16** Only managers create cards on another squad's board.
 - **V-17** The scout does job analysis; analysis cards pin the review lane with per-card `--model`.

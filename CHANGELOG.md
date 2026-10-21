@@ -3,6 +3,35 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.3.0 - 2026-10-20
+
+The builder watches the Hermes docs, and its Hermes references are re-verified against v0.22.2.
+
+### Added
+
+- `watch_upstream.py` third signal: the local Hermes docs each `hermes-platform` reference was verified against
+  (`scripts/data/doc-sources.json`). A change wakes the digest with a unified diff and the affected references;
+  new and deleted docs pages are reported. The first run seeds the baseline silently; no tokens on quiet ticks.
+- `squadctl doctor` warns on a paused squad cron job, with the resume command (a paused job never fires).
+- `tracking-updates`: digests doc diffs, and an audit mode for each minor Hermes release.
+
+### Changed
+
+- All 18 `hermes-platform` references re-verified against Hermes v0.22.2 docs and source. Corrections include:
+  `profile update` merges cron jobs by id and installs new ones paused; a failing cron script still wakes the agent
+  with `## Script Error`; pinned cron jobs never use `fallback_providers`; cron script env is sanitized; scratch
+  kanban workspaces are deleted on completion; `kanban_request_changes` lands `todo` while parents are open; the
+  stale-claim reclaim needs a heartbeat over 1 h old; `--scheduled-at` is documented but absent from the CLI;
+  `message_agent` needs a `Bot Chat` title plus a Bot-Mode-managed install; delegated children of a kanban worker
+  cannot close cards; `approvals.mode`, `approvals.deny` and the yolo bypasses; plugin enablement is per profile,
+  `--ref` pins and plugin packs; MCP `tools.include/exclude`, `${VAR}` and default-on sampling; the gateway's
+  default-deny allowlist; default-off toolsets.
+- `hermes-platform` points at `verified_against` in `doc-sources.json`.
+
+### Fixed
+
+- `test_watch_upstream.py`: the fake `hermes` binary quotes its fixture path (failed in a checkout path with spaces).
+
 ## 2.2.0 - 2026-10-17
 
 One update path, bots composed from the installed Hermes, and squad Projects in the Desktop.

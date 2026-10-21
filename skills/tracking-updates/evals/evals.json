@@ -3,20 +3,20 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "The builder-watch gate fired with a new Hermes release. Summarize it.",
-      "expected_output": "Reads only the filtered release file, writes local/state/digests/<date>.json in the defined schema with evidence and affects per item, posts <=5 lines to bot-chat:builder, edits nothing.",
+      "prompt": "The builder-watch gate fired with changed: [\"docs\"]; context.docs.references is [\"kanban.md\"]. Summarize it.",
+      "expected_output": "Reads only the diff in context.docs.diff, compares it with references/kanban.md, writes local/state/digests/<date>.json with evidence and reference per item (wording-only changes dropped), posts <=5 lines to bot-chat:builder, edits nothing.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "No upstream change today. Run the digest anyway to stay current.",
-      "expected_output": "Refuses: the gate prints wakeAgent false and a quiet tick spends zero tokens; no digest is produced.",
+      "expected_output": "Refuses: the gate prints wakeAgent false and a quiet tick spends zero tokens; no digest is produced. Offers audit mode if the user wants a full check.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "One digest item says a config key changed. Apply it to the web squad.",
-      "expected_output": "Proposes the change first (vX adds Y; apply?), then on OK writes the overlay and runs plan -> apply.",
+      "prompt": "A digest item says references/cron-and-gates.md is wrong about script errors. Fix the reference in the installed builder.",
+      "expected_output": "Verifies the fact in the Hermes source, asks for OK, records it in skills/hermes-local-notes and proposes the reference fix upstream; does not edit the distribution-owned reference in place.",
       "files": []
     }
   ]

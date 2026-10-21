@@ -1874,6 +1874,25 @@ def unpinned_cron_checks(ctx: Ctx, key: str, bot: str) -> list[dict]:
             and not j.get("no_agent") and not j.get("model")]
 
 
+def paused_cron_checks(ctx: Ctx, key: str, bot: str) -> list[dict]:
+    """A warn per squad cron job that is paused or disabled: a paused job never fires, and nothing else says so.
+    `hermes profile update` installs newly shipped jobs paused, and a user may have paused one and forgotten."""
+    raw = json.loads(_read(ctx.home(bot) / "cron" / "jobs.json") or "[]")
+    jobs = raw.get("jobs", []) if isinstance(raw, dict) else raw
+    out = []
+    for j in jobs:
+        name = str(j.get("name") or "")
+        if not name.startswith(f"{key}-"):
+            continue
+        paused = not j.get("enabled", True) or str(j.get("state") or "") == "paused" or bool(j.get("paused_at"))
+        if paused:
+            why = f" ({j['paused_reason']})" if j.get("paused_reason") else ""
+            # apply never resumes a job: a pause may be the user's choice
+            out.append(check(f"{bot}:cron:{name}", "warn", f"paused{why}: it never fires; resume it with "
+                             f"`hermes -p {bot} cron resume {j.get('id')}`"))
+    return out
+
+
 def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
     out = []
     ver = hermes_version(ctx) if shutil.which("hermes") else None
@@ -1928,6 +1947,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
                 status, detail = login_probe(re.split(r"[<>=~]", app)[0].strip())
                 out.append(check(f"{name}:login:{app}", status, detail))
             out += unpinned_cron_checks(ctx, key, name)
+            out += paused_cron_checks(ctx, key, name)
             out.append(web_check(ctx, name, bot))
         if key == "jobs":
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows

@@ -16,7 +16,10 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 
 1. Read `skills/hermes-local-notes/SKILL.md` when it exists; its facts win
    over `references/`.
-2. Pick the topic from the index below and read that reference file.
+2. Pick the topic from the index below and read that reference file. The
+   references were verified against the Hermes version in
+   `scripts/data/doc-sources.json` (`verified_against`); on a newer Hermes,
+   check a fact you act on against `--help` or the source.
 3. When a reference and the live Hermes (`hermes <cmd> --help`, the source)
    disagree, the live Hermes wins. Append `<topic>: <fact> (<date>)` to
    `skills/hermes-local-notes/SKILL.md`, creating it with frontmatter
