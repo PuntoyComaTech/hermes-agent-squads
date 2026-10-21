@@ -42,7 +42,8 @@ prints `true`:
 2. Bump `distribution.yaml` -> `version` and add a `## <version> - <date>`
    entry to `CHANGELOG.md`.
 3. Commit. Once per clone, create the test venv:
-   `python3 -m venv .venv && .venv/bin/pip install pytest pyyaml jsonschema`.
+   `python3 -m venv .venv && env -u PYTHONPATH .venv/bin/pip install pytest pyyaml jsonschema`
+   (a Hermes shell exports `PYTHONPATH`, which hides the venv's own packages).
 4. In `local/hermes-agent-squads`, run
    `scripts/hpy release.py --dry-run --python .venv/bin/python`, then the same
    without `--dry-run`. All gates green: it pushes to main. A red gate: it opens

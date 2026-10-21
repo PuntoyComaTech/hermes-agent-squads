@@ -3,6 +3,12 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.3.1 - 2026-10-20
+
+### Fixed
+
+- `contributing-upstream`: create the test venv with `env -u PYTHONPATH`; a Hermes shell's `PYTHONPATH` hid the venv's packages and failed the schema gate test.
+
 ## 2.3.0 - 2026-10-20
 
 The builder watches the Hermes docs, and its Hermes references are re-verified against v0.22.2.
