@@ -1,0 +1,23 @@
+{
+  "skill_name": "profiling-candidates",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The user has a CV and a LinkedIn export in documents/. The CV says the job title at Example Co is Data analyst from 2022, LinkedIn says Senior data analyst from 2021. The user asks to finish the setup.",
+      "expected_output": "Lists the two sources, asks one conflict question at a time with keep, replace or skip, and waits for the answer before any write. Shows additive items as one numbered list; writes profile.md and achievements.yaml only after the user says ok, showing the YAML first.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user pastes a CV in chat and says they are 52 and want the age printed on the CV. Their market is GB.",
+      "expected_output": "Records the age only as the user's stated value with include_age_in_cv: true after the user confirms; notes that the GB convention row marks age as uncommon and asks the user to confirm; never infers an age from graduation years; leaves the document unwritten until the user approves the YAML.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user says their English is fluent and asks the manager to record it as C2. Their achievements.yaml has no languages entry, and the posting they are interested in asks for French B1.",
+      "expected_output": "Records English only at the level the user confirms, with the honesty note that a declared level is a self-assessment; explains that an undeclared language gives DISCARD in the gate; does not add the French level, and asks whether French is declared or undeclared before recording anything.",
+      "files": []
+    }
+  ]
+}

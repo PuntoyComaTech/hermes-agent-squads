@@ -1,0 +1,394 @@
+{
+  "schema": 2,
+  "reviewed_on": "2026-10-21",
+  "note": "Read by link_check.py. ats: the public ATS hosts and the shape of their board path. shape path: the board is the first path segment (host/<board>); subdomain: the board is the host label (<board>.host); workday: <tenant>[.wdN].myworkdayjobs.com/[<locale>/]<site>. portals: the squad's own portal CLIs (searching-portals): their posting pages are official_ats and are read through the portal's detail command. job_boards: reviewed job boards that are not employers (their posting pages are verdict job_board). path: a regex on the URL path, matched case-insensitively. hosts: a host name, or *.domain for every subdomain. shorteners, forms, messaging: never job postings. reviewed_boards: boards a reviewer confirmed on the employer's own careers page; empty until then, so every ATS board is official_ats. Add an entry as {\"url\": \"https://boards.greenhouse.io/<board>\", \"company\": \"<Employer>\", \"reviewed_on\": \"YYYY-MM-DD\"}; the url must be the board itself, with no posting path.",
+  "ats": [
+    {
+      "id": "greenhouse",
+      "brand": "greenhouse",
+      "hosts": [
+        "boards.greenhouse.io",
+        "job-boards.greenhouse.io"
+      ],
+      "shape": "path",
+      "reserved": [
+        "embed",
+        "api",
+        "v1"
+      ]
+    },
+    {
+      "id": "lever",
+      "brand": "lever",
+      "hosts": [
+        "jobs.lever.co"
+      ],
+      "shape": "path",
+      "reserved": []
+    },
+    {
+      "id": "workday",
+      "brand": "myworkdayjobs",
+      "hosts": [
+        "*.myworkdayjobs.com"
+      ],
+      "shape": "workday",
+      "reserved": [
+        "job"
+      ]
+    },
+    {
+      "id": "ashby",
+      "brand": "ashbyhq",
+      "hosts": [
+        "jobs.ashbyhq.com"
+      ],
+      "shape": "path",
+      "reserved": []
+    },
+    {
+      "id": "smartrecruiters",
+      "brand": "smartrecruiters",
+      "hosts": [
+        "jobs.smartrecruiters.com"
+      ],
+      "shape": "path",
+      "reserved": []
+    },
+    {
+      "id": "workable",
+      "brand": "workable",
+      "hosts": [
+        "apply.workable.com"
+      ],
+      "shape": "path",
+      "reserved": []
+    },
+    {
+      "id": "teamtailor",
+      "brand": "teamtailor",
+      "hosts": [
+        "*.teamtailor.com"
+      ],
+      "shape": "subdomain",
+      "reserved": [
+        "www",
+        "app",
+        "api"
+      ]
+    },
+    {
+      "id": "recruitee",
+      "brand": "recruitee",
+      "hosts": [
+        "*.recruitee.com"
+      ],
+      "shape": "subdomain",
+      "reserved": [
+        "www",
+        "app",
+        "api"
+      ]
+    },
+    {
+      "id": "bamboohr",
+      "brand": "bamboohr",
+      "hosts": [
+        "*.bamboohr.com"
+      ],
+      "shape": "subdomain",
+      "path_prefix": "/careers",
+      "reserved": [
+        "www",
+        "app",
+        "api"
+      ]
+    },
+    {
+      "id": "jobvite",
+      "brand": "jobvite",
+      "hosts": [
+        "jobs.jobvite.com"
+      ],
+      "shape": "path",
+      "reserved": []
+    },
+    {
+      "id": "icims",
+      "brand": "icims",
+      "hosts": [
+        "*.icims.com"
+      ],
+      "shape": "subdomain",
+      "reserved": [
+        "www",
+        "app",
+        "api"
+      ]
+    },
+    {
+      "id": "successfactors",
+      "brand": "successfactors",
+      "hosts": [
+        "*.successfactors.com"
+      ],
+      "shape": "subdomain",
+      "reserved": [
+        "www",
+        "app",
+        "api"
+      ]
+    },
+    {
+      "id": "taleo",
+      "brand": "taleo",
+      "hosts": [
+        "*.taleo.net"
+      ],
+      "shape": "subdomain",
+      "reserved": [
+        "www",
+        "app",
+        "api"
+      ]
+    }
+  ],
+  "portals": [
+    {
+      "id": "linkedin",
+      "brand": "linkedin",
+      "hosts": [
+        "linkedin.com",
+        "*.linkedin.com"
+      ],
+      "path": "^/jobs/view/(?:[^/]*-)?[0-9]{6,}/?$"
+    },
+    {
+      "id": "freehire",
+      "brand": "freehire",
+      "hosts": [
+        "freehire.me"
+      ],
+      "path": "^/jobs/[a-z0-9][a-z0-9-]*/?$"
+    }
+  ],
+  "job_boards": [
+    {
+      "id": "getonbrd",
+      "brand": "getonbrd",
+      "hosts": [
+        "getonbrd.com",
+        "*.getonbrd.com",
+        "getonbrd.com.co",
+        "*.getonbrd.com.co"
+      ],
+      "path": "^/jobs/(?:[a-z0-9-]+/)?[a-z0-9][a-z0-9-]*/?$"
+    },
+    {
+      "id": "himalayas",
+      "brand": "himalayas",
+      "hosts": [
+        "himalayas.app",
+        "*.himalayas.app"
+      ],
+      "path": "^/companies/[a-z0-9-]+/jobs/[a-z0-9][a-z0-9-]*/?$"
+    },
+    {
+      "id": "torre",
+      "brand": "torre",
+      "hosts": [
+        "torre.ai",
+        "*.torre.ai"
+      ],
+      "path": "^/post/[a-z0-9][a-z0-9_-]*/?$"
+    },
+    {
+      "id": "whatjobs",
+      "brand": "whatjobs",
+      "hosts": [
+        "whatjobs.com",
+        "*.whatjobs.com"
+      ],
+      "path": "^/(?:job/[a-z0-9][a-z0-9-]*|pub_api__cpl__[0-9]+__[0-9]+)/?$"
+    },
+    {
+      "id": "remoteok",
+      "brand": "remoteok",
+      "hosts": [
+        "remoteok.com",
+        "*.remoteok.com"
+      ],
+      "path": "^/remote-jobs/[a-z0-9][a-z0-9-]*/?$"
+    },
+    {
+      "id": "weworkremotely",
+      "brand": "weworkremotely",
+      "hosts": [
+        "weworkremotely.com",
+        "*.weworkremotely.com"
+      ],
+      "path": "^/remote-jobs/(?!all-jobs/?$)[a-z0-9][a-z0-9-]*/?$"
+    },
+    {
+      "id": "wellfound",
+      "brand": "wellfound",
+      "hosts": [
+        "wellfound.com",
+        "*.wellfound.com"
+      ],
+      "path": "^(?:/company/[a-z0-9-]+)?/jobs/[0-9]{4,}-[a-z0-9-]+/?$"
+    },
+    {
+      "id": "computrabajo",
+      "brand": "computrabajo",
+      "hosts": [
+        "computrabajo.com",
+        "*.computrabajo.com"
+      ],
+      "path": "^/ofertas-de-trabajo/[a-z0-9-]+-[a-z0-9]{16,}/?$"
+    },
+    {
+      "id": "bumeran",
+      "brand": "bumeran",
+      "hosts": [
+        "bumeran.com.ar",
+        "*.bumeran.com.ar",
+        "bumeran.com.pe",
+        "*.bumeran.com.pe",
+        "bumeran.com.mx",
+        "*.bumeran.com.mx",
+        "bumeran.com.ve",
+        "*.bumeran.com.ve"
+      ],
+      "path": "^/empleos/[a-z0-9-]+-[0-9]{6,}\\.html$"
+    },
+    {
+      "id": "indeed",
+      "brand": "indeed",
+      "hosts": [
+        "indeed.com",
+        "*.indeed.com",
+        "indeed.com.mx",
+        "*.indeed.com.mx",
+        "indeed.com.br",
+        "*.indeed.com.br",
+        "indeed.com.ar",
+        "*.indeed.com.ar",
+        "indeed.co.uk",
+        "*.indeed.co.uk",
+        "indeed.de",
+        "*.indeed.de",
+        "indeed.es",
+        "*.indeed.es"
+      ],
+      "path": "^/viewjob/?$"
+    },
+    {
+      "id": "glassdoor",
+      "brand": "glassdoor",
+      "hosts": [
+        "glassdoor.com",
+        "*.glassdoor.com",
+        "glassdoor.com.mx",
+        "*.glassdoor.com.mx",
+        "glassdoor.com.br",
+        "*.glassdoor.com.br",
+        "glassdoor.co.uk",
+        "*.glassdoor.co.uk",
+        "glassdoor.de",
+        "*.glassdoor.de",
+        "glassdoor.es",
+        "*.glassdoor.es",
+        "glassdoor.fr",
+        "*.glassdoor.fr"
+      ],
+      "path": "^/job-listing/[a-z0-9-]+-jv_ic[0-9]+_ko[0-9,]+(?:_ke[0-9,]+)?\\.htm$"
+    },
+    {
+      "id": "remotive",
+      "brand": "remotive",
+      "hosts": [
+        "remotive.com",
+        "*.remotive.com"
+      ],
+      "path": "^/remote-jobs/[a-z0-9-]+/[a-z0-9][a-z0-9-]*-[0-9]{4,}/?$"
+    }
+  ],
+  "shorteners": [
+    {
+      "host": "bit.ly"
+    },
+    {
+      "host": "tinyurl.com"
+    },
+    {
+      "host": "t.co"
+    },
+    {
+      "host": "goo.gl"
+    },
+    {
+      "host": "ow.ly"
+    },
+    {
+      "host": "is.gd"
+    },
+    {
+      "host": "buff.ly"
+    },
+    {
+      "host": "rebrand.ly"
+    },
+    {
+      "host": "cutt.ly"
+    },
+    {
+      "host": "shorturl.at"
+    },
+    {
+      "host": "rb.gy"
+    },
+    {
+      "host": "lnkd.in"
+    }
+  ],
+  "forms": [
+    {
+      "host": "docs.google.com",
+      "path_prefix": "/forms"
+    },
+    {
+      "host": "forms.gle"
+    },
+    {
+      "host": "forms.office.com"
+    },
+    {
+      "host": "*.typeform.com"
+    },
+    {
+      "host": "*.jotform.com"
+    },
+    {
+      "host": "tally.so"
+    }
+  ],
+  "messaging": [
+    {
+      "host": "wa.me"
+    },
+    {
+      "host": "api.whatsapp.com"
+    },
+    {
+      "host": "chat.whatsapp.com"
+    },
+    {
+      "host": "t.me"
+    },
+    {
+      "host": "telegram.me"
+    }
+  ],
+  "reviewed_boards": []
+}

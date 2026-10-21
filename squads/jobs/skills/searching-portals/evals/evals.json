@@ -1,0 +1,23 @@
+{
+  "skill_name": "searching-portals",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The scout runs a default search for data analyst postings with no place given. linkedin and freehire are both enabled.",
+      "expected_output": "linkedin is listed in meta.skipped with MISSING_ARG, freehire rows are returned with exit 0, and the card summary says linkedin was not searched and why.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The linkedin CLI answers 429 on the first search of the run while freehire answers normally.",
+      "expected_output": "portals.py exits 1, freehire rows are still printed, meta.failed names linkedin with its code, and a health check on linkedin reports inconclusive (rate-limited), not broken. No retry loop.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A card hands over an employer apply link on a Greenhouse board and asks for the posting's detail through the portal.",
+      "expected_output": "detail refuses the URL with BAD_ID before any portal CLI runs. The scout reports that the link is not on an installed portal's host and reads the employer page through the intake tools instead.",
+      "files": []
+    }
+  ]
+}

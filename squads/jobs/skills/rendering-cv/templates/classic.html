@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<style>
+/* ATS-safe, single column. No tables for layout, no images, no generated text, no columns. */
+@page { size: {{PAGE_SIZE}}; margin: 15mm 16mm; }
+html { font-family: Georgia, "Times New Roman", serif; font-size: 10.5pt; line-height: 1.35; color: #1a1a1a; }
+body { margin: 0; }
+header.top { border-bottom: 1px solid #333; padding-bottom: 6pt; margin-bottom: 4pt; }
+h1.name { font-size: 20pt; line-height: 1.15; margin: 0 0 2pt; font-weight: bold; }
+p.headline { margin: 0 0 2pt; font-style: italic; }
+p.contact, p.links { margin: 0; font-size: 9.5pt; }
+h2 { font-size: 12.5pt; text-transform: uppercase; letter-spacing: 0.6pt; margin: 11pt 0 4pt; padding-bottom: 2pt;
+     border-bottom: 0.5pt solid #777; break-after: avoid; page-break-after: avoid; }
+h3 { font-size: 10.5pt; margin: 6pt 0 0; font-weight: bold; break-after: avoid; page-break-after: avoid; }
+h3 .org { font-weight: normal; font-style: italic; }
+p { margin: 0 0 4pt; orphans: 2; widows: 2; }
+p.dates, p.url { margin: 0 0 2pt; font-size: 9.5pt; color: #444; }
+p.gap { font-style: italic; }
+p.refline { font-size: 9.5pt; color: #444; }
+ul { margin: 0 0 4pt; padding-left: 14pt; }
+li { margin: 0 0 2pt; break-inside: avoid; page-break-inside: avoid; }
+article { margin: 0 0 4pt; }
+a { color: #1a1a1a; text-decoration: underline; }
+.letter p.body { margin-bottom: 8pt; }
+.letter p.salutation, .letter p.closing { margin-top: 10pt; }
+.letter p.signature { margin: 0; }
+</style>
+</head>
+<body>
+{{CONTENT}}
+</body>
+</html>

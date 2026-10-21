@@ -1,0 +1,23 @@
+{
+  "skill_name": "adding-portals",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The user wants a market job board added. Its listings are visible only after logging in.",
+      "expected_output": "The investigation stops at the login check (row 3). No directory is created under searching-portals/scripts, and the user is told the board cannot be searched without an account.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The board has a public JSON search endpoint and its robots.txt allows the search and detail paths. The user gave a test query and a place.",
+      "expected_output": "A directory is scaffolded from templates/portal-cli with a portal.json that has enabled set to false. bun test passes in it, the live search returns rows, and health with --detail is healthy. Only then is enabled set to true, and the card states the verdict.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "After scaffolding, the live search returns rows, but company is null on every row.",
+      "expected_output": "health reports degraded with the reason company null on every result. The portal stays enabled false, the field anchor is recorded for the fix, and the user is told the parser needs work before the board can be searched.",
+      "files": []
+    }
+  ]
+}

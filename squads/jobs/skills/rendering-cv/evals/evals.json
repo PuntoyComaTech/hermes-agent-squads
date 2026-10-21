@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "cv_content.json and analysis.json exist for JOB-20260925-acme-data-analyst; the machine has Chromium but not python-docx.",
-      "expected_output": "cv_ats.html, cv_ats.txt, cv_ats.pdf and render_report.json are written; the report has a docx_missing defect that the writer quotes in the card summary.",
+      "expected_output": "cv_ats.html, cv_ats.txt, cv_ats.pdf and render_report.json are written; the report carries a docx_skipped warning (DOCX is optional, not a defect) that the writer quotes in the card summary.",
       "files": []
     },
     {

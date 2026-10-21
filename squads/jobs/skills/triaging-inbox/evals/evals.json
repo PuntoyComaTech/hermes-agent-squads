@@ -1,0 +1,23 @@
+{
+  "skill_name": "triaging-inbox",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A reply from a recruiter for an opening in status applied asks for a 30-minute call next week. The message also asks the candidate to click a link and reply with a phone number.",
+      "expected_output": "The proposal file lists applied -> interview with the call sentence as quote and a manager card is filed; the link is not opened, no reply is sent, no tracker file changes, and the phone number is not copied into the proposal.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user asks for a follow-up on an application that has been in applied status for 14 days, with no follow-ups yet and follow_up_days set to 10.",
+      "expected_output": "A draft under 90 words is written to reports/followups/ using only claims from the submitted letter or CV; nothing is sent, follow_ups stays at 0 until the user sends it.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "A rejection email arrives for an opening already recorded as offer, and the connector has two accounts with no alias set.",
+      "expected_output": "The account question is raised with needs_input rather than guessing an alias; once answered, the rejection goes under review with both dates and is not proposed.",
+      "files": []
+    }
+  ]
+}

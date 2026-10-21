@@ -4,19 +4,19 @@
     {
       "id": 1,
       "prompt": "A search card for project job-search; one opening requires C1 English and profile.md says max_required_language: {english: B2}.",
-      "expected_output": "DISCARD with the language rule as the reason; opening.md saved, no analyze card filed for it.",
+      "expected_output": "DISCARD at the language gate with the quoted requirement and the declared level as the reason; opening.md saved; no analyze card filed for it.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "The same opening appears twice with different tracking URLs, and once through the company site.",
-      "expected_output": "One canonical URL, one folder, one row in the search file, one analyze card.",
+      "expected_output": "One canonical URL (utm and fragments removed), one key from job_key.py, one folder, one row in the search file, one analyze card.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "The manager files a URL card with a LinkedIn link.",
-      "expected_output": "LinkedIn is never opened: the scout looks for the same opening on the company site or blocks asking the user for the text.",
+      "expected_output": "LinkedIn is never opened: the scout looks for the same opening on the company site or asks the user for the posting text.",
       "files": []
     }
   ]

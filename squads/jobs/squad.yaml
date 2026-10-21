@@ -1,10 +1,10 @@
 schema: 2
 key: jobs
 name: Jobs
-description: "Finds openings, filters and analyzes them, writes and reviews tailored applications"
-version: 3.1.1
+description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews and tracks tailored applications"
+version: 4.0.0
 hermes_requires: ">=0.22.0"
-board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, analysis, CV, review, apply"}
+board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
 section: {id: jobs, name: Jobs}
 manager: jobs
 defaults: {aux_lane: aux, vision_lane: vision, cron_toolsets: [terminal, file, skills, kanban, todo]}
@@ -12,43 +12,51 @@ bots:
   jobs:
     role: manager
     title: Jobs manager
-    description: "Profile interview, digests, apply or skip decisions and tracking; holds PII, no web"
+    description: "Profile onboarding, digests, apply or skip decisions, outcomes, upskilling and the dashboard; holds PII, no web"
     lane: manager
-    toolsets: [file, skills, kanban, memory, session_search, clarify, todo]
-    skills: {squad: [leading-job-search, jobs-contract], auto_load: leading-job-search}
+    toolsets: [file, skills, kanban, memory, session_search, clarify, todo, terminal]
+    skills:
+      squad: [leading-job-search, profiling-candidates, tracking-outcomes, planning-upskilling, adding-portals,
+              jobs-contract]
+      auto_load: leading-job-search
     plugins: {enable: [disk-cleanup]}
     memory: true
     cron:
-      jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
+      jobs-search: {schedule: "0 * * * *", script: start_search.py, agent: false}   # hourly; the gate picks the slot
+      jobs-followups: {schedule: "0 9 * * 1-5", script: followup_gate.py, agent: false}
       jobs-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
       jobs-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
       jobs-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   jobs-scout:
     role: worker
     title: Jobs scout
-    description: "Searches openings, applies the hard filter, writes PURSUE/WATCH/REJECT analysis cards"
+    description: "Searches portals and career pages, gates and ranks openings, writes PURSUE/WATCH/REJECT analyses"
     lane: research
     toolsets: [file, skills, kanban, todo, web, browser, delegation]
-    skills: {squad: [finding-jobs, analyzing-jobs, jobs-contract], keep: [bundled:blocked-page-recovery]}
+    skills:
+      squad: [finding-jobs, searching-portals, ranking-openings, analyzing-jobs, jobs-contract]
+      keep: [bundled:blocked-page-recovery]
     plugins: {enable: [disk-cleanup]}
     website_blocklist: [linkedin.com]
+    requires: {apps: [bun]}
   jobs-writer:
     role: worker
     title: Jobs writer
-    description: "CV, letter and answers from verified achievements; renders PDF and DOCX"
+    description: "CV, letter, answers and interview prep from verified achievements; renders PDF and DOCX; reads job mail"
     lane: manager
-    toolsets: [file, skills, kanban, todo, terminal]
+    toolsets: [file, skills, kanban, todo, terminal, connections]
     withhold: [web]
     skills:
-      squad: [writing-applications, rendering-cv, preparing-interviews, jobs-contract]
+      squad: [writing-applications, rendering-cv, preparing-interviews, triaging-inbox, jobs-contract]
       keep: [bundled:humanizer, bundled:docx, bundled:pdf]
     plugins: {enable: [disk-cleanup]}
+    connectors: {enabled: true, suggest: [gmail]}
   jobs-reviewer:
     role: worker
     title: Jobs reviewer
-    description: "Five-lens review of every application before the digest"
+    description: "Six-lens review of every application before the digest; verifies company claims itself"
     lane: review
-    toolsets: [file, skills, kanban, todo, delegation]
+    toolsets: [file, skills, kanban, todo, delegation, terminal, web]
     skills: {squad: [reviewing-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
   jobs-applier:
@@ -56,7 +64,7 @@ bots:
     title: Jobs applier
     description: "Submits simple forms only after the user's apply; otherwise prepares a manual kit"
     lane: manager
-    toolsets: [file, skills, kanban, todo, browser]
+    toolsets: [file, skills, kanban, todo, browser, terminal]
     skills: {squad: [submitting-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
     website_blocklist: [linkedin.com]
@@ -66,4 +74,5 @@ chains:
     - {stage: write, assignee: jobs-writer, skill: writing-applications}
     - {stage: review, assignee: jobs-reviewer, skill: reviewing-applications}
     - {stage: digest, assignee: jobs, skill: leading-job-search}
-asks: ["set up my profile", "<job link>", "apply to <id>", "how is my search going?", "pause search"]
+asks: ["set up my profile", "<job link>", "rank my openings", "apply to <id>", "any replies?", "show my pipeline",
+       "what should I learn?", "pause search"]

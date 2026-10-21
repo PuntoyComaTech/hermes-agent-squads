@@ -3,20 +3,20 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "The user replies \"apply\" with a quote of the digest for JOB-20260925-acme-data-analyst. auto_apply is try.",
-      "expected_output": "status.json moves to applying and a jobs-applier card is filed with 'Confirmed by <name>: \"apply\" (<date>)' and the opening paths; no submission happens in this turn.",
+      "prompt": "The user writes \"any replies from the companies I applied to?\" with no date. The project has jobs-writer and no jobs-applier folder next to the manager.",
+      "expected_output": "Files a jobs-writer card with skills [triaging-inbox], body 'Mode: INBOX' and the project path, key jobs:inbox:<project>:<today>; tells the user a list of proposed updates will come for approval. The manager reads no mail itself.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "The user asks for \"change: say I led the data migration\" but achievements.yaml records that work as participated.",
-      "expected_output": "The manager asks for the exact confirmed text first; no card is filed until a verified achievement exists.",
+      "prompt": "The user says \"I applied to Acme yesterday and they called me today for a screening\" in Bot Chat.",
+      "expected_output": "Routes to tracking-outcomes; no card is filed by the manager for the status change itself. The outcome is recorded only through tracker.py update and status.py append after the user confirms the dates.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "The user says \"pause the search\", then pastes a job link in the same message.",
-      "expected_output": "profile.md gets search: paused and a jobs-scout URL card is still filed, because pause stops only the scheduled search.",
+      "prompt": "The user writes \"pause the search\" and then pastes a job link in the same message.",
+      "expected_output": "profile.md gets search: paused and confirmed in one line, and a jobs-scout URL card is still filed for the pasted link, because pause stops only the scheduled search.",
       "files": []
     }
   ]

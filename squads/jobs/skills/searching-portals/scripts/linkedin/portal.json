@@ -1,0 +1,35 @@
+{
+  "name": "linkedin",
+  "description": "LinkedIn public job listings (guest endpoints), any country, plus remote. Personal use only.",
+  "hosts": [
+    "linkedin.com"
+  ],
+  "url_hosts": [
+    "linkedin.com"
+  ],
+  "enabled": true,
+  "markets": [
+    "global"
+  ],
+  "cmd": [
+    "bun",
+    "run",
+    "{dir}/src/cli.ts"
+  ],
+  "search_flags": {
+    "query": "--query",
+    "location": "--location",
+    "jobage": "--jobage",
+    "limit": "--limit",
+    "page": "--page",
+    "remote": "--remote",
+    "format": "--format"
+  },
+  "search_defaults": [],
+  "required_search": [
+    "location"
+  ],
+  "example_query": "data analyst",
+  "example_location": "Lima, Peru",
+  "retry_query": "engineer"
+}

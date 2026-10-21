@@ -15,7 +15,7 @@ bots:
     skills: {squad: [leading-job-search, jobs-contract], auto_load: leading-job-search}
     memory: true
     cron:
-      jobs-search: {schedule: "0 8,15 * * *", script: start_search.py, agent: false}
+      jobs-search: {schedule: "0 * * * *", script: start_search.py, agent: false}
   jobs-scout:
     role: worker
     title: Jobs scout

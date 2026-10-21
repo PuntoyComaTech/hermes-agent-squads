@@ -1,0 +1,23 @@
+{
+  "skill_name": "planning-upskilling",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The user asks what they should learn next. Six analysed openings name Power BI as must-have, and two name dbt as nice-to-have. The achievements list has SQL and Python.",
+      "expected_output": "Runs skill_gaps.py in aggregate mode; shows a heatmap with Power BI as Critical and dbt as Medium; gives an estimate labelled as an estimate; cites no resource name or URL; writes reports/upskill-<today>.md.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user asks what they lack for JOB-20261005-beta-bi-analyst only, and the job description lists Power BI as required.",
+      "expected_output": "Runs skill_gaps.py with --opening for that id; answers in chat with the one gap and its must-have count; writes no report file; adds no skill that the diff did not return.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user wants the upskill report compared with last month's report. Last month's report listed Kubernetes as a gap, and Kubernetes now appears in achievements.yaml.",
+      "expected_output": "The new report's Since last report section lists Kubernetes under gaps closed, and names the earlier report's date; new gaps are listed separately; the file is saved with today's date in its name.",
+      "files": []
+    }
+  ]
+}

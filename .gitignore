@@ -5,3 +5,6 @@ CLAUDE.md
 __pycache__/
 *.pyc
 .venv/
+
+# Machine-local state (private terms, model choices, backups): never published
+/local/

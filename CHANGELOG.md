@@ -3,6 +3,36 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.5.0 - 2026-10-21
+
+Jobs squad 4.0: a job search built around one person.
+
+### Added
+
+- Personalised onboarding (`profiling-candidates`): reads `documents/`, a pasted CV or an interview; career stage,
+  optional age, CEFR language levels, market CV conventions, eligibility per country, deal-breakers, energizers,
+  writing style. Conflicts between sources are resolved with the user one at a time.
+- Gates before scoring: scam or closed, eligibility, language (flag and discard gap steps), location, role,
+  seniority, contract and salary, avoid lists and deal-breakers. Weights, bands and decisions are computed by
+  `score_analysis.py`; the user tunes them in `profile.md`.
+- Portal search (`searching-portals`): LinkedIn public listings and freehire as zero-dependency bun tools behind
+  `portals.py` (search, detail, health). `adding-portals` guides a board for any market.
+- Batch ranking (`ranking-openings`) over `searches/seen.json` with deadline sweep, retry bookkeeping and staleness.
+- Posting guard: fetched text is cleaned and flagged for hidden text, instructions aimed at an AI, hidden links and
+  invisible characters. Polite fetch with robots.txt.
+- Documents: three ATS-safe HTML templates, cover letter rendering, page budget from the market, relevance-weighted
+  cutting, `verify_pdf.py` (text layer, page count, ASCII dates) and `verify_layout.py` (holes, stranded headings).
+- Review: grounding across all sources, exact replace corrections, company claims kept only when verified from a
+  page the reviewer found, language and market checks, interview-backtrack test; `aggregate_review.py`.
+- Outcomes and follow-ups (`tracking-outcomes`, `tracker.py`), job mail through the Gmail connector on `jobs-writer`
+  (`triaging-inbox`, read-only), cron `jobs-followups`, offline `reports/dashboard.html`, skill-gap study plans
+  (`planning-upskilling`, `skill_gaps.py`), and a salary benchmark over the user's own data (`salary_lookup.py`).
+
+### Changed
+
+- `jobs-reviewer` gains `terminal` and `web` (company-claim checks); `jobs-applier` and the manager gain `terminal`.
+- `jobs-scout` requires `bun`.
+
 ## 2.4.1 - 2026-10-20
 
 ### Changed

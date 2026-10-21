@@ -4,19 +4,19 @@
     {
       "id": 1,
       "prompt": "The first review round: a bullet says the report time dropped from 6 hours to 2 hours; achievements.yaml records 6 hours to 20 minutes.",
-      "expected_output": "Truthfulness FAIL, FIX with a content correction quoting the verified number; no digest card is filed.",
+      "expected_output": "Truthfulness lens verdict FAIL with a draft finding whose correction is a replace pair quoting the verified 20 minutes; aggregate_review.py gives FIX, status in_review, and no digest card is filed.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "The first review round is clean except the ATS lens lists two missing keywords with no supporting achievement.",
-      "expected_output": "Verdict FIX only if a finding is actionable for the writer; keywords without evidence are recorded as gaps, not faked into the CV.",
+      "expected_output": "Both keywords are recorded as gaps with empty evidence, never written into the CV; the verdict is APPROVED when every other lens passes, status ready, and the digest card is filed.",
       "files": []
     },
     {
       "id": 3,
       "prompt": "The second review round, after a correction, still has one writing finding; everything else PASS.",
-      "expected_output": "NOT_APPROVED with the summary; no further writer card is created and status.json says not_approved.",
+      "expected_output": "The aggregator gives NOT_APPROVED with status not_approved; no further writer card is created and the summary says so.",
       "files": []
     }
   ]

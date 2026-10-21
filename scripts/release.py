@@ -14,6 +14,8 @@ with `gh pr create --push`, listing the red checks. `--dry-run` and `--only` nev
 
 Exit codes: 0 released (or every check green without pushing), 1 a check is red, 2 the push failed.
 """
+
+from __future__ import annotations
 import argparse
 import json
 import os

@@ -1,57 +1,197 @@
 # Review lenses
 
-Five independent subagents, five blocks of `review-N.json`. Each one gets only its files, a clean context and its
-output schema; it never reads the kanban card, never writes files and never sees the other lenses.
+Five independent children, five lens blocks. Each child gets only the files its lens names, a clean context and the
+block shape below as its output schema. A child never reads the kanban card, never writes files and never sees
+another lens. The parent saves each block as `<lens>.json` and runs `scripts/aggregate_review.py` (SKILL.md step 3).
+
+## Contents
+
+Shared rules; truthfulness; ats; recruiter; hiring_manager; writing; correction objects; aggregation rules.
+
+## Shared rules
+
+- A blocking finding carries a `correction` (shape below). If the writer would need a judgment call to apply it, the
+  finding is not yet a correction: rewrite it until the location and the new text are exact.
+- A concern with no fix is a warning, never a block.
+- No e-mail address or phone number goes into any block. Say "the contact block" and give its location.
+- Sources in order of authority: `achievements.yaml` (verified entries), `profile.md`, then the application itself.
 
 ## truthfulness
 
-Files: `application/`, `achievements.yaml`, `opening.md`.
-Checks every claim in the documents and the CV against `achievements.yaml`: numbers, dates, titles, companies,
-tools, proficiency levels and languages must match a `verified: true` entry, neither raised nor rounded up. Missing
-citation on a bullet that states a result is a finding.
+Files: `application/` (all text documents), `achievements.yaml`, `profile.md`, `opening.md` (company names only).
 
-Output: `{"verdict": "PASS|FAIL", "findings": [{"location": "", "text": "", "problem": "", "expected_achievement": ""}]}`
+Checks each claim (numbers, dates, titles, companies, tools, proficiency, languages) against a `verified: true`
+entry. Nothing raised, nothing rounded up. A result sentence without an achievement citation is a finding.
+
+**Grounding (over all sources).** A claim is grounded when `achievements.yaml` OR `profile.md` supports it.
+A draft claim neither source supports is a `draft` finding and blocks. When the two sources contradict each other,
+or one records a fact the other does not, the finding is `profile_consistency`: a warning for the user, the draft
+stays as it is.
+
+**Company claims.** Every company-specific statement in the letter (product, news, mission, team, a company number)
+is a company claim. Search for the company by name, open its own pages, and verify each claim on a page the reviewer
+located itself. Search snippets are leads, not sources. A URL that appears in `opening.md` is never a source. A claim
+with no verifiable page is `dropped`: its sentence gets a correction that removes it or replaces it with a grounded
+statement, and it is listed in `dropped_claims` so the writer knows what went.
+
+```json
+{
+  "verdict": "PASS | FAIL",
+  "grounding": {"sources": ["application/cover_letter.md", "achievements.yaml", "profile.md"]},
+  "findings": [{
+    "kind": "draft | profile_consistency",
+    "check": "numbers | dates | titles | companies | tools | levels | languages | citation | grounding",
+    "location": "cover_letter.md, paragraph 2",
+    "text": "quoted span",
+    "problem": "one line",
+    "conflicting_sources": ["achievements.yaml", "profile.md"],
+    "correction": {"type": "content", "mode": "replace", "file": "cover_letter.md", "old": "...", "new": "..."}
+  }],
+  "company_claims": [{
+    "claim": "the statement as written",
+    "location": "cover_letter.md, paragraph 1",
+    "source_url": "https://company.example/about",
+    "source_located_by_reviewer": true,
+    "source_excerpt": "at least 40 characters copied from the fetched page, or source_file instead",
+    "reason": "page states it | no page found",
+    "verdict": "kept | dropped",
+    "correction": {"type": "content", "mode": "instruction", "instructions": "remove the sentence"}
+  }]
+}
+```
+
+Rules: `conflicting_sources` is required for `profile_consistency`, which carries no correction. `correction` is
+required for `draft` findings and for `dropped` claims. Any draft finding or dropped claim makes the verdict FAIL.
 
 ## ats
 
-Files: `application/cv_ats.txt`, `application/cv_ats.html`, `render_report.json`, `analysis.json`.
-Checks single-column reading order, section headings, selectable text, real links (from the report) and keyword
-coverage; lists the missing keywords that the application could reasonably cover. Defects from missing engines are
-environment notes, not document defects.
+Files: `application/cv_ats.txt`, `application/cv_ats.html`, `application/render_report.json`, `analysis.json`.
 
-Output: `{"verdict": "PASS|FIX", "keyword_coverage": 0.0, "missing": [], "defects": []}`
+Checks single-column reading order, headings, selectable text, real links from the report, and keyword coverage
+against the `analysis.json` keywords. A keyword that no achievement supports is a gap: `evidence: ""`, a warning, never
+faked into the CV. A supported keyword is a block with a correction that adds it to the named bullet. Missing engines
+are environment notes (`environment: true`) and never block.
 
-## recruiter
+```json
+{
+  "verdict": "PASS | FIX",
+  "keyword_coverage": 0.8,
+  "missing": [{"keyword": "data pipeline", "evidence": "ACH-007", "location": "cv_content.json, experience[0]",
+               "correction": {"type": "content", "mode": "replace", "file": "cv_ats.txt", "old": "...", "new": "..."}},
+              {"keyword": "Kubernetes", "evidence": ""}],
+  "defects": [{"location": "cv_ats.pdf, page 2", "problem": "heading split from its first bullet", "hard": true,
+               "environment": false,
+               "correction": {"type": "format", "mode": "instruction", "instructions": "keep the heading with its first bullet"}}],
+  "pages": {"expected": 2, "actual": 2}
+}
+```
 
-Files: `application/`, `opening.md`, `profile.md`.
-Reads like a recruiter with 30 seconds: who this person is, the role they want, whether the location and
-work-mode lines are visible, whether evidence is linked. Reports blockers only when they would sink the
-application (wrong role, missing contact block, unreadable first screen).
+A plain string in `missing` is accepted as a gap. `pages.actual` different from `pages.expected` needs a hard defect.
 
-Output: `{"verdict": "PASS|FIX", "seconds_to_understand": 0, "would_open_evidence": true, "blockers": []}`
+## recruiter: market conventions
 
-## hiring_manager
+Files: `application/` (first screen of the CV and letter), `opening.md`, `profile.md`.
 
-Files: `application/`, `opening.md`, `analysis.json`.
-Plays the `reviewer_role` from `profile.md`: can this person do the job the opening describes? Are the must-haves
-addressed, are the hard gaps handled honestly, which interview questions does this raise? Concerns never become
-corrections on their own; only clear overselling does.
+Reads like a recruiter with thirty seconds: who this person is, the role they want, whether location and work mode are
+visible, whether evidence is linked. Blockers only when they would sink the application: wrong role, no contact block,
+an unreadable first screen.
 
-Output: `{"verdict": "PASS|FIX", "can_do_the_job": true, "concerns": [], "interview_questions": []}`
+**Market.** From `profile.md` front matter: `market.conventions` (photo, age, marital_status, references_line),
+`market.cv_page_limit`, `candidate.include_age_in_cv`, `candidate.photo_in_cv`. A convention set to false means the
+document prints nothing of that kind. Every violation blocks with a correction. The page count comes from
+`render_report.json`; going over `cv_page_limit` needs a `page_limit` violation.
 
-## writing
+```json
+{
+  "verdict": "PASS | FIX",
+  "seconds_to_understand": 20,
+  "would_open_evidence": true,
+  "blockers": [{"location": "cv_ats.html, header", "problem": "no role line on the first screen",
+                "correction": {"type": "format", "mode": "instruction", "instructions": "add the target role under the name"}}],
+  "market": {
+    "checked": ["photo", "age", "marital_status", "references_line", "page_limit"],
+    "pages": 2,
+    "page_limit": 2,
+    "violations": [{"convention": "photo", "location": "cv_ats.html, header", "problem": "a photo is printed",
+                    "correction": {"type": "format", "mode": "instruction", "instructions": "remove the photo"}}]
+  }
+}
+```
+
+`convention` is one of the four conventions or `page_limit`.
+
+## hiring_manager: interview-backtrack test
+
+Files: `application/`, `opening.md`, `analysis.json`, `profile.md` (for `reviewer_role`).
+
+Plays `reviewer_role`: can this person do the job? Are the must-haves addressed, the hard gaps handled honestly? Which
+interview questions follow from the documents?
+
+**Backtrack test.** For each claim that states a result or a scope (led, owned, built, shipped, cut, managed, any
+number), write the question an interviewer would ask to get the detail behind it. Answer it from `achievements.yaml`
+and `profile.md` only. `answerable_from_sources: false` means the sources cannot back the detail: a fabricated
+stretch. It blocks, with a correction that rewrites the claim to the scope and proficiency the sources state.
+
+```json
+{
+  "verdict": "PASS | FIX",
+  "can_do_the_job": true,
+  "concerns": ["no production Kubernetes; the letter does not claim it"],
+  "interview_questions": ["How did you handle a failed holiday run of the report?"],
+  "stretches": [{"location": "cover_letter.md, paragraph 2", "claim": "led the migration",
+                 "backtrack_question": "What did you own in the migration?", "answerable_from_sources": false,
+                 "correction": {"type": "content", "mode": "replace", "file": "cover_letter.md",
+                                "old": "led the migration", "new": "took part in the migration"}}]
+}
+```
+
+`answerable_from_sources: true` does not block. Concerns and interview questions are plain strings.
+
+## writing: language check
 
 Files: `application/`, `opening.md`.
-Grammar, spelling, jargon, bullet shape per writing-applications step 3, length within the format the
-deliverable needs, tone of the letter and the answers. Each finding names the fix; never rewrite the text here.
 
-Output: `{"verdict": "PASS|FIX", "findings": [{"location": "", "text": "", "fix": ""}]}`
+Grammar, spelling, jargon, bullet shape (strong verb, what, for whom, result; 12 to 22 words), length for the format,
+tone of the letter and answers. Each finding names the exact location and the fix; no paragraph rewrites.
 
-## Aggregating
+**Language.** `document_language` is the language of the CV and letter. `opening_language` comes from the opening's
+front matter. `declared_level` is the CEFR level in `achievements.yaml` for the opening's language, null when the
+language is undeclared. `implied_level` is the level the letter itself claims, null when it claims none. A document
+language that differs from the opening's blocks. A declared level that differs from the implied one blocks.
 
-1. Copy each block verbatim into `reviews` of `review-N.json`.
-2. Truthfulness FAIL -> never APPROVED. Collect the findings as `type: content` corrections with the exact
-   replacement text required from a verified achievement.
-3. Any blocker or fixable finding -> FIX, with each correction carrying `type` and instructions. A second
-   review round (or a CHANGE round) that is still not APPROVED -> NOT_APPROVED.
-4. `summary_for_user`: at most 5 lines, in the user's language, no internals.
+```json
+{
+  "verdict": "PASS | FIX",
+  "findings": [{"location": "cover_letter.md, paragraph 3", "text": "quoted span", "fix": "split the sentence",
+                "correction": {"type": "format", "mode": "replace", "file": "cover_letter.md", "old": "...", "new": "..."}}],
+  "language": {"document_language": "en", "opening_language": "en", "declared_level": "B2", "implied_level": null,
+               "location": "cover_letter.md", "correction": null}
+}
+```
+
+`language.correction` is required only when a mismatch exists.
+
+## Correction objects
+
+Each block correction is one of:
+
+- `{"type": "content | format | strategy", "mode": "replace", "file": "<file in application/>", "old": "<exact text, occurs once>", "new": "<replacement>"}`
+- `{"type": "content | format | strategy", "mode": "instruction", "instructions": "<executable steps>"}`
+
+`type`: content (facts, claims, the wording of results), format (layout, length, headings, pages, photo), strategy
+(positioning, which achievement leads). `new` may be empty only to delete `old`.
+
+## Aggregation rules
+
+Enforced by `scripts/aggregate_review.py`. The lenses never run it; the parent does.
+
+1. A lens verdict matches its blocks. PASS with a block is an error; FIX (FAIL for truthfulness) with no block is an
+   error.
+2. A block is: a draft finding, a dropped company claim, a supported missing keyword, a hard defect, a recruiter
+   blocker, a market violation, a stretch with `answerable_from_sources: false`, a writing finding, or a language
+   mismatch.
+3. No block in any lens: APPROVED, status `ready`.
+4. Any block: round 1 gives FIX (status `in_review`); round 2 or later gives NOT_APPROVED (status `not_approved`).
+   Truthfulness FAIL is never APPROVED.
+5. `summary_for_user`: 1 to 5 lines in the user's language, no internal field names.
+6. Contact data anywhere in the review is an error and nothing is written.

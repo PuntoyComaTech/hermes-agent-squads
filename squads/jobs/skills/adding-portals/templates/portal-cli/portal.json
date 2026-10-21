@@ -1,0 +1,30 @@
+{
+  "name": "example-board",
+  "description": "Example board: replace with the board's name and what it covers.",
+  "hosts": [
+    "board.example"
+  ],
+  "url_hosts": [
+    "board.example"
+  ],
+  "enabled": false,
+  "markets": [
+    "PE"
+  ],
+  "cmd": [
+    "bun",
+    "run",
+    "{dir}/src/cli.ts"
+  ],
+  "search_flags": {
+    "query": "--query",
+    "jobage": "--jobage",
+    "limit": "--limit",
+    "page": "--page",
+    "format": "--format"
+  },
+  "search_defaults": [],
+  "required_search": [],
+  "example_query": "data analyst",
+  "retry_query": "engineer"
+}

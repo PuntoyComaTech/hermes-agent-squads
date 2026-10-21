@@ -1,29 +1,36 @@
 # Jobs squad: AI job search and applications for Hermes Agent
 
-**Matching openings with a tailored CV and letter. It applies only when you say "apply".**
+**A job search built around one person: their CV, stage, languages, market and goals. It applies only when you say
+"apply".**
 
 [← All squads](../../README.md)
 
-The manager interviews you once about your profile and what you look for. Twice a day the squad searches, filters
-and analyzes openings, writes a tailored application and reviews it before you see it. You reply `apply`,
-`change: <what>` or `no` in the manager's chat.
+The manager builds your profile once, from your documents, a pasted CV or an interview: career stage, age only if
+you want it used, language levels (CEFR), work authorization per country, the market's CV conventions, deal-breakers
+and what energizes you. Twice a day the squad searches portals and career pages, gates every opening against that
+profile, ranks the batch, analyzes the best ones, writes a tailored application and reviews it before you see it. You
+reply `apply`, `change: <what>` or `no` in the manager's chat.
 
 ## How it works
 
 ```mermaid
 flowchart TD
     U(["You: set up my profile"]):::you
-    U --> J["jobs (manager)<br/>profile interview"]:::lead
-    J --> T(["Scheduled search, 08:00 and 15:00"]):::lead
-    T --> S["jobs-scout<br/>search and hard filter"]:::bot
-    S -->|"passes the filter"| AN["jobs-scout<br/>fit and company analysis"]:::bot
+    U --> J["jobs (manager)<br/>documents, CV or interview"]:::lead
+    J --> T(["Scheduled search, weekdays 08:00"]):::lead
+    T --> S["jobs-scout<br/>portals, career pages, gates"]:::bot
+    S --> RK["jobs-scout<br/>batch ranking"]:::bot
+    RK -->|"top openings"| AN["jobs-scout<br/>fit and company analysis"]:::bot
     AN -->|"worth pursuing"| W["jobs-writer<br/>CV, letter, answers"]:::bot
-    W --> R["jobs-reviewer<br/>five lenses"]:::check
+    W --> R["jobs-reviewer<br/>independent lenses"]:::check
     R -->|"fix, once"| W
     R -->|"approved"| D["jobs (manager)<br/>sends you the match"]:::lead
     D --> A{"You: apply, change or no?"}:::ask
     A -->|"change"| W
     A -->|"apply"| AP(["jobs-applier<br/>submits, or prepares a kit for you"]):::done
+    AP --> F(["Weekdays 09:00: replies and follow-ups"]):::lead
+    F --> IN["jobs-writer<br/>reads job mail, drafts follow-ups"]:::bot
+    IN --> J2{"You approve the status updates"}:::ask
 
     classDef you fill:#ede9fe,stroke:#7c3aed,color:#1e1b4b
     classDef lead fill:#fce7f3,stroke:#db2777,color:#831843
@@ -33,48 +40,74 @@ flowchart TD
     classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
 ```
 
-"Worth pursuing" means a score at or above `apply_threshold` in your profile.
+"Worth pursuing" means a score at or above `apply_threshold`, with no failed gate (eligibility, language, location)
+and no deal-breaker. The score weights are yours to change in `profile.md`.
+
+## What makes it personal
+
+- **Career stage** shapes the CV: a first job leads with education and projects, a career change with transferable
+  skills, a senior profile with scope and impact, a return after a gap with one honest line.
+- **Languages** are CEFR levels. An opening asking for a language you did not declare is discarded; one asking a bit
+  more than your level is flagged for you to decide, never silently dropped.
+- **Market conventions**: photo, age, marital status, page count and date format follow the country you apply in.
+  Age and photo never appear unless you say so.
+- **Eligibility**: citizenship, residency or sponsorship wording is checked against your situation per country.
+- **Your voice**: tone, formality and phrases to avoid apply to every letter, answer and follow-up.
 
 ## What you can ask
 
 | You say | What happens |
 | --- | --- |
-| `set up my profile` | The profile interview; searches start once `profile.md` exists |
+| `set up my profile` | Reads `documents/`, a pasted CV or interviews you; searches start once `profile.md` exists |
 | `<job link>` | The scout checks that opening and it follows the same chain |
+| `rank my openings` | Batch triage of saved openings; the best go to full analysis |
 | `apply to <id>` | The applier submits a simple form, or prepares a manual kit |
-| `how is my search going?` | Matches, applications and their status |
+| `I applied` / `they called me` / `rejected` | Records the outcome and offers interview prep or a thank-you note |
+| `any replies?` | The writer reads job mail and proposes status updates; nothing changes until you approve |
+| `show my pipeline` | An offline dashboard: funnel, scores, deadlines, shortlist, timelines |
+| `what should I learn?` | Skill gaps across the openings you saw, with a study plan |
+| `add <board> for <country>` | A guided setup for a local job board |
 | `pause search` | Stops the scheduled search until you resume it |
 
 ## Bots
 
 | Bot | Does |
 | --- | --- |
-| `jobs` (manager) | Profile interview, digests, apply, change or no decisions, tracking. Holds your personal data |
-| `jobs-scout` | Searches, applies the hard filter, saves the opening, then analyzes fit and the company |
-| `jobs-writer` | CV, letter and answers from verified achievements; renders PDF, DOCX and ATS text |
-| `jobs-reviewer` | Five lenses: truthfulness, ATS, recruiter, hiring manager, writing |
-| `jobs-applier` (optional) | Submits a simple form only after your explicit "apply"; otherwise writes a manual kit |
+| `jobs` (manager) | Profile onboarding, digests, decisions, outcomes, dashboard, upskilling. Holds your personal data; delegates, researches and sets things up for the squad |
+| `jobs-scout` | Portal and career-page search, gates, batch ranking, fit and company analysis |
+| `jobs-writer` | CV, letter, answers and interview prep from verified achievements; renders PDF, DOCX and ATS text; reads job mail |
+| `jobs-reviewer` | Lenses for truthfulness, ATS, recruiter, hiring manager and writing, plus market and language checks |
+| `jobs-applier` | Submits a simple form only after your explicit "apply"; otherwise writes a manual kit |
 
-Only `jobs-writer` and `jobs-applier` read `contact.yaml`. `linkedin.com` is blocked for the scout and the applier.
-
-Without the applier (`scripts/squadctl apply jobs --bots jobs,jobs-scout,jobs-writer,jobs-reviewer`), "apply" answers
-with the link and the ready answers.
+`contact.yaml` is used by `jobs-writer` (documents) and `jobs-applier` (forms). Gmail is connected to `jobs-writer`
+only, the bot with no web access; it reads and drafts, and never sends. The scout reads LinkedIn's public listings through the portal tool
+but never browses or logs in to LinkedIn; `linkedin.com` stays blocked for the scout's and the applier's browser.
 
 ## What the computer needs
 
-- PDF: WeasyPrint (`pip install weasyprint`) or Chromium/Chrome. DOCX: python-docx. Page counts: `pdfinfo`
-  (poppler). Without them the writer tells you what is missing; nothing is installed for you.
-- One search is one Hermes Project in `~/Projects/jobs/`. In the Desktop app: Sessions, pick `jobs` in the bottom
-  selector, then "+" (New project); or tell the manager to start a search and it creates the project.
+- Portal search: [Bun](https://bun.sh) (`bun --version`). The two shipped portals have no dependencies to install.
+- PDF: WeasyPrint (`pip install weasyprint`) or Chromium/Chrome. DOCX is optional (`pip install python-docx`); without
+  it the writer ships the PDF and ATS text and says `docx_skipped`. Text-layer checks: pypdf or
+  poppler (`pdftotext`, `pdfinfo`). Without them the writer says what is missing; nothing is installed for you.
+- Mail: `hermes connectors connect gmail`, once, if you want reply tracking.
+- One person's search is one Hermes Project in `~/Projects/jobs/`. In the Desktop app: Sessions, pick `jobs` in the
+  bottom selector, then "+" (New project); or tell the manager to start a search and it creates the project.
 
 ## Schedule
 
 | Job | When | Does |
 | --- | --- | --- |
-| `jobs-search` | 08:00 and 15:00 | One search card per slot; nothing until the project and `profile.md` exist |
+| `jobs-search` | hourly gate, one search on weekdays at 08:00 in the project's `timezone` | One search card per active project; nothing until the project and `profile.md` exist |
+| `jobs-followups` | weekdays 09:00 | One inbox card when an application went quiet past `follow_up_days`; silent otherwise |
 | `jobs-watch` | every 30 min | Tells you when a card waits on you or stalls |
 
-Change the search times through the builder; it keeps them in your local overlay.
+Change the times through the builder; it keeps them in your local overlay.
+
+## Job boards
+
+Shipped: LinkedIn public listings and freehire (tech roles, many countries). Both are country-agnostic. A board for
+your market is added with `add <board> for <country>`: the manager walks through a small command-line tool and its
+`portal.json`, tested before it is enabled. Boards are switched on or off in `portal.json`.
 
 ## Files
 
@@ -82,11 +115,14 @@ Change the search times through the builder; it keeps them in your local overlay
 | --- | --- |
 | `squad.yaml` | Manifest: bots, lanes, toolsets, skills, board, cron, chains |
 | `souls/` | One SOUL per bot |
-| `skills/` | `jobs-contract` (shared rules), `leading-job-search`, `finding-jobs`, `analyzing-jobs`, `writing-applications`, `rendering-cv`, `preparing-interviews`, `reviewing-applications`, `submitting-applications` |
+| `skills/jobs-contract/` | Shared rules, file formats and tools: `job_key`, `posting_guard`, `fetch_page`, `robots_check`, `status`, `seen_state`, `salary_lookup`, `tracker`, `build_dashboard`, `skill_gaps` |
+| `skills/` | `leading-job-search`, `profiling-candidates`, `finding-jobs`, `searching-portals`, `adding-portals`, `ranking-openings`, `analyzing-jobs`, `writing-applications`, `rendering-cv`, `preparing-interviews`, `reviewing-applications`, `submitting-applications`, `triaging-inbox`, `tracking-outcomes`, `planning-upskilling` |
 | `scripts/start_search.py` | Schedule gate: one search card per slot, paused by `profile.md -> search: paused` |
-| `skills/rendering-cv/scripts/render_cv.py` | CV renderer: HTML, text, PDF, DOCX and `render_report.json` |
+| `scripts/followup_gate.py` | Follow-up gate: one inbox card per project per day, only when something is due |
+| `skills/rendering-cv/` | HTML templates, `render_cv.py`, `verify_pdf.py`, `verify_layout.py` |
 
-The community `job-search` plugin is searchable (`scripts/hpy catalog_search.py job-search`) and stays off by default.
+Your project folder holds personal data (`contact.yaml`, `documents/`, `tracker.csv`): keep it out of any public
+repository.
 
 ---
 

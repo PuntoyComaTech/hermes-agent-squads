@@ -1,0 +1,31 @@
+{
+  "name": "freehire",
+  "description": "freehire.me job aggregator (public JSON API): technology roles across many markets. Place filters go after -- as facet flags.",
+  "hosts": [
+    "freehire.me"
+  ],
+  "url_hosts": [],
+  "enabled": true,
+  "markets": [
+    "global"
+  ],
+  "cmd": [
+    "bun",
+    "run",
+    "{dir}/src/cli.ts"
+  ],
+  "search_flags": {
+    "query": "--query",
+    "jobage": "--jobage",
+    "limit": "--limit",
+    "page": "--page",
+    "remote": "--remote",
+    "format": "--format"
+  },
+  "search_defaults": [
+    "--no-description"
+  ],
+  "required_search": [],
+  "example_query": "backend engineer",
+  "retry_query": "engineer"
+}

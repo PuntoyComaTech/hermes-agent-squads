@@ -1,0 +1,23 @@
+{
+  "skill_name": "tracking-outcomes",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A jobs-writer card returns with 'Mode: INBOX' and the path reports/inbox-2026-10-20.json. The file lists three rows: one applied to interview quoting a call request, one rejection for an opening already at offer, and one follow-up draft.",
+      "expected_output": "Shows one proposal table with the signal, current and proposed status and the quote per row; the rejection after offer is listed under needs manual review and not proposed; the user is asked 'approve all, or skip N' through kanban_block(needs_input). Nothing is written before the answer.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The user says they were rejected by Beta for the BI analyst role, which is recorded as applied with two follow-ups already sent.",
+      "expected_output": "Finds the row with tracker.py list, runs tracker.py update --status rejected with a dated note and status.py append on the opening folder, after the user confirms the date. No follow-up is offered.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user asks what is due this week. Two applications are quiet for 14 days; one has two follow-ups already and one is still in drafted status.",
+      "expected_output": "Lists only the row with fewer than two follow-ups, with its draft_path; the drafted row is never chased; the capped row is named as at the cap. No mail is sent and follow_ups changes only after the user confirms a follow-up was sent.",
+      "files": []
+    }
+  ]
+}
