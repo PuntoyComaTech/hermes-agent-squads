@@ -21,7 +21,7 @@ flowchart TD
     S --> B["Builder configures itself"]:::bot
     B --> Q{"Which squads?"}:::ask
     Q -->|"only the builder (default)"| D(["Done: 1 bot"]):::done
-    Q -->|"Web · Marketing · Jobs · Everything"| M["One table: model, provider and<br/>reasoning effort for every bot"]:::bot
+    Q -->|"Web · Marketing · Jobs · Everything"| M["Model survey per bot: economical picks<br/>from your providers, premium only where critical"]:::bot
     M --> OK{"Accept, or change<br/>any bot"}:::ask
     OK -->|"OK"| A["Installs the chosen squads"]:::bot
     A --> L(["Later: a squad for your goal,<br/>change a bot, update"]):::done
@@ -87,7 +87,9 @@ and the managers.
 **Is it free?** Yes, MIT open source. You pay only your own AI provider, if it charges.
 
 **Which AI models does it use?** The ones you already have connected in Hermes Agent (Anthropic, OpenAI, OpenRouter,
-local models and others). The builder suggests a model and reasoning effort per bot; you decide.
+local models and others). The builder asks you per bot, recommending an economical model that does the job; a more
+expensive one is recommended only for critical work (design, complex code, review) and only when it is stronger.
+You decide.
 
 **Will the agents publish, send or spend on their own?** No. Publishing, sending, applying, deploying and spending
 always wait for your explicit yes.

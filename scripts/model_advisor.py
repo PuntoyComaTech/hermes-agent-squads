@@ -324,7 +324,8 @@ class Advisor:
                     continue
                 models = sorted((m for m in prov["models"] if rx.fullmatch(m)), key=lambda m: (len(m), m))
                 hits += [{"model": m, "provider": prov["slug"], "family": cand["family"],
-                          "reasoning": cand.get("reasoning", lane_reasoning)} for m in models[:1]]
+                          "reasoning": cand.get("reasoning", lane_reasoning),
+                          "cost": cand.get("cost", "mid")} for m in models[:1]]
         return hits
 
     def cheapest(self, reasoning: str) -> dict | None:
@@ -337,22 +338,29 @@ class Advisor:
                     best = (key, m, prov["slug"])
         if best is None:
             return None
-        return {"model": best[1], "provider": best[2], "family": self.family_of(best[2]), "reasoning": reasoning}
+        return {"model": best[1], "provider": best[2], "family": self.family_of(best[2]), "reasoning": reasoning,
+                "cost": "low"}
 
     def pick(self, lane: str, avoid: dict[str, int] | None = None, _depth: int = 0) -> dict:
         spec = self.lane_spec(lane)
         default = spec["reasoning"]
         cands = list(spec["candidates"])
         total = len(cands)
-        order = list(range(total))
-        if avoid is not None and spec.get("rule") == "different-family-from-producer":
-            order.sort(key=lambda i: avoid.get(cands[i]["family"], 0))
+        critical = bool(spec.get("critical"))
+        review_rule = avoid is not None and spec.get("rule") == "different-family-from-producer"
+        # Economical first: outside a critical lane a premium (cost: high) candidate is tried only after every cheaper
+        # one; a critical lane keeps the quality order. The review rule's family preference comes before either.
+        premium = lambda i: 0 if critical else int(cands[i].get("cost", "mid") == "high")
+        order = sorted(range(total), key=lambda i: (avoid.get(cands[i]["family"], 0) if review_rule else 0,
+                                                    premium(i), i))
         hits = [(i, h) for i in order for h in self.candidate_hits(cands[i], default)]
         why = str(spec.get("why", "")).split(";")[0].strip()
         shown = f"{lane} lane"
         if hits:
             idx, best = hits[0]
-            reason = f"{shown}, candidate {idx + 1}/{total} ({best['family']}): {why}"
+            tier = "critical: strongest connected model" if critical else (
+                "premium: no cheaper candidate connected" if best["cost"] == "high" else "economical first")
+            reason = f"{shown}, candidate {idx + 1}/{total} ({best['family']}, {best['cost']} cost, {tier}): {why}"
             if avoid is not None and spec.get("rule") == "different-family-from-producer":
                 reason += "; " + self.review_note(best["family"], avoid)
             return {"lane": lane, **best, "alternatives": self.alternatives(hits), "reason": reason}
@@ -360,7 +368,7 @@ class Advisor:
         best = None
         if mode == "first-choice-provider" and lane != "manager" and _depth == 0:
             lead = self.pick("manager", _depth=1)
-            best = {k: lead[k] for k in ("model", "provider", "family")} | {"reasoning": default}
+            best = {k: lead[k] for k in ("model", "provider", "family", "cost")} | {"reasoning": default}
             mode = "manager pick"
         if best is None:
             best = self.cheapest(default)
@@ -421,11 +429,11 @@ class Advisor:
                 if not same_model_ok and norm(h["model"]) in {norm(chosen["model"]), *map(norm, (o["model"] for o in out))}:
                     continue
                 out.append(h)
-        return [{k: o[k] for k in ("model", "provider", "reasoning")} for o in out]
+        return [{k: o[k] for k in ("model", "provider", "reasoning", "cost")} for o in out]
 
 
 def slim(pick: dict, use: str | None = None) -> dict:
-    out = {k: pick[k] for k in ("lane", "model", "provider", "reasoning", "alternatives", "reason")}
+    out = {k: pick[k] for k in ("lane", "model", "provider", "reasoning", "cost", "alternatives", "reason")}
     return {"use": use, **out} if use else out
 
 
@@ -503,9 +511,11 @@ def render_text(result: dict) -> str:
                      f"ask the user to run `hermes model --refresh` in a terminal (it opens a picker)")
 
     def row(label: str, p: dict, indent: str = "") -> None:
-        lines.append(f"{indent}{label:<22} {p['lane']:<9} {p['model']} @ {p['provider']} [{p['reasoning']}]")
+        lines.append(f"{indent}{label:<22} {p['lane']:<9} {p['model']} @ {p['provider']} [{p['reasoning']}] "
+                     f"({p['cost']} cost)")
         for alt in p["alternatives"]:
-            lines.append(f"{indent}{'':<22}   alt: {alt['model']} @ {alt['provider']} [{alt['reasoning']}]")
+            lines.append(f"{indent}{'':<22}   alt: {alt['model']} @ {alt['provider']} [{alt['reasoning']}] "
+                         f"({alt['cost']} cost)")
         lines.append(f"{indent}{'':<22}   why: {p['reason']}")
 
     for squad in result.get("squads", []):

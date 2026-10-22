@@ -22,10 +22,15 @@ description: "Assigns a model per bot from connected providers. Use when a squad
 3. If the advisor reports the cache stale or a provider missing, ask the user
    to run `hermes -p <bot> model --refresh` in their terminal, then re-run
    step 1.
-4. Show the table and ask one question: "Accept all, or change any bot?" The
-   user's choices win over every suggestion. Write
-   each change into `local/models-<key>.json` (`model`, `provider`,
-   `reasoning` of that bot or lane).
+4. Survey, never skipped, also on reinstall and update: show the table (bot,
+   lane, model, provider, effort, cost, why), then one `clarify` call with one
+   question per bot (batches of five): choices are the pick first (marked
+   recommended), then its `alternatives`; "Other" takes any connected model.
+   The advisor already puts economical models first: a `cost: high` model
+   appears as the pick only on a `critical` lane, or when nothing cheaper is
+   connected (its reason says so). Never upgrade a non-critical bot to a premium
+   model on your own; offer it as a choice. The user's choices win. Write each
+   change into `local/models-<key>.json` (`model`, `provider`, `reasoning`).
 5. When the user puts the reviewer on the producer's model family, say it
    breaks `scripts/data/model-roles.yaml` -> `lanes.review.rule` and ask once.
    When the advice has a `fallback` list (a pick runs on a `quota_limited`

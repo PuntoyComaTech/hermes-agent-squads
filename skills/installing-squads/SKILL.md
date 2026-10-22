@@ -20,8 +20,8 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    Marketing, Jobs, or Everything?" (`squadctl.py status` -> `available` lists
    local squads too). No answer or "only the builder": install nothing more.
    For the chosen squads run one `scripts/hpy model_advisor.py <key> [<key>...]
-   --json > local/models-squads.json`, show one table for all their bots, ask
-   one OK, then run steps 2 and 4 per squad with `--models local/models-squads.json`.
+   --json > local/models-squads.json`, run the per-bot survey of
+   `skills/assigning-models` step 4 for all their bots, then ask one OK, then run steps 2 and 4 per squad with `--models local/models-squads.json`.
 2. Any squad: `scripts/hpy squadctl.py plan <key> [--with <optional-bot>] --json`.
    Show the bot `actions`, `pending`, `notes` and `optional_skipped`. Apply only
    after the user's explicit OK. A `board` value

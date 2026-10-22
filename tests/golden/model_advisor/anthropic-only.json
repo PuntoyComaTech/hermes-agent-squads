@@ -60,22 +60,25 @@
           "bot": "web",
           "role": "manager",
           "lane": "manager",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 2/6 (anthropic, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -83,14 +86,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -98,22 +103,25 @@
           "bot": "web-frontend",
           "role": "worker",
           "lane": "frontend",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "frontend lane, candidate 1/6 (anthropic): UI quality is model-bound and pays per pixel: strong UI models at high effort",
+          "reason": "frontend lane, candidate 2/6 (anthropic, mid cost, economical first): UI quality is model-bound and pays per pixel: strong UI models at high effort",
           "extras": [
             {
               "use": "delegation",
@@ -121,14 +129,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -139,14 +149,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "low"
             }
           ],
-          "reason": "code-routine lane, candidate 4/6 (anthropic): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
+          "reason": "code-routine lane, candidate 4/6 (anthropic, low cost, economical first): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
           "extras": [
             {
               "use": "delegation",
@@ -154,19 +166,22 @@
               "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "high",
               "alternatives": [
                 {
                   "model": "claude-sonnet-5-5[1m]",
                   "provider": "claude-subscription-directsdk-experimental",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "mid"
                 },
                 {
                   "model": "claude-opus-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "high"
                 }
               ],
-              "reason": "code-complex lane, candidate 1/5 (anthropic): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+              "reason": "code-complex lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
             }
           ]
         },
@@ -177,19 +192,22 @@
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "high",
           "alternatives": [
             {
               "model": "claude-sonnet-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "high"
             }
           ],
-          "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
+          "reason": "review lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": [
             {
               "use": "delegation",
@@ -197,14 +215,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -215,14 +235,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "low"
             }
           ],
-          "reason": "deploy lane, candidate 2/4 (anthropic): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
+          "reason": "deploy lane, candidate 2/4 (anthropic, low cost, economical first): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
           "extras": [
             {
               "use": "delegation",
@@ -230,14 +252,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -248,14 +272,16 @@
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "high",
           "alternatives": [
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "high"
             }
           ],
-          "reason": "design-pro lane, candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "design-pro lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": [
             {
               "use": "delegation",
@@ -263,14 +289,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         }
@@ -282,14 +310,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "low"
+              "reasoning": "low",
+              "cost": "low"
             }
           ],
-          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+          "reason": "aux lane, candidate 2/4 (anthropic, low cost, economical first): auxiliary.* slots (compression, titles, summaries) run on every session"
         },
         {
           "use": "vision",
@@ -297,14 +327,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "low"
+              "reasoning": "low",
+              "cost": "low"
             }
           ],
-          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models"
+          "reason": "vision lane, candidate 2/4 (anthropic, low cost, economical first): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -315,22 +347,25 @@
           "bot": "marketing",
           "role": "manager",
           "lane": "manager",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 2/6 (anthropic, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -338,14 +373,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -356,14 +393,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "low"
             }
           ],
-          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment",
+          "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment",
           "extras": [
             {
               "use": "delegation",
@@ -371,14 +410,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -386,22 +427,25 @@
           "bot": "marketing-creative",
           "role": "worker",
           "lane": "manager",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 2/6 (anthropic, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -409,14 +453,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -427,14 +473,16 @@
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "high",
           "alternatives": [
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "high"
             }
           ],
-          "reason": "design-pro lane, candidate 1/5 (anthropic): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "design-pro lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": [
             {
               "use": "delegation",
@@ -442,14 +490,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -460,19 +510,22 @@
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "high",
           "alternatives": [
             {
               "model": "claude-sonnet-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "high"
             }
           ],
-          "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
+          "reason": "review lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": [
             {
               "use": "delegation",
@@ -480,14 +533,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         }
@@ -499,14 +554,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "low"
+              "reasoning": "low",
+              "cost": "low"
             }
           ],
-          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+          "reason": "aux lane, candidate 2/4 (anthropic, low cost, economical first): auxiliary.* slots (compression, titles, summaries) run on every session"
         },
         {
           "use": "vision",
@@ -514,14 +571,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "low"
+              "reasoning": "low",
+              "cost": "low"
             }
           ],
-          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models"
+          "reason": "vision lane, candidate 2/4 (anthropic, low cost, economical first): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -532,22 +591,25 @@
           "bot": "jobs",
           "role": "manager",
           "lane": "manager",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 2/6 (anthropic, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -555,14 +617,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -573,14 +637,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "low"
             }
           ],
-          "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment",
+          "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment",
           "extras": [
             {
               "use": "delegation",
@@ -588,14 +654,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             },
             {
               "use": "chain:application/analyze",
@@ -603,19 +671,22 @@
               "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "high",
               "alternatives": [
                 {
                   "model": "claude-sonnet-5-5[1m]",
                   "provider": "claude-subscription-directsdk-experimental",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "mid"
                 },
                 {
                   "model": "claude-opus-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "high"
                 }
               ],
-              "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers"
+              "reason": "review lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers"
             }
           ]
         },
@@ -623,22 +694,25 @@
           "bot": "jobs-writer",
           "role": "worker",
           "lane": "manager",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 2/6 (anthropic, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -646,14 +720,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -664,19 +740,22 @@
           "model": "claude-opus-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "high",
+          "cost": "high",
           "alternatives": [
             {
               "model": "claude-sonnet-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             },
             {
               "model": "claude-opus-5-5",
               "provider": "anthropic",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "high"
             }
           ],
-          "reason": "review lane, candidate 1/5 (anthropic): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
+          "reason": "review lane, candidate 1/5 (anthropic, high cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": [
             {
               "use": "delegation",
@@ -684,14 +763,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         }
@@ -705,22 +786,25 @@
           "bot": "builder",
           "role": "manager",
           "lane": "manager",
-          "model": "claude-opus-5-5[1m]",
+          "model": "claude-sonnet-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "medium",
+          "cost": "mid",
           "alternatives": [
             {
-              "model": "claude-sonnet-5-5[1m]",
+              "model": "claude-opus-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "high"
             },
             {
-              "model": "claude-opus-5-5",
+              "model": "claude-sonnet-5-5",
               "provider": "anthropic",
-              "reasoning": "medium"
+              "reasoning": "medium",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 1/6 (anthropic): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 2/6 (anthropic, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -728,14 +812,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "research lane, candidate 2/4 (anthropic): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 2/4 (anthropic, low cost, economical first): Web sweeps are high-volume and low-judgment"
             },
             {
               "use": "cron:builder-watch",
@@ -743,14 +829,16 @@
               "model": "claude-haiku-5-5[1m]",
               "provider": "claude-subscription-directsdk-experimental",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [
                 {
                   "model": "claude-haiku-5-5",
                   "provider": "anthropic",
-                  "reasoning": "high"
+                  "reasoning": "high",
+                  "cost": "low"
                 }
               ],
-              "reason": "digest lane, candidate 1/4 (anthropic): The daily upstream digest reads filtered release notes and writes JSON"
+              "reason": "digest lane, candidate 1/4 (anthropic, low cost, economical first): The daily upstream digest reads filtered release notes and writes JSON"
             }
           ]
         }
@@ -762,14 +850,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "low"
+              "reasoning": "low",
+              "cost": "low"
             }
           ],
-          "reason": "aux lane, candidate 2/4 (anthropic): auxiliary.* slots (compression, titles, summaries) run on every session"
+          "reason": "aux lane, candidate 2/4 (anthropic, low cost, economical first): auxiliary.* slots (compression, titles, summaries) run on every session"
         },
         {
           "use": "vision",
@@ -777,14 +867,16 @@
           "model": "claude-haiku-5-5[1m]",
           "provider": "claude-subscription-directsdk-experimental",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [
             {
               "model": "claude-haiku-5-5",
               "provider": "anthropic",
-              "reasoning": "low"
+              "reasoning": "low",
+              "cost": "low"
             }
           ],
-          "reason": "vision lane, candidate 2/4 (anthropic): auxiliary.vision for text-only main models"
+          "reason": "vision lane, candidate 2/4 (anthropic, low cost, economical first): auxiliary.vision for text-only main models"
         }
       ]
     }

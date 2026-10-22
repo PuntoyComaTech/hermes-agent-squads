@@ -31,6 +31,11 @@
 #   `provider_pref` (default: the family's providers, in order). `reasoning` defaults to the lane's.
 # fallback: what to do when no candidate matches. `cheapest` = the provider's cheapest model by a
 #   name heuristic (flash, mini, haiku, nano); `first-choice-provider` = the manager lane's pick.
+# cost: low | mid | high, the candidate's price class (default mid). Economical first: on a lane without
+#   `critical: true`, every low or mid candidate that matches is tried before any high one, so a premium model is
+#   picked only when no cheaper capable model is connected (the reason says so). A `critical: true` lane keeps the
+#   quality order: the strongest model that matches wins, premium included. Mark a lane critical only when a weaker
+#   model visibly fails at it.
 # rule: `different-family-from-producer` (review) skips candidates of the producer lanes' families
 #   whenever another family is present.
 # exclusions: <builder>/local/providers-exclude.txt lists one provider slug per line; excluded
@@ -40,7 +45,7 @@
 # renames between providers (claude-opus-5-5 vs claude-opus-5.5) do not break a lane.
 
 schema: 2
-updated: 2026-10-15
+updated: 2026-10-21
 
 families:
   anthropic: [claude-subscription*, anthropic]
@@ -59,12 +64,12 @@ fallback_chain:
   why: "Keeps every bot working when its subscription window runs out: a strong model first, then a cheap one"
   size: 2
   candidates:
-    - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-    - {family: openai, match: 'gpt-5\.4', reasoning: high}
-    - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: high}
-    - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: xhigh, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-    - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
-    - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+    - {cost: mid, family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+    - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: high}
+    - {cost: mid, family: open-weights, match: 'mimo-v2\.6-pro', reasoning: high}
+    - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: xhigh, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+    - {cost: low, family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+    - {cost: low, family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
 
 lanes:
   manager:
@@ -72,12 +77,12 @@ lanes:
     used_by: [squad managers, planner bots]
     reasoning: medium
     candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.4', reasoning: medium}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
-      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: high}
-      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
+      - {cost: high, family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: mid, family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: medium, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: medium}
+      - {cost: high, family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: medium}
+      - {cost: mid, family: open-weights, match: 'mimo-v2\.6-pro', reasoning: high}
+      - {cost: mid, family: open-weights, match: 'glm-5\.3', reasoning: high}
     fallback: cheapest
 
   frontend:
@@ -85,36 +90,38 @@ lanes:
     used_by: [web-frontend, marketing-producer]
     reasoning: high
     candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.4', reasoning: high}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
-      - {family: open-weights, match: 'kimi-k3', reasoning: high}
-      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
+      - {cost: high, family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: mid, family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {cost: high, family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {cost: mid, family: open-weights, match: 'kimi-k3', reasoning: high}
+      - {cost: mid, family: open-weights, match: 'glm-5\.3', reasoning: high}
     fallback: first-choice-provider
 
   design-pro:
     why: "Frontier models for 3D/WebGL and complex motion where weaker models visibly fail"
+    critical: true
     used_by: [web-frontend-pro]
     reasoning: high
     candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.4', reasoning: high}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
-      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
-      - {family: open-weights, match: 'kimi-k3', reasoning: high}
+      - {cost: high, family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {cost: high, family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {cost: mid, family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+      - {cost: mid, family: open-weights, match: 'kimi-k3', reasoning: high}
     fallback: first-choice-provider
 
   code-complex:
     why: "Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+    critical: true
     used_by: [web-backend delegation, hard-problem advisors]
     reasoning: xhigh
     candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
-      - {family: openai, match: 'gpt-5\.4', reasoning: high}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: high, family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: mid, family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+      - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {cost: high, family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {cost: mid, family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
     fallback: first-choice-provider
 
   code-routine:
@@ -122,25 +129,26 @@ lanes:
     used_by: [web-backend]
     reasoning: high
     candidates:
-      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
-      - {family: open-weights, match: 'kimi-k2\.7-code', reasoning: high}
-      - {family: open-weights, match: 'glm-5\.3', reasoning: high}
-      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
-      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+      - {cost: low, family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {cost: low, family: open-weights, match: 'kimi-k2\.7-code', reasoning: high}
+      - {cost: mid, family: open-weights, match: 'glm-5\.3', reasoning: high}
+      - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: low, family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {cost: low, family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
     fallback: first-choice-provider
 
   review:
     why: "Independent review catches more when the reviewer's model family differs from the producers'"
+    critical: true
     used_by: [web-qa, marketing-reviewer, jobs-reviewer]
     reasoning: high
     rule: different-family-from-producer   # prefer a family different from the frontend/code picks
     candidates:
-      - {family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
-      - {family: openai, match: 'gpt-5\.4', reasoning: high}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
-      - {family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: high, family: anthropic, match: 'claude-opus-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: mid, family: open-weights, match: 'mimo-v2\.6-pro', reasoning: xhigh}
+      - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: high}
+      - {cost: high, family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: high}
+      - {cost: mid, family: anthropic, match: 'claude-sonnet-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
     fallback: first-choice-provider
 
   deploy:
@@ -148,10 +156,10 @@ lanes:
     used_by: [web-deployer]
     reasoning: high
     candidates:
-      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
-      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
-      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+      - {cost: low, family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: low, family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {cost: low, family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
     fallback: cheapest
 
   research:
@@ -159,10 +167,10 @@ lanes:
     used_by: [marketing-research, jobs-scout]
     reasoning: medium
     candidates:
-      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: medium}
-      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
-      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+      - {cost: low, family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: medium}
+      - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: low, family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {cost: low, family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
     fallback: cheapest
 
   digest:
@@ -170,10 +178,10 @@ lanes:
     used_by: [builder update cron]
     reasoning: high
     candidates:
-      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
-      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
-      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
+      - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: high, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: low, family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: high}
+      - {cost: low, family: openai, match: 'gpt-5\.\d+-mini', reasoning: high}
+      - {cost: low, family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: high}
     fallback: cheapest
 
   aux:
@@ -181,10 +189,10 @@ lanes:
     used_by: [all auxiliary.* slots]
     reasoning: low
     candidates:
-      - {family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: low}
-      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: low, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: openai, match: 'gpt-5\.\d+-mini', reasoning: low}
-      - {family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: low}
+      - {cost: low, family: open-weights, match: 'deepseek-v4\.1-flash', reasoning: low}
+      - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: low, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: low, family: openai, match: 'gpt-5\.\d+-mini', reasoning: low}
+      - {cost: low, family: google, match: 'gemini-\d+(\.\d+)?-flash', reasoning: low}
     fallback: cheapest
 
   vision:
@@ -192,9 +200,9 @@ lanes:
     used_by: [auxiliary.vision]
     reasoning: low
     candidates:
-      - {family: open-weights, match: 'mimo-v2\.6-pro', reasoning: low}
-      - {family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: low, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
-      - {family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: low}
-      - {family: openai, match: 'gpt-5\.4', reasoning: low}
+      - {cost: mid, family: open-weights, match: 'mimo-v2\.6-pro', reasoning: low}
+      - {cost: low, family: anthropic, match: 'claude-haiku-5[.-]5(\[1m\])?', reasoning: low, provider_pref: [claude-subscription*, anthropic, copilot, github-copilot, openrouter]}
+      - {cost: high, family: google, match: 'gemini-3\.1-pro(-preview)?', reasoning: low}
+      - {cost: high, family: openai, match: 'gpt-5\.4', reasoning: low}
     fallback: first-choice-provider
 

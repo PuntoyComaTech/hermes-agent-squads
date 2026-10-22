@@ -15,6 +15,9 @@ Jobs squad 4.0: a job search built around one person.
 - Gates before scoring: scam or closed, eligibility, language (flag and discard gap steps), location, role,
   seniority, contract and salary, avoid lists and deal-breakers. Weights, bands and decisions are computed by
   `score_analysis.py`; the user tunes them in `profile.md`.
+- Model survey per bot on every install: the advisor recommends economical models first (`cost` per candidate in
+  `model-roles.yaml`); a premium model is the pick only on `critical` lanes (design-pro, code-complex, review) or when
+  nothing cheaper is connected, and the reason says which.
 - Fresh openings only: each weekday check reads the postings that appeared since the previous one (default one
   check at 12:00 in the user's time zone, up to four via `search_times`; Monday covers the weekend). The window goes to
   LinkedIn in minutes (`--max-age-hours`) and to `prefilter --since`.

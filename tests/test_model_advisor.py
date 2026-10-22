@@ -394,3 +394,40 @@ def test_real_runtime_probe_with_empty_home(temp_home):
     call broke and detection silently fell back to weaker probes."""
     rows = ma.probe_runtime()
     assert isinstance(rows, list) and all(isinstance(r.get("slug"), str) for r in rows), rows
+
+
+# --- economical first, premium only where critical ---------------------------------------------------------------
+
+def test_a_routine_lane_skips_a_premium_model_when_a_cheaper_capable_one_is_connected(capsys, all_families):
+    # A user with a Claude subscription and an open-weights plan: the manager and writer lanes are not critical, so
+    # the mid-cost model that does the job wins over the premium one, which stays as an alternative.
+    _, result = advise(capsys, "--lane", "manager", cache=all_families)
+    pick = result["lanes"][0]
+    assert pick["cost"] != "high", pick
+    assert "economical first" in pick["reason"]
+    assert any(a["cost"] == "high" for a in pick["alternatives"]) or pick["alternatives"], pick
+
+
+def test_a_critical_lane_gets_the_strongest_model_even_when_it_costs_more(capsys, all_families):
+    _, result = advise(capsys, "--lane", "code-complex", cache=all_families)
+    pick = result["lanes"][0]
+    assert pick["cost"] == "high" and "critical" in pick["reason"], pick
+
+
+def test_premium_is_picked_outside_critical_lanes_only_when_nothing_cheaper_is_connected(capsys, tmp_path):
+    # Only a premium model is connected: the manager lane still works, and the reason tells the user why it costs more.
+    cache = tmp_path / "premium-only.json"
+    cache.write_text(json.dumps({"anthropic": {"models": ["claude-opus-5-5"], "fetched_at": NOW}}))
+    _, result = advise(capsys, "--lane", "manager", cache=cache)
+    pick = result["lanes"][0]
+    assert pick["model"] == "claude-opus-5-5" and "no cheaper candidate connected" in pick["reason"], pick
+
+
+def test_the_jobs_squad_runs_cheap_where_it_can_and_strong_only_on_review(capsys, all_families):
+    # The shipped manifest, not the fixture: every bot it declares gets checked.
+    _, result = advise(capsys, str(REPO / "squads" / "jobs" / "squad.yaml"), cache=all_families)
+    jobs = bots(result, "jobs")
+    assert jobs["jobs-scout"]["cost"] == "low", jobs["jobs-scout"]
+    for name in ("jobs", "jobs-writer", "jobs-applier"):
+        assert jobs[name]["cost"] != "high", jobs[name]
+    assert jobs["jobs-reviewer"]["lane"] == "review"

@@ -197,8 +197,10 @@ def test_lane_shape(lane):
     assert spec["why"] and spec["used_by"] and spec["candidates"]
     assert spec["reasoning"] in SCHEMA["$defs"]["reasoning"]["enum"]
     assert spec["fallback"] in {"cheapest", "first-choice-provider"}
+    assert spec.get("critical", False) in (True, False)
     for cand in spec["candidates"]:
-        assert set(cand) <= {"family", "match", "provider_pref", "reasoning"}, cand
+        assert set(cand) <= {"cost", "family", "match", "provider_pref", "reasoning"}, cand
+        assert cand["cost"] in {"low", "mid", "high"}, cand
         assert cand["family"] in ROLES["families"], cand
         assert cand.get("reasoning", spec["reasoning"]) in SCHEMA["$defs"]["reasoning"]["enum"]
         re.compile(cand["match"])
@@ -387,3 +389,9 @@ def test_every_shipped_toolset_is_one_hermes_tools_enable_accepts():
         for bot, spec in doc["bots"].items():
             assert set(spec["toolsets"]) <= known, (path.name, bot, sorted(set(spec["toolsets"]) - known))
         assert set(cron) <= known, (path.name, sorted(set(cron) - known))
+
+
+def test_only_lanes_where_a_weak_model_fails_are_critical():
+    # A premium model is the default only where a weaker one visibly fails; every other lane goes economical first.
+    assert {name for name, spec in ROLES["lanes"].items() if spec.get("critical")} == {"design-pro", "code-complex",
+                                                                                       "review"}

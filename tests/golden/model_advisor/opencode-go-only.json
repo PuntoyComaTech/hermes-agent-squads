@@ -76,14 +76,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -91,8 +93,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -103,14 +106,16 @@
           "model": "kimi-k3",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "frontend lane, candidate 5/6 (open-weights): UI quality is model-bound and pays per pixel: strong UI models at high effort",
+          "reason": "frontend lane, candidate 5/6 (open-weights, mid cost, economical first): UI quality is model-bound and pays per pixel: strong UI models at high effort",
           "extras": [
             {
               "use": "delegation",
@@ -118,8 +123,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -130,19 +136,22 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "low",
           "alternatives": [
             {
               "model": "kimi-k2.7-code",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "low"
             },
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "code-routine lane, candidate 1/6 (open-weights): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
+          "reason": "code-routine lane, candidate 1/6 (open-weights, low cost, economical first): CRUD, tests and small fixes are long tool loops: fast cheap coders at high effort",
           "extras": [
             {
               "use": "delegation",
@@ -150,8 +159,9 @@
               "model": "mimo-v2.6-pro",
               "provider": "opencode-go",
               "reasoning": "xhigh",
+              "cost": "mid",
               "alternatives": [],
-              "reason": "code-complex lane, candidate 2/5 (open-weights): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
+              "reason": "code-complex lane, candidate 2/5 (open-weights, mid cost, critical: strongest connected model): Architecture, auth, data models and migrations: strongest reasoning, xhigh where the model supports it"
             }
           ]
         },
@@ -162,8 +172,9 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "xhigh",
+          "cost": "mid",
           "alternatives": [],
-          "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
+          "reason": "review lane, candidate 2/5 (open-weights, mid cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": [
             {
               "use": "delegation",
@@ -171,8 +182,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -183,8 +195,9 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "low",
           "alternatives": [],
-          "reason": "deploy lane, candidate 1/4 (open-weights): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
+          "reason": "deploy lane, candidate 1/4 (open-weights, low cost, economical first): Deploy runs are frequent and mechanical: cheapest capable executor at high effort",
           "extras": [
             {
               "use": "delegation",
@@ -192,8 +205,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -204,14 +218,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "xhigh",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "kimi-k3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "design-pro lane, candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "design-pro lane, candidate 4/5 (open-weights, mid cost, critical: strongest connected model): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": [
             {
               "use": "delegation",
@@ -219,8 +235,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         }
@@ -232,8 +249,9 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [],
-          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+          "reason": "aux lane, candidate 1/4 (open-weights, low cost, economical first): auxiliary.* slots (compression, titles, summaries) run on every session"
         },
         {
           "use": "vision",
@@ -241,8 +259,9 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "low",
+          "cost": "mid",
           "alternatives": [],
-          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models"
+          "reason": "vision lane, candidate 1/4 (open-weights, mid cost, economical first): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -256,14 +275,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -271,8 +292,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -283,8 +305,9 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "medium",
+          "cost": "low",
           "alternatives": [],
-          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
+          "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment",
           "extras": [
             {
               "use": "delegation",
@@ -292,8 +315,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -304,14 +328,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -319,8 +345,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -331,14 +358,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "xhigh",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "kimi-k3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "design-pro lane, candidate 4/5 (open-weights): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
+          "reason": "design-pro lane, candidate 4/5 (open-weights, mid cost, critical: strongest connected model): Frontier models for 3D/WebGL and complex motion where weaker models visibly fail",
           "extras": [
             {
               "use": "delegation",
@@ -346,8 +375,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -358,8 +388,9 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "xhigh",
+          "cost": "mid",
           "alternatives": [],
-          "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
+          "reason": "review lane, candidate 2/5 (open-weights, mid cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": [
             {
               "use": "delegation",
@@ -367,8 +398,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         }
@@ -380,8 +412,9 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [],
-          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+          "reason": "aux lane, candidate 1/4 (open-weights, low cost, economical first): auxiliary.* slots (compression, titles, summaries) run on every session"
         },
         {
           "use": "vision",
@@ -389,8 +422,9 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "low",
+          "cost": "mid",
           "alternatives": [],
-          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models"
+          "reason": "vision lane, candidate 1/4 (open-weights, mid cost, economical first): auxiliary.vision for text-only main models"
         }
       ]
     },
@@ -404,14 +438,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -419,8 +455,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -431,8 +468,9 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "medium",
+          "cost": "low",
           "alternatives": [],
-          "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment",
+          "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment",
           "extras": [
             {
               "use": "delegation",
@@ -440,8 +478,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             },
             {
               "use": "chain:application/analyze",
@@ -449,8 +488,9 @@
               "model": "mimo-v2.6-pro",
               "provider": "opencode-go",
               "reasoning": "xhigh",
+              "cost": "mid",
               "alternatives": [],
-              "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers"
+              "reason": "review lane, candidate 2/5 (open-weights, mid cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers"
             }
           ]
         },
@@ -461,14 +501,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -476,8 +518,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         },
@@ -488,8 +531,9 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "xhigh",
+          "cost": "mid",
           "alternatives": [],
-          "reason": "review lane, candidate 2/5 (open-weights): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
+          "reason": "review lane, candidate 2/5 (open-weights, mid cost, critical: strongest connected model): Independent review catches more when the reviewer's model family differs from the producers'; only one family available, same as the producers",
           "extras": [
             {
               "use": "delegation",
@@ -497,8 +541,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             }
           ]
         }
@@ -515,14 +560,16 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "high",
+          "cost": "mid",
           "alternatives": [
             {
               "model": "glm-5.3",
               "provider": "opencode-go",
-              "reasoning": "high"
+              "reasoning": "high",
+              "cost": "mid"
             }
           ],
-          "reason": "manager lane, candidate 5/6 (open-weights): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
+          "reason": "manager lane, candidate 5/6 (open-weights, mid cost, economical first): Planning, interviewing and accepting work: judgment and instruction following matter more than speed",
           "extras": [
             {
               "use": "delegation",
@@ -530,8 +577,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "medium",
+              "cost": "low",
               "alternatives": [],
-              "reason": "research lane, candidate 1/4 (open-weights): Web sweeps are high-volume and low-judgment"
+              "reason": "research lane, candidate 1/4 (open-weights, low cost, economical first): Web sweeps are high-volume and low-judgment"
             },
             {
               "use": "cron:builder-watch",
@@ -539,8 +587,9 @@
               "model": "deepseek-v4.1-flash",
               "provider": "opencode-go",
               "reasoning": "high",
+              "cost": "low",
               "alternatives": [],
-              "reason": "digest lane, candidate 2/4 (open-weights): The daily upstream digest reads filtered release notes and writes JSON"
+              "reason": "digest lane, candidate 2/4 (open-weights, low cost, economical first): The daily upstream digest reads filtered release notes and writes JSON"
             }
           ]
         }
@@ -552,8 +601,9 @@
           "model": "deepseek-v4.1-flash",
           "provider": "opencode-go",
           "reasoning": "low",
+          "cost": "low",
           "alternatives": [],
-          "reason": "aux lane, candidate 1/4 (open-weights): auxiliary.* slots (compression, titles, summaries) run on every session"
+          "reason": "aux lane, candidate 1/4 (open-weights, low cost, economical first): auxiliary.* slots (compression, titles, summaries) run on every session"
         },
         {
           "use": "vision",
@@ -561,8 +611,9 @@
           "model": "mimo-v2.6-pro",
           "provider": "opencode-go",
           "reasoning": "low",
+          "cost": "mid",
           "alternatives": [],
-          "reason": "vision lane, candidate 1/4 (open-weights): auxiliary.vision for text-only main models"
+          "reason": "vision lane, candidate 1/4 (open-weights, mid cost, economical first): auxiliary.vision for text-only main models"
         }
       ]
     }
