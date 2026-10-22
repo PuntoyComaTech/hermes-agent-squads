@@ -136,18 +136,33 @@ def test_unreadable_worker_fails(env):
     assert "acme" in projects(env, "web-qa")
 
 
-def test_setup_points_the_desktop_repo_scan_at_the_squad_folder(env):
+def test_setup_resets_the_legacy_squad_scan_root_and_keeps_the_users_list(env):
+    """An install from an older squad version pinned the Desktop scan to ~/Projects/web in every bot; the user's
+    projects live elsewhere. Setup resets only that legacy value, keeps a custom list and creates no folder."""
+    for bot in ("web", "web-frontend"):
+        (env["root"] / "profiles" / bot / "config.yaml").write_text("desktop:\n  repo_scan_roots:\n  - ~/Projects/web\n")
     custom = env["root"] / "profiles" / "web-qa" / "config.yaml"
     custom.write_text("desktop:\n  repo_scan_roots:\n  - ~/code\n")
     dry = json.loads(sync(env, "--setup", "--dry-run", "--json"))
-    assert dry["created_folder"] and not (env["tmp"] / "home" / "Projects" / "web").exists()
+    assert {b["bot"]: b["result"] for b in dry["bots"]}["web"] == "would reset"
+    assert "~/Projects/web" in (env["root"] / "profiles" / "web" / "config.yaml").read_text()
     out = sync(env, "--setup")
-    assert (env["tmp"] / "home" / "Projects" / "web").is_dir()
-    assert "web: set" in out and "web-frontend: set" in out and "web-qa: custom repo_scan_roots kept" in out
+    assert "web: reset" in out and "web-frontend: reset" in out and "web-qa: custom repo_scan_roots kept" in out
     for bot in ("web", "web-frontend"):
-        assert hermes(env, "-p", bot, "config", "get", "desktop.repo_scan_roots").strip() == "- ~/Projects/web"
+        assert hermes(env, "-p", bot, "config", "get", "desktop.repo_scan_roots").strip() == "[]"
     assert "~/code" in custom.read_text()
+    assert not (env["tmp"] / "home" / "Projects").exists()
     assert sync(env, "--setup") == "web-qa: custom repo_scan_roots kept: ['~/code']\n"
+
+
+def test_a_project_in_any_user_folder_reaches_the_workers(env):
+    """The user creates the project with + in a folder of their choice, outside any squad folder."""
+    folder = env["tmp"] / "home" / "Documents" / "My sites" / "acme"
+    folder.mkdir(parents=True)
+    hermes(env, "-p", "web", "project", "create", "Acme", str(folder), "--slug", "acme")
+    assert "acme: web-frontend create" in sync(env)
+    shown = hermes(env, "-p", "web-qa", "project", "show", "acme")
+    assert str(folder) in shown
 
 
 def test_help_runs_without_hermes():

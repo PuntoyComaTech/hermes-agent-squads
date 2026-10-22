@@ -20,11 +20,15 @@
 
 ## Squad usage
 
-- The manager creates the project (`desktop_project` create, "+" in the sidebar, or
-  `hermes -p <manager> project create`); squad tooling (`project_sync.py`, not Hermes) copies it to
+- The user creates the project in a folder they choose ("+" in the sidebar with the manager selected, or
+  the manager's `desktop_project` create with the folder the user names); a chat opened inside it runs with
+  the project's primary folder as its working directory. Squad tooling (`project_sync.py`, not Hermes) copies it to
   every worker and binds the squad board.
 - Desktop Project grouping is a device-wide sidebar setting with no config key. It turns on when the
   user creates a project with "+", opens a folder, or goes to a project with ⌘K, or when the selected
   chat's agent calls `desktop_project` create or switch.
 - Repo discovery for the Desktop is per profile: `desktop.repo_scan_enabled`, `repo_scan_roots` and
-  `repo_scan_exclude_paths`.
+  `repo_scan_exclude_paths`. Empty `repo_scan_roots` scans nothing (no home-directory fallback); squads leave it
+  empty.
+- The messaging gateway does not inherit a Desktop project: a channel bound to a project pins its folder in
+  `platforms.<platform>.channel_overrides.<id>.system_prompt`.

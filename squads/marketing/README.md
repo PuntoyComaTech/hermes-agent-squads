@@ -59,8 +59,8 @@ flowchart TD
 
 ## Brands
 
-One brand is one Hermes Project in `~/Projects/marketing/`. In the Desktop app: Sessions, pick `marketing` in the
-bottom selector, then "+" (New project); or tell the manager about a new brand and it creates the project. `brand.md`
+One brand is one Hermes Project, in a folder you choose. In the Desktop app: Sessions, pick `marketing` in the
+bottom selector, then "+" (New project), and tell the manager about the brand in a chat inside it. `brand.md`
 stays `draft` until you approve onboarding; only `active` brands get calendars and reports. A `PAUSE` file in the brand
 folder stops its schedule.
 

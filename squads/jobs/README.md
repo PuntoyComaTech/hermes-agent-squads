@@ -90,8 +90,8 @@ but never browses or logs in to LinkedIn; `linkedin.com` stays blocked for the s
   it the writer ships the PDF and ATS text and says `docx_skipped`. Text-layer checks: pypdf or
   poppler (`pdftotext`, `pdfinfo`). Without them the writer says what is missing; nothing is installed for you.
 - Mail: `hermes connectors connect gmail`, once, if you want reply tracking.
-- One person's search is one Hermes Project in `~/Projects/jobs/`. In the Desktop app: Sessions, pick `jobs` in the
-  bottom selector, then "+" (New project); or tell the manager to start a search and it creates the project.
+- One search is one Hermes Project, in a folder you choose. In the Desktop app: Sessions, pick `jobs` in the bottom
+  selector, then "+" (New project), and start the search in a chat inside it.
 
 ## Schedule
 

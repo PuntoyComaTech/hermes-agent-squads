@@ -30,6 +30,7 @@ domain:
   name: null
   status: none           # none | pending_user | pending_dns | active
 repo:
+  path: repo             # the git repo inside the site folder: repo (new site) | . (the folder already is the repo)
   owner: "<github owner>"
   name: panaderia-sol
   visibility: private

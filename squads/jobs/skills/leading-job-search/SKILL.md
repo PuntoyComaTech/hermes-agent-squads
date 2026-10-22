@@ -20,12 +20,12 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
 
 ## Procedure
 
-1. **Project.** One search = one Hermes Project. If it is missing: create `~/Projects/jobs/<name>` (never the home
-   root or a profile directory), then `tool_describe` and `tool_call` `desktop_project` with
-   `{"action": "create", "name": "<name>", "path": "<folder>"}`. Outside Desktop run
-   `hermes -p jobs project create "<name>" <folder>`. Then run `python3 $HERMES_HOME/scripts/project_sync.py` so the
-   workers get it, and tell the user once: "Sessions: pick jobs in the bottom selector to see its searches; + creates
-   another."
+1. **Project.** One search = one Hermes Project: the one this chat runs in; `<P>` is its primary folder
+   (`desktop_project` `list` -> the active row). No project: ask the user to create one with "+" in Sessions
+   (pick jobs in the bottom selector), choosing its folder, and to open the chat inside it; when they name a
+   folder instead, `tool_call` `desktop_project` `{"action": "create", "name": "<name>", "path": "<their folder>"}`
+   (outside Desktop `hermes -p jobs project create "<name>" <folder>`). Never pick the folder yourself. Then run
+   `python3 $HERMES_HOME/scripts/project_sync.py` so the workers get it.
 2. **Route the request.** One route per message:
 
    | The user says | Route |

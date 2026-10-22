@@ -3,7 +3,7 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
-## 2.5.0 - 2026-10-21
+## 2.6.0 - 2026-10-21
 
 Jobs squad 4.0: a job search built around one person.
 
@@ -38,6 +38,29 @@ Jobs squad 4.0: a job search built around one person.
 
 - `jobs-reviewer` gains `terminal` and `web` (company-claim checks); `jobs-applier` and the manager gain `terminal`.
 - `jobs-scout` requires `bun`.
+
+## 2.5.1 - 2026-10-21
+
+### Changed
+
+- `managing-projects`: pitfalls for bot-chosen folders, what `project_sync.py --setup` does, and repos without a
+  `repo/` subfolder; gateway channels name the project folder in their prompt.
+
+## 2.5.0 - 2026-10-21
+
+### Changed
+
+- Projects live where the user creates them. Squads no longer impose `~/Projects/<squad>/`: the bot base, the
+  builder SOUL and the web, marketing and jobs managers work in the project the chat runs in (the folder the user
+  picked with "+" in Desktop Sessions) and never choose a folder themselves. Squads 3.2.0.
+- `project_sync.py --setup` (run by `apply`) creates no folder; it resets the `desktop.repo_scan_roots:
+  [~/Projects/<squad>]` that 2.2.0-2.4.1 set in every bot to `[]` and keeps any other list.
+- Web squad: the site repo is `site.yaml -> repo.path` (`repo` for a new site, `.` when the project folder already is
+  the git repo); skills use `<repo>` and `check_site.py` defaults `--repo` to it.
+
+### Fixed
+
+- `squadctl apply --src <checkout>` ran the builder's installed `project_sync.py` instead of the one being applied.
 
 ## 2.4.1 - 2026-10-20
 

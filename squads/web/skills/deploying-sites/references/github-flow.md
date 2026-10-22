@@ -31,7 +31,7 @@ A login without the `repo` scope cannot create one: the user runs `gh auth refre
   login access to it, reply "done".
 
 ```bash
-gh repo create <owner>/<slug> --private --source repo --remote origin --push   # bot_creates
+gh repo create <owner>/<slug> --private --source <repo> --remote origin --push   # bot_creates
 gh repo view <owner>/<slug> --json name,visibility,isEmpty                      # user_creates
 ```
 
@@ -39,12 +39,12 @@ Then set `site.yaml -> repo.mode` and `repo.created: true`.
 
 ## Branches and pull requests
 
-- One branch per work item: `web/<ID>`, pushed from the site's `repo/`.
+- One branch per work item: `web/<ID>`, pushed from the site's `<repo>` (`site.yaml -> repo.path`).
 - Authenticate pushes per repository, from the same login, never globally:
 
 ```bash
-git -C repo config credential.helper '!gh auth git-credential'
-git -C repo push -u origin web/<ID>
+git -C <repo> config credential.helper '!gh auth git-credential'
+git -C <repo> push -u origin web/<ID>
 ```
 
 - One PR per work item, updated on each new push; title from the milestone, body with the summary, the preview
@@ -59,7 +59,7 @@ gh pr view <n> --repo <owner>/<slug> --json number,url,mergeStateStatus,statusCh
 
 ```bash
 gh pr merge <n> --repo <owner>/<slug> --merge          # merge commit: never --squash, never --rebase
-git -C repo revert -m 1 <merge-commit> && git -C repo push origin main   # rollback after the provider step
+git -C <repo> revert -m 1 <merge-commit> && git -C <repo> push origin main   # rollback after the provider step
 ```
 
 Stacked milestones merge in order. A conflicted PR: file a card for the bot that built it (deploying-sites step
