@@ -378,7 +378,8 @@ def test_root_provider_plugin_is_copied_and_keyless_provider_needs_no_key(env, c
     assert "provider plugin + prov-keyless" in fe["actions"]
     assert (env.root / "profiles" / "web-frontend" / "plugins" / "prov-keyless" / "plugin.yaml").is_file()
     assert "prov-keyless" in env.config("web-frontend")["plugins"]["enabled"]
-    assert not any(n.startswith("credentials") for n in fe.get("notes", []))
+    # the bot's own model needs no key; its delegation and auxiliary lanes still name theirs
+    assert not any(n.startswith("credentials") and "prov-keyless" in n for n in fe.get("notes", []))
 
 
 def test_inventory_documents_profiles_read_only(web, capsys):
@@ -442,16 +443,50 @@ def test_provider_key_is_copied_from_the_root_env_file(env, capsys, monkeypatch)
 def test_a_root_key_the_cli_lists_as_env_is_still_copied_into_the_bot(env, capsys, monkeypatch):
     """Real install: `hermes -p <bot> auth list` printed the root key as an `env:` credential, apply took it for the
     profile's own store, copied nothing, and the bot ran on its fallback model. An env-sourced row is not the bot's."""
-    monkeypatch.delenv("PROV_REVIEW_API_KEY", raising=False)
-    (env.root / ".env").write_text("PROV_REVIEW_API_KEY=sk-root...alue\n")
+    for name in lane_keys():
+        monkeypatch.delenv(name, raising=False)
+    (env.root / ".env").write_text("".join(f"{k}=sk-root-{i}\n" for i, k in enumerate(lane_keys())))
     env.squad("web")
     _, out = env.run("apply", "web", "--bots", "web-qa", "--yes", capsys=capsys)
     (qa,) = out["bots"]
     assert "credentials PROV_REVIEW_API_KEY: copied into web-qa (mode 600)" in qa["actions"], qa
-    assert (env.root / "profiles" / "web-qa" / ".env").read_text() == "PROV_REVIEW_API_KEY=sk-root...alue\n"
+    assert "PROV_REVIEW_API_KEY=" in (env.root / "profiles" / "web-qa" / ".env").read_text()
     _, out = env.run("doctor", "web", capsys=capsys)
     checks = {c["check"]: c for c in out["checks"]}
     assert checks["web-qa:credentials"]["status"] == "ok" and "env file" in checks["web-qa:credentials"]["detail"]
+
+
+def test_every_provider_a_bot_runs_on_gets_its_key_not_only_the_main_model(env, capsys, monkeypatch):
+    """Real install: jobs-writer ran on a subscription provider with no API key, its delegate_task children on a
+    keyed provider whose key only the root held. Apply copied nothing and every delegation failed with "no key for
+    the provider". Delegation, auxiliary slots and chain stages each get their provider's key."""
+    for name in lane_keys():
+        monkeypatch.delenv(name, raising=False)
+    (env.root / ".env").write_text("".join(f"{k}=sk-root-{i}\n" for i, k in enumerate(lane_keys())))
+    env.squad("web")
+    doc = models_doc()
+    doc["bots"] = {"web-backend": {"provider": "prov-keyless", "model": "model-x", "reasoning": "high"}}
+    env.models.write_text(yaml.safe_dump(doc))
+    plugin = env.root / "plugins" / "prov-keyless"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text("name: prov-keyless\nkind: model-provider\n")
+    _, out = env.run("apply", "web", "--bots", "web-backend", "--yes", capsys=capsys)
+    (be,) = out["bots"]
+    copied = {a.split()[1].rstrip(":") for a in be["actions"] if a.startswith("credentials")}
+    assert {"PROV_CODE_COMPLEX_API_KEY", "PROV_AUX_API_KEY", "PROV_VISION_API_KEY"} <= copied, be["actions"]
+    written = env_names_of(env.root / "profiles" / "web-backend" / ".env")
+    assert copied <= written
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["web-backend:credentials"]["status"] == "ok", checks["web-backend:credentials"]
+
+
+def lane_keys() -> list[str]:
+    return [f"PROV_{lane.upper().replace('-', '_')}_API_KEY" for lane in LANES]
+
+
+def env_names_of(path: Path) -> set[str]:
+    return {line.split("=", 1)[0] for line in path.read_text().splitlines() if "=" in line}
 
 
 def test_doctor_credentials_check_and_models_never_pass_without_them(env, capsys, monkeypatch):
@@ -471,10 +506,15 @@ def test_doctor_credentials_check_and_models_never_pass_without_them(env, capsys
     (home / ".env").write_text("PROV_REVIEW_API_KEY=sk-x\n")
     _, out = env.run("doctor", "web", capsys=capsys)
     checks = {c["check"]: c for c in out["checks"]}
+    # its own key alone is not enough: delegation and auxiliary slots run on other providers
+    assert checks["web-qa:credentials"]["status"] == "warn" and "PROV_AUX_API_KEY" in checks["web-qa:credentials"]["detail"]
+    (home / ".env").write_text("".join(f"{k}=sk-x\n" for k in lane_keys()))
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
     assert checks["web-qa:credentials"]["status"] == "ok" and checks["web-qa:models"]["status"] == "ok"
     assert "sk-x" not in json.dumps(out)
     (home / ".env").unlink()
-    (home / "auth-names.json").write_text(json.dumps(["prov-review"]))  # the profile auth store counts too
+    (home / "auth-names.json").write_text(json.dumps([f"prov-{lane}" for lane in LANES]))  # the auth store counts too
     _, out = env.run("doctor", "web", capsys=capsys)
     checks = {c["check"]: c for c in out["checks"]}
     assert checks["web-qa:credentials"]["status"] == "ok" and "auth store" in checks["web-qa:credentials"]["detail"]
@@ -1707,3 +1747,19 @@ def test_doctor_warns_on_a_paused_squad_cron_job(env, capsys):
     env.run("apply", "--self", capsys=capsys)
     again = next(j for j in json.loads(path.read_text())["jobs"] if j["name"] == "builder-watch")
     assert again["enabled"] is False
+
+
+def test_an_unattended_upgrade_names_the_key_a_bot_still_needs(env, capsys, monkeypatch):
+    """The daily update never copies a key (that needs the owner's apply --yes), but it must say so: a bot whose
+    provider key sits only in the root would otherwise start on its fallback model and nobody would know."""
+    for name in lane_keys():
+        monkeypatch.delenv(name, raising=False)
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (env.root / ".env").write_text("".join(f"{k}=sk-root-{i}\n" for i, k in enumerate(lane_keys())))
+    env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"web": {"version": "3.0.0"}},
+                                                                   **models_doc()}))
+    _, out = env.run("upgrade", capsys=capsys)
+    assert any(p.startswith("web-qa: credentials PROV_REVIEW_API_KEY") and "squadctl apply web --yes" in p
+               for p in out["pending"]), out["pending"]
+    assert "sk-root" not in json.dumps(out)

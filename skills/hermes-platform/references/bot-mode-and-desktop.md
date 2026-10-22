@@ -55,6 +55,11 @@
   Hermes adds to Desktop-app chats only, and it is deferred: the model calls it through
   `tool_describe` and `tool_call` (it is listed in the `tool_search` catalog). Kanban workers and cron
   runs never have it.
+- Tabs are scoped (Hermes >= 0.22.0): each tab belongs to the stored session that opened it and the
+  pane shows the focused session's tabs plus pinned ones; each profile keeps its own tab list. A pinned
+  tab shows in every session of that profile, and tabs saved by a build before session scoping load as
+  pinned, which looks like one pane shared across chats: unpin or close them. A chat that is not a
+  Desktop session (messaging channel, Kanban worker, cron) has no `desktop_ui` and cannot open a tab.
 - Never put `desktop_ui` or `project` in `agent.disabled_toolsets`: they are the client's own surface
   and squad bots need them in their Desktop chat.
 - Showing a site while a worker builds it: the manager starts the dev server with

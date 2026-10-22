@@ -3,6 +3,22 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.6.2 - 2026-10-21
+
+### Fixed
+
+- `squadctl apply --yes` prepared only the provider of a bot's main model. Its `delegate_task` children, auxiliary
+  slots, chain stages and fallback chain can run on other providers: a writer on a subscription with research
+  children on an API provider failed every delegation with "no key". Apply now copies the key and the provider
+  plugin for every provider the bot runs on; doctor checks them all, and `upgrade` names any key still waiting for
+  `apply --yes`.
+
+### Changed
+
+- Bot SOUL base: preview tabs belong to the chat that opens them (one per session, project and bot), are opened
+  again in the chat where the user wants them and are never pinned; outside the Desktop app the bot sends the URL.
+  The jobs manager opens the pipeline dashboard as a tab.
+
 ## 2.6.1 - 2026-10-21
 
 ### Fixed

@@ -36,7 +36,7 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    | "I applied", "they called", "rejected", "I have an interview", "offer", "no reply" | run `tracking-outcomes` |
    | "any replies?", "what did <company> say?", "check my inbox" | the inbox card (step 3) |
    | "what should I learn?", skill gaps | run `planning-upskilling` |
-   | "show my pipeline", "dashboard" | run `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/build_dashboard.py" --project <P>` and send the path |
+   | "show my pipeline", "dashboard" | run `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/build_dashboard.py" --project <P>`, then `desktop_preview` open `<P>/reports/dashboard.html` (label `Pipeline`); outside Desktop send the path |
    | a new job board or portal | run `adding-portals` |
    | "use my CV design", a template file or screenshot | save it to `<P>/templates/`, file a jobs-writer card `skills: [rendering-cv]`, body `Mode: TEMPLATE` + the file; on pass set `cv_template` after the user's ok |
    | "rank my openings", a backlog of saved openings | file a jobs-scout card `skills: [ranking-openings]`, key `jobs:rank:<project>:<YYYY-MM-DD>` |

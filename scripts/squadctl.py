@@ -938,6 +938,30 @@ class Applier:
         entry = self.models["bots"].get(name) or {}
         return {**m, "reasoning": entry.get("reasoning") or bot.get("reasoning") or m.get("reasoning")}
 
+    def bot_providers(self, name: str, bot: dict) -> list[tuple[str, bool]]:
+        """(provider, required) for every model this bot can run: its own, its delegate_task children, its auxiliary
+        slots, chain stages it is the assignee of (the card carries the stage lane's model) and the install's
+        fallback chain (required=False: a missing fallback key is reported, never an install gap). In order, once."""
+        out: dict[str, bool] = {}
+        def add(m: dict | None, required: bool = True) -> None:
+            if m and m.get("provider"):
+                out[m["provider"]] = out.get(m["provider"], False) or required
+        add(self.bot_model(name, bot))
+        deleg = delegation_lane(bot)
+        add(self.lane_model(deleg) if deleg else None)
+        for key in ("aux_lane", "vision_lane"):
+            add(self.lane_model(self.defaults.get(key, key.removesuffix("_lane"))))
+        for stages in (self.spec.get("chains") or {}).values():
+            for st in stages:
+                if st.get("assignee") == name and st.get("lane"):
+                    add(self.lane_model(st["lane"]))
+        for job in (bot.get("cron") or {}).values():
+            if isinstance(job.get("agent"), dict) and job["agent"].get("lane"):
+                add(self.lane_model(job["agent"]["lane"]))
+        for row in self.models.get("fallback") or []:
+            add(row, required=False)
+        return list(out.items())
+
     def pin_note(self, name: str, bot: dict) -> str | None:
         """A per-bot model (`bots:` in installed.yaml or --models) that differs from its lane's model. It is kept
         on every later apply, even when a new models file changes the lane, so plan names it."""
@@ -1358,10 +1382,10 @@ class Applier:
         spec = bot.get("plugins") or {}
         declared = {e if isinstance(e, str) else e["name"] for e in spec.get("enable") or []}
         declared |= set(spec.get("disable") or [])
-        m = self.bot_model(name, bot)
-        found = provider_source(self.ctx, m["provider"]) if m else None
-        if found:
-            declared.add(plugin_key(found[0], found[1] / "plugins"))
+        for provider, _required in self.bot_providers(name, bot):
+            found = provider_source(self.ctx, provider)
+            if found:
+                declared.add(plugin_key(found[0], found[1] / "plugins"))
         live = pa.current(cfg, "plugins.enabled") or []
         overlay = self.ctx.local / "squads" / self.key / "squad.yaml"
         return [f"plugin {p} is enabled but not in the manifest; kept. Declare it (plugins.enable_add in {overlay}) "
@@ -1375,10 +1399,13 @@ class Applier:
         (or a flat `<home>/plugins/<name>/` declaring `kind: model-provider`), so a provider installed elsewhere
         is `Unknown provider` in this bot until it is copied and listed.
         """
-        m = self.bot_model(name, bot)
-        if not m:
-            return []
-        found = provider_source(self.ctx, m["provider"])
+        acts: list[str] = []
+        for provider, _required in self.bot_providers(name, bot):
+            acts += self._provider_plugin(name, provider)
+        return acts
+
+    def _provider_plugin(self, name: str, provider: str) -> list[str]:
+        found = provider_source(self.ctx, provider)
         if found is None:
             return []
         src, owner = found
@@ -1391,7 +1418,7 @@ class Applier:
         enabled = list((((read_yaml(home / "config.yaml") or {}).get("plugins") or {}).get("enabled")) or [])
         if in_sync and key in enabled:
             return []
-        acts = [f"provider plugin {'enable' if in_sync else '+' if not dest.is_dir() else '~'} {m['provider']}"]
+        acts = [f"provider plugin {'enable' if in_sync else '+' if not dest.is_dir() else '~'} {provider}"]
         if not self.dry:
             if not in_sync:
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -1424,52 +1451,80 @@ class Applier:
                 held.add(slug)
         return held
 
-    def _credential(self, name: str, bot: dict) -> dict:
+    def _credential(self, name: str, provider: str, stored: set[str] | None = None) -> dict:
         """One provider credential as facts: which key name, where it already lives, where a value could come from.
 
         A profile never inherits the gateway root environment, so the bot's own homes are its env file and its
         auth store; a key held only by the root is the copy case."""
-        m = self.bot_model(name, bot)
-        if not m:
-            return {"skip": True, "where": "no model assigned"}
-        keys = self.ctx.provider_env_keys(m["provider"])
+        keys = self.ctx.provider_env_keys(provider)
         if not keys:  # OAuth or an external process: there is no API key to hold
-            return {"skip": True, "where": f"provider {m['provider']} needs no API key"}
+            return {"skip": True, "where": f"provider {provider} needs no API key"}
         have = env_names(self.ctx.home(name) / ENV_FILE)
         if any(k in have for k in keys):
             return {"skip": True, "where": "profile env file"}
-        if m["provider"] in self.auth_slugs(name):
+        if provider in (stored if stored is not None else self.auth_slugs(name)):
             return {"skip": True, "where": "profile auth store"}
         key = next((k for k in keys if self.key_value(k) is not None), None)
-        return {"key": key or keys[0], "copy_from": key, "provider": m["provider"]}
+        return {"key": key or keys[0], "copy_from": key, "provider": provider}
+
+    def _credentials_of(self, name: str, bot: dict) -> list[tuple[dict, bool]]:
+        """(credential facts, required) for every provider the bot runs on: main model, delegation, auxiliary
+        slots, chain stages and the fallback chain. One `auth list` per bot."""
+        providers = self.bot_providers(name, bot)
+        stored = self.auth_slugs(name) if self.ctx.home(name).is_dir() else set()
+        return [(self._credential(name, p, stored), req) for p, req in providers]
 
     def credentials(self, name: str, bot: dict) -> tuple[list[str], list[str]]:
-        """Apply-time credential handling: a key that exists only in the root env file or the process
-        environment is copied (name+value) into the bot's env file (mode 600) on `apply --yes`; the value is
-        never printed. Without `--yes` (and in plan) it stays an owner item; a key no home holds is named."""
-        c = self._credential(name, bot)
-        if c.get("skip"):
-            return [], []
-        if not c.get("copy_from"):
-            return [], [f"credentials {c['key']}: not in this environment; put it in the {name} profile "
-                        f"(mode 600) for provider {c['provider']} before the first run"]
-        if not self.ctx.yes:
-            return [], [f"credentials {c['key']}: held by the root only; `apply --yes` copies it into the "
-                        f"{name} profile (mode 600)"]
-        if not self.dry:
-            value = self.key_value(c["key"])
-            if value is not None:
-                env_set(self.ctx.home(name) / ENV_FILE, c["key"], value)
-        return [f"credentials {c['key']}: copied into {name} (mode 600)"], []
+        """Apply-time credential handling, for every provider the bot runs on (not only its main model: a
+        delegate_task child or an auxiliary slot on another provider fails the same way): a key that exists only
+        in the root env file or the process environment is copied (name+value) into the bot's env file (mode 600)
+        on `apply --yes`; the value is never printed. Without `--yes` (and in plan) it stays an owner item; a key
+        no home holds is named."""
+        acts: list[str] = []
+        notes: list[str] = []
+        copied: set[str] = set()
+        for c, required in self._credentials_of(name, bot):
+            if c.get("skip") or c["key"] in copied:
+                continue
+            if not c.get("copy_from"):
+                # A fallback provider with no key here may authenticate another way (OAuth, a CLI login): it is
+                # copied when a key exists and never reported when none does.
+                if required:
+                    notes.append(f"credentials {c['key']}: not in this environment; put it in the {name} profile "
+                                 f"(mode 600) for provider {c['provider']} before the first run")
+                continue
+            if not self.ctx.yes:
+                notes.append(f"credentials {c['key']}: held by the root only; `apply --yes` copies it into the "
+                             f"{name} profile (mode 600)")
+                continue
+            if not self.dry:
+                value = self.key_value(c["key"])
+                if value is not None:
+                    env_set(self.ctx.home(name) / ENV_FILE, c["key"], value)
+            copied.add(c["key"])
+            acts.append(f"credentials {c['key']}: copied into {name} (mode 600)")
+        return acts, notes
 
     def credential_status(self, name: str, bot: dict) -> tuple[bool, str]:
-        """Doctor's provider-credential check per bot: the key is in the profile env file or the auth store."""
-        c = self._credential(name, bot)
-        if c.get("skip"):
-            return True, c["where"]
-        hint = (f"`apply --yes` copies {c['copy_from']} there" if c.get("copy_from")
-                else f"put {c['key']} in the {name} profile (mode 600)")
-        return False, f"{c['key']} not in the {name} profile: {hint}"
+        """Doctor's provider-credential check per bot, over every provider it runs on: ok when each required key
+        is in the profile env file or the auth store. A missing fallback key is named but does not fail."""
+        rows = self._credentials_of(name, bot)
+        if not rows:
+            return True, "no model assigned"
+        gaps, soft = [], []
+        for c, required in rows:
+            if c.get("skip"):
+                continue
+            hint = (f"`apply --yes` copies {c['copy_from']} there" if c.get("copy_from")
+                    else f"put {c['key']} in the {name} profile (mode 600)")
+            if required:
+                gaps.append(f"{c['key']} ({c['provider']}) not in the {name} profile: {hint}")
+            elif c.get("copy_from"):
+                soft.append(f"fallback {c['key']}: {hint}")
+        if gaps:
+            return False, "; ".join(gaps + soft)
+        where = sorted({c["where"] for c, _ in rows if c.get("skip")})
+        return True, ", ".join(where) + (f"; {'; '.join(soft)}" if soft else "")
 
     def mcp(self, name: str, bot: dict, cfg: dict, pending: list[str]) -> list[str]:
         have = cfg.get("mcp_servers") or {}
@@ -1797,6 +1852,11 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
             continue
         changed = [b for b in out["bots"] if b.get("actions")]
         report["pending"] += [f"{b['bot']}: {p}" for b in out["bots"] for p in b.get("pending") or []]
+        # A key held only by the root is copied only with the owner's `apply --yes`; an unattended upgrade never
+        # copies one, so it says which command does, or the bot would run on its fallback without anyone knowing.
+        report["pending"] += [f"{b['bot']}: {n}; run `squadctl apply {key if key != 'builder' else '--self'} --yes`"
+                              for b in out["bots"] for n in b.get("notes") or []
+                              if n.startswith("credentials ") and "held by the root only" in n]
         if changed:
             report["applied"][key] = {"version": spec["version"], "bots": len(changed),
                                       "actions": sum(len(b["actions"]) for b in changed)}
@@ -2014,12 +2074,12 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             # `models ok` never passes when the bot cannot authenticate
             out.append(check(f"{name}:models", "ok" if not miss and authed else "warn",
                              "; ".join(miss) or ("assigned" if authed else f"assigned, but {cred}")))
-            m = ap.bot_model(name, bot)
-            found = provider_source(ctx, m["provider"]) if m else None
-            if found and not (ctx.home(name) / found[0].relative_to(found[1])).is_dir():
-                out.append(check(f"{name}:provider-plugin", "warn",
-                                 f"provider {m['provider']} is a user plugin of {found[1].name}: "
-                                 f"apply copies {found[0]} into this profile"))
+            for provider, _required in ap.bot_providers(name, bot):
+                found = provider_source(ctx, provider)
+                if found and not (ctx.home(name) / found[0].relative_to(found[1])).is_dir():
+                    out.append(check(f"{name}:provider-plugin", "warn",
+                                     f"provider {provider} is a user plugin of {found[1].name}: "
+                                     f"apply copies {found[0]} into this profile"))
             for env in bot.get("passthrough") or []:
                 out.append(check(f"{name}:{env}", "ok" if os.environ.get(env) else "warn",
                                  "set" if os.environ.get(env) else "missing in this environment"))
