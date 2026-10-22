@@ -1,6 +1,6 @@
 ---
 name: reviewing-sites
-description: "Reviews a deployed site preview with five lenses. Use when a qa card reaches web-qa, before anything reaches the user or production."
+description: "Reviews a deployed site preview with six lenses. Use when a qa card reaches web-qa, before anything reaches the user or production."
 ---
 
 # Reviewing a site
@@ -17,9 +17,9 @@ description: "Reviews a deployed site preview with five lenses. Use when a qa ca
 2. Round `R` = the number of `reviews/<ID>-r*.json` files that exist (0 on the first run).
 3. From the site folder run:
    `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/check_site.py" --site <slug> --id <ID> --round <R> --url <preview-url> --browser --lighthouse --lighthouse-runs 3 --repo <repo>` (`<repo>`: site-contract step 2)
-   It writes `reviews/<ID>-r<R>/checks.json` and `screenshots/`. Exit 2 (Chrome, Node or a repo devDependency missing): `kanban_block(kind="capability", reason="<the error line>")`, never a finding.
+   It writes `reviews/<ID>-r<R>/checks.json` and `screenshots/`. Then, from the site folder: `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/code_audit.py" --id <ID> --round <R> --repo <repo> --url <preview-url>`. It checks the repo is on `web/<ID>` (never switch it yourself: site-contract step 7), runs every quality-gate step, Semgrep and nuclei against the preview, and writes `reviews/<ID>-r<R>/code-checks.json` with a `critical` list; it installs a missing scanner itself (the first run takes a few minutes). Exit 1 on the wrong branch: `kanban_block(kind="needs_input", reason="repo is on <branch>, expected web/<ID>")`. A scanner that could not run is already a `critical` entry, not an exit code. Never re-run to chase a pass. For check_site.py, exit 2 (Chrome, Node or a repo devDependency missing): `kanban_block(kind="capability", reason="<the error line>")`, never a finding.
 4. Look at the screenshots, mobile first, then desktop. Then open the preview in the browser (that origin only) and walk the acceptance criteria. On a resumed card, verify each requested change first, then the whole site.
-5. Run five `delegate_task` subagents, one per lens in `references/lenses.md`, each with the URL, the criteria, the paths of `checks.json` and the screenshots, and its lens section.
+5. Run six `delegate_task` subagents, one per lens in `references/lenses.md`, each with the URL, the criteria, the paths of `checks.json`, `code-checks.json` and the screenshots, and its lens section. The code-review subagent also gets `<repo>` read-only and `site-contract/references/engineering-rules.md`.
 6. Write `reviews/<ID>-r<R>.json` in the format of site-contract `references/file-formats.md` section 4.
 7. Verdict:
    - `APPROVED`, no critical finding: `kanban_complete`. The `accept` card, a child of yours, then promotes.
@@ -40,7 +40,7 @@ description: "Reviews a deployed site preview with five lenses. Use when a qa ca
 
 ## Verification
 
-- `reviews/<ID>-r<R>.json` has exactly five lens objects, a verdict and three summary lines.
+- `reviews/<ID>-r<R>.json` has exactly six lens objects, a verdict and three summary lines; every `code-checks.json -> critical` entry appears in a lens.
 - Every critical finding names the page, what is wrong and the fix, one line each.
 - Every lens cites evidence in `reviews/<ID>-r<R>/`.
 - `FIX`: one `fix-r<N>` card, one `preview-r<N>` card linked as this card's parent, and this card in `todo` (dependency block). `ESCALATE`: one `needs_input` block with one question.

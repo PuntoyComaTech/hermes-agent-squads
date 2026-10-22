@@ -104,8 +104,12 @@ project lives in the folder you chose when you created it; squads never pick or 
 ## Updates
 
 Updates are automatic: every day at 06:30 the builder checks this repo and updates itself and your installed squads,
-with no AI model and no tokens. To update now, tell the builder **"update yourself"**; it runs the same update and
-lists what changed.
+with no AI model and no tokens (the `builder-update` job runs a plain script). It also hands every bot the providers
+you connected. To update now, tell the builder **"update yourself"**; it runs the same update and lists what changed.
+
+The schedule is run by the Hermes **gateway**, so the gateway must be running on each computer (the Desktop app runs
+it). Check with `hermes -p builder cron status`: it should say "Gateway is running" and show the next run. A run
+missed while the gateway was off is caught up when it returns.
 
 An update keeps what is yours: learned skills, memories, your model choices and your SOUL additions (lines you put in
 `local/squads/<squad>/souls/<bot>.append.md`). A squad with work in progress is updated on the next run. Hermes

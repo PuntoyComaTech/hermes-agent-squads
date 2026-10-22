@@ -223,6 +223,31 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert web.config("web")["memory"]["memory_enabled"] is True
 
 
+def test_browser_bots_use_the_users_real_profile_only_when_the_user_turned_it_on(env, capsys):
+    """A bot that must act as the user (a signed-in job board) browses through Hermes's real-profile copy. Without it
+    the bot sits in a clean throwaway browser and improvises: a debugging port, a copied profile, asking for cookies.
+    The squad mirrors the user's own consent; it never grants it on its own."""
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    assert "browser" not in env.config("web-frontend")  # the user has not turned it on: nothing is granted
+    (env.root / "config.yaml").write_text("browser:\n  use_real_profile: true\n")
+    builder = env.seed_builder()
+    (builder / "config.yaml").write_text("model: {default: seed}\nbrowser:\n  real_profile_pin: Profile 3\n")
+    _, plan = env.run("plan", "web", capsys=capsys)
+    assert "browser.use_real_profile" in json.dumps(plan)  # the plan shows the change before it is made
+    env.run("apply", "web", capsys=capsys)
+    fe = env.config("web-frontend")
+    assert fe["browser"] == {"use_real_profile": True, "real_profile_pin": "Profile 3"}
+    assert "browser" not in env.config("web-backend")  # no browser toolset, no real logins
+    cfg = env.config("web-frontend")
+    cfg["browser"]["use_real_profile"] = False  # the user switched one bot off by hand
+    (env.root / "profiles" / "web-frontend" / "config.yaml").write_text(yaml.safe_dump(cfg))
+    (env.root / "config.yaml").write_text("browser:\n  use_real_profile: false\n")
+    (builder / "config.yaml").write_text("model: {default: seed}\n")
+    env.run("apply", "web", capsys=capsys)
+    assert env.config("web-frontend")["browser"]["use_real_profile"] is False  # consent withdrawn: not re-granted
+
+
 def test_apply_never_writes_a_kanban_cap(web, capsys):
     """No kanban cap anywhere: apply writes no `kanban.*` key, root or profile, and has no flag for one."""
     _, out = web.run("apply", "web", capsys=capsys)
@@ -341,7 +366,8 @@ def test_provider_plugin_is_copied_into_the_bot_profile(env, capsys):
     # merged with the plugins.enable items of the spec, never replacing them
     assert env.config("web-frontend")["plugins"]["enabled"] == [
         "disk-cleanup", "model-providers/prov-frontend", "security-guidance"]
-    assert "model-providers/prov-frontend" not in env.config("web-qa")["plugins"]["enabled"]  # only the bots that got it
+    # every bot gets every provider the user connected: a model switch or a card pin can pick it in any bot
+    assert "model-providers/prov-frontend" in env.config("web-qa")["plugins"]["enabled"]
     _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
     assert out["bots"][0]["status"] == "unchanged"
 
@@ -400,30 +426,75 @@ def test_inventory_documents_profiles_read_only(web, capsys):
     assert "no such profile" in out["error"]
 
 
-def test_provider_key_is_copied_into_the_profile_only_with_yes(env, capsys, monkeypatch):
-    """C-14: a key held only by the root is copied (name+value) into the bot env file (mode 600) on `apply --yes`;
-    without the flag the owner item stands. The value never reaches output."""
-    monkeypatch.delenv("PROV_FRONTEND_API_KEY", raising=False)
+def test_a_plain_apply_copies_the_provider_key_and_plan_writes_nothing(env, capsys, monkeypatch):
+    """Real problem: a new squad came up with every bot lacking its provider key, because the copy waited for an
+    `--yes` the skills never passed; the user had to ask again. The plan lists the copy (that is the OK), the apply
+    makes it, with no extra flag. The value never reaches output."""
+    monkeypatch.setenv("PROV_FRONTEND_API_KEY", "sk-val...rint")
     env.squad("web")
+    env_file = env.root / "profiles" / "web-frontend" / ".env"
+    _, out = env.run("plan", "web", "--bots", "web-frontend", capsys=capsys)
+    assert any("credentials PROV_FRONTEND_API_KEY: copied into web-frontend" in a for a in out["bots"][0]["actions"])
+    assert not env_file.exists(), "plan writes nothing"
     _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
     (fe,) = out["bots"]
-    assert any("credentials PROV_FRONTEND_API_KEY" in n and "web-frontend" in n for n in fe["notes"])
-    env_file = env.root / "profiles" / "web-frontend" / ".env"
-    assert not env_file.exists()
-    monkeypatch.setenv("PROV_FRONTEND_API_KEY", "sk-val...rint")
-    _, out = env.run("plan", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
-    assert any("copied into web-frontend" in a for a in out["bots"][0]["actions"])
-    assert not env_file.exists(), "plan writes nothing"
-    assert "sk-val...rint" not in json.dumps(out)
-    _, out = env.run("apply", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
-    (fe,) = out["bots"]
     assert "credentials PROV_FRONTEND_API_KEY: copied into web-frontend (mode 600)" in fe["actions"]
-    assert env_file.read_text() == "PROV_FRONTEND_API_KEY=sk-val...rint\n"
+    assert "PROV_FRONTEND_API_KEY=sk-val...rint" in env_file.read_text().splitlines()
     assert oct(env_file.stat().st_mode)[-3:] == "600"
     assert "sk-val...rint" not in json.dumps(out)
-    _, out = env.run("apply", "web", "--bots", "web-frontend", "--yes", capsys=capsys)
+    _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
     assert out["summary"] == {"unchanged": 1}, "the copy is idempotent"
-    assert not any("credentials" in a for a in out["bots"][0].get("actions", []))
+
+
+def test_every_connected_provider_reaches_every_bot_not_only_its_lane(env, capsys, monkeypatch):
+    """Real problem: the user switched a bot to another of their providers (or a card pinned one) and the bot had no
+    key for it. Every provider connected at the root or in the builder lands in every bot, even one no lane uses."""
+    for name in lane_keys():
+        monkeypatch.delenv(name, raising=False)
+    (env.root / ".env").write_text("PROV_RESEARCH_API_KEY=sk-root-research\n")
+    builder_env = env.root / "profiles" / "builder" / ".env"
+    builder_env.parent.mkdir(parents=True, exist_ok=True)
+    builder_env.write_text("PROV_DIGEST_API_KEY=sk-builder-digest\n")  # `hermes model` run inside the builder
+    env.squad("web")
+    _, out = env.run("apply", "web", capsys=capsys)
+    for bot in ("web", "web-frontend", "web-backend", "web-qa", "web-deployer"):
+        names = env_names_of(env.root / "profiles" / bot / ".env")
+        assert {"PROV_RESEARCH_API_KEY", "PROV_DIGEST_API_KEY"} <= names, (bot, names)
+    assert "sk-root-research" not in json.dumps(out) and "sk-builder-digest" not in json.dumps(out)
+    qa = next(b for b in out["bots"] if b["bot"] == "web-qa")
+    assert not any("PROV_FRONTEND_API_KEY" in n for n in qa.get("notes") or []), "an unconnected extra is no gap"
+
+
+def test_an_excluded_provider_is_not_handed_to_the_bots(env, capsys, monkeypatch):
+    for name in lane_keys():
+        monkeypatch.delenv(name, raising=False)
+    (env.root / ".env").write_text("PROV_RESEARCH_API_KEY=sk-a\nPROV_DIGEST_API_KEY=sk-b\n")
+    env.local.mkdir(parents=True, exist_ok=True)
+    (env.local / "providers-exclude.txt").write_text("prov-digest  # the user's work account\n")
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    names = env_names_of(env.root / "profiles" / "web-qa" / ".env")
+    assert "PROV_RESEARCH_API_KEY" in names and "PROV_DIGEST_API_KEY" not in names
+
+
+def test_a_rotated_key_follows_into_the_bots_but_a_hand_set_one_is_kept(env, capsys, monkeypatch):
+    """The user rotates a key at the root: bots that got squadctl's copy follow it on the next apply or upgrade; a key
+    the user set by hand in one bot is theirs and is never overwritten."""
+    for name in lane_keys():
+        monkeypatch.delenv(name, raising=False)
+    (env.root / ".env").write_text("PROV_REVIEW_API_KEY=sk-old\n")
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    fe_env = env.root / "profiles" / "web-frontend" / ".env"
+    fe_env.parent.mkdir(parents=True, exist_ok=True)
+    fe_env.write_text("PROV_REVIEW_API_KEY=sk-hand\n")
+    (env.root / ".env").write_text("PROV_REVIEW_API_KEY=sk-new\n")
+    _, out = env.run("apply", "web", "--bots", "web-qa,web-frontend", capsys=capsys)
+    qa = next(b for b in out["bots"] if b["bot"] == "web-qa")
+    assert "credentials PROV_REVIEW_API_KEY: refreshed in web-qa (the source key changed)" in qa["actions"]
+    assert "PROV_REVIEW_API_KEY=sk-new" in (env.root / "profiles" / "web-qa" / ".env").read_text()
+    assert "PROV_REVIEW_API_KEY=sk-hand" in fe_env.read_text()
+    assert "sk-new" not in json.dumps(out) and "sk-hand" not in json.dumps(out)
 
 
 def test_provider_key_is_copied_from_the_root_env_file(env, capsys, monkeypatch):
@@ -431,7 +502,7 @@ def test_provider_key_is_copied_from_the_root_env_file(env, capsys, monkeypatch)
     monkeypatch.delenv("PROV_REVIEW_API_KEY", raising=False)
     (env.root / ".env").write_text("# gateway pool\nexport PROV_REVIEW_API_KEY='sk-root...alue'\n")
     env.squad("web")
-    _, out = env.run("apply", "web", "--bots", "web-qa", "--yes", capsys=capsys)
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     (qa,) = out["bots"]
     assert "credentials PROV_REVIEW_API_KEY: copied into web-qa (mode 600)" in qa["actions"]
     env_file = env.root / "profiles" / "web-qa" / ".env"
@@ -447,7 +518,7 @@ def test_a_root_key_the_cli_lists_as_env_is_still_copied_into_the_bot(env, capsy
         monkeypatch.delenv(name, raising=False)
     (env.root / ".env").write_text("".join(f"{k}=sk-root-{i}\n" for i, k in enumerate(lane_keys())))
     env.squad("web")
-    _, out = env.run("apply", "web", "--bots", "web-qa", "--yes", capsys=capsys)
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
     (qa,) = out["bots"]
     assert "credentials PROV_REVIEW_API_KEY: copied into web-qa (mode 600)" in qa["actions"], qa
     assert "PROV_REVIEW_API_KEY=" in (env.root / "profiles" / "web-qa" / ".env").read_text()
@@ -470,7 +541,7 @@ def test_every_provider_a_bot_runs_on_gets_its_key_not_only_the_main_model(env, 
     plugin = env.root / "plugins" / "prov-keyless"
     plugin.mkdir(parents=True)
     (plugin / "plugin.yaml").write_text("name: prov-keyless\nkind: model-provider\n")
-    _, out = env.run("apply", "web", "--bots", "web-backend", "--yes", capsys=capsys)
+    _, out = env.run("apply", "web", "--bots", "web-backend", capsys=capsys)
     (be,) = out["bots"]
     copied = {a.split()[1].rstrip(":") for a in be["actions"] if a.startswith("credentials")}
     assert {"PROV_CODE_COMPLEX_API_KEY", "PROV_AUX_API_KEY", "PROV_VISION_API_KEY"} <= copied, be["actions"]
@@ -912,7 +983,7 @@ def test_yes_is_accepted_and_never_bypasses_confirm_gates(env, capsys):
         spec["bots"]["web-qa"]["plugins"]["enable"].append(
             {"name": "blender", "confirm": "Runs arbitrary Python inside Blender; needs the user's OK"})
     env.squad("web", gate)
-    _, out = env.run("apply", "web", "--yes", capsys=capsys)
+    _, out = env.run("apply", "web", capsys=capsys)
     qa = next(b for b in out["bots"] if b["bot"] == "web-qa")
     assert len(qa["pending"]) == 1 and "blender" in qa["pending"][0]
     assert not any(c["args"][:2] == ["plugins", "install"] for c in env.calls())
@@ -1153,7 +1224,7 @@ def test_uninstall_backs_up_removes_cron_deletes_profiles_archives_board(web, ca
 
 
 def test_uninstall_keep_profiles_removes_cron_only(web, capsys):
-    _, out = web.run("uninstall", "web", "--keep-profiles", capsys=capsys)
+    _, out = web.run("uninstall", "web", "--keep-profiles", "--yes", capsys=capsys)
     assert len(list((web.root / "profiles").glob("web*"))) == 5
     assert web.jobs("web") == []
     assert len(list((web.local / "backups").glob("*.tar.gz"))) == 5
@@ -1161,7 +1232,7 @@ def test_uninstall_keep_profiles_removes_cron_only(web, capsys):
 
 
 def test_uninstall_yes_flag_is_accepted(web, capsys):
-    _, out = web.run("uninstall", "web", "--keep-profiles", "--yes", capsys=capsys)
+    _, out = web.run("uninstall", "web", "--keep-profiles", capsys=capsys)
     assert len(list((web.root / "profiles").glob("web*"))) == 5
     assert web.jobs("web") == []
 
@@ -1563,7 +1634,7 @@ def test_sched_matches_intervals_and_cron():
 
 
 def test_scripts_never_touch_the_auth_store_or_clone():
-    """C-14 lets `apply --yes` write the profile env file (name+value, value never shown); the auth store stays
+    """C-14 lets apply write the profile env file (name+value, value never shown); the auth store stays
     out of reach of every script, and no script may clone a profile."""
     for name in ("squadctl.py", "_profile_apply.py", "squadctl"):
         text = (SCRIPTS / name).read_text()
@@ -1749,9 +1820,9 @@ def test_doctor_warns_on_a_paused_squad_cron_job(env, capsys):
     assert again["enabled"] is False
 
 
-def test_an_unattended_upgrade_names_the_key_a_bot_still_needs(env, capsys, monkeypatch):
-    """The daily update never copies a key (that needs the owner's apply --yes), but it must say so: a bot whose
-    provider key sits only in the root would otherwise start on its fallback model and nobody would know."""
+def test_an_unattended_upgrade_hands_the_keys_to_the_bots(env, capsys, monkeypatch):
+    """Real problem: a provider connected after the install, and the daily update only printed "run apply --yes";
+    bots kept failing until the user asked. The upgrade now copies the key itself."""
     for name in lane_keys():
         monkeypatch.delenv(name, raising=False)
     env.squad("web")
@@ -1760,6 +1831,6 @@ def test_an_unattended_upgrade_names_the_key_a_bot_still_needs(env, capsys, monk
     env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"web": {"version": "3.0.0"}},
                                                                    **models_doc()}))
     _, out = env.run("upgrade", capsys=capsys)
-    assert any(p.startswith("web-qa: credentials PROV_REVIEW_API_KEY") and "squadctl apply web --yes" in p
-               for p in out["pending"]), out["pending"]
+    assert "PROV_REVIEW_API_KEY" in env_names_of(env.root / "profiles" / "web-qa" / ".env")
+    assert not any("credentials" in p for p in out["pending"]), out["pending"]
     assert "sk-root" not in json.dumps(out)

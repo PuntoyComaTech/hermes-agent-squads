@@ -1,6 +1,7 @@
 # GitHub flow
 
-Auth is `gh`'s own login: the user runs `gh auth login` once (the credential lands in the OS keyring) and every
+Auth is `gh`'s own login: the manager starts `gh auth login --web` for the user once (`web_access.py ensure gh`,
+the page opens as a tab beside the chat, the user approves it; the credential lands in the OS keyring) and every
 `gh` command and `git push` here rides on it. No token is passed through the profile environment; `GH_TOKEN` is
 the CI/headless path only, where no interactive login can happen.
 
@@ -12,15 +13,16 @@ gh api user --jq .login                 # who it is
 gh api user/repos --paginate --jq '.[].full_name'   # which repos it sees
 ```
 
-`gh auth status` exits non-zero when nobody is logged in: `kanban_block(kind="capability", reason="gh auth
-status: <its output>")`, and the user runs `gh auth login`. Whether it can create repositories, without
+`gh auth status` exits non-zero when nobody is logged in: `kanban_block(kind="needs_input", reason="login needed:
+gh")`; the manager starts the login for the user. Whether it can create repositories, without
 creating one:
 
 ```bash
 gh api -X POST user/repos -f name= 2>&1 | tail -1   # HTTP 422: it can; HTTP 403 or anything else: it cannot
 ```
 
-A login without the `repo` scope cannot create one: the user runs `gh auth refresh -s repo`.
+A login without the `repo` scope cannot create one: `kanban_block(kind="needs_input", reason="login needed: gh
+(repo scope)")`; the manager's login asks for `repo,workflow`.
 
 ## Repo modes
 
@@ -70,5 +72,5 @@ Stacked milestones merge in order. A conflicted PR: file a card for the bot that
 - Never `git push --force` or `-f`; never rewrite a published branch.
 - Never `gh repo delete`, `gh repo archive`, or change repository visibility, collaborators or settings.
 - Never commit to `main` directly; `main` only advances through merges and reverts.
-- Never run `gh auth login` for the user, and never type a password or a device code.
+- Never run `gh auth login` yourself (the manager starts it for the user), and never type a password or a device code.
 - Secrets never enter a branch, a PR body, a commit message or an issue.

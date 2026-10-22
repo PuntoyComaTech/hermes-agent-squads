@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Write a pinned project skeleton for one of the squad's stacks, from stacks.json beside this script.
+"""Stack skeletons (pinned in stacks.json beside this script), used by site_base.py.
 
-Writes files only: no package install, no git, no network. Exit 0 written or dry run, 1 target not empty
-without --force, 2 usage or data error.
+Not a tool for the bots: run site_base.py, which writes the skeleton together with the strict quality gate. Run
+directly, this prints that and exits 2.
 """
 from __future__ import annotations
 
@@ -30,21 +30,14 @@ playwright-report/
 .DS_Store
 """
 
-BIOME_JSON = """{
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
-  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineEnding": "lf", "lineWidth": 100 },
-  "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" } },
-  "linter": { "enabled": true, "rules": { "recommended": true } },
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true }
-}
-"""
-
 TSCONFIG = """{
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -52,8 +45,9 @@ TSCONFIG = """{
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "skipLibCheck": false,
-    "target": "ES2022",
+    "skipLibCheck": true,
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx"
@@ -66,7 +60,7 @@ PLAYWRIGHT = """import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.e2e.ts",
-  use: { baseURL: process.env.PREVIEW_URL ?? "http://127.0.0.1:4321" },
+  use: { baseURL: process.env["PREVIEW_URL"] ?? "http://127.0.0.1:4321" },
   reporter: [["list"]],
 });
 """
@@ -79,6 +73,41 @@ test("home page answers with a title", async ({ page }) => {
   await expect(page).toHaveTitle(/.+/);
 });
 """
+
+SECURITY_HEADERS = {
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    # a baseline that blocks third-party scripts, plugins, framing and form hijacking; inline script and style stay
+    # allowed because the stacks inline small bootstraps. Tighten with nonces when a spec needs it.
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' "
+                               "'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src "
+                               "'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+}
+
+
+def header_files(stack: str, provider: str) -> dict[str, str]:
+    """The response headers every site ships, in the form its host reads: Next in next.config.ts, a static site as
+    `public/_headers` (Cloudflare) or vercel.json (Vercel). TanStack Start renders on the server: its headers belong
+    in the server middleware, the first card of that stack (site-contract references/project-base.md)."""
+    if stack == "nextjs":
+        rows = ",\n".join(f'          {{ key: "{k}", value: "{v}" }}' for k, v in SECURITY_HEADERS.items())
+        return {"next.config.ts": 'import type { NextConfig } from "next";\n\nconst config: NextConfig = {\n'
+                                  "  async headers() {\n    return [\n      {\n        source: \"/:path*\",\n"
+                                  f"        headers: [\n{rows},\n        ],\n      }},\n    ];\n  }},\n}};\n\n"
+                                  "export default config;\n"}
+    if stack != "astro":
+        return {}
+    if provider == "vercel":
+        doc = {"headers": [{"source": "/(.*)", "headers": [{"key": k, "value": v}
+                                                           for k, v in SECURITY_HEADERS.items()]}]}
+        return {"vercel.json": json.dumps(doc, indent=2) + "\n"}
+    return {"public/_headers": "/*\n" + "".join(f"  {k}: {v}\n" for k, v in SECURITY_HEADERS.items())}
+
 
 WELCOME = "# {name}\n\nScaffolded by the web squad's `scaffold_site.py` from `stacks.json`.\n"
 
@@ -97,8 +126,8 @@ def load_stacks() -> dict:
 
 def package_json(stacks: dict, stack: str, name: str) -> str:
     spec = stacks["stacks"][stack]
-    scripts = {**spec["scripts"], "test": "vitest run --passWithNoTests", "e2e": "playwright test",
-               "lint": "biome check .", "format": "biome format --write ."}
+    scripts = {**spec["scripts"], "test": "vitest run", "e2e": "playwright test",
+               "lint": "biome check .", "format": "biome check --write ."}
     doc = {
         "name": name,
         "private": True,
@@ -117,7 +146,6 @@ def astro_config() -> str:
 def files_for(stacks: dict, stack: str, name: str) -> dict[str, str]:
     files: dict[str, str] = {
         ".gitignore": GITIGNORE,
-        "biome.json": BIOME_JSON,
         "tsconfig.json": TSCONFIG,
         "playwright.config.ts": PLAYWRIGHT,
         "e2e/home.e2e.ts": TEST_SPEC,
@@ -128,11 +156,11 @@ def files_for(stacks: dict, stack: str, name: str) -> dict[str, str]:
         files["astro.config.mjs"] = astro_config()
         files["src/styles/global.css"] = "@import \"tailwindcss\";\n"
         files["src/pages/index.astro"] = (
-            "---\nimport \"../styles/global.css\";\nconst title = \"" + name + "\";\n---\n"
+            "---\nimport \"../styles/global.css\";\n---\n"
             "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n"
             "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
             "    <meta name=\"description\" content=\"Replace with the site's own description.\" />\n"
-            "    <title>{title}</title>\n  </head>\n  <body>\n    <main>\n      <h1>{title}</h1>\n"
+            "    <title>" + name + "</title>\n  </head>\n  <body>\n    <main>\n      <h1>" + name + "</h1>\n"
             "      <p>Replace this skeleton with the milestone's pages.</p>\n    </main>\n  </body>\n</html>\n"
         )
     elif stack == "nextjs":
@@ -142,7 +170,7 @@ def files_for(stacks: dict, stack: str, name: str) -> dict[str, str]:
         files["src/app/layout.tsx"] = (
             "import type { ReactNode } from \"react\";\nimport \"./globals.css\";\n\n"
             "export const metadata = { title: \"" + name + "\", description: \"\" };\n\n"
-            "export default function RootLayout({ children }: { children: ReactNode }) {\n"
+            "export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {\n"
             "  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n"
         )
         files["src/app/page.tsx"] = (
@@ -197,48 +225,14 @@ def busiest(target: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(
-        description="Write a pinned project skeleton for one of the squad's stacks.",
-        epilog="Exit 0 written or dry run, 1 target not empty without --force, 2 usage or data error.")
-    p.add_argument("--stack", help="astro | nextjs | tanstack (see stacks.json)")
-    p.add_argument("--name", help="project name (lowercase, dashes)")
-    p.add_argument("--dir", default=".", help="target directory (default: current)")
-    p.add_argument("--force", action="store_true", help="write into a directory that already has files")
-    p.add_argument("--dry-run", action="store_true", help="list the files, write nothing")
-    p.add_argument("--json", action="store_true", help="machine-readable output")
-    p.add_argument("--list", action="store_true", help="list the available stacks and exit")
-    args = p.parse_args(argv)
-
-    stacks = load_stacks()
-    if args.list:
-        rows = [{"stack": key, "type": spec.get("type"), "why": spec.get("why"),
-                 "dependencies": spec.get("dependencies")} for key, spec in sorted(stacks["stacks"].items())]
-        print(json.dumps(rows, indent=2) if args.json else "\n".join(f"  {r['stack']}: {r['type']} - {r['why']}" for r in rows))
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in ("-h", "--help"):
+        print("usage: scaffold_site.py (library of site_base.py)\n\n" + (__doc__ or "").strip())
+        print("\nExit 2 when run with any other arguments: use site_base.py.")
         return 0
-    if not args.stack or not args.name:
-        print("error: --stack and --name are required (or --list)", file=sys.stderr)
-        return 2
-    if args.stack not in stacks["stacks"]:
-        print(f"error: unknown stack {args.stack!r}; available: {', '.join(sorted(stacks['stacks']))}", file=sys.stderr)
-        return 2
-    if not NAME_RE.match(args.name):
-        print("error: --name must be lowercase kebab-case, 40 characters or less", file=sys.stderr)
-        return 2
-
-    target = Path(args.dir).expanduser().resolve()
-    occupied = busiest(target)
-    if occupied and not args.force:
-        print(f"error: {target} is not empty ({', '.join(occupied[:5])}); pass --force to write anyway", file=sys.stderr)
-        return 1
-
-    files = files_for(stacks, args.stack, args.name)
-    written = write_tree(target, files, args.dry_run)
-    result = {"stack": args.stack, "name": args.name, "dir": str(target), "dry_run": args.dry_run,
-              "files": written, "next": ["pnpm install", "pnpm build"]}
-    print(json.dumps(result, indent=2) if args.json else
-          "\n".join([f"{'would write' if args.dry_run else 'wrote'} {rel}" for rel in written])
-          + "\nnext: pnpm install && pnpm build")
-    return 0
+    print("scaffold_site.py is a library: run site_base.py --repo <repo> --stack <stack> --name <slug> --install "
+          "(skeleton plus the strict quality gate)", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

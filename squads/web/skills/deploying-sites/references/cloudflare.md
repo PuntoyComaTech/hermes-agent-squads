@@ -12,9 +12,11 @@ bare; prefix `npx ` when the CLI is not on PATH, and record the form used in `de
 
 ## Logins (the user's, once)
 
-- `cf auth login` opens a browser page the user approves. Bots never log in for the user, never type a password.
-- `cf auth whoami` is the check before the first command of a card: it names the account and where the credential
-  comes from. Not logged in: `kanban_block(kind="capability", reason="cf auth whoami: <its output>")`.
+- The manager starts `cf auth login` for the user (`web_access.py ensure cf`) and opens its page as a tab; the user
+  approves it. Bots never type a password, a code or a token.
+- `web_access.py status cf` is the check before the first command of a card. `cf auth whoami` exits 0 even when
+  logged out (it answers JSON `authenticated: false`), so never trust its exit code alone. Not logged in:
+  `kanban_block(kind="needs_input", reason="login needed: cf")`.
 - One login per client folder: `cf auth create <name>` re-authenticates under a name, `cf auth activate
   <name> <site folder>` binds it to that directory, `cf auth list` shows what is bound where. A named login is
   never shared between clients.
@@ -68,8 +70,9 @@ needs the client's own access")`.
 
 ## Vercel sites — opt-in
 
-Only when `site.yaml -> provider: vercel`; never a default and never suggested. The user runs `vercel login`
-once. Commands: preview `vercel deploy`, production `vercel promote <preview-url>`, rollback
+Only when `site.yaml -> provider: vercel`; never a default and never suggested. The manager starts `vercel login` for the user (`web_access.py ensure vercel`, the approval page
+opens in a tab) and `web_access.py status vercel` is the check; not logged in: `kanban_block(kind="needs_input",
+reason="login needed: vercel")`. Commands: preview `vercel deploy`, production `vercel promote <preview-url>`, rollback
 `vercel rollback <previous-url>`, domain `vercel domains add <domain>`. No `--token`: the stored login is the
 credential. A site that earns money never runs on Vercel Hobby: block production until the card names a paid plan.
 

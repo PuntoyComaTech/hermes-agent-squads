@@ -50,7 +50,7 @@ bots:
   web-qa:
     role: worker
     title: Web QA
-    description: "Reviews each preview with five lenses and never fixes what it reviews"
+    description: "Reviews each preview with six lenses, code review included and never fixes what it reviews"
     lane: review
     toolsets: [file, skills, kanban, todo, browser, vision, terminal, delegation]
     skills: {squad: [reviewing-sites, site-contract], auto_load: reviewing-sites,

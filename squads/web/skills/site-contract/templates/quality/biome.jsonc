@@ -1,0 +1,60 @@
+{
+  // Strict base written by site_base.py. Workers never relax it: a rule that blocks real work goes to the manager.
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!!**/node_modules",
+      "!!**/dist",
+      "!!**/.next",
+      "!!**/.astro",
+      "!!**/.wrangler",
+      "!!**/coverage",
+      "!!**/playwright-report",
+      "!!src/routeTree.gen.ts",
+      "!!tools/quality/node_modules"
+    ]
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "javascript": {
+    "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 10 }
+        },
+        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 60 } },
+        "useMaxParams": { "level": "error", "options": { "max": 3 } },
+        "noUselessUndefinedInitialization": "error",
+        // TypeScript's noPropertyAccessFromIndexSignature wants env["X"]: the stricter type rule wins
+        "useLiteralKeys": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noTsIgnore": "error",
+        "noConsole": "error",
+        "noImportCycles": "error",
+        "noEvolvingTypes": "error",
+        "noImplicitAnyLet": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "error",
+        "noExcessiveLinesPerFile": { "level": "error", "options": { "maxLines": 300 } },
+        "noParameterAssign": "error",
+        "useBlockStatements": "error"
+      },
+      "performance": {
+        "noBarrelFile": "error",
+        "noReExportAll": "error",
+        "noNamespaceImport": "error"
+      }
+    }
+  },
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "defaultBranch": "main" }
+}

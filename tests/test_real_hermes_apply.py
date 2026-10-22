@@ -66,10 +66,15 @@ def test_apply_web_against_real_hermes(tmp_path):
         for server in spec["bots"][bot].get("mcp") or {}:
             assert cfg["mcp_servers"][server]["enabled"] is True, (bot, server)
 
-    # worker scripts ship inside their skills (site-contract carries the QA script, building-frontend the scaffolder)
-    qa = root / "profiles" / "web-qa" / "skills" / "squad-web" / "site-contract" / "scripts" / "check_site.py"
-    fe = root / "profiles" / "web-frontend" / "skills" / "squad-web" / "building-frontend" / "scripts" / "scaffold_site.py"
-    for script in (qa, fe):
+    # worker scripts ship inside site-contract, which every web bot carries: the QA script, the strict base, the
+    # logins and the live tab for the manager, the progress saves for the builders
+    def contract(bot: str, script: str) -> Path:
+        return root / "profiles" / bot / "skills" / "squad-web" / "site-contract" / "scripts" / script
+
+    scripts = [contract("web-qa", "check_site.py"), contract("web", "site_base.py"), contract("web", "web_access.py"),
+               contract("web", "live_view.py"), contract("web-frontend", "save_progress.py"),
+               contract("web-backend", "save_progress.py"), contract("web-deployer", "web_access.py")]
+    for script in scripts:
         assert script.is_file(), f"not installed: {script}"
         # the system python has no PyYAML: --help must still work
         h = subprocess.run([sys.executable, str(script), "--help"], capture_output=True, text=True, timeout=120)

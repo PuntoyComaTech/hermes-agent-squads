@@ -38,9 +38,11 @@ description: "Assigns a model per bot from connected providers. Use when a squad
    and to their children. The user may edit, drop (`fallback: []`) or keep it.
 6. On OK run `scripts/hpy squadctl.py apply <key> --models local/models-<key>.json`
    (`--self` instead of `<key>` for the builder). `apply` saves the choice in
-   `local/installed.yaml` and copies a user-installed provider plugin into
-   each bot that uses it. A `credentials <NAME>` note is a key the user adds
-   to that bot's profile; squadctl never reads or copies key values.
+   `local/installed.yaml` and gives every bot every provider the user
+   connected: each API key from the root or builder env file (copied into the
+   bot's env file, mode 600, never printed) and each user-installed provider
+   plugin. A `credentials <NAME>` note is a provider the user has not
+   connected yet: they connect it (`hermes model`), then apply again.
 
 ## Pitfalls
 

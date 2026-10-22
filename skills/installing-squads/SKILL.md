@@ -26,7 +26,14 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    Show the bot `actions`, `pending`, `notes` and `optional_skipped`. Apply only
    after the user's explicit OK. A `board` value
    `pending owner action: ...` is a command the user runs in their terminal.
-   A `credentials <NAME>` note is a key the user puts in that bot's profile.
+   Every bot gets every provider the user connected (keys and provider
+   plugins); the plan lists each copy, so the user's OK covers it. A
+   `credentials <NAME>` note is a provider not connected yet: the user
+   connects it (`hermes model`), then apply again. Never copy a key by hand.
+   Bots with the browser toolset get `browser.use_real_profile` (and the pin)
+   when the user turned it on in the root or builder config: that is how a bot
+   browses as the user. Never set up a browser, debugging port or cookie copy
+   for a bot instead.
 3. If the notes list `no model assigned`, run `skills/assigning-models` first.
 4. `scripts/hpy squadctl.py apply <key> [--models <file>] [--with <bot>]
    [--bots a,b] [--skip-skills] [--confirm <id>]`.

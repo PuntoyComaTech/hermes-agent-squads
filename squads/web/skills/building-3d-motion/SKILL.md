@@ -15,7 +15,7 @@ Ordinary UI, styling and simple transitions belong to `web-frontend`: never take
 
 ## Procedure
 
-1. `kanban_show`. Read the card body, `spec.md`, the milestone note and `site.yaml`. The scene serves the
+1. `kanban_show`. Read the card body, `spec.md`, the milestone note and `site.yaml`, and site-contract `references/engineering-rules.md`. The scene serves the
    milestone; if the brief is ambiguous about what the scene must communicate, block with that question.
 2. Reuse before building. Your profile keeps the motion, design and scroll skills
    (`official:web-development/scrollcraft`, `official:creative/impeccable`,
@@ -30,9 +30,11 @@ Ordinary UI, styling and simple transitions belong to `web-frontend`: never take
 6. Blender pipeline: `references/blender-pipeline.md` (what to model offline, glTF export, compression).
 7. Budgets: `references/perf-budgets.md` (LCP/INP caps measured, not assumed).
 8. Fallbacks are part of the deliverable: `references/fallbacks.md` (GPU fallback, `prefers-reduced-motion`).
-9. Verify in the browser at 390 and 1440 px before completing: no console errors, the fallback path works,
-   reduced motion renders the static branch.
-10. `kanban_complete`: files in `metadata.changed_files`, what you verified in `metadata.verification`.
+9. Work on `web/<ID>` in `<repo>` and save each finished piece as you go (site-contract step 8): the scene shell,
+   each model or shader, each timeline, the fallback. The user watches the live tab.
+10. Verify in the browser at 390 and 1440 px before completing: no console errors, the fallback path works,
+   reduced motion renders the static branch. `pnpm -C <repo> quality` passes (site-contract step 9).
+11. `kanban_complete`: files in `metadata.changed_files`, what you verified in `metadata.verification`.
 
 ## Pitfalls
 
@@ -40,6 +42,7 @@ Ordinary UI, styling and simple transitions belong to `web-frontend`: never take
 - Animations that never stop: pause on `visibilitychange` and when the canvas leaves the viewport.
 - WebGL with no fallback: a context-loss and no-WebGL branch ships with every scene.
 - Editing the brief or spec to make a scene easier: ask the manager instead.
+- `any` on three.js or GSAP objects, an inline lint disable, or an edited quality config: use the library's types.
 
 ## Verification
 

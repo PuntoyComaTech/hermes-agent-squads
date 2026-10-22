@@ -1,0 +1,12 @@
+# Written by site_base.py. pre-commit formats and lints what is being committed (progress commits included);
+# pre-push runs the whole gate, so nothing that fails it reaches GitHub.
+pre-commit:
+  jobs:
+    - name: biome
+      glob: "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,jsonc,css,astro}"
+      run: pnpm exec biome check --write --error-on-warnings --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+pre-push:
+  jobs:
+    - name: quality
+      run: pnpm quality

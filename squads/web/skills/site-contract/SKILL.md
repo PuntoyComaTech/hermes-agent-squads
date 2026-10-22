@@ -5,7 +5,7 @@ description: "Defines the web squad's files, ids, gates and handoffs. Use when a
 
 # Site contract
 
-File and card formats: `references/file-formats.md`. `scripts/check_site.py --site <slug> --id <ID> [--round R]` writes `reviews/<ID>-r<R>/checks.json` and is what a QA or deploy card runs against a preview. Squad scripts run as `python3 "$HERMES_HOME/skills/squad-web/<skill>/scripts/<script>.py"`.
+File and card formats: `references/file-formats.md`. `scripts/check_site.py --site <slug> --id <ID> [--round R]` writes `reviews/<ID>-r<R>/checks.json` and is what a QA or deploy card runs against a preview. `scripts/site_base.py` lays the strict base, `scripts/web_access.py` gets GitHub and the provider logged in, `scripts/live_view.py` keeps the dev server for the live tab, `scripts/save_progress.py` commits a builder's finished piece, `scripts/security_tools.py` installs the pinned scanners, `scripts/code_audit.py` is QA's code and security evidence. Squad scripts run as `python3 "$HERMES_HOME/skills/squad-web/<skill>/scripts/<script>.py"`.
 
 ## When to Use
 
@@ -35,8 +35,11 @@ File and card formats: `references/file-formats.md`. `scripts/check_site.py --si
 4. File a card with `kanban_create`: `title`, `assignee`, `skills: [<stage skill>]`, `parents: [<card id>]`, `board: "web"`, `project: <slug>`, `workspace_kind: "dir"`, `workspace_path: <absolute site folder>`, `idempotency_key: "web:<chain>:<project>:<run-id>:<stage>"`. Fix rounds use the stages `fix-r<N>` and `preview-r<N>`. Pass `board: "web"` on every kanban tool call.
 5. Card body: ID, site, stage, milestone, branch, round, input and output paths, stack, provider, languages, the user's literal request, the `Confirmed:` line when the stage needs one, and the next stage.
 6. To wait on a card you filed: `kanban_link(parent_id=<that card>, child_id=<your card>)`, then `kanban_block(kind="dependency", reason="waiting for <that card's stage>")`. Your card resumes when it completes.
-7. Finish with `kanban_complete` (`metadata.changed_files`, `metadata.verification` = the commands run), or `kanban_block(kind="needs_input", reason="<the exact question>")`. Never leave a card `running`.
-8. Only the manager messages the user. Workers report through the card.
+7. One working tree, one branch at a time. The manager checks out `web/<ID>` in `<repo>` before filing the work item's first card (`git -C <repo> switch -c web/<ID>`, or `switch` when it exists) and moves it back to `main` only after the deployer merged it. No other bot runs `git switch`, `checkout`, `stash` or `reset`: the live tab serves this tree. A card that finds `<repo>` on another branch: `kanban_block(kind="needs_input", reason="repo is on <branch>, expected web/<ID>")`.
+8. Builders save as they go, in `<repo>` itself (every saved file shows in the live tab at once): after each finished piece (a component, a section, a page, a route, a passing test) run `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/save_progress.py" --repo <repo> --id <ID> --what "<the piece>" --paths <the files or folders you changed>`. It commits only those paths as `wip(<ID>): <piece>` through the pre-commit hook (Biome), refuses any branch but `web/<ID>`, and logs the piece in `milestones/<ID>.progress.log`. Never hold a whole card's work uncommitted, never `git add -A`, never write in a scratch copy.
+9. Quality gate: `pnpm -C <repo> quality` (`references/project-base.md` section 2) once the card's work is complete, before its final save. Red is fixed, never relaxed: no inline disable, no `any`, no weakened config; a rule that blocks legitimate work goes to the manager with `kanban_block(kind="needs_input", reason="<rule>: <why>")`.
+10. Finish with `kanban_complete` (`metadata.changed_files`, `metadata.verification` = the commands run), or `kanban_block(kind="needs_input", reason="<the exact question>")`. Never leave a card `running`.
+11. Only the manager messages the user. Workers report through the card.
 
 ## Pitfalls
 
@@ -51,5 +54,6 @@ File and card formats: `references/file-formats.md`. `scripts/check_site.py --si
 
 - Every file you wrote follows `references/file-formats.md` and sits in your row of the ownership table.
 - The milestone note has a new History line from your stage.
+- A builder's card left at least one `wip(<ID>):` commit per finished piece, and `pnpm -C <repo> quality` exits 0 on its last commit.
 - Re-running `kanban_create` with the same idempotency key returns the same card id.
 - No secret value appears in the card, the files or the logs you produced.

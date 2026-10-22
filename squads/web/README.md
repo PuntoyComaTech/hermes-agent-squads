@@ -66,7 +66,7 @@ Reply: "publish", "change: ...", "bug: ... + screenshot"
 | `web` (manager) | Interviews you, writes `spec.md`, plans milestones, files the work, triages changes and accepts results |
 | `web-frontend` | UI, design system, motion and scroll animation |
 | `web-backend` | APIs, data, auth and tests; the manager gives it a stronger model per card on hard problems |
-| `web-qa` | Reviews each preview with five lenses and never fixes what it reviews |
+| `web-qa` | Reviews each preview with six lenses, code review included and never fixes what it reviews |
 | `web-deployer` | GitHub flow, preview and production deploys, DNS and rollback; the only bot with deploy credentials |
 | `web-frontend-pro` (optional) | 3D, WebGL shaders, GSAP ScrollTrigger/Lenis and complex motion: `squadctl apply web --with web-frontend-pro` |
 
@@ -74,11 +74,31 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
 
 ## What the computer needs
 
-- Accounts you create: GitHub and Cloudflare (free tiers). The deployer guides a fine-grained GitHub token and a
-  scoped Cloudflare token; both stay in its environment.
-- Node 22+, pnpm, git, `gh`, `cf` and Chrome. Playwright, axe-core and Lighthouse install inside each site repo.
+- Accounts: GitHub and Cloudflare (free tiers). The manager reuses a login you already have; otherwise it installs
+  the CLI and opens the provider's own approval page in a tab beside the chat. You click approve; no token, no
+  terminal.
+- Node 22+ and git. pnpm comes through corepack; `gh` through Homebrew; `cf` and `wrangler` run through npx at the
+  pinned version. Chrome for the QA checks. Playwright, axe-core and Lighthouse install inside each site repo.
+- Every site starts on a strict base the manager installs before any code is written, as one `pnpm quality` gate the
+  git hooks enforce (the whole gate on every push):
+  - code: strict TypeScript, type coverage at 100 % (no `any`, even through a library), Biome, the Sonar rules run
+    locally, `eslint-plugin-security`, dependency-cruiser (architecture layers, no cycles), jscpd (copy-paste),
+    knip (dead code and unused dependencies) and coverage on logic;
+  - security: osv-scanner and `pnpm audit` (vulnerable and malicious packages), gitleaks (secrets, history
+    included) and a license check; response headers (CSP, HSTS, framing) from the first commit;
+  - supply chain: pnpm refuses releases younger than 14 days, a package whose publisher trust dropped, and install
+    scripts nobody approved.
+- QA adds, once per review, Semgrep (static security rules) and nuclei (an attack scan of the deployed preview), and
+  a code-review lens: architecture, SOLID, scalability, security by trace, test quality. The scanners install
+  themselves at pinned versions with checked downloads, in one user folder (no sudo). Semgrep's rules fall under the
+  Semgrep Rules License v1.0; osv-scanner is Apache-2.0, gitleaks and nuclei MIT.
 - Hosting is Cloudflare by default. A server-rendered site past the free tier needs the paid Workers plan, stated in
-  the plan and in the publish question. Stacks and pinned versions: `skills/building-frontend/scripts/stacks.json`.
+  the plan and in the publish question. Stacks and pinned versions: `skills/site-contract/scripts/stacks.json`.
+
+## While it is built
+
+- The site runs in a tab beside the manager's chat from the first minute, and reloads as the bots work.
+- Builders commit each finished piece (a component, a section, a page) on their branch; "status" names the last one.
 
 ## Schedule
 
@@ -93,8 +113,9 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
 | `squad.yaml` | Manifest: bots, lanes, chains, cron, keeps |
 | `souls/` | One SOUL per bot |
 | `skills/` | `leading-web`, `building-frontend`, `building-backend`, `reviewing-sites`, `deploying-sites`, `site-contract` |
-| `skills/building-frontend/scripts/` | `scaffold_site.py`, `stacks.json` |
-| `skills/site-contract/scripts/` | `check_site.py` |
+| `skills/site-contract/scripts/` | `check_site.py`, `code_audit.py`, `site_base.py`, `scaffold_site.py`, `stacks.json`, `security_tools.py`, `toolpath.py`, `web_access.py`, `live_view.py`, `save_progress.py` |
+| `skills/site-contract/templates/quality/` | The strict gate's configs: Biome, SonarJS and security rules, dependency-cruiser, security.mjs, jscpd, lefthook, Vitest |
+| `skills/site-contract/references/engineering-rules.md` | The layers, SOLID, scalability and security rules builders write to and the code lens reviews against |
 
 ## Your own extras
 

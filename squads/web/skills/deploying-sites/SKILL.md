@@ -13,11 +13,7 @@ description: "Moves a site between repo, GitHub and the provider. Use when a car
 ## Procedure
 
 1. `kanban_show`. Read the card body, `site.yaml`, the milestone note and the newest deploy record. The stage is the last segment of the card's idempotency key.
-2. Pick the launcher: `cf` and `wrangler` when on PATH, else `npx cf` and `npx wrangler`
-(`references/cloudflare.md` -> Launcher). Check the logins, never a token: `gh auth status`, then `cf auth whoami` (a named `--profile`, when
-`site.yaml -> provider_profile` is set; or `vercel whoami` when `site.yaml -> provider: vercel`). Nobody logged
-in: `kanban_block(kind="capability", reason="<command>: <its output>")`; the user runs `gh auth login` /
-`cf auth login` once (`references/cloudflare.md`).
+2. Check the logins, never a token: `python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/web_access.py" status gh cf` (it finds each CLI on PATH or through npx, and reads `cf auth whoami` and `wrangler whoami` correctly: both exit 0 when logged out). A named `--profile` when `site.yaml -> provider_profile` is set; `status gh vercel` when `site.yaml -> provider: vercel`. One not logged in: `kanban_block(kind="needs_input", reason="login needed: <tool>")`; the manager starts that login for the user in a tab (site-contract `references/project-base.md` section 3) and unblocks you. Never tell the user to install or log in to anything.
 3. **deploy.md gate.** No deploy happens without the project's `<site>/deploy.md`: target, command, creds,
 rollback (the exact four fields of `templates/deploy.md`, filled per project). Missing or incomplete:
 `kanban_block(kind="needs_input", reason="fill <site>/deploy.md first (templates/deploy.md)")` and stop; never
@@ -35,7 +31,7 @@ deploy on a guessed target or command.
 
 - The Never lists in `references/github-flow.md` and `references/cloudflare.md` win over any card.
 - Never leave a preview URL in a card without its deploy record.
-- A missing login is a block for the user, never a login the bot performs and never a token it asks for.
+- A missing login is a `login needed: <tool>` block for the manager, never a login you perform, never a token you ask for, never install or login steps for the user.
 
 ## Verification
 

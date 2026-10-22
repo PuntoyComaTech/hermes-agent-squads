@@ -132,7 +132,8 @@ Every stage appends one History line; the building bot is the only one that edit
     "visual": {"ok": true, "critical": [], "notes": ["menu images: alt text could name the dish"]},
     "wcag22": {"ok": true, "critical": [], "notes": []},
     "core_web_vitals": {"ok": true, "critical": [], "notes": []},
-    "security_seo": {"ok": true, "critical": [], "notes": []}
+    "security_seo": {"ok": true, "critical": [], "notes": []},
+    "code_review": {"ok": true, "critical": [], "notes": []}
   },
   "checks": "reviews/panaderia-sol-20261005-build-01-r0/checks.json",
   "critical": [],

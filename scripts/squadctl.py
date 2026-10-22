@@ -108,7 +108,7 @@ def write_text(path: Path, text: str, mode: int | None = None) -> None:
         path.chmod(mode)
 
 
-ENV_FILE = ".env"  # the per-profile env file `apply --yes` writes; values never reach output
+ENV_FILE = ".env"  # the per-profile env file apply writes provider keys into; values never reach output
 
 
 def env_pairs(path: Path) -> dict[str, str]:
@@ -223,8 +223,10 @@ class Ctx:
         self._defaults: set[str] | None = None
         self._vision: dict[tuple[str, str], bool] = {}
         self._env_keys: dict[str, list[str]] = {}
+        self._registry: dict[str, list[str]] | None = None
+        self._connected: list[str] | None = None
+        self._real_profile: dict | None = None
         self.confirmed = set(getattr(a, "confirm", None) or [])
-        self.yes = bool(getattr(a, "yes", False))  # `apply --yes`: the owner's OK for the credential copy
 
     def home(self, bot: str) -> Path:
         return self.profiles / bot
@@ -365,6 +367,61 @@ class Ctx:
                 names = [f"{re.sub(r'[^A-Za-z0-9]', '_', provider).upper()}_API_KEY"]
             self._env_keys[provider] = names
         return self._env_keys[provider]
+
+    def registry_keys(self) -> dict[str, list[str]]:
+        """{provider: [API-key env names]} of every provider the installed Hermes knows (PROVIDER_REGISTRY, plugin
+        providers included); {} when the runtime cannot be read."""
+        if self._registry is None:
+            try:
+                py, hroot = self.runtime()
+                code = ("import json, sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; "
+                        "import hermes_bootstrap; from hermes_cli.auth import PROVIDER_REGISTRY as R; "
+                        "print(json.dumps({k: list(getattr(p, 'api_key_env_vars', ()) or []) for k, p in R.items()}))"
+                        ) % hroot
+                p = subprocess.run([py, "-I", "-c", code], capture_output=True, text=True, timeout=60,
+                                   stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.runtime_home())})
+                doc = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 and p.stdout.strip() else {}
+            except (OSError, ValueError, Fail, subprocess.SubprocessError):
+                doc = {}
+            self._registry = {k: [n for n in v if isinstance(n, str) and n] for k, v in doc.items()
+                              if isinstance(v, list)} if isinstance(doc, dict) else {}
+        return self._registry
+
+    def key_files(self) -> list[Path]:
+        """Env files a provider key is copied from, in order: the root (gateway, `hermes model` outside a profile)
+        and the builder profile (`hermes model` run inside the builder writes there)."""
+        return [self.root / ENV_FILE, self.home(self.builder) / ENV_FILE]
+
+    def connected_providers(self) -> list[str]:
+        """Every provider the user connected that a bot can be given: a registry provider whose API-key name is in
+        a key file, and a user-installed provider plugin (builder or root home). OAuth and CLI-login providers
+        held in the root auth store reach every profile through Hermes's own read-only fallback, so they need no
+        copy. `local/providers-exclude.txt` (one slug per line) removes a provider. Names only: no value is read."""
+        if self._connected is None:
+            names: set[str] = set()
+            for path in self.key_files():
+                names |= {k for k, v in env_pairs(path).items() if v}
+            slugs = {slug for slug, keys in self.registry_keys().items() if names & set(keys)}
+            for owner in (self.home(self.builder), self.root):
+                slugs |= set(provider_plugins(owner / "plugins"))
+            exclude = self.local / "providers-exclude.txt"
+            skip = {ln.split("#", 1)[0].strip() for ln in _read(exclude).splitlines()}
+            self._connected = sorted(slugs - skip - {""})
+        return self._connected
+
+    def real_profile(self) -> dict:
+        """The user's consent to Hermes's real-profile browsing (`browser.use_real_profile`), read from the root
+        config and the builder's, with the pinned browser profile when one is set: {} when the user has not turned it
+        on. Every bot with the browser toolset gets it, so a bot that must act as the user browses through Hermes's
+        own session copy instead of improvising one (a debugging port, a copied profile, cookies)."""
+        if self._real_profile is None:
+            cfgs = [read_yaml(p / "config.yaml") or {} for p in (self.root, self.home(self.builder))
+                    if (p / "config.yaml").is_file()]
+            on = any(pa.current(c, "browser.use_real_profile") is True for c in cfgs)
+            pin = next((pa.current(c, "browser.real_profile_pin") for c in cfgs
+                        if pa.current(c, "browser.real_profile_pin")), None)
+            self._real_profile = ({"pin": pin} if pin else {"pin": None}) if on else {}
+        return self._real_profile
 
     def apply_config(self, home: Path, payload: dict) -> None:
         """One write pass per home through Hermes's own config writer (_profile_apply.py)."""
@@ -940,8 +997,9 @@ class Applier:
 
     def bot_providers(self, name: str, bot: dict) -> list[tuple[str, bool]]:
         """(provider, required) for every model this bot can run: its own, its delegate_task children, its auxiliary
-        slots, chain stages it is the assignee of (the card carries the stage lane's model) and the install's
-        fallback chain (required=False: a missing fallback key is reported, never an install gap). In order, once."""
+        slots, chain stages it is the assignee of (the card carries the stage lane's model), the install's fallback
+        chain, and every other provider the user connected (a model switch in the chat or a card pin can pick any
+        of them). required=False for the last two: a missing key there is reported, never an install gap."""
         out: dict[str, bool] = {}
         def add(m: dict | None, required: bool = True) -> None:
             if m and m.get("provider"):
@@ -960,6 +1018,8 @@ class Applier:
                 add(self.lane_model(job["agent"]["lane"]))
         for row in self.models.get("fallback") or []:
             add(row, required=False)
+        for provider in self.ctx.connected_providers():
+            add({"provider": provider}, required=False)
         return list(out.items())
 
     def pin_note(self, name: str, bot: dict) -> str | None:
@@ -1034,6 +1094,12 @@ class Applier:
                  ["curator.enabled", True, False], ["curator.consolidate", False, False]]
         if "web" in toolsets:
             plan.append(["web.keyless_fallback", True, False])
+        real = self.ctx.real_profile()
+        if "browser" in toolsets and real:
+            # the user's consent, mirrored; never turned on when the user has not, never turned off here
+            plan.append(["browser.use_real_profile", True, False])
+            if real.get("pin"):
+                plan.append(["browser.real_profile_pin", real["pin"], False])
         if bot.get("website_blocklist"):
             plan += [["security.website_blocklist.enabled", True, False],
                      ["security.website_blocklist.domains", list(bot["website_blocklist"]), False]]
@@ -1431,9 +1497,13 @@ class Applier:
         return acts
 
     def key_value(self, key: str) -> str | None:
-        """The value of one provider key from the only homes squadctl may take it from: the root env file and the
-        process environment. Used only by the copy step; never printed or logged."""
-        return env_pairs(self.ctx.root / ENV_FILE).get(key) or os.environ.get(key) or None
+        """The value of one provider key from the only homes squadctl may take it from: the root env file, the
+        builder's env file and the process environment. Used only by the copy step; never printed or logged."""
+        for path in self.ctx.key_files():
+            value = env_pairs(path).get(key)
+            if value:
+                return value
+        return os.environ.get(key) or None
 
     def auth_slugs(self, name: str) -> set[str]:
         """Provider slugs the profile auth store holds (`hermes -p <name> auth list`).
@@ -1460,8 +1530,9 @@ class Applier:
         if not keys:  # OAuth or an external process: there is no API key to hold
             return {"skip": True, "where": f"provider {provider} needs no API key"}
         have = env_names(self.ctx.home(name) / ENV_FILE)
-        if any(k in have for k in keys):
-            return {"skip": True, "where": "profile env file"}
+        held = next((k for k in keys if k in have), None)
+        if held:
+            return {"skip": True, "where": "profile env file", "key": held, "provider": provider}
         if provider in (stored if stored is not None else self.auth_slugs(name)):
             return {"skip": True, "where": "profile auth store"}
         key = next((k for k in keys if self.key_value(k) is not None), None)
@@ -1474,35 +1545,67 @@ class Applier:
         stored = self.auth_slugs(name) if self.ctx.home(name).is_dir() else set()
         return [(self._credential(name, p, stored), req) for p, req in providers]
 
+    def copies_file(self) -> Path:
+        return self.ctx.local / "credential-copies.json"
+
+    def copies(self) -> dict[str, list[str]]:
+        """{bot: [KEY, ...]} squadctl copied (names only): a copy follows the source when the user rotates it; a key
+        the user put in a bot by hand is never in this record and is never overwritten."""
+        try:
+            doc = json.loads(_read(self.copies_file()) or "{}")
+        except ValueError:
+            doc = {}
+        return {k: list(v) for k, v in doc.items() if isinstance(v, list)} if isinstance(doc, dict) else {}
+
+    def record_copy(self, name: str, key: str) -> None:
+        doc = self.copies()
+        if key not in doc.get(name, []):
+            doc[name] = sorted({*doc.get(name, []), key})
+            write_text(self.copies_file(), json.dumps(doc, indent=2, sort_keys=True) + "\n", 0o600)
+
     def credentials(self, name: str, bot: dict) -> tuple[list[str], list[str]]:
-        """Apply-time credential handling, for every provider the bot runs on (not only its main model: a
-        delegate_task child or an auxiliary slot on another provider fails the same way): a key that exists only
-        in the root env file or the process environment is copied (name+value) into the bot's env file (mode 600)
-        on `apply --yes`; the value is never printed. Without `--yes` (and in plan) it stays an owner item; a key
-        no home holds is named."""
+        """Apply-time credential handling, for every provider the bot runs on or can be switched to (main model,
+        delegate_task children, auxiliary slots, chain stages, fallback chain, every connected provider): a key the
+        bot's profile lacks is copied (name+value) from the root or builder env file into the bot's env file (mode
+        600) on every real apply and upgrade; the value is never printed. The user's OK on the plan, which lists
+        every copy, is the consent. A copy squadctl made follows a rotated source; a key the user set in the bot
+        by hand wins. A required key no home holds is named."""
         acts: list[str] = []
         notes: list[str] = []
         copied: set[str] = set()
+        record = self.copies().get(name, [])
+        env_file = self.ctx.home(name) / ENV_FILE
         for c, required in self._credentials_of(name, bot):
-            if c.get("skip") or c["key"] in copied:
+            key = c.get("key")
+            if not key or key in copied:
+                continue
+            if c.get("skip"):
+                if c.get("where") != "profile env file":
+                    continue
+                source, mine = self.key_value(key), env_pairs(env_file).get(key)
+                if source and mine == source and key not in record and not self.dry:
+                    self.record_copy(name, key)  # same value as the source: from now on it follows a rotation
+                if not (source and mine != source and key in record):
+                    continue
+                acts.append(f"credentials {key}: refreshed in {name} (the source key changed)")
+                if not self.dry:
+                    env_set(env_file, key, source)
+                copied.add(key)
                 continue
             if not c.get("copy_from"):
-                # A fallback provider with no key here may authenticate another way (OAuth, a CLI login): it is
-                # copied when a key exists and never reported when none does.
+                # A provider with no key here may authenticate another way (OAuth, a CLI login): reported only
+                # when the bot's own models need it.
                 if required:
-                    notes.append(f"credentials {c['key']}: not in this environment; put it in the {name} profile "
-                                 f"(mode 600) for provider {c['provider']} before the first run")
-                continue
-            if not self.ctx.yes:
-                notes.append(f"credentials {c['key']}: held by the root only; `apply --yes` copies it into the "
-                             f"{name} profile (mode 600)")
+                    notes.append(f"credentials {key}: not in this environment; connect provider {c['provider']} "
+                                 f"(`hermes model` or the Desktop provider settings), then apply again")
                 continue
             if not self.dry:
-                value = self.key_value(c["key"])
+                value = self.key_value(key)
                 if value is not None:
-                    env_set(self.ctx.home(name) / ENV_FILE, c["key"], value)
-            copied.add(c["key"])
-            acts.append(f"credentials {c['key']}: copied into {name} (mode 600)")
+                    env_set(env_file, key, value)
+                    self.record_copy(name, key)
+            copied.add(key)
+            acts.append(f"credentials {key}: copied into {name} (mode 600)")
         return acts, notes
 
     def credential_status(self, name: str, bot: dict) -> tuple[bool, str]:
@@ -1515,12 +1618,12 @@ class Applier:
         for c, required in rows:
             if c.get("skip"):
                 continue
-            hint = (f"`apply --yes` copies {c['copy_from']} there" if c.get("copy_from")
-                    else f"put {c['key']} in the {name} profile (mode 600)")
+            hint = (f"`squadctl apply` copies {c['copy_from']} there" if c.get("copy_from")
+                    else f"connect provider {c['provider']}, then apply again")
             if required:
                 gaps.append(f"{c['key']} ({c['provider']}) not in the {name} profile: {hint}")
             elif c.get("copy_from"):
-                soft.append(f"fallback {c['key']}: {hint}")
+                soft.append(f"{c['key']} ({c['provider']}, selectable): {hint}")
         if gaps:
             return False, "; ".join(gaps + soft)
         where = sorted({c["where"] for c, _ in rows if c.get("skip")})
@@ -1810,8 +1913,8 @@ def adopt_live_models(ctx: Ctx, spec: dict, models: dict) -> list[str]:
 def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
     """Bring the builder and every installed squad to this checkout's version, unattended and token-free. Keeps
     learned skills, memories, `local/`, the user's model choices and SOUL edits (those stay pending). Skips a squad
-    whose board has running cards (the next run retries). A provider key held only by the root stays a note: copying
-    it needs the owner's `apply --yes`."""
+    whose board has running cards (the next run retries). Provider keys and plugins are prepared exactly as in
+    `apply`: every bot gets each provider the user connected."""
     installed, models = effective_models(ctx, None)
     # The builder's home always exists (local/ lives in it), so it is no sign the builder was applied: upgrade it
     # when `apply --self` recorded it, or when this checkout ships its manifest.
@@ -1852,11 +1955,8 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
             continue
         changed = [b for b in out["bots"] if b.get("actions")]
         report["pending"] += [f"{b['bot']}: {p}" for b in out["bots"] for p in b.get("pending") or []]
-        # A key held only by the root is copied only with the owner's `apply --yes`; an unattended upgrade never
-        # copies one, so it says which command does, or the bot would run on its fallback without anyone knowing.
-        report["pending"] += [f"{b['bot']}: {n}; run `squadctl apply {key if key != 'builder' else '--self'} --yes`"
-                              for b in out["bots"] for n in b.get("notes") or []
-                              if n.startswith("credentials ") and "held by the root only" in n]
+        report["pending"] += [f"{b['bot']}: {n}" for b in out["bots"] for n in b.get("notes") or []
+                              if n.startswith("credentials ")]
         if changed:
             report["applied"][key] = {"version": spec["version"], "bots": len(changed),
                                       "actions": sum(len(b["actions"]) for b in changed)}
@@ -2237,7 +2337,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--confirm", action="append", metavar="ID",
                         help="install this keep or plugin that needs the user's OK (repeatable)")
         sp.add_argument("--yes", action="store_true",
-                        help="non-interactive run (squadctl never prompts; confirm items still need --confirm)")
+                        help="accepted for older callers; apply never prompts and always prepares provider keys "
+                             "(confirm items still need --confirm)")
     sp = sub.add_parser("plan", parents=[common], help="show what apply would change (reads only)")
     apply_args(sp)
     sp.set_defaults(fn=lambda c, a: cmd_apply(c, a, True), dry_run=True)

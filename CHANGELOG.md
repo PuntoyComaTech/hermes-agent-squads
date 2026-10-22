@@ -3,6 +3,65 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.7.0 - 2026-10-22
+
+### Added
+
+- Web squad 3.3.0: every site starts on a strict base the manager installs before the first card
+  (`site_base.py --install`): strict TypeScript, Biome (no `any`, complexity, size and parameter caps), the SonarJS
+  rules run locally through ESLint, dependency-cruiser architecture rules, jscpd, knip and Vitest coverage, as one
+  `pnpm quality` gate that lefthook runs on every commit and push. All three stacks start green.
+- `web_access.py`: reuses a GitHub or Cloudflare login the user already has; otherwise installs the CLI and starts
+  its login, returning the approval page (code included) for the manager to open as a tab beside the chat.
+- `live_view.py`: the manager keeps the site's dev server running and shows it in the tab beside the chat from the
+  first minute; the tab reloads as files are saved.
+- `save_progress.py`: builders commit each finished piece on `web/<ID>` (never `main`) and log it for status.
+
+### Security and code quality for web sites
+
+- The strict base grows from 7 to 11 steps: type coverage at 100 % (an `any` that arrives through a library is caught),
+  gitleaks over the files and the whole history, a license check (GPL, AGPL, SSPL, non-commercial or unknown licenses
+  cannot ship), and a vulnerability and malicious-package check with osv-scanner and `pnpm audit`.
+  `eslint-plugin-security` and `no-unsanitized` join the Sonar rules; dependency-cruiser also keeps `src/domain` free
+  of UI and framework imports. Response headers (CSP, HSTS, framing, referrer, permissions, cross-origin) ship from
+  the first commit.
+- Supply chain in every site's `pnpm-workspace.yaml`: no release younger than 14 days, no trust downgrade, no
+  unapproved install script, a forced patched `sharp` (the previous base carried a high advisory through wrangler).
+- `security_tools.py` installs osv-scanner, gitleaks, nuclei and Semgrep at pinned versions in one user folder: single
+  binaries checked against the release's SHA-256 file, Semgrep through uv.
+- Web QA reviews with six lenses: the new code-review lens (architecture, SOLID, scalability, security by trace, test
+  quality) reads `engineering-rules.md`, and `code_audit.py` gives it evidence: each gate step, Semgrep, nuclei against
+  the preview and the diff's shape. A scanner that could not run is a critical finding, never a clean pass.
+- Measured on a real base: no single tool catches everything (SonarJS, `eslint-plugin-security` and Semgrep each caught
+  different planted flaws), so they all run; the slow ones (Semgrep, nuclei) run once per review, not on every edit.
+
+### Fixed
+
+- Next.js sites start on `next` 16.4.1: 16.4.0 carries an unauthenticated remote code execution
+  (GHSA-2464-fhr4-w9xw) and a denial of service (GHSA-p3m5-59mp-jv5r), both published today and caught by the new
+  dependency gate. The fix is 8 days old, so the base lets exactly that release (and its `@next/*` binaries) skip
+  the 14-day wait through pnpm's `minimumReleaseAgeExclude`; any other young release is still refused.
+- Bots that browse as the user use Hermes's own real-profile browser. When the user has turned on
+  `browser.use_real_profile` (root or builder config), every bot with the browser toolset gets it, with the same
+  `real_profile_pin`, on every apply and daily update; it is never granted when the user has not, and never re-granted
+  to a bot the user switched off. Every bot's base rules forbid the improvised routes: starting a browser, a
+  debugging port, a copied profile, reading cookie or keychain files, asking for cookies.
+- Every bot gets every provider the user connected, on every `squadctl apply` and every daily update: each API key
+  found in the root or builder env file (copied into the bot's env file, mode 600, never printed) and each
+  user-installed provider plugin, not only the providers of the bot's own lanes. Before, the copy waited for an
+  `apply --yes` the builder's skills never passed, the daily update only printed a reminder, and a bot switched to
+  another of the user's providers had no key for it. A copy follows a rotated source key; a key set by hand in a
+  bot is kept. `local/providers-exclude.txt` keeps a provider out of the bots. `--yes` is accepted and no longer
+  needed.
+- `cf auth whoami` and `wrangler whoami` exit 0 when logged out; the access check now reads their answer.
+- The deployer no longer asks the user to install or log in to a CLI: a missing login goes to the manager.
+- Bots show a web page or dev server in the side tab, never inline in the chat.
+- Independent review fixes: the live server is reused while it shows a compile error and is stopped when it never
+  comes up; a progress save commits only the builder's own paths; only the manager switches the shared working tree's
+  branch; CLIs are found in Homebrew, nvm and the user's bin on a bare PATH; a waiting login is reused, never doubled;
+  Vercel logins go through the same tab flow; `cf` and `vercel` are pinned; a repo's own `quality` script and a
+  commented `tsconfig.json` no longer escape the strict gate; a new base ships a seed test and fails with no tests.
+
 ## 2.6.2 - 2026-10-21
 
 ### Fixed
