@@ -12,7 +12,7 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
 
 - A message from the user: set up, reply to a digest, paste a link, ask about replies or the pipeline, report an
   outcome, ask what to learn, pause or resume.
-- A card addressed to you under stage `digest`.
+- A card addressed to you under stage `digest`. A card with `Mode: PROFILE-PRESENT`: `references/profile-optimization.md`.
 - The `jobs-watch` cron posts a blocked card in your Bot Chat. A digest: show it (step 4). A proposal table from
   tracking-outcomes: show it and wait for the answer. A worker's question: ask the user, `kanban_comment` the literal
   answer, then `kanban_unblock`.
@@ -38,14 +38,16 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    | "what should I learn?", skill gaps | run `planning-upskilling` |
    | "show my pipeline", "dashboard" | run `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/build_dashboard.py" --project <P>`, then `desktop_preview` open `<P>/reports/dashboard.html` (label `Pipeline`); outside Desktop send the path |
    | a new job board or portal | run `adding-portals` |
+   | "optimize my LinkedIn", "improve my profile", "which job sites fit my place?", "scan the market", an answer to a profile diff | `references/profile-optimization.md`; a bot waiting for a code: `references/apply-modes.md` |
    | "use my CV design", a template file or screenshot | save it to `<P>/templates/`, file a jobs-writer card `skills: [rendering-cv]`, body `Mode: TEMPLATE` + the file; on pass set `cv_template` after the user's ok |
    | "rank my openings", a backlog of saved openings | file a jobs-scout card `skills: [ranking-openings]`, key `jobs:rank:<project>:<YYYY-MM-DD>` |
    | a pasted link, "how is my search going?", "prepare me for" | step 6 |
    | a reply to a digest | step 5 |
    | pause, resume | step 7 |
 
-3. **Inbox card.** The manager never reads mail. File a jobs-writer card: `kanban_create` with `board: "jobs"`,
-   `assignee: "jobs-writer"`, `skills: ["triaging-inbox"]`, `parents: [your card]`, `workspace_kind: dir`,
+3. **Inbox card.** The manager never reads mail. File a jobs-inbox card (optional bot; when it is missing say the
+   builder adds it with `squadctl apply jobs --with jobs-inbox` and connects Gmail): `kanban_create` with
+   `board: "jobs"`, `assignee: "jobs-inbox"`, `skills: ["triaging-inbox"]`, `parents: [your card]`, `workspace_kind: dir`,
    `workspace_path: <P>`, `idempotency_key: jobs:inbox:<project>:<YYYY-MM-DD>`. Body: `Mode: INBOX`, the project
    path, the `since` date when the user gave one, and the instruction to file the result back to the manager with
    skill `tracking-outcomes`, body `Mode: INBOX` plus the path `<P>/reports/inbox-YYYY-MM-DD.json`. A second ask on the
@@ -69,11 +71,11 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    <ID>
    ```
 
-   Add at most one warning line from `analysis.json`. Set `status.json` to `delivered`.
-   Build the digest at digest time, not from an earlier card: re-read `analysis.json` and the eligibility result
-   (`gates.eligibility`). An eligibility FLAG is said in the digest and the match is not offered for writing (step 6).
+   Add at most one warning line from `analysis.json`. Set `status.json` to `delivered`. With `auto_apply: auto` the
+   application is already on its way: `references/apply-modes.md`.
+   Build the digest at digest time: re-read `analysis.json` and `gates.eligibility`. An eligibility FLAG is said in
+   the digest and the match is not offered for writing (step 6).
    Write the digest in `user_language`; the CV and letter stay in the posting's language.
-
    **Search summary.** Each search card ends with one summary block from the scout (`kanban_block`, kind `needs_input`,
    reason starting "Search"), also when nothing is PASS. Show it in `user_language`: counts (found, PASS, FLAG, DISCARD,
    new), the top WATCH with its score and one line of reason, and what needs the user (a FLAG to decide, a link to
@@ -132,7 +134,7 @@ A jobs-writer card for an opening is filed only when its eligibility gate is PAS
 - Never apply, call or email anyone yourself, and never approve an application.
 - Every message to the user (digest, search summary, block reason, pause confirmation) is in `user_language` from
   `profile.md`. Documents follow the posting's language.
-- Never read mail in this chat. The inbox belongs to jobs-writer; you only file its card and show its proposals.
+- Never read mail in this chat. The inbox belongs to jobs-inbox; you only file its card and show its proposals.
 - An ambiguous `apply` (several delivered openings without a quote) is resolved with `clarify`, showing company and
   role as options.
 - Anything researched comes from the scout's files, never from memory.

@@ -245,6 +245,10 @@
           "uniqueItems": true,
           "items": {"type": "string", "pattern": "^[A-Za-z0-9*.-]+$"}
         },
+        "shared_browser": {
+          "description": "Drive the machine's shared signed-in browser (scripts/shared_browser.py) through browser.cdp_url: one tab per run, closed when the turn ends (plugin shared-browser-tabs); the manager gets a 3-hourly no-agent tab sweep. Needs the browser toolset.",
+          "type": "boolean"
+        },
         "cron": {
           "type": "object",
           "propertyNames": {"$ref": "#/$defs/slug"},

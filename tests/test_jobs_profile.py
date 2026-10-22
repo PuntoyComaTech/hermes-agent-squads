@@ -256,6 +256,15 @@ def test_plans_to_relocate_must_be_yes_or_no(tmp_path):
     assert keyed(findings(folder), "profile.md", "plans_to_relocate")
 
 
+def test_linkedin_browse_must_be_yes_or_no_because_it_decides_whether_the_scout_opens_linkedin(tmp_path):
+    # A typed "sometimes" would silently read as no (or yes): the consent for a signed-in browser is never guessed.
+    bad = write_project(tmp_path, profile=edit(PROFILE, "search: active", "search: active\nlinkedin_browse: sometimes"))
+    assert keyed(findings(bad), "profile.md", "linkedin_browse")
+    (tmp_path / "ok").mkdir()
+    good = write_project(tmp_path / "ok", profile=edit(PROFILE, "search: active", "search: active\nlinkedin_browse: true"))
+    assert not keyed(findings(good), "profile.md", "linkedin_browse")
+
+
 def test_check_times_the_search_gate_cannot_read_are_caught_at_onboarding(tmp_path):
     # The cron gate stops on a bad search_times; the profile check must catch it first, while the user is there.
     for sub in ("ok", "a", "b", "c"):

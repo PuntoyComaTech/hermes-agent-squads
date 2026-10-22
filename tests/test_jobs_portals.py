@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -159,7 +160,8 @@ class TestManifests:
         assert code == 0, err
         data = stdout_json(out)
         assert data["problems"] == []
-        assert [p["name"] for p in data["portals"]] == ["freehire", "linkedin"]
+        assert [p["name"] for p in data["portals"]] == ["computrabajo", "elempleo", "freehire", "linkedin",
+                                                         "talent"]
         assert all(p["enabled"] for p in data["portals"])
 
     def test_broken_manifests_are_reported_not_skipped(self, tmp_path):
@@ -848,3 +850,507 @@ def test_an_avoided_company_a_wrong_work_mode_and_a_stale_row_are_dropped_before
     assert {r["id"] for r in data["candidates"]} == {"keep-1", "unstated-1"}, data["candidates"]
     assert data["meta"]["dropped"] == {"title": 0, "company": 1, "work_mode": 1, "date": 1, "duplicate": 0}, data["meta"]
     assert data["meta"]["unconfirmed_work_mode"] == 1
+
+
+# --- Colombian market portals: computrabajo, elempleo, talent (captured fixtures, no network) -----------------------
+
+FIXTURE_ROOT = REPO / "tests" / "fixtures" / "portals"
+CAPTURE_DAY = "2026-10-22"
+FIXTURE_ENV = {"computrabajo": "COMPUTRABAJO_FIXTURE_DIR", "elempleo": "ELEMPLEO_FIXTURE_DIR",
+               "talent": "TALENT_FIXTURE_DIR"}
+MARKET_PORTALS = ("computrabajo", "elempleo", "talent")
+
+
+def portal_cli(portal, args, *, fixture=True, fixture_dir=None):
+    """Run one portal CLI. The fixture env var points it at the captured HTML, so nothing is fetched."""
+    cmd = [sys.executable, "-B", str(SCRIPTS / portal / "cli.py"), *args]
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    env.pop(FIXTURE_ENV[portal], None)
+    if fixture_dir is not None:
+        env[FIXTURE_ENV[portal]] = str(fixture_dir)
+    elif fixture:
+        env[FIXTURE_ENV[portal]] = str(FIXTURE_ROOT / portal)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=env)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def portal_search(portal, query, *extra, today=CAPTURE_DAY, location=None):
+    args = ["search", "--query", query, "--limit", "50", "--today", today, "--format", "json"]
+    if location is not None:
+        args += ["--location", location]
+    code, out, err = portal_cli(portal, args + list(extra))
+    assert code == 0, err
+    return stdout_json(out)
+
+
+def fixture_cards(portal):
+    """The cards a fixture really holds, counted with an independent pattern from the CLI's parser."""
+    page = (FIXTURE_ROOT / portal / "listing.html").read_text(encoding="utf-8", errors="replace")
+    if portal == "computrabajo":
+        return len(re.findall(r"<article[^>]*class=\"[^\"]*box_offer", page))
+    if portal == "elempleo":
+        blocks = re.split(r"(?=<div class=\"col-md-12 result-item mb-3)", page)[1:]
+        return len([block for block in blocks if "{{title}}" not in block])
+    return len(re.findall(r"data-new-id=\"\d+\"", page))
+
+
+def load_portal_cli(portal):
+    spec = importlib.util.spec_from_file_location(f"portal_cli_{portal}", SCRIPTS / portal / "cli.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def assert_detail_shape(job, portal):
+    for key in ("id", "title", "company", "location", "date", "url", "portal", "description", "details"):
+        assert key in job, f"{portal} detail lacks {key}"
+    assert job["portal"] == portal
+    assert isinstance(job["description"], str) and len(job["description"]) > 100
+    assert not re.search(r"<[a-zA-Z/!][^>]*>|&(?:[a-zA-Z]+|#\d+);", job["description"]), job["description"][:200]
+    assert isinstance(job["details"], dict) and job["details"]
+
+
+class TestComputrabajoPortal:
+    def test_help_exits_zero(self):
+        assert portal_cli("computrabajo", ["--help"])[0] == 0
+        assert portal_cli("computrabajo", ["search", "--help"])[0] == 0
+
+    def test_search_parses_every_card_on_the_page(self):
+        data = portal_search("computrabajo", "analista de datos", location="Bogotá, D.C.")
+        rows = data["results"]
+        assert len(rows) == fixture_cards("computrabajo") == 20
+        assert data["meta"]["count"] == 20
+        assert len({row["id"] for row in rows}) == 20
+        for row in rows:
+            assert row["title"] and row["title"] == row["title"].strip()
+            assert urlparse(row["url"]).hostname == "co.computrabajo.com", row["url"]
+            assert row["id"] == row["url"], "this board has no id-only address; the offer URL is the id"
+            assert row["date"] is None or re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["date"])
+        assert sum(1 for row in rows if row["company"]) >= 15, "companies went missing"
+        assert any(row["company"] is None for row in rows), "a card without a company link is not null"
+
+    def test_relative_ages_are_counted_back_from_today(self):
+        def by_card(data):
+            return {row["url"].rsplit("-", 1)[-1]: row for row in data["results"]}
+
+        rows = by_card(portal_search("computrabajo", "analista de datos"))
+        assert rows["42CFA8B9B6EFC83461373E686DCF3405"]["date"] == "2026-10-22", "Hace  2  horas"
+        assert rows["A83F80928657F12961373E686DCF3405"]["date"] == "2026-10-21", "Ayer"
+        assert rows["39C3B114B4E2E88D61373E686DCF3405"]["date"] == "2026-10-20", "Hace  2  días"
+        assert rows["F787E42E97FB629261373E686DCF3405"]["date"] == "2026-10-19", "Hace  3  días"
+        later = by_card(portal_search("computrabajo", "analista de datos", today="2026-10-29"))
+        assert later["39C3B114B4E2E88D61373E686DCF3405"]["date"] == "2026-10-27", "--today was ignored"
+
+    def test_limit_trims_the_rows_and_the_meta_count(self):
+        data = portal_search("computrabajo", "analista de datos", "--limit", "5")
+        assert len(data["results"]) == 5 and data["meta"]["count"] == 5
+
+    def test_detail_returns_the_posting(self):
+        rows = portal_search("computrabajo", "analista de datos")["results"]
+        code, out, err = portal_cli("computrabajo", ["detail", rows[0]["url"], "--format", "json"])
+        assert code == 0, err
+        job = stdout_json(out)
+        assert_detail_shape(job, "computrabajo")
+        assert job["title"] == "Analista de Datos - SQL / Power BI / Python"
+        assert job["company"] == "FINANZAUTO S.A. BIC"
+        assert job["date"] == "2026-10-14" and job["location"] == "Bogotá, D.C."
+        assert job["details"]["employment_type"] == "FULL_TIME"
+        assert job["details"]["salary"].startswith("COP ")
+
+    @pytest.mark.parametrize("target", [
+        "42CFA8B9B6EFC83461373E686DCF3405",
+        "https://example.com/ofertas-de-trabajo/x-42CFA8B9B6EFC83461373E686DCF3405",
+    ])
+    def test_a_target_that_is_not_an_offer_url_is_refused(self, target):
+        code, out, err = portal_cli("computrabajo", ["detail", target, "--format", "json"])
+        assert code == 1 and out == ""
+        assert stderr_json(err)["code"] == "BAD_ID"
+
+    def test_the_search_address_is_the_proven_one(self):
+        cli = load_portal_cli("computrabajo")
+        assert cli.build_search_url("analista de datos", "Bogotá, D.C.", 1) == (
+            "https://co.computrabajo.com/trabajo-de-analista-de-datos-en-bogota-dc?pubdate=1")
+        assert cli.build_search_url("analista de datos", None, 7, 2) == (
+            "https://co.computrabajo.com/trabajo-de-analista-de-datos?pubdate=7&p=2")
+
+
+class TestElempleoPortal:
+    def test_help_exits_zero(self):
+        assert portal_cli("elempleo", ["--help"])[0] == 0
+        assert portal_cli("elempleo", ["search", "--help"])[0] == 0
+
+    def test_search_parses_every_card_and_skips_the_template_row(self):
+        data = portal_search("elempleo", "analista de datos", location="Bogotá")
+        rows = data["results"]
+        assert len(rows) == fixture_cards("elempleo") == 20, "the template row was counted as an offer"
+        assert not [row for row in rows if "{{" in (row["title"] or "") or "{{" in (row["date"] or "")]
+        for row in rows:
+            assert row["title"]
+            assert urlparse(row["url"]).hostname == "www.elempleo.com", row["url"]
+            assert row["url"].startswith("https://www.elempleo.com/co/ofertas-trabajo/")
+            assert row["id"] == row["url"]
+        assert any(row.get("work_mode") == "hybrid" for row in rows), "the board's workplace label was lost"
+        assert any("confidencial" in (row["company"] or "").lower() for row in rows), \
+            "the board's hidden-employer label is kept, not blanked"
+
+    def test_relative_ages_use_weeks_and_months(self):
+        rows = {row["id"]: row for row in portal_search("elempleo", "analista de datos")["results"]}
+        month = rows["https://www.elempleo.com/co/ofertas-trabajo/data-analyst-specialist-1886762160"]
+        three_weeks = rows["https://www.elempleo.com/co/ofertas-trabajo/analista-de-datos-1886774769"]
+        three_days = rows["https://www.elempleo.com/co/ofertas-trabajo/analista-de-datos-operativos-1886781950"]
+        assert month["date"] == "2026-09-22", "Hace 1 mes"
+        assert three_weeks["date"] == "2026-10-01", "Hace 3 semanas"
+        assert three_days["date"] == "2026-10-19", "Hace 3 días"
+
+    def test_the_remote_filter_keeps_the_stated_type_and_the_unstated_rows(self):
+        rows = portal_search("elempleo", "analista de datos", "--remote", "remote")["results"]
+        assert rows and all(row.get("work_mode") in (None, "remote") for row in rows), rows
+        assert not [row for row in rows if row.get("work_mode") == "hybrid"]
+        assert len(rows) < fixture_cards("elempleo"), "the workplace filter dropped nothing"
+
+    def test_detail_normalises_the_date_and_reads_the_remote_label(self):
+        url = "https://www.elempleo.com/co/ofertas-trabajo/data-analyst-specialist-1886762160"
+        code, out, err = portal_cli("elempleo", ["detail", url, "--format", "json"])
+        assert code == 0, err
+        job = stdout_json(out)
+        assert_detail_shape(job, "elempleo")
+        assert job["id"] == url
+        assert job["title"] == "Data Analyst Specialist"
+        assert job["company"] == "GSG-GESTIÓN DE SERVICIOS GLOBALES S.A.S", "entities were not decoded"
+        assert job["date"] == "2026-09-04", "datePosted 2026-9-4 was not normalised"
+        assert job["work_mode"] == "remote", "jobLocationType TELECOMMUTE is a remote posting"
+        assert job["details"]["employment_type"] == "FULL_TIME"
+
+    @pytest.mark.parametrize("target", ["1886762160", "https://example.com/co/ofertas-trabajo/x-1886762160"])
+    def test_a_target_that_is_not_an_offer_url_is_refused(self, target):
+        code, out, err = portal_cli("elempleo", ["detail", target, "--format", "json"])
+        assert code == 1 and out == ""
+        assert stderr_json(err)["code"] == "BAD_ID"
+
+    def test_the_search_address_carries_the_city_and_the_query(self):
+        cli = load_portal_cli("elempleo")
+        assert cli.build_search_url("analista de datos", "Bogotá") == (
+            "https://www.elempleo.com/co/ofertas-empleo/bogota/trabajo-analista-de-datos")
+        assert cli.build_search_url("analista de datos") == (
+            "https://www.elempleo.com/co/ofertas-empleo/trabajo-analista-de-datos")
+        assert cli.work_mode_from_label("- Hibrido") == "hybrid"
+        assert cli.work_mode_from_label("- Remoto") == "remote"
+
+
+class TestTalentPortal:
+    def test_help_exits_zero(self):
+        assert portal_cli("talent", ["--help"])[0] == 0
+        assert portal_cli("talent", ["search", "--help"])[0] == 0
+
+    def test_search_parses_every_card(self):
+        data = portal_search("talent", "analista de datos", location="Bogotá")
+        rows = data["results"]
+        assert len(rows) == fixture_cards("talent") == 20
+        for row in rows:
+            assert row["title"]
+            assert re.fullmatch(r"\d{6,}", row["id"]), row["id"]
+            assert row["url"] == f"https://co.talent.com/view?id={row['id']}"
+            assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["date"]), row["date"]
+        assert all(row["company"] for row in rows), "the cards state every company"
+
+    def test_the_card_timestamp_is_the_date(self):
+        rows = {row["id"]: row for row in portal_search("talent", "analista de datos")["results"]}
+        assert rows["635758370526602100"]["date"] == "2026-09-04"
+        assert rows["639250351045282731"]["date"] == "2026-09-28"
+        assert rows["642428509251054201"]["date"] == "2026-10-20"
+
+    def test_detail_by_id_and_by_url(self):
+        code, out, err = portal_cli("talent", ["detail", "642670062979261969", "--format", "json"])
+        assert code == 0, err
+        job = stdout_json(out)
+        assert_detail_shape(job, "talent")
+        assert job["title"] == "Analista de Go-To-Market"
+        assert job["company"] == "PepsiCo"
+        assert job["date"] == "2026-10-22"
+        assert job["location"] == "Bogotá, Colombia"
+        code, out, err = portal_cli("talent", ["detail", "https://co.talent.com/view?id=642670062979261969",
+                                               "--format", "json"])
+        assert code == 0, err
+        assert stdout_json(out)["id"] == "642670062979261969"
+
+    def test_a_page_without_structured_data_still_gives_the_posting(self):
+        # Stale talent offers keep their page but lose the JSON-LD. The visible heading and body are still read, and
+        # the row says the data was not structured.
+        cli = load_portal_cli("talent")
+        page = (FIXTURE_ROOT / "talent" / "detail-no-ld.html").read_text(encoding="utf-8", errors="replace")
+        job = cli.parse_detail(page, "https://co.talent.com/view?id=571861773647417250")
+        assert job["title"] == "Científico de Datos" and job["company"] == "Ofertasynegocios"
+        assert job["location"] == "Bogotá, Bogota" and job["date"] is None
+        assert job["details"]["structured_data"] is False
+        assert job["description"] and "Perfil" in job["description"]
+
+    @pytest.mark.parametrize("target", ["not-an-id", "https://example.com/view?id=642670062979261969"])
+    def test_a_target_that_is_not_a_job_id_is_refused(self, target):
+        code, out, err = portal_cli("talent", ["detail", target, "--format", "json"])
+        assert code == 1 and out == ""
+        assert stderr_json(err)["code"] == "BAD_ID"
+
+    def test_the_search_address_uses_the_proven_window(self):
+        cli = load_portal_cli("talent")
+        url = cli.build_search_url("analista de datos", "Bogotá", 1)
+        assert url.startswith("https://co.talent.com/jobs?")
+        assert "k=analista+de+datos" in url and "l=Bogot%C3%A1" in url
+        assert "date=1" in url and "radius=25" in url
+        assert "date=" not in cli.build_search_url("analista de datos")
+
+
+class TestMarketPortalManifests:
+    def test_list_shows_the_three_portals_with_no_problems(self):
+        code, out, err = run(["list"], root=SCRIPTS)
+        assert code == 0, err
+        data = stdout_json(out)
+        assert data["problems"] == []
+        listed = {portal["name"]: portal for portal in data["portals"]}
+        for name in MARKET_PORTALS:
+            assert name in listed, f"{name} is not installed"
+            assert listed[name]["markets"] == ["co"]
+            assert listed[name]["description"]
+            assert listed[name]["enabled"] is True, f"{name} is disabled: its health was not clean"
+            manifest = json.loads((SCRIPTS / name / "portal.json").read_text(encoding="utf-8"))
+            assert manifest["cmd"] == ["{python}", "{dir}/cli.py"]
+            assert manifest["hosts"] and manifest["url_hosts"]
+            assert "format" in manifest["search_flags"]
+            assert set(manifest["search_flags"]) <= {"query", "location", "jobage", "limit", "page", "remote",
+                                                     "format"}
+
+    def test_the_wrapper_runs_all_three_offline_and_applies_the_window(self):
+        env = {var: str(FIXTURE_ROOT / name) for name, var in FIXTURE_ENV.items()}
+        named = [arg for name in MARKET_PORTALS for arg in ("--portal", name)]
+        code, out, err = run_env(["search", "-q", "analista de datos", "-l", "Bogotá", "--limit", "20",
+                                  "--today", CAPTURE_DAY, *named], SCRIPTS, env)
+        assert code == 0, err
+        data = stdout_json(out)
+        assert {row["portal"] for row in data["results"]} == set(MARKET_PORTALS), data["meta"]
+        assert data["meta"]["failed"] == [] and data["meta"]["skipped"] == []
+        for report in data["meta"]["portals"]:
+            assert report["returned"] == 20 and report["count"] >= 1, report
+        assert all(row["date"] >= "2026-10-08" for row in data["results"]), \
+            "a row older than the window came back"
+        assert any(report["dropped_older"] > 0 for report in data["meta"]["portals"]), \
+            "the captured fixtures hold rows older than 14 days"
+
+    def test_the_wrapper_routes_a_detail_url_to_the_portal_that_owns_the_host(self):
+        env = {"COMPUTRABAJO_FIXTURE_DIR": str(FIXTURE_ROOT / "computrabajo")}
+        url = ("https://co.computrabajo.com/ofertas-de-trabajo/oferta-de-trabajo-de-analista-de-datos-sql-power-bi-"
+               "python-en-bogota-dc-42CFA8B9B6EFC83461373E686DCF3405")
+        code, out, err = run_env(["detail", url], SCRIPTS, env)
+        assert code == 0, err
+        job = stdout_json(out)
+        assert job["portal"] == "computrabajo" and job["title"].startswith("Analista de Datos")
+        assert job["description"] and "description" not in job["details"]
+
+
+# --- Portal hardening: escaping, page limits, link scope, error shape (crafted HTML, no network) --------------------
+
+TARGET_URLS = {
+    "computrabajo": ("https://co.computrabajo.com/ofertas-de-trabajo/oferta-de-trabajo-de-analista-de-datos-"
+                     "42CFA8B9B6EFC83461373E686DCF3405"),
+    "elempleo": "https://www.elempleo.com/co/ofertas-trabajo/data-analyst-specialist-1886762160",
+    "talent": "https://co.talent.com/view?id=642670062979261969",
+}
+
+
+def listing_card(portal, href="", title="Analista de datos", company="Acme", age="Hace 1 día",
+                 ident="642670062979261969"):
+    """One listing card in the shape this portal's parser reads."""
+    if portal == "computrabajo":
+        return ("<article class=\"box_offer\" data-id='42CFA8B9B6EFC83461373E686DCF3405'>"
+                f"<h2><a class=\"js-o-link fc_base\" href=\"{href}\">{title}</a></h2>"
+                f"<p class=\"fs16 fc_base mt5\"><a class=\"fc_base t_ellipsis\">{company}</a></p>"
+                f"<p class=\"fs13 fc_aux mt15\">{age}</p></article>")
+    if portal == "elempleo":
+        return ("<div class=\"col-md-12 result-item mb-3\">"
+                f"<a class=\"js-offer-title\" href=\"{href}\">{title}</a>"
+                f"<span class=\"js-offer-company\">{company}</span>"
+                f"<span class=\"js-offer-date\">{age}</span></div>")
+    return (f"<div data-new-id=\"{ident}\"><h2 class=\"JobCard_title__x\">{title}</h2>"
+            f"<span class=\"JobCard_company__x\">{company}</span>"
+            "<span class=\"JobCard_location__x\">Bogota, Colombia</span>"
+            "<time class=\"JobCard_timeText__x\" dateTime=\"2026-10-20T00:00:00Z\">hace 1 día</time></div>")
+
+
+def write_listing(tmp_path, portal, cards):
+    """A fixture directory holding one crafted listing page."""
+    directory = tmp_path / portal
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "listing.html").write_text("<html><body>" + "".join(cards) + "</body></html>", encoding="utf-8")
+    return directory
+
+
+def write_detail(tmp_path, portal, url, *, ident=None, date="2026-10-02", title="Analista de datos",
+                 description="<p>Texto real del aviso</p>"):
+    """A fixture directory holding one offer page whose JSON-LD is under the test's control."""
+    posting = {"@context": "https://schema.org", "@type": "JobPosting", "title": title, "url": url,
+               "datePosted": date, "description": description, "hiringOrganization": {"name": "Acme"},
+               "jobLocation": {"address": {"addressLocality": "Bogotá", "addressRegion": "Bogotá"}}}
+    if ident is not None:
+        posting["identifier"] = {"@type": "PropertyValue", "value": ident}
+    directory = tmp_path / portal
+    directory.mkdir(parents=True, exist_ok=True)
+    page = ("<!doctype html><html><head><script type=\"application/ld+json\">"
+            + json.dumps(posting) + "</script></head><body><h1>Analista de datos</h1></body></html>")
+    (directory / "detail.html").write_text(page, encoding="utf-8")
+    return directory
+
+
+class TestMarketPortalHardening:
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_escaped_text_is_decoded_once_and_keeps_its_words(self, portal):
+        cli = load_portal_cli(portal)
+        assert cli.clean("Analista y &lt;SQL&gt;") == "Analista y <SQL>", "a real tag was deleted from a title"
+        assert cli.clean("Datos &amp; BI") == "Datos & BI"
+        assert cli.clean("&amp;lt;b&amp;gt;") == "&lt;b&gt;", "the text was unescaped twice"
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_clean_flattens_newlines_control_and_bidi_characters(self, portal):
+        cli = load_portal_cli(portal)
+        assert cli.clean("Analista\nde datos\u202e (remoto)\x07\t") == "Analista de datos (remoto)"
+        assert cli.clean("\u202e\u2066\u200b") is None
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_an_escaped_script_in_a_description_never_comes_back_as_markup(self, portal):
+        cli = load_portal_cli(portal)
+        text = cli.html_to_text("<p>Oferta real &lt;script&gt;alert(1)&lt;/script&gt; con texto</p>")
+        assert "texto" in text and "alert(1)" in text, text
+        assert "<" not in text and ">" not in text, text
+
+    @pytest.mark.parametrize("portal", ["computrabajo", "elempleo"])
+    def test_a_row_whose_link_is_not_https_on_the_portal_host_is_dropped(self, tmp_path, portal):
+        base = "https://co.computrabajo.com/" if portal == "computrabajo" else "https://www.elempleo.com/"
+        good = "/ofertas-de-trabajo/oferta-de-trabajo-de-analista-42CFA8B9B6EFC83461373E686DCF3405" \
+            if portal == "computrabajo" else "/co/ofertas-trabajo/data-analyst-specialist-1886762160"
+        cards = [listing_card(portal, href, title)
+                 for href, title in (("javascript:alert(1)", "Uno"),
+                                     ("https://evil.example/job/1", "Dos"),
+                                     ("//evil.example/job/2", "Tres"),
+                                     (base.replace("https://", "http://") + good.lstrip("/"), "Cuatro"),
+                                     (good, "Cinco"))]
+        directory = write_listing(tmp_path, portal, cards)
+        code, out, err = portal_cli(portal, ["search", "--query", "analista de datos", "--today", CAPTURE_DAY,
+                                             "--format", "json"], fixture_dir=directory)
+        assert code == 0, err
+        rows = stdout_json(out)["results"]
+        assert [row["title"] for row in rows] == ["Cinco"], rows
+        assert rows[0]["url"] == base + good.lstrip("/") and rows[0]["id"] == rows[0]["url"]
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_a_limit_above_the_page_ceiling_is_clamped_to_it(self, portal):
+        code, out, err = portal_cli(portal, ["search", "--query", "analista de datos", "--limit", "101",
+                                             "--today", CAPTURE_DAY, "--format", "json"])
+        assert code == 0, err
+        data = stdout_json(out)
+        assert data["meta"]["limit"] == 100
+        assert data["meta"]["count"] == len(data["results"]) == fixture_cards(portal)
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_a_limit_below_one_is_still_refused(self, portal):
+        code, out, err = portal_cli(portal, ["search", "--query", "analista", "--limit", "0", "--format", "json"])
+        assert code == 1 and out == ""
+        assert stderr_json(err)["code"] == "BAD_ARG"
+
+    @pytest.mark.parametrize("portal, query", [("computrabajo", "東京"), ("computrabajo", "!!!"),
+                                               ("elempleo", "東京")])
+    def test_a_query_that_slugs_to_nothing_is_refused_not_searched_unfiltered(self, portal, query):
+        code, out, err = portal_cli(portal, ["search", "--query", query, "--format", "json"])
+        assert code == 1 and out == "", "an unfiltered listing was searched"
+        assert stderr_json(err)["code"] == "BAD_ARG"
+
+    def test_elempleo_refuses_a_page_flag_it_does_not_implement(self):
+        code, out, err = portal_cli("elempleo", ["search", "--query", "analista", "--page", "2", "--format", "json"])
+        assert code == 1 and out == ""
+        assert stderr_json(err)["code"] == "BAD_ARG"
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_a_detail_target_on_http_is_read_over_https(self, portal):
+        cli = load_portal_cli(portal)
+        insecure = TARGET_URLS[portal].replace("https://", "http://", 1)
+        assert cli.build_detail_url(insecure) == TARGET_URLS[portal]
+
+    @pytest.mark.parametrize("portal, href", [
+        ("computrabajo", "/ofertas-de-trabajo/oferta-de-trabajo-de-analista-42CFA8B9B6EFC83461373E686DCF3405"),
+        ("elempleo", "/co/ofertas-trabajo/data-analyst-specialist-1886762160")])
+    def test_an_escaped_angle_bracket_in_a_title_survives_the_search(self, tmp_path, portal, href):
+        directory = write_listing(tmp_path, portal, [listing_card(portal, href, "Analista &lt;SQL&gt; y &amp; BI")])
+        code, out, err = portal_cli(portal, ["search", "--query", "analista de datos", "--today", CAPTURE_DAY,
+                                             "--format", "json"], fixture_dir=directory)
+        assert code == 0, err
+        assert stdout_json(out)["results"][0]["title"] == "Analista <SQL> y & BI"
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_an_escaped_script_in_a_detail_description_stays_text(self, tmp_path, portal):
+        directory = write_detail(tmp_path, portal, TARGET_URLS[portal],
+                                 title="Analista &lt;SQL&gt; y &amp; BI",
+                                 description="<p>Oferta real &lt;script&gt;alert(1)&lt;/script&gt; con texto</p>")
+        code, out, err = portal_cli(portal, ["detail", TARGET_URLS[portal], "--format", "json"],
+                                    fixture_dir=directory)
+        assert code == 0, err
+        job = stdout_json(out)
+        assert job["title"] == "Analista <SQL> y & BI"
+        description = job["description"]
+        assert "texto" in description
+        assert not re.search(r"<[a-zA-Z/!][^>]*>|&(?:[a-zA-Z]+|#\d+);", description), description
+
+    @pytest.mark.parametrize("emitted", ["javascript:alert(1)", "https://evil.example/jobs/1",
+                                         "http://co.computrabajo.com/ofertas-de-trabajo/x-1"])
+    def test_a_computrabajo_detail_link_outside_the_portal_falls_back_to_the_requested_offer(self, tmp_path, emitted):
+        directory = write_detail(tmp_path, "computrabajo", emitted)
+        code, out, err = portal_cli("computrabajo", ["detail", TARGET_URLS["computrabajo"], "--format", "json"],
+                                    fixture_dir=directory)
+        assert code == 0, err
+        job = stdout_json(out)
+        assert job["url"] == TARGET_URLS["computrabajo"], emitted
+        assert job["id"] == job["url"]
+
+    def test_computrabajo_normalises_a_detail_date_that_is_not_padded(self, tmp_path):
+        directory = write_detail(tmp_path, "computrabajo", TARGET_URLS["computrabajo"], date="2026-9-4")
+        code, out, err = portal_cli("computrabajo", ["detail", TARGET_URLS["computrabajo"], "--format", "json"],
+                                    fixture_dir=directory)
+        assert code == 0, err
+        assert stdout_json(out)["date"] == "2026-09-04"
+
+    @pytest.mark.parametrize("emitted, ident", [("javascript:alert(1)", "javascript:alert(1)"),
+                                                ("https://evil.example/x", "not-an-id")])
+    def test_a_talent_detail_id_and_url_stay_numeric_and_on_the_portal_host(self, tmp_path, emitted, ident):
+        directory = write_detail(tmp_path, "talent", emitted, ident=ident)
+        code, out, err = portal_cli("talent", ["detail", TARGET_URLS["talent"], "--format", "json"],
+                                    fixture_dir=directory)
+        assert code == 0, err
+        job = stdout_json(out)
+        assert job["id"] == "642670062979261969", emitted
+        assert job["url"] == TARGET_URLS["talent"], emitted
+
+    def test_talent_refuses_a_market_that_is_not_a_two_letter_code(self):
+        code, out, err = portal_cli("talent", ["detail", "642670062979261969", "--country", "../evil",
+                                               "--format", "json"])
+        assert code == 1 and out == ""
+        assert stderr_json(err)["code"] == "BAD_ARG"
+
+    @pytest.mark.parametrize("portal", MARKET_PORTALS)
+    def test_an_unexpected_exception_is_reported_as_contract_json_not_a_traceback(self, portal, monkeypatch, capsys):
+        cli = load_portal_cli(portal)
+
+        def boom(*_args, **_kwargs):
+            raise RecursionError("too deep")
+
+        monkeypatch.setattr(cli, "read_page", boom)
+        code = cli.main(["search", "--query", "analista", "--format", "json"])
+        captured = capsys.readouterr()
+        assert code == 1
+        assert captured.out == ""
+        assert stderr_json(captured.err)["code"] == "INTERNAL_ERROR"
+        assert "Traceback" not in captured.err
+
+
+def test_the_skill_names_every_shipped_portal_and_its_runtime():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    shipped = (SKILL / "references" / "shipped-portals.md").read_text(encoding="utf-8")
+    for name in ("linkedin", "freehire", "computrabajo", "elempleo", "talent"):
+        assert f"`{name}`" in skill, f"{name} is not named in SKILL.md"
+        assert f"## {name}" in shipped, f"{name} has no section in shipped-portals.md"
+    assert "bun" in skill and "python3" in skill

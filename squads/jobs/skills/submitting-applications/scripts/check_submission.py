@@ -3,36 +3,59 @@
 
 Usage:
   check_submission.py FILE [--json] [--apply-url URL]                      validate the record (any result)
-  check_submission.py FILE --gate [--before-submit] [--json] [--apply-url URL]
+  check_submission.py FILE --gate [--before-submit] [--json] [--apply-url URL] [--method METHOD]
                                                  decide before the first click; --before-submit also requires the
                                                  pre-submit screenshot approval (run it after before.png exists)
+  check_submission.py FILE --post-submit [--json]                          the record check after the click: only the
+                                                 rules that can move after the click are flags, and only with a fresh
+                                                 gate stamp for this opening (record_submission.py uses it, so a real
+                                                 submit is never lost)
   check_submission.py --kit-hash APP_DIR         print the kit hash of application/ (consent.json kit_sha256)
 
 FILE is the submission.json of one opening. Relative paths resolve against the folder that holds FILE (application/);
-a screenshot or approval image must resolve inside that folder. Nothing is written.
+a screenshot or approval image must resolve inside that folder. --method names the form class the gate is deciding for
+when submission.json does not exist yet. --today YYYY-MM-DD fixes the day the daily caps count (replays and tests).
+Nothing is written except under --gate: an open gate writes application/gate.json, the stamp {opening_id, method, mode,
+opened_at} that says the gate opened for this opening in every mode, and under auto_apply: auto also takes a dated
+reservation under the project's lock (scripts/apply_state.py), so two appliers at nine of ten cannot both take the
+tenth place.
 
 Rules (contract: jobs-contract references/opening-files.md, submission.json):
 - id is a JOB-YYYYMMDD-<slug> of at most 50 characters and, when FILE sits in openings/<ID>/application/, equals the
   folder name.
-- result is SUBMITTED, NEEDS_DATA or NOT_POSSIBLE; method is one of the six form classes.
+- result is SUBMITTED, NEEDS_DATA or NOT_POSSIBLE; method is one of the seven form classes.
 - filled_fields lists {field, source} only: every filled field has a source (contact.yaml, application-data.yaml,
   answers.md, cv or consult:<card id>). A value key is refused: the file never carries field values.
-- SUBMITTED: method no_login_form; at least one filled field; no pending_questions; a screenshot named like
-  confirmation.* that exists; every screenshot listed exists; the authority rules below; the apply_url is not
-  `unverified` (link_check.py).
+- SUBMITTED: method no_login_form (or linkedin_easy_apply under auto_apply: auto); at least one filled field; no
+  pending_questions; a screenshot named like confirmation.* that exists; every screenshot listed exists; the authority
+  rules below; the apply_url is not `unverified` (link_check.py).
 - NEEDS_DATA: at least one pending question with its text (options optional).
 - NOT_POSSIBLE: a reason, and application/kit.md exists beside the file (manual_kit names it when given).
 - No e-mail address or international phone number in any text of the file or of consent.json.
 
 Authority for SUBMITTED:
-- application/consent.json holds {opening_id, by, words, date, kit_sha256}. The manager writes it from the user's
-  literal words for this opening only. opening_id equals the opening folder name; by and words are non-empty; by is
-  not a bot profile name; date is YYYY-MM-DD.
+- profile.md auto_apply (default try): `never` refuses every SUBMITTED. `ask` needs review_before_submit true and the
+  screenshot approval below. `try` needs application/consent.json for this opening, written by the manager from the
+  user's literal words. `auto` is standing consent recorded once in profile.md: no consent.json, and instead
+  apply_consent: standing, a dated auto_apply_since, the daily caps, a method of no_login_form or linkedin_easy_apply,
+  and an analysis.json of this opening that clears the profile: fit.decision PURSUE, fit.score a finite number in
+  0..100 at or above apply_threshold, no gate of GATE_NAMES at FAIL, and its id equal to the opening folder name.
+  `auto` with review_before_submit true or apply_consent other than standing is refused: the settings contradict
+  each other.
+- The pre-click --gate refuses every method but no_login_form and linkedin_easy_apply: the other five classes are a
+  manual kit, and nothing about them may be clicked.
+- application/consent.json (try and ask) holds {opening_id, by, words, date, kit_sha256} for this opening only.
+  opening_id equals the opening folder name; by and words are non-empty; by is not a bot profile name; date is
+  YYYY-MM-DD.
 - kit_sha256 equals the kit hash of application/ now: the consent binds to the documents the user saw.
 - The gate is open only while the latest openings/<ID>/review-N.json is APPROVED and the latest status.json line is
   ready or applying. The approval day is the day of the latest ready line; the consent date is not before it.
-- profile.md auto_apply (default try): `never` refuses every SUBMITTED. `ask` needs review_before_submit true and the
-  screenshot approval below. Any value other than never, ask or try is refused.
+- Daily caps (auto only): the openings/<ID>/status.json history of the project counts the submissions recorded today
+  (the newest `applied` line of each opening, dated today, this opening excluded) plus the live reservations of the
+  project. daily_apply_cap (default 10) caps them all; daily_easy_apply_cap (default 5) caps the linkedin_easy_apply
+  ones. A cap reached closes the gate with a `daily_cap` rule: the applier applies the next day, never a kit.
+- linkedin_easy_apply: only on an https://<locale.>linkedin.com/jobs/view/<id> link, only under auto_apply: auto.
+  Every other method needs an employer ATS link (link_check.py); a job board or portal page is kit only.
 - profile.md review_before_submit (default false): true also needs consent.json screenshot_approval
   {by, words, date, screenshot}. The screenshot is an existing image in application/; the date is not before the
   approval date. The record check and the pre-click gate with --before-submit both require it.
@@ -43,25 +66,37 @@ Exit codes: 0 valid (or gate open), 1 contract violations (listed on stderr), 2 
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import importlib.util
 import json
 import re
 import sys
-from datetime import date
+from contextlib import contextmanager
+from datetime import date, datetime
 from pathlib import Path
 
 SKILLS = Path(__file__).resolve().parents[2]
 LINK_CHECK = SKILLS / "jobs-contract" / "scripts" / "link_check.py"
 JOBS_COMMON = SKILLS / "jobs-contract" / "scripts" / "jobs_common.py"
+SEEN_STATE = SKILLS / "jobs-contract" / "scripts" / "seen_state.py"
+SCORE_ANALYSIS = SKILLS / "analyzing-jobs" / "scripts" / "score_analysis.py"
+APPLY_STATE = Path(__file__).resolve().parent / "apply_state.py"
 
 RESULTS = ("SUBMITTED", "NEEDS_DATA", "NOT_POSSIBLE")
-METHODS = ("no_login_form", "requires_account", "email", "linkedin", "captcha", "other")
+METHODS = ("no_login_form", "requires_account", "email", "linkedin", "linkedin_easy_apply", "captcha", "other")
+# The only two form classes a bot ever clicks: the rest are a manual kit (SKILL.md step 3).
+SUBMITTABLE = ("no_login_form", "linkedin_easy_apply")
 SOURCES = ("contact.yaml", "application-data.yaml", "answers.md", "cv")
-AUTO_APPLY = ("never", "ask", "try")
+AUTO_APPLY = ("never", "ask", "try", "auto")
+APPLY_CONSENT = {"try": "per_opening", "ask": "per_opening", "auto": "standing"}
+CONSUMED = ("try", "auto")  # the modes that submit without the user in the loop
 CONSULT = re.compile(r"^consult:[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 ID_RE = re.compile(r"^JOB-\d{8}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# A LinkedIn Easy Apply run happens on the job page itself: https://<locale.>linkedin.com/jobs/view/<id>[/][?query]
+EASY_APPLY_URL = re.compile(r"^https://(?:[a-z]{2,3}\.)?(?:www\.)?linkedin\.com/jobs/view/\d{6,12}/?(?:[?#]\S*)?$",
+                            re.IGNORECASE)
 FRONT = re.compile(r"\A\ufeff?---[ \t]*\n(.*?)\n---", re.S)
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 KIT_FILES = ("cv_ats.pdf", "cv.docx", "letter_ats.pdf", "letter.docx", "cover_letter.md", "answers.md")
@@ -69,9 +104,21 @@ GATE_STATUSES = ("ready", "applying")
 RECORD_STATUSES = ("ready", "applying", "applied")
 KIT_SHA = re.compile(r"^[0-9a-f]{64}$")
 REVIEW_NAME = re.compile(r"review-(c?)(\d+)\.json\Z")
-BOT_NAMES = frozenset({"jobs", "jobs-scout", "jobs-writer", "jobs-reviewer", "jobs-applier"})
+# Every bot profile of squads/jobs/squad.yaml: consent.json is the user's words, and no bot writes them.
+BOT_NAMES = frozenset({"jobs", "jobs-scout", "jobs-writer", "jobs-reviewer", "jobs-applier", "jobs-inbox"})
+# --post-submit softens these rules and no others, and only with proof the gate opened for this opening under
+# GATE_HOURS ago (application/gate.json, written by --gate): they are the ones that can move between the click and the
+# record. A rule about what was never submittable (auto_apply: never, a missing consent file, no review, an unverifiable
+# or job-board link, an analysis that said REJECT), a status history that never reached ready and an unreadable profile
+# stay hard.
+RECHECK_SOFT = frozenset({"daily_cap", "review.replaced", "review.status", "consent.date"})
+DEFAULT_APPLY_CAP = 10
+DEFAULT_EASY_APPLY_CAP = 5
+DEFAULT_THRESHOLD = 70
 NEEDS_REVIEW = ("SUBMITTED needs an approved review: openings/<ID>/review-N.json with verdict APPROVED, and a ready "
                 "line in status.json")
+NEEDS_ANALYSIS = ("auto_apply: auto needs openings/<ID>/analysis.json for this opening: its id, gates, fit.score and "
+                  "fit.decision decide the submit")
 REQUIRED = ("id", "result", "method", "filled_fields", "pending_questions", "screenshots", "reason")
 CONTACT_PATTERNS = (
     re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"),
@@ -90,6 +137,25 @@ def load_module(name: str, path: Path):
 jc = load_module("jobs_common_for_check", JOBS_COMMON)
 
 
+@functools.lru_cache(maxsize=None)
+def helper(name: str, path: Path):
+    """A helper script of the squad, loaded once as a module: one rule, read by every script that needs it."""
+    return load_module(f"jobs_{name}_for_check", path)
+
+
+def gate_names() -> tuple:
+    """The gates score_analysis.decide() reads (analyzing-jobs GATE_NAMES): the gate and the decision share one list."""
+    return helper("score_analysis", SCORE_ANALYSIS).GATE_NAMES
+
+
+def check_number(value, label: str) -> float:
+    """A finite number from 0 to 100 (seen_state.check_number): a score is never NaN, Infinity or 1e9."""
+    return helper("seen_state", SEEN_STATE).check_number(value, label)
+
+
+AS = helper("apply_state", APPLY_STATE)
+
+
 def read_object(path: Path):
     """The JSON object in path, or None when it is missing, unreadable or not an object."""
     try:
@@ -100,7 +166,11 @@ def read_object(path: Path):
 
 
 def strict_day(value):
-    """A YYYY-MM-DD date, or None."""
+    """A YYYY-MM-DD day, or None. Accepts the text and the date object YAML turns an unquoted date into."""
+    if isinstance(value, datetime):
+        value = value.date()
+    if isinstance(value, date):
+        return value
     if not isinstance(value, str) or not DAY_RE.match(value):
         return None
     try:
@@ -110,9 +180,11 @@ def strict_day(value):
 
 
 def approval(opening: Path, allowed=GATE_STATUSES):
-    """(day, problem). The latest review-N.json must be APPROVED and the latest status.json line must be one of
+    """(day, problem, rule). The latest review-N.json must be APPROVED and the latest status.json line must be one of
     `allowed`; day is the day of the latest ready line. A later FIX, NOT_APPROVED, in_review or skipped closes it.
-    The record check also accepts `applied`: the record writes it, so a second record must still pass."""
+    The record check also accepts `applied`: the record writes it, so a second record must still pass. The rule says
+    which part failed: a review that was replaced or a status that moved is a change round after the click
+    (--post-submit may flag it), while a file that never held an approval is a fact about the opening."""
     # Every review file counts, whatever its numbering (review-2.json, review-c1.json): the newest one on disk is the
     # latest, so a later change review can never hide behind an older approval.
     reviews = []
@@ -120,22 +192,24 @@ def approval(opening: Path, allowed=GATE_STATUSES):
         if REVIEW_NAME.match(path.name):
             reviews.append((path.stat().st_mtime_ns, path.name, path))
     if not reviews:
-        return None, NEEDS_REVIEW
+        return None, NEEDS_REVIEW, "review.missing"
     _, name, path = max(reviews)
     verdict = (read_object(path) or {}).get("verdict")
     if verdict != "APPROVED":
-        return None, f"SUBMITTED needs an approved review: the latest {name} is {verdict!r}, not APPROVED"
+        return (None, f"SUBMITTED needs an approved review: the latest {name} is {verdict!r}, not APPROVED",
+                "review.replaced")
     history = (read_object(opening / "status.json") or {}).get("history")
     lines = [item for item in history if isinstance(item, dict)] if isinstance(history, list) else []
-    last = lines[-1].get("status") if lines else None
-    if last not in allowed:
-        return None, f"the latest status.json line is {last!r}: SUBMITTED needs {' or '.join(allowed)}"
     ready = [item for item in lines if item.get("status") == "ready"]
     stamp = ready[-1].get("date") if ready else None
     day = strict_day(stamp[:10]) if isinstance(stamp, str) else None
     if day is None:
-        return None, "status.json has no dated ready line: the approval day is unknown"
-    return day, None
+        return None, "status.json has no dated ready line: the approval day is unknown", "review.never_ready"
+    last = lines[-1].get("status") if lines else None
+    if last not in allowed:
+        return (None, f"the latest status.json line is {last!r}: SUBMITTED needs {' or '.join(allowed)}",
+                "review.status")
+    return day, None, ""
 
 
 def kit_sha256(application: Path):
@@ -148,6 +222,44 @@ def kit_sha256(application: Path):
         digest.update(f"{name}\n{len(data)}\n".encode("utf-8"))
         digest.update(data)
     return digest.hexdigest()
+
+
+def submissions_today(project: Path, day: date, exclude: str = "") -> dict:
+    """The submissions the project already holds on `day`: the recorded ones plus the reservations of open gates.
+
+    record_submission.py appends `applied` to openings/<ID>/status.json and writes that opening's submission.json, so
+    the history says when and the record says how. An opening counts once when the newest date among its `applied`
+    lines is `day`: the list order says nothing, since a later line may carry an older date. It counts as an Easy Apply
+    when its submission.json method is linkedin_easy_apply. A live reservation left by an open gate counts too, so two
+    appliers at nine of ten cannot both take the tenth place, but an opening that already has an `applied` line of the
+    day counts once: a record that died between its status append and its release must not use two places. `exclude`
+    leaves this opening out, so recording the submit that just filled the cap never refuses itself.
+    """
+    total = easy = 0
+    applied = set()
+    folder = project / "openings"
+    for opening in sorted(folder.glob("JOB-*")) if folder.is_dir() else []:
+        if not opening.is_dir() or opening.name == exclude:
+            continue
+        history = (read_object(opening / "status.json") or {}).get("history")
+        lines = [item for item in history if isinstance(item, dict)] if isinstance(history, list) else []
+        days = [strict_day(str(item.get("date") or "")[:10]) for item in lines if item.get("status") == "applied"]
+        # A record written today leaves an `applied` line dated today; a status moved on to interview or rejected
+        # later keeps that line, so the history still counts the submission.
+        when = max((found for found in days if found is not None), default=None)
+        if when != day:
+            continue
+        applied.add(opening.name)
+        total += 1
+        if (read_object(opening / "application" / "submission.json") or {}).get("method") == "linkedin_easy_apply":
+            easy += 1
+    for opening_id, held in AS.live(project).items():
+        if opening_id == exclude or opening_id in applied or strict_day(held.get("date")) != day:
+            continue
+        total += 1
+        if held.get("method") == "linkedin_easy_apply":
+            easy += 1
+    return {"total": total, "easy_apply": easy}
 
 
 def flag(value, name: str):
@@ -182,10 +294,50 @@ class Checker:
         self.path = path
         self.base = path.parent
         self.errors: list[str] = []
+        self.flags: list[str] = []
+        self.soft = False
+        self.post_submit = False
         self.apply_url = ""
+        self.method = ""
+        self.today = date.today()
+        self._settings = None
 
     def error(self, where: str, message: str) -> None:
-        self.errors.append(f"{where}: {message}")
+        """A contract violation, unless it is one of the rules that moved after the click and the gate opened for it."""
+        softened = self.soft and where in RECHECK_SOFT
+        (self.flags if softened else self.errors).append(f"{where}: {message}")
+
+    @contextmanager
+    def recheck(self):
+        """The rules inside may have moved between the click and the record: --post-submit flags them.
+
+        record_submission.py runs this check after the click. A submit that happened is recorded with the rule that
+        moved, never dropped: an invisible submit escapes the cap and can be applied a second time. It needs proof the
+        gate opened for this opening under GATE_HOURS ago (the application/gate.json stamp --gate writes), or the
+        record is a first check and every rule stays hard.
+        """
+        self.soft = AS.gate_recent(self.base, self.base.parent.name)
+        try:
+            yield
+        finally:
+            self.soft = False
+
+    def settings(self):
+        """(front matter, problem) of the project profile.md, read once."""
+        if self._settings is None:
+            self._settings = profile_settings(self.base)
+        return self._settings
+
+    def settings_of(self):
+        """(settings, mode, problem, key): the auto_apply mode, or the problem that stops the decision and its key."""
+        settings, problem = self.settings()
+        if problem:
+            return {}, None, problem, "profile"
+        mode = settings.get("auto_apply")
+        mode = "try" if mode is None else mode
+        if mode not in AUTO_APPLY:
+            return settings, None, "must be never, ask, try or auto in profile.md", "auto_apply"
+        return settings, mode, None, ""
 
     def strings(self, value, where: str):
         """Every string inside a value, with the path it sits at (for the contact-data scan)."""
@@ -217,6 +369,7 @@ class Checker:
                 self.error(key, "missing")
         if self.errors:
             return
+        self.method = data["method"] if isinstance(data["method"], str) else ""
         self.check_id(data["id"])
         if data["result"] not in RESULTS:
             self.error("result", f"must be one of {', '.join(RESULTS)}")
@@ -231,9 +384,16 @@ class Checker:
             if any(p.search(text) for p in CONTACT_PATTERNS):
                 self.error(where.lstrip(".") or "file", "contact data in a text value; keep values out of the file")
         if data["result"] == "SUBMITTED":
-            self.check_submitted(data, fields, pending, shots)
-            self.check_authority(screenshot=True, at_gate=False)
-            self.check_apply_url(self.apply_url)
+            mode = self.settings_of()[1]
+            self.check_submitted(data, fields, pending, shots, mode)
+            # The record file itself must be truthful; the authority around it can move between the click and here.
+            if self.post_submit:
+                with self.recheck():
+                    self.check_authority(screenshot=True, at_gate=False)
+                    self.check_apply_url(self.apply_url)
+            else:
+                self.check_authority(screenshot=True, at_gate=False)
+                self.check_apply_url(self.apply_url)
         elif data["result"] == "NEEDS_DATA":
             if not pending:
                 self.error("pending_questions", "NEEDS_DATA needs at least one question")
@@ -246,8 +406,29 @@ class Checker:
         if not (self.base.name == "application" and ID_RE.match(opening.name) and len(opening.name) <= 50):
             self.error("folder", "the gate needs FILE inside openings/<ID>/application/")
             return
-        self.check_authority(screenshot=before_submit, at_gate=True)
-        self.check_apply_url(self.apply_url)
+        if not self.method:
+            # The record does not exist yet before the first click: the applier names the form class with --method.
+            self.method = (read_object(self.path) or {}).get("method") or "no_login_form"
+        if self.method not in METHODS:
+            self.error("method", f"must be one of {', '.join(METHODS)}")
+            return
+        if self.method not in SUBMITTABLE:
+            self.error("method", f"{self.method} is never a submit click: only no_login_form or linkedin_easy_apply "
+                                 f"are submitted, and every other form class goes to a manual kit")
+            return
+        project = opening.parent.parent
+        # One applier at a time reads the caps and takes its place: the reservation written below is what a second
+        # applier sees, so nine of ten leaves one place and not two.
+        with AS.locked(project):
+            self.check_authority(screenshot=before_submit, at_gate=True)
+            self.check_apply_url(self.apply_url)
+            if not self.errors:
+                mode = self.settings_of()[1]
+                # The stamp is the proof the record needs to soften a rule that moved after the click: every mode
+                # writes it, because every mode can have its cap filled between the gate and the record.
+                AS.stamp(self.base, opening.name, self.method, mode or "")
+                if mode == "auto":
+                    AS.reserve(project, opening.name, self.today, self.method)
 
     def check_id(self, opening_id) -> None:
         if not isinstance(opening_id, str) or not ID_RE.match(opening_id) or len(opening_id) > 50:
@@ -303,9 +484,15 @@ class Checker:
                 self.error(where, "file does not exist")
         return shots
 
-    def check_submitted(self, data, fields, pending, shots) -> None:
-        if data["method"] != "no_login_form":
-            self.error("method", "SUBMITTED needs method no_login_form; every other class goes to a kit")
+    def check_submitted(self, data, fields, pending, shots, mode) -> None:
+        method = data["method"]
+        if method == "linkedin_easy_apply":
+            if mode != "auto":
+                self.error("method", "linkedin_easy_apply needs auto_apply: auto in profile.md: Easy Apply runs on "
+                                     "standing consent, never on one opening's apply")
+        elif method != "no_login_form":
+            self.error("method", "SUBMITTED needs method no_login_form or linkedin_easy_apply; every other class "
+                                 "goes to a kit")
         if not fields:
             self.error("filled_fields", "SUBMITTED needs at least one filled field with its source")
         if pending:
@@ -317,16 +504,11 @@ class Checker:
             self.error("screenshots", "the confirmation screenshot does not exist")
 
     def check_authority(self, screenshot: bool, at_gate: bool) -> None:
-        """The user's consent, the review approval and the profile settings that decide whether a submit may happen."""
+        """The consent, the review approval and the profile settings that decide whether a submit may happen."""
         opening = self.base.parent
-        settings, problem = profile_settings(self.base)
+        settings, mode, problem, key = self.settings_of()
         if problem:
-            self.error("profile", problem)
-            return
-        mode = settings.get("auto_apply")
-        mode = "try" if mode is None else mode
-        if mode not in AUTO_APPLY:
-            self.error("auto_apply", "must be never, ask or try in profile.md")
+            self.error(key, problem)
             return
         if mode == "never":
             self.error("auto_apply", "profile.md sets auto_apply: never; this opening gets a manual kit, not a submit")
@@ -339,10 +521,17 @@ class Checker:
             self.error("review_before_submit", "auto_apply: ask needs review_before_submit: true (the user approves "
                                                "the screenshot before the submit)")
             return
-        needs_screenshot = review_flag or mode == "ask"
-        approved, problem = approval(opening, GATE_STATUSES if at_gate else RECORD_STATUSES)
+        if mode == "auto" and review_flag:
+            self.error("review_before_submit", "auto_apply: auto submits on standing consent, so nobody sees the "
+                                               "screenshot: write auto_apply: ask if the user approves each one")
+            return
+        approved, problem, rule = approval(opening, GATE_STATUSES if at_gate else RECORD_STATUSES)
         if problem:
-            self.error("review", problem)
+            self.error(rule or "review", problem)
+        if mode == "auto":
+            self.check_standing(opening, settings)
+            return
+        needs_screenshot = review_flag or mode == "ask"
         path = self.base / "consent.json"
         if not path.is_file():
             self.error("consent", "SUBMITTED needs application/consent.json with the user's words for this opening")
@@ -372,6 +561,87 @@ class Checker:
         self.check_kit(consent)
         if needs_screenshot and screenshot:
             self.check_screenshot_approval(consent, approved)
+
+    def check_standing(self, opening: Path, settings: dict) -> None:
+        """auto_apply: auto — the consent recorded once in profile.md, and what still limits each submit."""
+        consent = settings.get("apply_consent", "per_opening")
+        if consent != "standing":
+            self.error("apply_consent", "auto_apply: auto submits on standing consent: profile.md needs "
+                                        "apply_consent: standing (per_opening asks for every opening)")
+            return
+        since = strict_day(settings.get("auto_apply_since"))
+        if since is None:
+            self.error("auto_apply_since", "auto_apply: auto needs the day the user said yes: "
+                                           "auto_apply_since: YYYY-MM-DD in profile.md")
+            return
+        if since > self.today:
+            self.error("auto_apply_since", f"{since} is after today: the standing consent is not in force yet")
+        self.check_opening_fit(opening, settings)
+        self.check_daily_caps(opening, settings)
+
+    def check_opening_fit(self, opening: Path, settings: dict) -> None:
+        """analysis.json of this opening: score_analysis.decide() said PURSUE, no gate FAILs, and the numbers are real.
+
+        The score alone is not a decision. REJECT covers a failed language, location or seniority gate, a deal-breaker
+        and a hard gap in a core must-have; a WATCH is a question the user still has to answer. None of them may be
+        submitted on standing consent, and this is the last check before an irreversible click.
+        """
+        analysis = read_object(opening / "analysis.json")
+        if analysis is None:
+            self.error("analysis", NEEDS_ANALYSIS)
+            return
+        if analysis.get("id") != opening.name:
+            self.error("analysis.id", f"names {analysis.get('id')!r}, not this opening {opening.name!r}: another "
+                                      f"opening's analysis never decides this submit")
+        gates = analysis.get("gates")
+        gates = gates if isinstance(gates, dict) else {}
+        failed = [name for name in gate_names() if gates.get(name) == "FAIL"]
+        if failed:
+            self.error("gates", f"gate FAIL: {', '.join(failed)}: auto_apply: auto never submits an opening that "
+                                f"failed a gate")
+        eligibility = gates.get("eligibility")
+        if eligibility != "PASS":
+            self.error("eligibility", f"auto_apply: auto submits only an eligible opening: gates.eligibility is "
+                                      f"{eligibility!r}, not PASS")
+        fit = analysis.get("fit")
+        fit = fit if isinstance(fit, dict) else {}
+        decision = fit.get("decision")
+        if decision != "PURSUE":
+            self.error("fit.decision", f"is {decision!r}, not PURSUE: auto_apply: auto submits only an opening "
+                                       f"score_analysis.py decided to pursue, never a WATCH or a REJECT")
+        try:
+            threshold = check_number(settings.get("apply_threshold", DEFAULT_THRESHOLD), "apply_threshold")
+        except ValueError:
+            self.error("apply_threshold", "must be a finite number from 0 to 100 in profile.md")
+            return
+        try:
+            score = check_number(fit.get("score"), "fit.score")
+        except ValueError as exc:
+            self.error("fit", f"analysis.json {exc}: the applier cannot tell whether the opening clears "
+                              f"apply_threshold {threshold:g}")
+            return
+        if score < threshold:
+            self.error("fit", f"fit.score {score:g} is below apply_threshold {threshold:g}: auto_apply: auto does "
+                              f"not submit this one")
+
+    def check_daily_caps(self, opening: Path, settings: dict) -> None:
+        """The day's caps: submissions recorded today across the project, Easy Apply counted on its own."""
+        caps = {}
+        for key, default in (("daily_apply_cap", DEFAULT_APPLY_CAP), ("daily_easy_apply_cap", DEFAULT_EASY_APPLY_CAP)):
+            value = settings.get(key, default)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                self.error(key, f"must be a whole number from 1 up in profile.md (default {default})")
+                return
+            caps[key] = value
+        counts = submissions_today(opening.parent.parent, self.today, exclude=opening.name)
+        if counts["total"] >= caps["daily_apply_cap"]:
+            self.error("daily_cap", f"{counts['total']} applications are already recorded today and "
+                                    f"daily_apply_cap is {caps['daily_apply_cap']}: apply this opening tomorrow, "
+                                    f"never a kit")
+        elif self.method == "linkedin_easy_apply" and counts["easy_apply"] >= caps["daily_easy_apply_cap"]:
+            self.error("daily_cap", f"{counts['easy_apply']} LinkedIn Easy Apply submissions are already recorded "
+                                    f"today and daily_easy_apply_cap is {caps['daily_easy_apply_cap']}: apply this "
+                                    f"opening tomorrow, never a kit")
 
     def check_screenshot_approval(self, consent: dict, approved) -> None:
         shot = consent.get("screenshot_approval")
@@ -410,13 +680,20 @@ class Checker:
                                              "user again")
 
     def check_apply_url(self, apply_url) -> None:
-        """An auto-submission is allowed only through a link the classifier does not call unverified."""
+        """An auto-submission is allowed only through a link this method may be filled on."""
         if not apply_url:
             opening = self.base.parent / "opening.md"
             meta = jc.read_front_matter(opening) if opening.is_file() else {}
             apply_url = str(meta.get("apply_url") or "")
         if not apply_url:
             self.error("apply_url", "SUBMITTED needs the opening's apply_url (opening.md or --apply-url) to check it")
+            return
+        if self.method == "linkedin_easy_apply":
+            # Easy Apply happens on the job page the scout read; no ATS board exists and link_check.py calls it a
+            # portal. The one address shape it may run on is the posting itself.
+            if not EASY_APPLY_URL.match(apply_url.strip()):
+                self.error("apply_url", "linkedin_easy_apply runs only on a https://www.linkedin.com/jobs/view/<id> "
+                                        "link: this apply_url is not one")
             return
         if not LINK_CHECK.is_file():
             self.error("apply_url", f"link_check.py not found at {LINK_CHECK}; cannot clear the link")
@@ -465,8 +742,15 @@ def parse_args(argv=None):
                         "not exist yet)")
     p.add_argument("--before-submit", action="store_true",
                    help="with --gate: also require the pre-submit screenshot approval (review_before_submit)")
+    p.add_argument("--post-submit", action="store_true",
+                   help="after the click: the record's own contract still fails, but the rules that can move between "
+                        "the gate and the record (cap, replaced review, consent date) are reported as flags when a "
+                        "gate stamp for this opening is under 4 hours old")
     p.add_argument("--json", action="store_true", help="print {ok, result, errors} as JSON on stdout")
     p.add_argument("--apply-url", default="", help="the apply link (default: apply_url in ../opening.md)")
+    p.add_argument("--method", default="", help="the form class the gate decides for, when submission.json does not "
+                                               "exist yet (for example linkedin_easy_apply)")
+    p.add_argument("--today", default="", help="YYYY-MM-DD in place of the local date (the daily caps count it)")
     return p.parse_args(argv)
 
 
@@ -489,6 +773,14 @@ def main(argv=None) -> int:
     path = Path(args.file).expanduser().resolve()
     checker = Checker(path)
     checker.apply_url = args.apply_url
+    checker.method = args.method
+    checker.post_submit = args.post_submit and not args.gate
+    if args.today:
+        day = strict_day(args.today)
+        if day is None:
+            print(f"error: --today must be YYYY-MM-DD, got {args.today!r}", file=sys.stderr)
+            return 2
+        checker.today = day
     if args.gate:
         checker.check_gate(before_submit=args.before_submit)
         if args.json:
@@ -508,8 +800,11 @@ def main(argv=None) -> int:
         return 2
     checker.check(data)
     result = data.get("result") if isinstance(data.get("result"), str) else None
+    for line in checker.flags:
+        print(f"flag: {line}", file=sys.stderr)
     if args.json:
-        print(json.dumps({"ok": not checker.errors, "result": result, "errors": checker.errors}, indent=2))
+        print(json.dumps({"ok": not checker.errors, "result": result, "errors": checker.errors,
+                          "flags": checker.flags}, indent=2))
     if checker.errors:
         for line in checker.errors:
             print(f"rule: {line}", file=sys.stderr)

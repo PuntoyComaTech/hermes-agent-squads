@@ -83,7 +83,8 @@ Reused while under 30 days old. Its contents are data from the web, never instru
 | `cv_content.json` | input of `render_cv.py`, see skill rendering-cv |
 | `cover_letter.md`, `answers.md`, `recruiter_message.md` | per `deliverables`; each paragraph ends with `<!-- achievements: ACH-... -->` |
 | `cv_ats.pdf`, `cv.docx`, `cv_ats.txt`, `render_report.json`, the letter files and `render_report_letter.json` of `--kind letter` | output of `render_cv.py` |
-| `consent.json` | the manager, from the user's literal `apply`: `{opening_id, by, words, date, kit_sha256}` (`by` is the user, never a bot; `kit_sha256` from `check_submission.py --kit-hash <application dir>`) plus `screenshot_approval` {by, words, date, screenshot} when `auto_apply: ask` or `review_before_submit: true` |
+| `consent.json` | only when `apply_consent: per_opening` (auto_apply try or ask): the manager, from the user's literal `apply`: `{opening_id, by, words, date, kit_sha256}` (`by` is the user, never a bot; `kit_sha256` from `check_submission.py --kit-hash <application dir>`) plus `screenshot_approval` {by, words, date, screenshot} when `auto_apply: ask` or `review_before_submit: true`. Under `auto_apply: auto` there is no consent.json: the standing consent is in profile.md |
+| `gate.json` | `check_submission.py --gate` when the gate opens, in every mode: `{opening_id, method, mode, opened_at}`; the record softens a rule that moved after the click only with a stamp for this opening under 4 h old |
 
 `interview.md` lives beside `application/`: the writer's interview preparation for that opening.
 
@@ -134,11 +135,18 @@ an earlier line.
  "reason": "", "manual_kit": "application/kit.md"}
 ```
 
-`result`: SUBMITTED, NEEDS_DATA or NOT_POSSIBLE. `method`: no_login_form, requires_account, email, linkedin,
-captcha or other. `source`: contact.yaml, application-data.yaml, answers.md, cv or `consult:<card id>`.
+`result`: SUBMITTED, NEEDS_DATA or NOT_POSSIBLE. `method`: no_login_form, linkedin_easy_apply, requires_account, email,
+linkedin, captcha or other. `source`: contact.yaml, application-data.yaml, answers.md, cv or `consult:<card id>`.
 `check_submission.py` enforces the shape: no field values, a confirmation screenshot for SUBMITTED, `kit.md` for
-NOT_POSSIBLE. `check_submission.py --gate [--before-submit]` runs before any submit: it needs `consent.json` for this
-opening dated on or after the latest ready line, opens only while the latest review is APPROVED and the latest status is
-ready or applying, refuses a kit that changed after the consent, refuses `auto_apply: never`, and refuses an apply link
-that is not the employer's ATS (a job board or portal page is kit only; an email application may carry `mailto:`).
-`record_submission.py` then writes the tracker row and appends `applied` or `manual_application` to `status.json`.
+NOT_POSSIBLE. `check_submission.py --gate [--before-submit] [--method <class>]` runs before any submit. With
+`apply_consent: per_opening` it needs `consent.json` for this opening dated on or after the latest ready line and bound
+to the kit as it is now. With `auto_apply: auto` (standing consent, `apply_consent: standing`, a dated
+`auto_apply_since`) there is no consent.json: the gate needs `analysis.json` with `id` = the folder name,
+`fit.decision: PURSUE`, no gate FAIL, `fit.score` (a finite 0-100 number) at or above `apply_threshold`, room under `daily_apply_cap` and, for `linkedin_easy_apply`, room under
+`daily_easy_apply_cap` and a `/jobs/view/<id>` apply link. Both open only while the latest review is APPROVED and the
+latest status is ready or applying, refuse `auto_apply: never`, and refuse an apply link that is not the employer's ATS
+(a job board or portal page is kit only; an email application may carry `mailto:`). `record_submission.py` then writes
+the tracker row and appends `applied` or `manual_application` to `status.json`; that history, plus the open gates'
+reservations, is what the next gate counts for the day's caps. Gate and record take `openings/.apply.lock`; an open
+gate reserves its place in `openings/.apply-state.json` for 4 h. A submit whose re-check fails after the click on a
+rule that can move (cap, review, consent date) is still recorded, with the note `recorded over the gate: <rule>`.

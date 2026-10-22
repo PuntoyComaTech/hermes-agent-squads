@@ -45,7 +45,7 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
 
 ## Rules
 
-Enforced by `squadctl` and `skill_lint.py`.
+`squadctl` and `skill_lint.py` enforce what they can check (toolsets, schema, skill shape); the rest is yours.
 
 - A bot exists only for a permission boundary, independent judgment, a
   different reasoning effort, or context size. Everything else is a skill,
@@ -67,6 +67,11 @@ Enforced by `squadctl` and `skill_lint.py`.
   with `squadctl apply <key> --with <name>`.
 - Credentials: env names in `passthrough` (never values), only on the bot that
   calls that API, never on a bot with `web` or `browser`.
+- A bot that browses signed in: `shared_browser: true` (squadctl requires the
+  `browser` toolset). Give it no connector and no credentials yourself. The
+  service already makes the Google mail, files and account hosts unresolvable;
+  a `website_blocklist` only catches URLs written literally in a call. The owner signs in once per site with `scripts/hpy shared_browser.py
+  login <url>` (hermes-platform `references/browser.md`).
 - CLIs a bot drives: `requires.apps`. `squadctl doctor` reports each one
   installed and logged in (`gh auth login`, `cf auth login`, `wrangler login`,
   once, by the user) and never prints a probe's output.

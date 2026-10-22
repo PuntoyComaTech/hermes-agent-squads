@@ -1834,3 +1834,135 @@ def test_an_unattended_upgrade_hands_the_keys_to_the_bots(env, capsys, monkeypat
     assert "PROV_REVIEW_API_KEY" in env_names_of(env.root / "profiles" / "web-qa" / ".env")
     assert not any("credentials" in p for p in out["pending"]), out["pending"]
     assert "sk-root" not in json.dumps(out)
+
+
+def test_an_empty_website_blocklist_lifts_the_block_an_earlier_version_installed(env, capsys):
+    """Jobs 4.1 lets the scout open LinkedIn: removing the key from the manifest used to leave the old domain in the
+    installed profile, so the scout stayed blocked after the update. An explicit empty list clears it."""
+    def block(domains):
+        return lambda spec: spec["bots"]["web-qa"].__setitem__("website_blocklist", domains)
+
+    env.squad("web", mutate=block(["linkedin.com"]))
+    env.run("apply", "web", capsys=capsys)
+    held = env.config("web-qa")["security"]["website_blocklist"]
+    assert held["enabled"] is True and held["domains"] == ["linkedin.com"]
+    env.squad("web", mutate=block([]))
+    env.run("apply", "web", capsys=capsys)
+    lifted = env.config("web-qa")["security"]["website_blocklist"]
+    assert lifted["enabled"] is False and lifted["domains"] == []
+    assert "website_blocklist" not in env.config("web-frontend").get("security", {})   # a bot that never named it is untouched
+
+
+# --- shared browser --------------------------------------------------------------------------------------------
+
+def _shared(spec):
+    spec["bots"]["web-qa"]["shared_browser"] = True
+
+
+def _service_calls(monkeypatch, listening=None, status_extra=None):
+    """Stub the shared-browser service script: record each command, report `listening` for status."""
+    seen = []
+
+    def fake(argv, timeout=60):
+        seen.append(argv[2:])
+        if argv[2:] == ["status"]:
+            return subprocess.CompletedProcess(argv, 0,
+                                               json.dumps({"listening": listening, **(status_extra or {})}), "")
+        return subprocess.CompletedProcess(argv, 0, "{}", "")
+    monkeypatch.setattr(squadctl, "run_quiet", fake)
+    return seen
+
+
+def test_shared_browser_bot_gets_cdp_url_plugin_and_the_manager_a_3_hourly_sweep(env, capsys, monkeypatch):
+    """A bot that drives the shared signed-in browser: cdp_url points at it, the real-profile copy is off (it would
+    win over cdp_url and fail while the owner's browser is open), the tab plugin is installed WITH tabs.py (the
+    plugin imports it) and enabled, and the manager gets the no-agent sweep with its helper shipped beside it."""
+    seen = _service_calls(monkeypatch)
+    env.squad("web", _shared)
+    _, out = env.run("apply", "web", capsys=capsys)
+    cfg = env.config("web-qa")
+    assert cfg["browser"]["cdp_url"] == "http://127.0.0.1:9333"
+    assert cfg["browser"]["use_real_profile"] is False
+    assert "shared-browser-tabs" in cfg["plugins"]["enabled"]
+    plug = env.root / "profiles" / "web-qa" / "plugins" / "shared-browser-tabs"
+    assert sorted(p.name for p in plug.iterdir()) == ["__init__.py", "plugin.yaml", "tabs.py"]
+    assert (plug / "tabs.py").read_text() == (SCRIPTS / "shared_browser_tabs.py").read_text()
+    assert "browser" not in (env.config("web-frontend").get("browser") or {}).get("cdp_url", "")
+    assert "shared-browser-tabs" not in (env.config("web-frontend").get("plugins") or {}).get("enabled", [])
+    sweep = [j for j in env.jobs("web") if j["name"] == "web-browser-sweep"]
+    assert len(sweep) == 1 and sweep[0]["no_agent"] and sweep[0]["schedule"]["expr"] == "0 */3 * * *"
+    scripts = env.root / "profiles" / "web" / "scripts"
+    assert (scripts / "shared_browser_sweep.py").is_file() and (scripts / "shared_browser_tabs.py").is_file()
+    assert ["install"] in seen and out["shared_browser"].startswith("installed on http://127.0.0.1:9333")
+    assert not any("shared-browser-tabs is enabled but not in the manifest" in n
+                   for b in out["bots"] for n in b.get("notes", []))
+
+
+def test_shared_browser_second_apply_is_a_no_op_and_dropping_the_flag_undoes_it(env, capsys, monkeypatch):
+    seen = _service_calls(monkeypatch, listening={"browser": "Chrome/145", "pages": 1})
+    env.squad("web", _shared)
+    env.run("apply", "web", capsys=capsys)
+    n = len(env.calls())
+    _, again = env.run("apply", "web", capsys=capsys)
+    assert all(b["status"] == "unchanged" for b in again["bots"]), again["bots"]
+    assert env.writes_since(n) == []
+    assert ["install"] not in seen, "a listening browser is never reinstalled"
+    env.squad("web")  # flag removed
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert not (env.config("web-qa").get("browser") or {}).get("cdp_url")
+    assert "shared-browser-tabs" not in env.config("web-qa")["plugins"]["enabled"]
+    assert [j for j in env.jobs("web") if j["name"] == "web-browser-sweep"] == []
+
+
+def test_shared_browser_without_the_browser_toolset_is_refused(env, capsys):
+    env.squad("web", lambda s: s["bots"]["web-deployer"].update(shared_browser=True))
+    _, out = env.run("plan", "web", expect=1, capsys=capsys)
+    assert "web-deployer sets shared_browser without the browser toolset" in out["error"]
+
+
+def test_shared_browser_on_a_manager_without_the_browser_toolset_is_refused(env, capsys, monkeypatch):
+    """#18: the check looked at the manifest's toolsets list and skipped managers, so a manager whose real toolset
+    set has no browser passed and got cdp_url plus a plugin it cannot use. It must judge the toolsets the bot gets."""
+    monkeypatch.setattr(squadctl.Ctx, "default_toolsets",
+                        lambda self: {"terminal", "file", "skills", "web", "vision", "delegation", "session_search",
+                                      "clarify", "cronjob", "kanban", "memory", "code_execution", "todo"})
+    env.squad("web", lambda s: s["bots"]["web"].update(shared_browser=True))
+    _, out = env.run("plan", "web", expect=1, capsys=capsys)
+    assert "web sets shared_browser without the browser toolset" in out["error"]
+
+
+def test_a_manager_whose_toolsets_include_the_browser_may_share_the_browser(env, capsys, monkeypatch):
+    _service_calls(monkeypatch)
+    env.squad("web", lambda s: s["bots"]["web"].update(shared_browser=True))
+    _, plan = env.run("plan", "web", capsys=capsys)
+    assert plan["shared_browser"], "a manager with the browser toolset in its base set is fine"
+
+
+def test_shared_browser_apply_reinstalls_a_stale_job(env, capsys, monkeypatch):
+    """The service is listening but its installed job differs from the current command line (an older plist: no
+    Google containment flag, a moved Chromium). Apply must reinstall it, not report it as running."""
+    seen = _service_calls(monkeypatch, listening={"browser": "Chrome/145", "pages": 1}, status_extra={
+        "plist_current": False, "service_installed": True})
+    env.squad("web", _shared)
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert ["install"] in seen, seen
+    assert out["shared_browser"].startswith("reinstalled on http://127.0.0.1:9333")
+
+
+def test_shared_browser_plan_says_it_would_reinstall_a_stale_job(env, capsys, monkeypatch):
+    seen = _service_calls(monkeypatch, listening={"browser": "Chrome/145", "pages": 1}, status_extra={
+        "plist_current": False, "service_installed": True})
+    env.squad("web", _shared)
+    _, plan = env.run("plan", "web", capsys=capsys)
+    assert "would reinstall" in plan["shared_browser"] and ["install"] not in seen
+
+
+def test_the_builder_never_gets_the_users_real_profile(env, capsys):
+    """The owner's real-profile consent is mirrored to squad bots, never to the builder: a builder chat that browsed
+    there opened the owner's personal sessions inside a profile copy and left the owner's tabs in the wrong browser."""
+    (env.root / "config.yaml").write_text("browser:\n  use_real_profile: true\n")
+    builder = env.seed_builder()
+    (builder / "config.yaml").write_text("model: {default: seed}\nbrowser:\n  use_real_profile: false\n")
+    env.squad("builder")
+    _, plan = env.run("plan", "--self", capsys=capsys)
+    assert "browser.use_real_profile" not in json.dumps(plan)  # squad bots: the real-profile test above

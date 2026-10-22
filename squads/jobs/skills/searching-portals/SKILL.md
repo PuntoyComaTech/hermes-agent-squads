@@ -7,8 +7,9 @@ description: "Searches job portals and normalises the results. Use when a search
 
 `scripts/portals.py` runs every enabled portal CLI and returns one result shape for all of them. Each portal is a
 directory under `scripts/` with a `portal.json` manifest and its own CLI, so a new board is a new directory, never an
-edit to the script. Shipped: `linkedin` (public LinkedIn listings, needs a place) and `freehire` (freehire.me, technology
-roles, place filters as facets).
+edit to the script. Five portals ship: `linkedin` (public LinkedIn listings, needs a place) and `freehire` (freehire.me,
+technology roles, place filters as facets) on bun, plus `computrabajo`, `elempleo` and `talent` (Colombian listings) on
+python3 with the standard library only. `references/shipped-portals.md` has each one's flags and quirks.
 
 ## When to Use
 
@@ -65,13 +66,14 @@ roles, place filters as facets).
 - A flag value that is empty or starts with `-` is refused with `BAD_ARG`, never read as "no filter".
 - A null `date` stays null. Do not infer a posting date from relative text such as "3 days ago" or from result order.
 - The portals need no credentials, and the script never reads `.env` files or prints contact details. Do not add a key flag.
-- The squad browser never opens linkedin.com. The LinkedIn CLI reads LinkedIn's public guest listings only, never a
-  logged-in page. Keep volume to a handful of searches per run.
+- The LinkedIn CLI reads LinkedIn's public guest listings only, never a logged-in page. Keep volume to a handful of
+  searches per run. Signed-in LinkedIn pages are read only by jobs-scout through browsing-linkedin.
 - `JOBS_BLOCKLIST` (comma-separated hosts in the environment) refuses a portal: a default search lists it in
   `meta.skipped` with `BLOCKED`, a named `--portal` fails with `BLOCKED`, and `detail` refuses with `BLOCKED`. The
-  built-in linkedin.com entry of the browser and fetch tools does not apply here: the portal CLI is the sanctioned
-  reader of public LinkedIn listings. Policy in `finding-jobs/references/intake-safety.md`.
-- Both CLIs run on bun. On `BUN_MISSING`, report that portal as not searched. The `BUN` variable sets an explicit path.
+  linkedin.com entry of the fetch tool (`fetch_page.py`) does not apply to the portal CLI: it is the sanctioned reader
+  of public LinkedIn listings. Policy in `finding-jobs/references/intake-safety.md`.
+- `linkedin` and `freehire` run on bun; `computrabajo`, `elempleo` and `talent` run on python3 (standard library only).
+  On `BUN_MISSING`, report the bun portals as not searched. The `BUN` variable sets an explicit path.
 - Mass-posting consolidation and closed-at-source decisions belong to finding-jobs. This skill reports what the portals
   returned.
 

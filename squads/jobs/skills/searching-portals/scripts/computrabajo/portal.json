@@ -1,0 +1,33 @@
+{
+  "name": "computrabajo",
+  "description": "Computrabajo Colombia: public job listings by keyword and place, one request per page.",
+  "hosts": [
+    "computrabajo.com"
+  ],
+  "url_hosts": [
+    "computrabajo.com"
+  ],
+  "enabled": true,
+  "markets": [
+    "co"
+  ],
+  "cmd": [
+    "{python}",
+    "{dir}/cli.py"
+  ],
+  "search_flags": {
+    "query": "--query",
+    "location": "--location",
+    "jobage": "--jobage",
+    "limit": "--limit",
+    "page": "--page",
+    "format": "--format"
+  },
+  "search_defaults": [],
+  "required_search": [
+    "query"
+  ],
+  "example_query": "analista de datos",
+  "example_location": "Bogotá",
+  "retry_query": "ingeniero"
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""File one inbox card per project for jobs-writer when its tracked applications need attention (cron, no agent).
+"""File one inbox card per project for jobs-inbox when its tracked applications need attention (cron, no agent).
 
 Every project of the manager is checked, or only --project. Each project reads its own `<project>/tracker.csv` through
 the squad's `tracker.py followups` and `tracker.py stale`. Two kinds of item are filed:
@@ -9,13 +9,15 @@ the squad's `tracker.py followups` and `tracker.py stale`. Two kinds of item are
   `stale_reported` on the row, and no later card names it again until the user closes the row (a closed status
   leaves the stale list).
 
-A due day files one jobs-writer card per project (skill triaging-inbox, body `Mode: INBOX`) with the idempotency key
+A due day files one jobs-inbox card per project (skill triaging-inbox, body `Mode: INBOX`) with the idempotency key
 `jobs:inbox:<project>:<YYYY-MM-DD>`, so a project never gets two cards on one day. Nothing due means nothing is filed.
 `profile.md -> search: paused` pauses that project too.
 
 stdout is what the cron delivers. Nothing is printed when a card is filed, nothing is due, the search is paused,
 or the project has no profile.md; `--json` prints {"results": [one decision per project]} (reason "no tracker yet"
-for a project without tracker.csv). A hermes or tracker failure prints, the other projects still run, and exit is 1.
+for a project without tracker.csv). A missing inbox profile is a setup gap, not an error: nothing is filed, no
+stale row is marked `stale_reported`, and one line says jobs-inbox is not installed. A hermes or tracker failure
+prints, the other projects still run, and exit is 1.
 """
 from __future__ import annotations
 
@@ -115,6 +117,17 @@ def mark_reported(tracker: Path, folder: str, fresh: list, today: str) -> None:
                               "--today", today])
 
 
+def inbox_missing(assignee: str) -> str | None:
+    """Why the inbox bot cannot take a card, or None: its profile is not installed under the Hermes root.
+
+    Without `squadctl apply jobs --with jobs-inbox` the bot does not exist, and `kanban create` accepts any assignee
+    string, so a card filed for it would sit on the board unread forever.
+    """
+    if (ss.hermes_root() / "profiles" / assignee).is_dir():
+        return None
+    return f"{assignee} is not installed under {ss.hermes_root() / 'profiles'}"
+
+
 def project_decision(args, slug: str, folder: str, today: str) -> dict:
     """One project's decision: file its card, or say why not."""
     state = ss.search_state(Path(folder) / "profile.md")
@@ -126,6 +139,11 @@ def project_decision(args, slug: str, folder: str, today: str) -> dict:
     chase, fresh = decide(due(tracker, folder, today))
     if not chase and not fresh:
         return {"project": slug, "filed": False, "reason": "nothing due"}
+    missing = inbox_missing(args.writer)
+    if missing:
+        # Nothing to file with, so nothing is filed and no row is marked: the stale rows must be reported by the
+        # first run after jobs-inbox is installed.
+        return {"project": slug, "filed": False, "reason": f"inbox not installed: {missing}"}
     card = file_card(args, slug, folder, chase, fresh, today)
     if not args.dry_run:
         mark_reported(tracker, folder, fresh, today)
@@ -141,7 +159,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project", help="project slug (default: every project of the manager)")
     parser.add_argument("--board", default="jobs", help="kanban board slug (default jobs)")
     parser.add_argument("--manager", default="jobs", help="manager profile that files the card (default jobs)")
-    parser.add_argument("--writer", default="jobs-writer", help="assignee of the inbox card (default jobs-writer)")
+    parser.add_argument("--inbox", "--writer", dest="writer", default="jobs-inbox",
+                        help="assignee of the inbox card (default jobs-inbox; --writer is the old name)")
     parser.add_argument("--tracker", type=Path, help="tracker.py to run (default: the installed squad copy)")
     parser.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"), help="hermes executable")
     parser.add_argument("--today", help="YYYY-MM-DD in place of the local date (tests and replays)")
@@ -183,6 +202,11 @@ def main(argv: list[str] | None = None) -> int:
             failed = True
             print(f"jobs-followups: {exc}")
             results.append({"project": slug, "filed": False, "reason": "error", "message": str(exc)})
+    missing = next((str(r.get("reason", "")).partition("inbox not installed: ")[2] for r in results
+                    if str(r.get("reason", "")).startswith("inbox not installed")), None)
+    if missing and not args.json:
+        # One line, whatever the number of projects: the cron delivers stdout, and this is a setup gap, not work.
+        print(f"jobs-followups: {missing}; nothing filed. Install it: squadctl apply jobs --with {args.writer}")
     if args.json:
         print(json.dumps({"results": results}, indent=2, ensure_ascii=False))
     return 1 if failed else 0

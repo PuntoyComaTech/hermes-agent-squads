@@ -1,8 +1,8 @@
 schema: 2
 key: jobs
 name: Jobs
-description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews and tracks tailored applications"
-version: 4.0.0
+description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
+version: 4.1.0
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
 section: {id: jobs, name: Jobs}
@@ -30,27 +30,33 @@ bots:
   jobs-scout:
     role: worker
     title: Jobs scout
-    description: "Searches portals and career pages, gates and ranks openings, writes PURSUE/WATCH/REJECT analyses"
+    description: "Searches portals, LinkedIn hiring posts and career pages, gates and ranks openings, writes PURSUE/WATCH/REJECT analyses"
     lane: research
     toolsets: [file, skills, kanban, todo, web, browser, delegation]
+    shared_browser: true   # the signed-in browser: LinkedIn hiring posts, read-only
     skills:
-      squad: [finding-jobs, searching-portals, ranking-openings, analyzing-jobs, jobs-contract]
+      squad: [finding-jobs, searching-portals, browsing-linkedin, recommending-platforms, ranking-openings, analyzing-jobs,
+              jobs-contract]
       keep: [bundled:blocked-page-recovery]
     plugins: {enable: [disk-cleanup]}
-    website_blocklist: [linkedin.com]
+    # The shared browser is signed in to Google. Its service cannot resolve these hosts at all; this list only
+    # catches URLs written literally in a browser_exec call.
+    website_blocklist: &google_private [mail.google.com, drive.google.com, docs.google.com, myaccount.google.com,
+                                        pay.google.com, photos.google.com, calendar.google.com, contacts.google.com]
     requires: {apps: [bun]}
   jobs-writer:
     role: worker
     title: Jobs writer
-    description: "CV, letter, answers and interview prep from verified achievements; renders PDF and DOCX; reads job mail"
+    description: "CV, letter, answers and interview prep from verified achievements; renders PDF and DOCX; optimises the user's own LinkedIn profile"
     lane: manager
-    toolsets: [file, skills, kanban, todo, terminal, connections]
+    toolsets: [file, skills, kanban, todo, terminal, browser]
+    shared_browser: true   # the user's own LinkedIn profile only (optimizing-profiles)
     withhold: [web]
     skills:
-      squad: [writing-applications, rendering-cv, preparing-interviews, triaging-inbox, jobs-contract]
+      squad: [writing-applications, optimizing-profiles, rendering-cv, preparing-interviews, jobs-contract]
       keep: [bundled:humanizer, bundled:docx, bundled:pdf]
     plugins: {enable: [disk-cleanup]}
-    connectors: {enabled: true, suggest: [gmail]}
+    website_blocklist: *google_private
   jobs-reviewer:
     role: worker
     title: Jobs reviewer
@@ -63,17 +69,34 @@ bots:
   jobs-applier:
     role: worker
     title: Jobs applier
-    description: "Submits simple forms only after the user's apply; otherwise prepares a manual kit"
+    description: "Submits approved applications within the user's apply mode and daily caps, LinkedIn Easy Apply included; otherwise prepares a manual kit"
     lane: manager
     toolsets: [file, skills, kanban, todo, browser, terminal]
+    shared_browser: true
     skills: {squad: [submitting-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
-    website_blocklist: [linkedin.com]
+    website_blocklist: *google_private
+  jobs-inbox:
+    role: worker
+    title: Jobs inbox
+    description: "Reads job mail through the Gmail connector: replies, follow-up drafts and verification codes; no web, no browser"
+    lane: digest
+    optional: true   # needs a Gmail connector account: squadctl apply jobs --with jobs-inbox
+    toolsets: [file, skills, kanban, todo, terminal, connections]
+    withhold: [web, delegation, code_execution]
+    skills: {squad: [triaging-inbox, jobs-contract]}
+    plugins: {enable: [disk-cleanup]}
+    connectors: {enabled: true, suggest: [gmail]}
 chains:
   application:
     - {stage: analyze, assignee: jobs-scout, skill: analyzing-jobs, lane: review}
     - {stage: write, assignee: jobs-writer, skill: writing-applications}
     - {stage: review, assignee: jobs-reviewer, skill: reviewing-applications}
     - {stage: digest, assignee: jobs, skill: leading-job-search}
+  profile:
+    - {stage: platforms, assignee: jobs-scout, skill: recommending-platforms}
+    - {stage: market, assignee: jobs-scout, skill: browsing-linkedin}
+    - {stage: optimize, assignee: jobs-writer, skill: optimizing-profiles}
+    - {stage: present, assignee: jobs, skill: leading-job-search}
 asks: ["set up my profile", "<job link>", "rank my openings", "apply to <id>", "any replies?", "show my pipeline",
-       "what should I learn?", "pause search"]
+       "what should I learn?", "optimize my LinkedIn", "which job sites fit my city?", "pause search"]

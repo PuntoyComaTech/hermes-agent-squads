@@ -1,0 +1,8 @@
+name: shared-browser-tabs
+version: 1.1.0
+description: "One tab per bot run on a shared signed-in browser (browser.cdp_url on loopback); the turn's tabs and harness daemons are closed when it ends. No agent action required."
+author: PuntoyComaTech
+provides_hooks:
+  - pre_tool_call
+  - post_tool_call
+  - on_session_end

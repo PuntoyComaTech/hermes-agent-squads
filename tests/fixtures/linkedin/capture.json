@@ -1,0 +1,31 @@
+{
+ "url": "https://www.linkedin.com/in/ana-example/?isSelfProfile=true",
+ "name": "Ana Example",
+ "headline": "Data Analyst | SQL, Python, Power BI | weekly reporting from 6 hours to 20 minutes",
+ "location": "Lima, Peru",
+ "about": "I build the reporting layer retail teams actually use.\n\nMost teams know their numbers are late and do not know which query made them late. I map the chain from the source system to the slide, find the step that costs hours, and replace it with one scheduled pipeline.\n\nMy stack: SQL, Python, Power BI, Excel when the client lives in Excel.\n\nWhat I want next: a data team where the reporting is boring because it runs itself.",
+ "featured": [],
+ "experience": {
+  "found": true,
+  "groups": [
+   {
+    "all": ["Example Retail", "Full-time · 2 yrs 7 mos", "Lima, Peru", "Data Analyst", "Mar 2024 - Present · 2 yrs 7 mos", "Skills: SQL, Power BI, +4 skills"],
+    "company": "Example Retail",
+    "roles": [["Data Analyst", "Mar 2024 - Present · 2 yrs 7 mos", "Skills: SQL, Power BI, +4 skills"]]
+   },
+   {
+    "all": ["Example Logistics", "Full-time · 1 yr 5 mos", "Callao, Peru", "Reporting Analyst", "Oct 2022 - Feb 2024 · 1 yr 5 mos", "Rebuilt the weekly operations report as a scheduled query and a single dashboard.", "Junior Analyst", "Jan 2022 - Sep 2022 · 9 mos", "Skills: Excel, SQL, +2 skills"],
+    "company": "Example Logistics",
+    "roles": [
+     ["Reporting Analyst", "Oct 2022 - Feb 2024 · 1 yr 5 mos", "Rebuilt the weekly operations report as a scheduled query and a single dashboard."],
+     ["Junior Analyst", "Jan 2022 - Sep 2022 · 9 mos", "Skills: Excel, SQL, +2 skills"]
+    ]
+   }
+  ]
+ },
+ "education": {
+  "found": true,
+  "items": [["Example University", "Statistics, BSc", "Mar 2016 – Dec 2021", "Thesis on retail demand forecasting.", "Skills: Python, R, +3 skills"]]
+ },
+ "skills": {"found": true, "count": 22, "items": ["SQL", "Python", "Power BI", "Excel", "dbt", "Airflow", "Git", "Statistics"]}
+}

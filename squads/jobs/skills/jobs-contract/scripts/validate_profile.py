@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from datetime import date, datetime
@@ -31,8 +32,13 @@ REQUIRED_PROFILE = ("search", "occupation", "target_roles", "seniority", "years_
                     "search_keywords", "user_language", "timezone", "auto_apply", "apply_consent", "candidate",
                     "market", "eligibility")
 SEARCH_VALUES = ("active", "paused")
-AUTO_APPLY = ("never", "ask", "try")
-APPLY_CONSENT = ("per_opening",)
+AUTO_APPLY = ("never", "ask", "try", "auto")
+APPLY_CONSENT = ("per_opening", "standing")
+# auto_apply picks the consent shape: standing only under auto, one opening at a time otherwise.
+CONSENT_FOR = {"try": "per_opening", "ask": "per_opening", "auto": "standing"}
+DEFAULT_APPLY_CAP = 10
+DEFAULT_EASY_APPLY_CAP = 5
+DEFAULT_APPLY_THRESHOLD = 70
 STAGES = ("first_job", "junior", "mid", "senior", "lead", "career_change", "returning")
 WORK_MODES = ("remote_global", "remote_region", "remote_country", "hybrid", "onsite")
 ELIGIBILITY = ("citizen", "resident", "permit", "needs_sponsorship")
@@ -188,6 +194,23 @@ def when_of(value):
         return None
 
 
+def day_of(report, file, key, value):
+    """A YYYY-MM-DD day from a YAML date or quoted text; None with the finding recorded when it is not one."""
+    if isinstance(value, datetime):
+        value = value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value if value is not None else "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        report.add(file, key, "must be a date, YYYY-MM-DD")
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        report.add(file, key, "must be a date, YYYY-MM-DD")
+        return None
+
+
 def zone_problem(name):
     """None when name is an IANA zone; otherwise why it is not."""
     try:
@@ -203,7 +226,7 @@ def zone_problem(name):
 
 # --- profile.md -------------------------------------------------------------------------------------------------
 
-def check_profile(report, meta):
+def check_profile(report, meta, today=None):
     for key in REQUIRED_PROFILE:
         if key not in meta:
             report.add(PROFILE, key, "required key is missing")
@@ -244,6 +267,7 @@ def check_profile(report, meta):
         report.add(PROFILE, "seniority_margin", "must be a number of years from 0 to 5")
     flag_of(report, PROFILE, "reject_on_missing_credentials", meta.get("reject_on_missing_credentials"))
     flag_of(report, PROFILE, "plans_to_relocate", meta.get("plans_to_relocate"))
+    flag_of(report, PROFILE, "linkedin_browse", meta.get("linkedin_browse"))
 
     lang = text_of(report, PROFILE, "user_language", meta.get("user_language"))
     if lang and not LANG_CODE.match(lang):
@@ -266,7 +290,35 @@ def check_profile(report, meta):
     if mode == "ask" and review is not True:
         report.add(PROFILE, "review_before_submit",
                    "must be true when auto_apply is ask: the user checks the screenshot before the submit")
-    one_of(report, PROFILE, "apply_consent", meta.get("apply_consent"), APPLY_CONSENT)
+    consent = one_of(report, PROFILE, "apply_consent", meta.get("apply_consent"), APPLY_CONSENT)
+    if mode in CONSENT_FOR and consent is not None and consent != CONSENT_FOR[mode]:
+        report.add(PROFILE, "apply_consent",
+                   f"must be {CONSENT_FOR[mode]} when auto_apply is {mode}: "
+                   + ("auto is the one standing consent, recorded once here" if mode == "auto"
+                      else "try and ask submit on the user's apply for each opening, never on standing permission"))
+    if mode == "auto":
+        if review is True:
+            report.add(PROFILE, "review_before_submit",
+                       "must be false when auto_apply is auto: nobody approves the screenshot before an automatic "
+                       "submit (use auto_apply: ask when the user wants to see each one)")
+        if "auto_apply_since" not in meta:
+            report.add(PROFILE, "auto_apply_since",
+                       "required key is missing: the day the user agreed to automatic applications")
+        else:
+            since = day_of(report, PROFILE, "auto_apply_since", meta.get("auto_apply_since"))
+            if since is not None and today is not None and since > today:
+                report.add(PROFILE, "auto_apply_since", f"is {since}, after today: the consent is not in force yet")
+    for key, default in (("daily_apply_cap", DEFAULT_APPLY_CAP), ("daily_easy_apply_cap", DEFAULT_EASY_APPLY_CAP)):
+        cap = meta.get(key)
+        if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 1):
+            report.add(PROFILE, key, f"must be a whole number of applications from 1 up (default {default})")
+    threshold = meta.get("apply_threshold")
+    if threshold is not None and (isinstance(threshold, bool) or not isinstance(threshold, (int, float))
+                                  or not math.isfinite(threshold) or not 0 <= threshold <= 100):
+        # The applier compares fit.score with this number: NaN, Infinity or 1e9 would open every gate.
+        report.add(PROFILE, "apply_threshold",
+                   f"must be a finite number from 0 to 100 (default {DEFAULT_APPLY_THRESHOLD}): the fit score an "
+                   f"automatic submit needs")
 
     for phrase in text_list(report, PROFILE, "deal_breakers", meta.get("deal_breakers")):
         for name, words in MODE_WORDS.items():
@@ -572,13 +624,13 @@ def main(argv=None) -> int:
 
     report, loaded = Report(), []
     meta = load_file(report, folder, PROFILE, loaded)
-    prof = check_profile(report, meta) if meta is not None else None
+    prof = check_profile(report, meta, today) if meta is not None else None
     achievements = load_file(report, folder, ACHIEVEMENTS, loaded)
     computed = check_achievements(report, achievements, today, prof) if achievements is not None else {}
     contact = load_file(report, folder, CONTACT, loaded)
     if contact is not None:
         check_contact(report, contact)
-    required = bool(prof and prof["auto_apply"] in ("try", "ask"))
+    required = bool(prof and prof["auto_apply"] in ("try", "ask", "auto"))
     application = load_file(report, folder, APPLICATION, loaded, required=required)
     if application is not None:
         check_application(report, application, prof["countries"] if prof else [], required)

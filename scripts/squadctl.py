@@ -58,6 +58,12 @@ SHA_MARK = ".squad-sha"
 OWNED_FILE = ".squad-installed.json"
 STALE_SECONDS = 24 * 3600
 PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
+# `shared_browser: true` bots drive one signed-in headless browser (scripts/shared_browser.py) through
+# browser.cdp_url; the shared-browser-tabs plugin gives each run its own tab and closes it at turn end, and a
+# no-agent sweep on the squad manager closes what a crashed run left (every 3 hours).
+SHARED_BROWSER_URL = "http://127.0.0.1:9333"
+SHARED_BROWSER_PLUGIN = "shared-browser-tabs"
+SHARED_BROWSER_SWEEP = {"schedule": "0 */3 * * *", "script": "shared_browser_sweep.py", "agent": False}
 
 
 class Fail(Exception):
@@ -598,6 +604,9 @@ def validate_spec(ctx: Ctx, spec: dict, key: str) -> list[str]:
         used |= {j["agent"]["lane"] for j in (bot.get("cron") or {}).values() if isinstance(j.get("agent"), dict)}
         if bot["role"] == "worker" and not name.startswith(f"{spec['key']}-"):
             out.append(f"worker {name} must be prefixed {spec['key']}-")
+        if bot.get("shared_browser") and "browser" not in bot_toolsets(ctx, bot):
+            # The toolset the bot actually gets (a manager's base set included), not only the manifest's list.
+            out.append(f"{name} sets shared_browser without the browser toolset")
         if set(bot["toolsets"]) & always:
             out.append(f"{name} uses always-disabled toolsets {sorted(set(bot['toolsets']) & always)}")
         held = set(bot.get("withhold") or [])
@@ -1095,14 +1104,22 @@ class Applier:
         if "web" in toolsets:
             plan.append(["web.keyless_fallback", True, False])
         real = self.ctx.real_profile()
-        if "browser" in toolsets and real:
-            # the user's consent, mirrored; never turned on when the user has not, never turned off here
+        if "browser" in toolsets and real and not bot.get("shared_browser") and not self.self_mode:
+            # the user's consent, mirrored; never turned on when the user has not, never turned off here.
+            # A shared_browser bot uses the signed-in shared browser instead: a profile copy would win over cdp_url.
+            # The builder never browses as the user: its chats would open the owner's sessions in a profile copy.
             plan.append(["browser.use_real_profile", True, False])
             if real.get("pin"):
                 plan.append(["browser.real_profile_pin", real["pin"], False])
-        if bot.get("website_blocklist"):
-            plan += [["security.website_blocklist.enabled", True, False],
-                     ["security.website_blocklist.domains", list(bot["website_blocklist"]), False]]
+        if "website_blocklist" in bot:  # an explicit empty list lifts a blocklist an earlier version installed
+            domains = list(bot.get("website_blocklist") or [])
+            plan += [["security.website_blocklist.enabled", bool(domains), False],
+                     ["security.website_blocklist.domains", domains, False]]
+        if bot.get("shared_browser"):
+            # a real-profile copy would win over cdp_url and fail whenever the owner's browser is open
+            plan += [["browser.cdp_url", SHARED_BROWSER_URL, False], ["browser.use_real_profile", False, False]]
+        elif (live or {}).get("browser", {}).get("cdp_url") == SHARED_BROWSER_URL:
+            plan.append(["browser.cdp_url", "", False])  # the manifest dropped shared_browser
         return plan
 
     def fallback_plan(self) -> list:
@@ -1140,7 +1157,10 @@ class Applier:
 
     def cron_plan(self, name: str, bot: dict, notes: list[str]) -> dict:
         jobs = {}
-        for job_key, j in (bot.get("cron") or {}).items():
+        crons = dict(bot.get("cron") or {})
+        if name == self.spec["manager"] and any(b.get("shared_browser") for b in self.spec["bots"].values()):
+            crons.setdefault("browser-sweep", SHARED_BROWSER_SWEEP)
+        for job_key, j in crons.items():
             full = job_key if job_key.startswith(f"{self.key}-") else f"{self.key}-{job_key}"
             args = j.get("args") or []
             args = shlex.split(args) if isinstance(args, str) else list(args)
@@ -1440,6 +1460,36 @@ class Applier:
                 if not self.dry:
                     ctx.hermes("plugins", "disable", pname, profile=name)
         acts += self.provider_plugin(name, bot)
+        acts += self.shared_browser_plugin(name, bot)
+        return acts
+
+    def shared_browser_plugin(self, name: str, bot: dict) -> list[str]:
+        """`shared_browser: true`: install the repo's shared-browser-tabs plugin into the bot's home and enable it;
+        a bot that dropped the flag gets it disabled (the files stay, as for any plugin)."""
+        home = self.ctx.home(name)
+        enabled = list((((read_yaml(home / "config.yaml") or {}).get("plugins") or {}).get("enabled")) or [])
+        if not bot.get("shared_browser"):
+            if SHARED_BROWSER_PLUGIN in enabled:
+                if not self.dry:
+                    self.ctx.hermes("plugins", "disable", SHARED_BROWSER_PLUGIN, profile=name)
+                return [f"plugins disable {SHARED_BROWSER_PLUGIN}"]
+            return []
+        rel = Path("squads") / "_plugins" / SHARED_BROWSER_PLUGIN
+        src = next((d / rel for d in (self.ctx.src, SRC) if (d / rel).is_dir()), SRC / rel)
+        files = {p.name: p.read_text(encoding="utf-8") for p in sorted(src.iterdir()) if p.suffix in (".py", ".yaml")}
+        files["tabs.py"] = (HERE / "shared_browser_tabs.py").read_text(encoding="utf-8")
+        dest = home / "plugins" / SHARED_BROWSER_PLUGIN
+        stale = [f for f, text in files.items() if _read(dest / f) != text]
+        acts: list[str] = []
+        if stale:
+            acts.append(f"plugin {'~' if dest.is_dir() else '+'} {SHARED_BROWSER_PLUGIN}")
+            if not self.dry:
+                for fname, text in files.items():
+                    write_text(dest / fname, text)
+        if SHARED_BROWSER_PLUGIN not in enabled:
+            acts.append(f"plugins enable {SHARED_BROWSER_PLUGIN}")
+            if not self.dry:
+                self.ctx.hermes("plugins", "enable", SHARED_BROWSER_PLUGIN, "--no-allow-tool-override", profile=name)
         return acts
 
     def undeclared_plugins(self, name: str, bot: dict, cfg: dict) -> list[str]:
@@ -1448,6 +1498,8 @@ class Applier:
         spec = bot.get("plugins") or {}
         declared = {e if isinstance(e, str) else e["name"] for e in spec.get("enable") or []}
         declared |= set(spec.get("disable") or [])
+        if bot.get("shared_browser"):
+            declared.add(SHARED_BROWSER_PLUGIN)
         for provider, _required in self.bot_providers(name, bot):
             found = provider_source(self.ctx, provider)
             if found:
@@ -1664,14 +1716,17 @@ class Applier:
         acts: list[str] = []
         for jname, w in want.items():
             src = asset(ctx, self.key, "scripts", w["src"]) or ctx.src / "scripts" / w["src"]
+            if not src.is_file() and (HERE / w["src"]).is_file():
+                src = HERE / w["src"]  # repo-wide cron scripts (shared_browser_sweep.py) ship beside squadctl
             if not src.is_file():
                 raise Fail(f"{self.key}: cron script {w['src']} not found in {[str(d / 'scripts') for d in squad_dirs(ctx, self.key)]}")
             body = (f'#!/usr/bin/env bash\nexec {"bash" if w["src"].endswith(".sh") else "python3"} '
                     f'"$(dirname "$0")/{w["src"]}" {shlex.join(w["args"])}\n').replace(" \n", "\n") if w["args"] else None
             files = {w["src"]: src.read_text(encoding="utf-8")}
-            if "gate_lib" in files[w["src"]]:
-                # squad gates import gate_lib from their own directory: ship it beside them
-                files["gate_lib.py"] = (HERE / "gate_lib.py").read_text(encoding="utf-8")
+            for lib in ("gate_lib", "shared_browser_tabs"):
+                if lib in files[w["src"]]:
+                    # scripts import these helpers from their own directory: ship them beside them
+                    files[f"{lib}.py"] = (HERE / f"{lib}.py").read_text(encoding="utf-8")
             if body:
                 files[w["script"]] = body
             for fname, text in files.items():
@@ -1820,6 +1875,8 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool, models: dict | None = 
     out = {"squad": key, "dry_run": dry, "board": board, "summary": counts, "bots": rows}
     if any("browser" in bot_toolsets(ctx, spec["bots"][n]) for n in names):
         out["browser"] = ensure_browser(ctx, dry)
+    if any(spec["bots"][n].get("shared_browser") for n in names):
+        out["shared_browser"] = shared_browser_service(ctx, dry)
     skipped = [b for b in optional if b not in names]
     if skipped:
         out["optional_skipped"] = skipped
@@ -2060,6 +2117,58 @@ def ensure_browser(ctx: Ctx, dry: bool) -> str:
     return "ready" if "complete" in out else f"not ready: run `hermes tools post-setup agent_browser` ({out.strip()[-160:]})"
 
 
+def shared_browser_cmd(ctx: Ctx, *args: str) -> list[str]:
+    script = next((s for s in (ctx.src / "scripts" / "shared_browser.py", HERE / "shared_browser.py") if s.is_file()),
+                  HERE / "shared_browser.py")
+    return [str(script.parent / "hpy"), script.name, *args]
+
+
+def shared_browser_status(ctx: Ctx) -> dict:
+    p = run_quiet(shared_browser_cmd(ctx, "status"), timeout=30)
+    try:
+        return json.loads(p.stdout) if p and p.returncode == 0 else {}
+    except ValueError:
+        return {}
+
+
+def shared_browser_service(ctx: Ctx, dry: bool) -> str:
+    """The shared browser is one per machine: install its login service once, then report. A failure is reported,
+    never fatal: the profiles are already configured and the bots browse once the service runs.
+
+    A listening browser whose installed job differs from what `install` would write (an older plist, without the
+    Google containment flag or with a stale Chromium path) is reinstalled: the running process does not have what
+    the job now says.
+    """
+    st = shared_browser_status(ctx)
+    # Only an installed job can be out of date; a machine with no service installed (or no launchd) takes the
+    # plain install path below.
+    stale_job = st.get("plist_current") is False and st.get("service_installed")
+    if st.get("listening") and not stale_job:
+        return f"running on {SHARED_BROWSER_URL} ({st['listening'].get('pages')} pages)"
+    if dry:
+        if stale_job:
+            return (f"would reinstall `scripts/hpy shared_browser.py install`: the installed job differs from the "
+                    f"service command line (headless browser on {SHARED_BROWSER_URL})")
+        return f"would run `scripts/hpy shared_browser.py install` (headless browser on {SHARED_BROWSER_URL})"
+    p = run_quiet(shared_browser_cmd(ctx, "install"), timeout=60)
+    if p and p.returncode == 0:
+        at = "reinstalled" if stale_job else "installed"
+        return (f"{at} on {SHARED_BROWSER_URL}; sign in to each site once with "
+                "`scripts/hpy shared_browser.py login <url>`")
+    return f"not running: `scripts/hpy shared_browser.py install` failed ({(p.stderr if p else '').strip()[-200:]})"
+
+
+def shared_browser_check(ctx: Ctx) -> dict:
+    st = shared_browser_status(ctx)
+    if st.get("listening") and not (st.get("service_installed") and st.get("plist_current") is False):
+        return check("shared-browser", "ok", f"{SHARED_BROWSER_URL}, {st['listening'].get('pages')} pages")
+    if st.get("listening"):
+        return check("shared-browser", "warn", "the installed job is out of date (a changed service command line, "
+                     "such as the Google containment flag): run `scripts/hpy shared_browser.py install`")
+    return check("shared-browser", "warn", "not listening: bots with shared_browser cannot browse; run "
+                 "`scripts/hpy shared_browser.py install` (or `start`)")
+
+
 def web_check(ctx: Ctx, name: str, bot: dict) -> dict:
     """`web_search` needs the web toolset and a backend: a configured one, or the keyless free tier (on by default)."""
     if "web" not in bot_toolsets(ctx, bot):
@@ -2166,6 +2275,8 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             out.append(check(f"{key}:spec", "fail", str(e)))
             continue
         ap = Applier(ctx, spec, models, True, False, key == "builder")
+        if any(b.get("shared_browser") for b in spec["bots"].values()):
+            out.append(shared_browser_check(ctx))
         for name in live_bots(ctx, spec):
             bot = spec["bots"][name]
             miss = ap.missing_models(name)

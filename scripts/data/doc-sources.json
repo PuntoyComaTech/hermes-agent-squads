@@ -18,6 +18,10 @@
     "bot-to-bot.md": [
       "user-guide/bot-mode.md"
     ],
+    "browser.md": [
+      "user-guide/features/browser.md",
+      "user-guide/features/bot-screen.md"
+    ],
     "cron-and-gates.md": [
       "user-guide/features/cron.md",
       "developer-guide/cron-internals.md",

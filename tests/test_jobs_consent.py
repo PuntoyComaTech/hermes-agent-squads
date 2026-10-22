@@ -1,18 +1,27 @@
-"""Consent and pre-submit gate for the jobs squad: the submit happens only on the user's literal words.
+"""Consent and pre-submit gate for the jobs squad: a submit needs the user's literal words, or a standing yes.
 
 Pins check_submission.py: a SUBMITTED record needs application/consent.json naming this opening, dated not before the
-review approval; profile.md auto_apply and review_before_submit are enforced in code, not in prose; --gate decides
-before the first click. Each test runs the real script (subprocess). Fictional people only.
+review approval — or, under `auto_apply: auto`, the standing consent in profile.md with the fit score, the eligibility
+gate and the daily caps. profile.md auto_apply and review_before_submit are enforced in code, not in prose; --gate
+decides before the first click. Each test runs the real script (subprocess). Fictional people only.
 """
 import json
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 import pytest
+from test_jobs_profile import PROFILE as FULL_PROFILE
+from test_jobs_profile import edit as edit_profile
+from test_jobs_profile import findings as profile_findings
+from test_jobs_profile import keyed as keyed_finding
+from test_jobs_profile import write_project as write_full_project
 
 REPO = Path(__file__).resolve().parents[1]
-CHECK = REPO / "squads" / "jobs" / "skills" / "submitting-applications" / "scripts" / "check_submission.py"
+SUBMIT = REPO / "squads" / "jobs" / "skills" / "submitting-applications" / "scripts"
+CHECK = SUBMIT / "check_submission.py"
+RECORD = SUBMIT / "record_submission.py"
 OPENING_ID = "JOB-20260925-acme-data-analyst"
 
 
@@ -153,7 +162,7 @@ def test_a_misspelt_auto_apply_is_refused_not_read_as_try(tmp_path):
     app = ready_to_submit(tmp_path)
     project_profile(app, PROJECT_PROFILE.replace("auto_apply: try", "auto_apply: nevr"))
     proc = check(app, submitted())
-    assert proc.returncode == 1 and "must be never, ask or try" in proc.stderr
+    assert proc.returncode == 1 and "must be never, ask, try or auto" in proc.stderr
 
 
 def test_a_profile_that_does_not_parse_refuses_the_submit(tmp_path):
@@ -239,7 +248,7 @@ def test_an_unknown_auto_apply_value_is_refused_by_the_gate(tmp_path):
     project_profile(app, PROJECT_PROFILE.replace("auto_apply: try", "auto_apply: yes"))
     proc = subprocess.run([sys.executable, str(CHECK), str(app / "submission.json"), "--gate"],
                           capture_output=True, text=True)
-    assert proc.returncode == 1 and "must be never, ask or try" in proc.stderr
+    assert proc.returncode == 1 and "must be never, ask, try or auto" in proc.stderr
 
 
 
@@ -301,6 +310,27 @@ def test_a_later_approval_needs_a_consent_dated_after_it(tmp_path):
     assert proc.returncode == 1 and "before the review approval 2026-10-22" in proc.stderr, proc.stderr
     consent(app, day="2026-10-22")
     assert run_gate(app).returncode == 0
+
+
+def test_a_moved_consent_date_is_recorded_as_a_flag_after_the_gate(tmp_path):
+    # The gate opened on the consent of 2026-10-20; a second approval on 2026-10-22 makes that date "before the
+    # approval". The submit happened, so the record keeps it with the rule it went in over.
+    app = ready_to_submit(tmp_path)
+    (app.parent / "opening.md").write_text(
+        f"---\nid: {OPENING_ID}\ncompany: Acme\nrole: Analyst\n"
+        f"apply_url: https://jobs.lever.co/acme/2f1c9a7e-5b1d-4c2a-9e8f-1a2b3c4d5e6f/apply\n---\nPosting.\n",
+        encoding="utf-8")
+    assert run_gate(app).returncode == 0, "control: the gate opened for this opening, so it wrote gate.json"
+    assert json.loads((app / "gate.json").read_text(encoding="utf-8"))["opening_id"] == OPENING_ID
+    write_history(app, [{"date": "2026-10-20T09:05", "status": "ready", "by": "jobs-reviewer"},
+                        {"date": "2026-10-22T09:05", "status": "ready", "by": "jobs-reviewer"}])
+    assert check(app, submitted()).returncode == 1, "the plain check still refuses the moved date"
+    proc = subprocess.run([sys.executable, str(RECORD), str(app / "submission.json"), "--json"],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["note"] == "recorded over the gate: consent.date", payload
+    assert payload["status"] == "applied"
 
 
 @pytest.mark.parametrize("by", ["jobs-applier", "Jobs-Applier", "jobs-writer", "jobs"])
@@ -384,3 +414,199 @@ def test_the_pre_submit_approval_image_must_be_inside_application(tmp_path):
                                       "screenshot": "../../../elsewhere/pre.png"})
     proc = check(app, submitted())
     assert proc.returncode == 1 and "inside application/" in proc.stderr, proc.stderr
+
+
+# --- auto_apply: auto — one standing yes, the fit score, and the daily caps --------------------------------------
+
+AUTO_PROFILE = ("---\nname: Example\nauto_apply: auto\nauto_apply_since: 2026-10-01\napply_consent: standing\n"
+                "daily_apply_cap: 10\ndaily_easy_apply_cap: 5\nreview_before_submit: false\n---\nFictional project.\n")
+LINKEDIN_JOB = "https://www.linkedin.com/jobs/view/4123456789/"
+TODAY = date.today().isoformat()
+ATS_FORM = "https://jobs.lever.co/acme/2f1c9a7e-5b1d-4c2a-9e8f-1a2b3c4d5e6f/apply"
+
+
+def open_analysis(app, score=82, eligibility="PASS"):
+    """analysis.json of the opening: the two values auto submission reads (score_analysis.py writes both)."""
+    (app.parent / "analysis.json").write_text(json.dumps({
+        "id": app.parent.name,
+        "gates": {"eligibility": eligibility, "language": "PASS", "location": "PASS", "seniority": "PASS"},
+        "fit": {"score": score, "band": "strong", "decision": "PURSUE"}}), encoding="utf-8")
+
+
+def auto_ready(tmp_path, apply_url=ATS_FORM, score=82, eligibility="PASS"):
+    """An approved opening of a project on standing consent: no consent.json, the profile carries the yes."""
+    app = make_application(tmp_path, apply_url=apply_url)
+    project_profile(app, AUTO_PROFILE)
+    approve(app)
+    open_analysis(app, score, eligibility)
+    return app
+
+
+def prior_submission(project, opening_id, method="no_login_form", day=None):
+    """One submission the applier recorded on `day`: an applied line in status.json and the method in the record."""
+    opening = project / "openings" / opening_id
+    (opening / "application").mkdir(parents=True, exist_ok=True)
+    path = opening / "status.json"
+    history = json.loads(path.read_text(encoding="utf-8"))["history"] if path.is_file() else []
+    history.append({"date": f"{day or TODAY}T11:00", "status": "applied", "by": "jobs-applier", "note": ""})
+    path.write_text(json.dumps({"history": history, "status": "applied"}), encoding="utf-8")
+    (opening / "application" / "submission.json").write_text(
+        json.dumps({"id": opening_id, "result": "SUBMITTED", "method": method}), encoding="utf-8")
+
+
+def gate(app, *extra):
+    return subprocess.run([sys.executable, str(CHECK), str(app / "submission.json"), "--gate", *extra],
+                          capture_output=True, text=True)
+
+
+def test_auto_submits_on_the_profile_without_a_consent_file(tmp_path):
+    # The user said yes once: the applier does not wait for another apply, and nothing writes consent.json.
+    app = auto_ready(tmp_path)
+    assert not (app / "consent.json").exists()
+    proc = gate(app)
+    assert proc.returncode == 0 and "gate: open" in proc.stdout, proc.stderr
+    record = check(app, submitted())
+    assert record.returncode == 0, record.stderr
+    assert not (app / "consent.json").exists()
+
+
+def test_auto_below_the_apply_threshold_closes_the_gate(tmp_path):
+    app = auto_ready(tmp_path, score=69)  # apply_threshold defaults to 70
+    proc = gate(app)
+    assert proc.returncode == 1 and "below apply_threshold 70" in proc.stderr, proc.stderr
+    assert check(app, submitted()).returncode == 1
+
+
+def test_auto_refuses_an_opening_whose_eligibility_is_not_pass(tmp_path):
+    app = auto_ready(tmp_path, eligibility="FLAG")
+    proc = gate(app)
+    assert proc.returncode == 1 and "gates.eligibility is 'FLAG'" in proc.stderr, proc.stderr
+
+
+def test_auto_needs_the_opening_analysis_to_decide(tmp_path):
+    app = auto_ready(tmp_path)
+    (app.parent / "analysis.json").unlink()
+    proc = gate(app)
+    assert proc.returncode == 1 and "analysis.json" in proc.stderr, proc.stderr
+
+
+def test_auto_without_standing_consent_closes_the_gate(tmp_path):
+    app = auto_ready(tmp_path)
+    project_profile(app, AUTO_PROFILE.replace("apply_consent: standing", "apply_consent: per_opening"))
+    proc = gate(app)
+    assert proc.returncode == 1 and "apply_consent: standing" in proc.stderr, proc.stderr
+
+
+def test_auto_with_review_before_submit_contradicts_itself(tmp_path):
+    app = auto_ready(tmp_path)
+    project_profile(app, AUTO_PROFILE.replace("review_before_submit: false", "review_before_submit: true"))
+    proc = gate(app)
+    assert proc.returncode == 1 and "auto_apply: ask" in proc.stderr, proc.stderr
+
+
+def auto_full_profile(since="2026-10-01"):
+    """The validator's fictional project, moved to standing consent (the manager writes these keys)."""
+    text = edit_profile(FULL_PROFILE, "auto_apply: try", "auto_apply: auto")
+    text = edit_profile(text, "apply_consent: per_opening", "apply_consent: standing")
+    if since:
+        text = edit_profile(text, "review_before_submit: false",
+                            f"auto_apply_since: {since}\nreview_before_submit: false")
+    return text
+
+
+def test_auto_without_the_day_the_user_said_yes_fails_validation(tmp_path):
+    missing = write_full_project(tmp_path, profile=auto_full_profile(since=""))
+    assert keyed_finding(profile_findings(missing), "profile.md", "auto_apply_since"), "the day is required with auto"
+    dated = write_full_project(tmp_path, profile=auto_full_profile())
+    assert keyed_finding(profile_findings(dated), "profile.md", "auto_apply_since") == []
+
+
+def test_the_consent_shape_must_match_the_auto_apply_mode(tmp_path):
+    # auto is the one standing consent; try and ask submit on each opening's own apply.
+    auto_short = edit_profile(auto_full_profile(), "apply_consent: standing", "apply_consent: per_opening")
+    assert keyed_finding(profile_findings(write_full_project(tmp_path, profile=auto_short)), "profile.md",
+                         "apply_consent")
+    try_standing = edit_profile(FULL_PROFILE, "apply_consent: per_opening", "apply_consent: standing")
+    assert keyed_finding(profile_findings(write_full_project(tmp_path, profile=try_standing)), "profile.md",
+                         "apply_consent")
+
+
+def test_the_eleventh_application_of_the_day_closes_the_gate_until_tomorrow(tmp_path):
+    app = auto_ready(tmp_path)
+    project = app.parent.parent.parent
+    assert gate(app).returncode == 0, "control: the first application of the day passes"
+    for i in range(10):
+        prior_submission(project, f"JOB-20260925-acme-role-{i:02d}")
+    proc = gate(app)
+    assert proc.returncode == 1 and proc.stdout == "", proc.stdout
+    assert "daily_cap" in proc.stderr and "tomorrow" in proc.stderr and "never a kit" in proc.stderr, proc.stderr
+    assert check(app, submitted()).returncode == 1, "the record of a submit the cap refused is refused too"
+
+
+def test_a_previous_day_does_not_use_up_todays_cap(tmp_path):
+    app = auto_ready(tmp_path)
+    project = app.parent.parent.parent
+    for i in range(10):
+        prior_submission(project, f"JOB-20260924-acme-role-{i:02d}", day="2026-09-24")
+    assert gate(app).returncode == 0, "yesterday's applications are not today's"
+
+
+def test_recording_twice_never_reads_its_own_submission_as_the_cap(tmp_path):
+    # The tenth application of the day: recording it a second time (record_submission is idempotent) must not look
+    # like an eleventh.
+    app = auto_ready(tmp_path)
+    project = app.parent.parent.parent
+    for i in range(9):
+        prior_submission(project, f"JOB-20260925-acme-role-{i:02d}")
+    assert check(app, submitted()).returncode == 0
+    prior_submission(project, OPENING_ID)  # what record_submission.py leaves behind for this opening
+    assert check(app, submitted()).returncode == 0
+
+
+def test_easy_apply_is_allowed_only_on_a_linkedin_job_page(tmp_path):
+    app = auto_ready(tmp_path, apply_url=LINKEDIN_JOB)
+    proc = gate(app, "--method", "linkedin_easy_apply")
+    assert proc.returncode == 0 and "gate: open" in proc.stdout, proc.stderr
+    record = check(app, {**submitted(), "method": "linkedin_easy_apply"})
+    assert record.returncode == 0, record.stderr
+
+    search = "JOB-20260925-acme-second-role"
+    other = make_application(tmp_path, opening_id=search,
+                             apply_url="https://www.linkedin.com/jobs/search/?keywords=data%20analyst")
+    project_profile(other, AUTO_PROFILE)
+    approve(other)
+    open_analysis(other)
+    proc = gate(other, "--method", "linkedin_easy_apply")
+    assert proc.returncode == 1 and "jobs/view" in proc.stderr, proc.stderr
+
+
+def test_easy_apply_counts_against_its_own_cap_only(tmp_path):
+    app = auto_ready(tmp_path, apply_url=LINKEDIN_JOB)
+    project = app.parent.parent.parent
+    for i in range(5):  # daily_easy_apply_cap defaults to 5, daily_apply_cap to 10
+        prior_submission(project, f"JOB-20260925-acme-easy-{i:02d}", method="linkedin_easy_apply")
+    proc = gate(app, "--method", "linkedin_easy_apply")
+    assert proc.returncode == 1 and "daily_cap" in proc.stderr and "Easy Apply" in proc.stderr, proc.stderr
+    ats = make_application(tmp_path, opening_id="JOB-20260925-acme-ats-role", apply_url=ATS_FORM)
+    project_profile(ats, AUTO_PROFILE)
+    approve(ats)
+    open_analysis(ats)
+    assert gate(ats, "--method", "no_login_form").returncode == 0, "the total cap is not reached: an ATS form may go"
+
+
+def test_easy_apply_needs_standing_consent(tmp_path):
+    app = ready_to_submit(tmp_path)  # try, with the user's words for this opening
+    open_analysis(app)
+    proc = check(app, {**submitted(), "method": "linkedin_easy_apply"}, "--apply-url", LINKEDIN_JOB)
+    assert proc.returncode == 1 and "auto_apply: auto" in proc.stderr, proc.stderr
+
+
+def test_try_still_needs_the_consent_file(tmp_path):
+    app = ready_to_submit(tmp_path)
+    open_analysis(app)  # a good score and a verified link do not replace the user's yes under try
+    assert gate(app).returncode == 0
+    (app / "consent.json").unlink()
+    proc = gate(app)
+    assert proc.returncode == 1 and "consent.json" in proc.stderr, proc.stderr
+    assert check(app, submitted()).returncode == 1
+

@@ -1,0 +1,23 @@
+{
+  "skill_name": "browsing-linkedin",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A SEARCH card, Window: 24 h, profile.md has linkedin_browse: true, search_keywords in Spanish and English, cities [Bogota], work_mode hybrid. The shared browser is signed in. The scout has already run the portal tool.",
+      "expected_output": "market_urls.py posts builds one URL with the OR group of hiring phrases, AND the role title, sortBy=\"date_posted\" and datePosted=\"past-24h\"; budget --file <P>/searches/linkedin-session.json --kind posts --run <card id> and check run before the page opens, and check runs again on location.href after every navigation (anything but allowed stops the read); the page is read in the one browser_exec session with the componentkey hook and at most 4 presses of Load more; capture_rows.py --kind posts reports meta.kept plus no_id, duplicate, no_text, dropped_older and no_age_dropped equal to the cards read, and writes leads with hashed componentkey ids, relative ages and redacted text; the scout reads each snippet, drops the posts that are people looking for work, and records the query and its counts.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "A MARKET card. profile.md has linkedin_browse: false. The scout has portal detail output for 12 postings and the portal tool has no more results for the market.",
+      "expected_output": "No LinkedIn page is opened and market_urls.py is never called. The scout runs market_keywords.py on the portal posting texts, writes reports/market-<date>.json, and the card result says LinkedIn hiring posts were skipped because linkedin_browse is false.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Midway through a SEARCH card the next page shows a LinkedIn checkpoint, and two cards already read hold links: one to a /jobs/view/4499999999/ listing and one to a recruiter's /in/ profile.",
+      "expected_output": "LinkedIn reading stops at once: no credential is typed, nothing is solved, no retry happens. The scout saves the leads it already had, reads the listing with portals.py detail 4499999999 --portal linkedin instead of opening it, never opens the /in/ link (check refuses it), and ends with kanban_block needs_input asking the builder to open the login window in the shared browser.",
+      "files": []
+    }
+  ]
+}

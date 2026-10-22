@@ -77,12 +77,17 @@ the level you can show. A posting asking for a level above yours is flagged for 
 | user_language | required | ISO 639-1 (es, en, pt). Every message to the user is in it; documents follow the posting's language |
 | timezone | required | IANA zone (America/Lima). The check times and "today" use it |
 | search_times | ["12:00"] | 1 to 4 local check times on weekdays; each check reads only postings since the previous one |
-| auto_apply | required | never (no submit; kit only), ask (submit after the user approves the screenshot), try (submit after the user's apply for that opening) |
-| apply_consent | per_opening | fixed: each submit needs the user's apply for that opening; there is no standing permission |
-| review_before_submit | false | true makes every submit wait for the screenshot approval; required by ask |
+| linkedin_browse | true | true lets, in the user's signed-in session, the scout read LinkedIn hiring posts, the writer read and edit (after approval) the user's own profile, and the applier use Easy Apply under auto; never other profiles, messages or a credential. false keeps the public listings only. Ask once, naming the risk: LinkedIn limits automated use and can restrict the account |
+| auto_apply | required | never (no submit; kit only), ask (submit after the user approves the screenshot), try (submit after the user's apply for that opening), auto (the user says yes once; the squad applies every day within the caps) |
+| apply_consent | required | per_opening (try, ask: each submit needs its apply for that opening) or standing (auto: profile.md holds the one yes). Must match auto_apply |
+| auto_apply_since | required with auto | the day the user agreed to automatic applications, YYYY-MM-DD |
+| daily_apply_cap | 10 | auto only: submissions a day, every method; a cap reached waits for tomorrow, never a kit |
+| daily_easy_apply_cap | 5 | auto only: LinkedIn Easy Apply submissions a day, counted on top of the total |
+| review_before_submit | false | true makes every submit wait for the screenshot approval; required by ask, refused by auto |
 
-Onboarding asks, in this order and in one batch: user_language, timezone, then the three consent values in one plain
-sentence each (never, ask, try), then deal breakers. The answer to auto_apply is written as given, never inferred.
+Onboarding asks, in this order and in one batch: user_language, timezone, then consent as one question with four plain
+answers (never, ask, try, auto), then deal breakers. The answer is written as given, never inferred; with auto the
+manager also writes `auto_apply_since` (today), `apply_consent: standing` and the two caps.
 
 ## Language gate rules
 

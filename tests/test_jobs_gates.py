@@ -2,6 +2,7 @@
 import csv
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,11 +25,15 @@ HEADER = ("date,id,company,role,status,channel,fit_score,apply_url,deadline,appl
 def env_with_project(tmp: Path, profile: str = "search: active", rows=()) -> tuple[dict, Path]:
     root = tmp / "hermes"
     (root / "profiles" / "jobs").mkdir(parents=True)
+    (root / "profiles" / "jobs-inbox").mkdir(parents=True)  # the inbox bot's profile: `apply --with jobs-inbox`
     bindir = tmp / "bin"
     bindir.mkdir()
     (bindir / "hermes").write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKES / "hermes.py"}" "$@"\n')
     (bindir / "hermes").chmod(0o755)
     env = {**os.environ, "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}", "HERMES_HOME": str(root)}
+    # The crons and the applier run outside an agent turn; a delegated-child marker inherited from the test
+    # runner's own session would make the fake hermes refuse every kanban write.
+    env.pop("HERMES_DELEGATED_CHILD_CONTEXT", None)
     folder = tmp / "search"
     folder.mkdir()
     done = subprocess.run(["hermes", "-p", "jobs", "project", "create", "Search", str(folder), "--slug", "search"],
@@ -42,6 +47,9 @@ def env_with_project(tmp: Path, profile: str = "search: active", rows=()) -> tup
 
 
 def gate(env, *extra):
+    # The cron runs outside any agent turn: a delegated-child marker inherited from the test runner's own session
+    # would make the fake hermes refuse the card (the real rule), which is not what is under test here.
+    env = {k: v for k, v in env.items() if k != "HERMES_DELEGATED_CHILD_CONTEXT"}
     return subprocess.run([sys.executable, str(GATE), "--tracker", str(TRACKER), "--today", "2026-10-20", *extra],
                           capture_output=True, text=True, env=env, timeout=120)
 
@@ -80,7 +88,7 @@ def test_quiet_application_files_one_card_per_day(tmp_path):
     first = one(gate(env, "--json"))
     assert first["filed"] is True, first
     assert first["followups"] == ["JOB-20260901-acme-data-analyst"]
-    assert first["key"] == "jobs:inbox:search:2026-10-20" and first["assignee"] == "jobs-writer"
+    assert first["key"] == "jobs:inbox:search:2026-10-20" and first["assignee"] == "jobs-inbox"
     second = one(gate(env, "--json"))
     assert second.get("id") == first.get("id")  # same idempotency key, same card
     quiet_run = gate(env)
@@ -89,10 +97,31 @@ def test_quiet_application_files_one_card_per_day(tmp_path):
 
 def test_dry_run_creates_nothing(tmp_path):
     env, _ = env_with_project(tmp_path, rows=[QUIET])
-    # A dry run says what it would file and shows the card the writer would get; it files nothing.
+    # A dry run says what it would file and shows the card the inbox bot would get; it files nothing.
     out = one(gate(env, "--dry-run", "--json"))
     assert out["would_file"] is True and "filed" not in out and "id" not in out
     assert "Inbox" in out["title"] and out["body"].strip()
+
+
+def test_a_missing_inbox_bot_files_nothing_and_reports_nothing_again(tmp_path):
+    """#6: without `--with jobs-inbox` the bot's profile does not exist, and kanban create accepts any assignee.
+
+    Filing anyway left a card nobody reads on the board and stamped `stale_reported`, so the application was never
+    reported again. Now nothing is filed, nothing is marked, one line names the missing profile, and the stale row
+    is still reported by the first run after the bot is installed.
+    """
+    env, _ = env_with_project(tmp_path, rows=[STALE_ROW])
+    kanban_stub(env, tmp_path)
+    shutil.rmtree(Path(env["HERMES_HOME"]) / "profiles" / "jobs-inbox")
+    blocked = gate(env)
+    assert blocked.returncode == 0, blocked.stderr
+    assert "jobs-inbox is not installed" in blocked.stdout
+    assert len(blocked.stdout.strip().splitlines()) == 1, "one line, not one per project"
+    assert "stale_reported" not in json.dumps(one(gate(env, "--json"))), "no row is marked"
+    (Path(env["HERMES_HOME"]) / "profiles" / "jobs-inbox").mkdir()
+    first = one(gate(env, "--json"))
+    assert first["filed"] is True and first["stale_reported"] == ["JOB-20260801-acme-analyst"], \
+        "the stale row is still unreported once the bot exists"
 
 
 def test_help_exits_zero():

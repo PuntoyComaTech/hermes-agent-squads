@@ -1,0 +1,50 @@
+{
+  "source_url": "https://www.linkedin.com/search/results/content/?keywords=%28%22estamos%20contratando%22%20OR%20%22we%27re%20hiring%22%29%20AND%20%22data%20analyst%22&origin=FACETED_SEARCH&sortBy=%22date_posted%22&datePosted=%22past-24h%22",
+  "items": [
+    {
+      "componentkey": "expandedFICTIONALcard01AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": [
+        "https://www.linkedin.com/in/rita-ficticia/",
+        "https://www.linkedin.com/search/results/all/?keywords=%23hiring&origin=HASH_TAG_FROM_FEED"
+      ],
+      "text": "Feed post\nRita Ficticia\n• 3rd+\nAnalista de datos en Lumen Data S.A.S.\n2h\nFollow\nEstamos contratando un Analista de Datos para Bogotá (híbrido). Escribe a rita.ficticia@example.test o al +57 300 111 2233 antes del viernes.\nBuscamos SQL, Python y tableros en Power BI."
+    },
+    {
+      "componentkey": "expandedFICTIONALcard02BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": [
+        "https://www.linkedin.com/company/nimbus-analytics/",
+        "https://www.linkedin.com/jobs/view/4000000123/?trackingId=fictional&isJobSearch=false"
+      ],
+      "text": "Feed post\nNimbus Analytics\nRequest services\n1h\nFollow\nWe're #hiring a new Data Analyst (Remote, Colombia) in Bogotá. Apply today or share this post with your network.\nData Analyst (Remote, Colombia)\nNimbus Analytics\nBogotá (Remote)\nView job\n48K USD/yr - 60K USD/yr\n4"
+    },
+    {
+      "componentkey": "expandedFICTIONALcard03CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": ["https://www.linkedin.com/in/tomas-ficticio/"],
+      "text": "Feed post\nTomas Ficticio\n• 2nd\n3h\nJoin\n🚀 We're Hiring: Business Data Analyst – Retail (6-Month Contract) 📍 Remote | 💼 Full-time | 🌎 Eligible countries: Colombia, Peru. Role overview: six months analysing retail datasets across sales, inventory and pricing. Requirements: SQL, Python, one BI tool. Apply through the link in the comments."
+    },
+    {
+      "componentkey": "expandedFICTIONALcard04DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": ["https://www.linkedin.com/in/ana-demo/"],
+      "text": "Feed post\nAna Demo\n• 3rd+\nHiring manager, data\n2d\nFollow\nWe're hiring a data analyst for our team in Cali. Send your CV to ana.demo@example.test."
+    },
+    {
+      "componentkey": "expandedFICTIONALcard05EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": ["https://www.linkedin.com/company/via-lactea-demo/"],
+      "text": "Feed post\nVia Lactea Demo\nFollow\n¡Estamos buscando Analista de Datos para nuestro equipo de logística en Medellín! Escríbenos y te contamos."
+    },
+    {
+      "componentkey": "expandedFICTIONALcard01AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": [],
+      "text": "Feed post\nRita Ficticia\n2h\nFollow\nEstamos contratando un Analista de Datos para Bogotá (híbrido)."
+    },
+    {
+      "anchors": [],
+      "text": "Feed post\nSin Clave\n2h\nFollow\nWe're hiring a data analyst with no card id at all."
+    },
+    {
+      "componentkey": "expandedFICTIONALcard08HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHFEEDTYPE_FLAGSHIP_SEARCH",
+      "anchors": ["https://www.linkedin.com/in/persona-demo/"],
+      "text": "Feed post\nPersona Demo\n• 3rd+\nAnalista de Operaciones\n2h\nFollow\n¡Hola a todos! Estoy buscando un nuevo puesto y agradecería apoyo. Si alguien sabe de alguna oportunidad, escríbeme. #OpenToWork"
+    }
+  ]
+}

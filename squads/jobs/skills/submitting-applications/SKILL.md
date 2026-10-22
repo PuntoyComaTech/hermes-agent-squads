@@ -1,114 +1,120 @@
 ---
 name: submitting-applications
-description: "Submits a form only after the user's explicit apply. Use when an apply card arrives for an approved opening, or a `Mode: KIT` card asks for a manual kit."
+description: "Submits applications under consent and daily caps. Use when an apply card arrives for an approved opening, or a `Mode: KIT` card asks for a manual kit."
 ---
 
 # Submitting applications
 
-One opening per card. A submit cannot be undone: the guard, the idempotency check and the pre-submit checklist all
-run before the first click.
+One opening per card, and a submit cannot be undone: the gate, the idempotency check and the pre-submit checklist run
+before the first click. `profile.md` decides the rest: `auto` or a per-opening apply, else a kit (see Consent).
 
 ## When to Use
 
-- An apply card for an opening whose consent.json holds the user's words for it.
-- A `Mode: KIT` card: write the manual kit, nothing else.
+- An apply card for an approved opening (review APPROVED, status `ready`), or a `Mode: KIT` card: the kit only.
 
 ## Procedure
 
-1. **Gate.** A `Mode: KIT` card submits nothing and needs no gate. Any other card runs:
+1. **Gate.** A `Mode: KIT` card submits nothing and needs no gate. Any other card runs, with
+   `S="$HERMES_HOME/skills/squad-jobs/submitting-applications/scripts"`:
 
    ```bash
-   python3 "$HERMES_HOME/skills/squad-jobs/submitting-applications/scripts/check_submission.py" \
-     <P>/openings/<ID>/application/submission.json --gate
+   python3 "$S/check_submission.py" <P>/openings/<ID>/application/submission.json --gate --method <method>
    ```
 
-   `gate: open` lets the submit proceed. Otherwise it prints the closed rules: no consent for this opening, no approved
-   review, `auto_apply: never`, or an unverified apply link. Only the apply link closing it means a kit (step 6,
-   NOT_POSSIBLE). Any other rule: `kanban_block(kind="needs_input", reason="<the rule>")`, and submit nothing.
-2. **Idempotency.** Read `status.json` and `application/submission.json`. If the status is `applied` or the file says
-   SUBMITTED, complete without touching anything. Never apply twice.
+   `--method` names the form class: `linkedin_easy_apply` for Easy Apply, `no_login_form` otherwise; every other class
+   is a kit, never a click. `gate: open` lets the submit proceed: it writes `application/gate.json`
+   (`opening_id, method, mode, opened_at`: the proof step 6 reads), and under `auto` reserves the day's place in
+   `openings/.apply-state.json` until step 6 drops it (4 hours at most, so an abandoned run gives it back). Gate and
+   record share `openings/.apply.lock`, which waits with no timeout while a record runs its subprocesses. Any other
+   line closes it:
+   - `daily_cap`: the day's cap is reached. Submit nothing and write no kit: `kanban_complete` with one line ("<n>
+     applications today, the cap: this one goes tomorrow") and leave the status at `ready` so the next run applies it.
+   - any other rule: `kanban_block(kind="needs_input", reason="<the rule>")`, and submit nothing.
+2. **Idempotency.** Read `status.json` and `application/submission.json`: an `applied` status or a SUBMITTED file means
+   complete without touching anything. Never apply twice.
 3. **Pre-submit checklist.** Every item must hold; otherwise stop with NOT_POSSIBLE and name the failed item:
    - the card's opening id, the folder name and the id in `opening.md` are the same opening;
-   - `apply_url` comes from `opening.md` and the form is on that host;
-   - `apply_url` is not `unverified`: run `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/link_check.py" "<apply_url>" --json`
-     and read its `verdict`. `unverified` means kit only (step 6, NOT_POSSIBLE with `kit.md`), never SUBMITTED, and
-     never a form opened on that host;
+   - `apply_url` comes from `opening.md` and the form is on that host. Run
+     `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/link_check.py" "<apply_url>" --json`: an
+     `unverified` verdict is kit only, never SUBMITTED, never a form opened on that host;
    - the form's language equals the opening's language, and so do the answers you will enter (`answers.md`);
    - `application/cv_ats.pdf` is this opening's CV and `render_report.json` has no hard defect;
-   - the screenshots show only the form, the entered answers and the confirmation page. Do not capture the account
-     menu, a profile page, a mail client or another tab; crop or close them first;
-   - `review_before_submit` is known (step 5).
-4. **Classify and map.** Open the form (not for KIT) and classify it: `no_login_form`, `requires_account`, `email`,
-   `linkedin`, `captcha` or `other`. Anything but `no_login_form` goes to step 6. Map each field to one source:
-   `contact.yaml`, `application-data.yaml` (the only source for work authorization, salary, availability, consents
-   and saved answers), `answers.md`, the CV, or `consult:<card id>` from a support card to jobs-writer. A fact only the
-   user has becomes a `pending_questions` entry (question text and the form's options), `result: NEEDS_DATA`, then
-   `kanban_block(kind="needs_input", reason="<the questions>")`.
+   - the screenshots show only the form, the answers and the confirmation page (no account menu, profile or mail
+     client), and `review_before_submit` is known (step 5).
+4. **Classify and map.** Open the form (not for KIT) and classify it: `no_login_form`, `linkedin_easy_apply`,
+   `requires_account`, `email`, `linkedin`, `captcha` or `other`. Anything but the first two goes to step 6. Map each
+   field to one source: `contact.yaml`, `application-data.yaml` (the only source for work authorization, salary,
+   availability, consents and saved answers), `answers.md`, the CV, or `consult:<card id>` from a support card to
+   jobs-writer. A fact only the user has becomes a `pending_questions` entry (question text and the form's options),
+   `result: NEEDS_DATA`, then `kanban_block(kind="needs_input", reason="<the questions>")`.
+   **Easy Apply** runs on the shared signed-in browser: `references/easy-apply.md`. Its steps are mapped one field at a
+   time and it stops at the first field without a source. A form that asks for payment, a paid test, or data that is
+   not in `contact.yaml` or `application-data.yaml` is never submitted: NEEDS_DATA or NOT_POSSIBLE, never a guess.
 5. **Fill and submit.** Upload `cv_ats.pdf` unless the card says otherwise. Save `before.png` before submitting. When
    `review_before_submit` is true or `auto_apply` is `ask`, run the gate again with `--before-submit`: it needs the
-   user's `screenshot_approval` in consent.json (see Consent file). Without it, block with the screenshot path as the
-   reason. Otherwise submit once, wait for the confirmation page and save it as `confirmation.png`. A failing submit
-   gets one honest attempt; then NOT_POSSIBLE with the reason. Never retry in a loop.
-6. **Record.** Write `application/submission.json` (contract: jobs-contract references/opening-files.md). It names
-   fields and sources only, never field values. Then run:
+   user's `screenshot_approval` (see Consent), else block with the screenshot path as the reason. Easy Apply stops on
+   its own final review step and compares it with the sources before Submit. Otherwise submit once and save the
+   confirmation page as `confirmation.png`. One honest attempt; then NOT_POSSIBLE. Never retry in a loop.
+6. **Record.** Write `application/submission.json` (contract: jobs-contract references/opening-files.md): fields and
+   sources only, never values. A **SUBMITTED** card runs the record alone, and never `check_submission.py` first: the
+   record re-checks the file itself with `--post-submit`, so a submit that happened is never turned into NOT_POSSIBLE
+   after the click.
 
    ```bash
-   python3 "$HERMES_HOME/skills/squad-jobs/submitting-applications/scripts/check_submission.py" \
-     <P>/openings/<ID>/application/submission.json
-   python3 "$HERMES_HOME/skills/squad-jobs/submitting-applications/scripts/record_submission.py" \
-     <P>/openings/<ID>/application/submission.json
+   python3 "$S/record_submission.py" <P>/openings/<ID>/application/submission.json
    ```
 
-   The first must print `valid: <RESULT>`. Exit 1 lists the broken rules: fix the file, run again once; still exit 1 ->
-   NOT_POSSIBLE with those rules as the reason. The second writes the tracker row once and appends the same status to
-   `status.json` (through status.py): SUBMITTED -> `applied`, NOT_POSSIBLE -> `manual_application`, NEEDS_DATA -> nothing.
-   It is safe to run twice. An email application (method `email`) may carry a `mailto:` apply_url; every other method
-   needs http(s).
-7. `kanban_complete` naming the artifacts, one line on the result.
+   It writes the tracker row once and appends `applied`. With a `gate.json` stamp of this opening under 4 hours old it
+   records the rules that moved after the click (the cap, a replaced review, the consent date) with the status note
+   `recorded over the gate: <rule>`; every other rule refuses the record (exit 1): a question for the manager, never a
+   fake NOT_POSSIBLE. **NOT_POSSIBLE / NEEDS_DATA** run `"$S/check_submission.py"` on the same file first: it must
+   print `valid: <RESULT>`, and exit 1 lists the broken rules — fix the file, run it again once, then NOT_POSSIBLE
+   with those rules as the reason. NOT_POSSIBLE records `manual_application`, NEEDS_DATA nothing, and either result
+   that leaves the row unwritten after an open gate gives the place back:
+   `python3 "$S/apply_state.py" --release <P> --opening <ID>`. Safe twice; an email may carry a `mailto:` apply_url.
+7. `kanban_complete` naming the artifacts, one line on the result. SUBMITTED states the company, the role, the CV file
+   used (`application/cv_ats.pdf`) and the apply URL, which the manager quotes in the digest. NEEDS_DATA and
+   NOT_POSSIBLE state what the user must do; the manager relays it.
 
-## Consent file
+## Consent
 
-`application/consent.json` is the only evidence of the user's apply for this opening. The manager writes it, never the
-applier, from the user's literal words, and binds it to the kit the user saw:
-
-```json
-{"opening_id": "JOB-20261001-acme-data-analyst", "by": "<the user's name>", "words": "<the user's message>",
- "date": "YYYY-MM-DD", "kit_sha256": "<check_submission.py --kit-hash output>"}
-```
-
-- `opening_id` equals the opening folder name. A consent for another opening does not count.
-- `by` is the user's name, never a bot profile (jobs, jobs-scout, jobs-writer, jobs-reviewer, jobs-applier).
-- `kit_sha256` is the kit hash of application/ when the user said apply. A changed cv_ats.pdf, cv.docx, letter files,
-  cover_letter.md or answers.md refuses the submit: the user is asked again.
-- The gate is open only while the latest review-N.json is APPROVED and the latest status.json line is ready or
-  applying. `date` is not before the day of the latest ready line.
-- With `review_before_submit: true` or `auto_apply: ask`, add `"screenshot_approval": {"by", "words", "date",
-  "screenshot"}`: the user's words after seeing `before.png`, dated not before the approval.
-- Every screenshot and the approval's `screenshot` resolve inside application/.
-- `auto_apply: never` refuses every submit: the opening gets a kit.
-- `check_submission.py` refuses SUBMITTED whenever any of these is missing, and profile.md that cannot be read.
+- `auto` + `apply_consent: standing` (the two must match): the yes is recorded once, dated (`auto_apply_since`), with
+  `daily_apply_cap` (default 10) and `daily_easy_apply_cap` (default 5): no consent.json, no per-opening apply, no
+  screenshot approval. The gate needs an APPROVED latest review, a dated `ready` line and this opening's `analysis.json`:
+  `id` equal to the folder, `fit.decision: PURSUE` (never WATCH or REJECT: a failed gate, a deal-breaker or a core
+  gap), no gate at FAIL, `fit.score` at or above a finite `apply_threshold` (0..100), an employer ATS link (or a
+  LinkedIn `/jobs/view` page for Easy Apply) and cap room. A cap means tomorrow, never a kit.
+- `try` + `per_opening`: `application/consent.json` is the evidence of the user's apply for this opening. The manager
+  writes it, never the applier, from the user's literal words (`{opening_id, by, words, date, kit_sha256}`), bound to
+  the kit the user saw: `opening_id` equals the folder, `by` is the user's name and never a bot profile, and a changed
+  `cv_ats.pdf`, letter or `answers.md` refuses the submit. The consent date is not before the approval.
+- `ask` + `per_opening`: the same file, plus `"screenshot_approval": {"by", "words", "date", "screenshot"}` after the
+  user saw `before.png`.
+- `never`: every submit is refused; the opening gets a kit.
+- A profile the checker cannot read refuses SUBMITTED: the settings must be known, never assumed.
 
 ## Manual kit
 
-For NOT_POSSIBLE and for KIT cards, `application/kit.md` holds every answer ready to copy, the `apply_url`, the form
-class and, for an email application, the subject and body. A value that is not recorded never appears in it.
+For NOT_POSSIBLE and KIT cards, `application/kit.md` holds every answer ready to copy, the `apply_url`, the form class
+and, for an email, the subject and body. A value that is not recorded never appears in it.
 
 ## Pitfalls
 
 - Never create an account, log in, solve a CAPTCHA, pay, or accept terms beyond the data-processing consent the user
   authorized (`authorize_consents: true`).
-- Never invent an answer. Missing data is a question, not a guess.
-- Never submit a second opening under the same card.
-- Never auto-submit an `unverified` apply_url, even with the user's confirmation: the kit goes to the user, who
-  decides on the employer's own site.
+- Never invent an answer: missing data is a question, and a screening question is never answered from a guess.
+- Never submit a second opening under the same card, and never apply twice under standing consent.
+- Never turn a click that happened into NOT_POSSIBLE: the record decides that, not the bot's second thoughts.
+- Never auto-submit an `unverified` apply_url, even with the user's confirmation: the kit goes to the user.
+- Never drive the shared browser past a sign-in wall, a checkpoint, a CAPTCHA or a restriction notice, and never type
+  a credential: that stops LinkedIn work for the day (references/easy-apply.md).
 - Screenshots and `submission.json` may hold personal data; they stay in `application/`. No contact data in a card
   body, a comment or a status note.
-- The browser never opens linkedin.com (blocklisted for this bot).
 
 ## Verification
 
-- `check_submission.py` printed `valid:` for the file you hand off.
-- The gate printed `gate: open` before the first click; SUBMITTED implies `confirmation.png` exists, the tracker row is
-  `applied`, and `status.json` ends with `applied`.
-- Every filled field names a source; `pending_questions` is empty unless the card is blocked on them.
-- NOT_POSSIBLE implies `kit.md` holds every answer and the `apply_url`, and the status is `manual_application`.
+- The gate printed `gate: open` before the first click; SUBMITTED implies `confirmation.png`, the tracker row `applied`
+  and `status.json` ending `applied`; every filled field names a source.
+- NOT_POSSIBLE implies `kit.md` holds every answer and the `apply_url`, with status `manual_application`; a card closed
+  on `daily_cap` names the count and the cap and leaves its opening `ready`, with no kit.
+- No reservation is left behind: `apply_state.py --status <P>` lists none for the opening.

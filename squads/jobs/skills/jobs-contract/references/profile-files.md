@@ -1,17 +1,12 @@
 # Profile files
 
-Written by the manager (skill profiling-candidates), in the project folder `<P>`: `profile.md`,
-`achievements.yaml`, `contact.yaml` and `application-data.yaml`. One project per person.
+Written by the manager (skill profiling-candidates), in the project folder `<P>`. One project per person.
 
 ## Contents
 
-- profile.md: search keys
-- profile.md: personalisation keys
-- Consent to submit
+- profile.md: search keys, personalisation keys and consent
 - Years of experience
-- achievements.yaml
-- contact.yaml
-- application-data.yaml
+- achievements.yaml, contact.yaml and application-data.yaml
 - Check the files: validate_profile.py
 
 ## profile.md: search keys
@@ -49,13 +44,17 @@ target_companies: []
 evidence: {links: ["https://github.com/example"], pieces_per_application: 2}
 reviewer_role: "Data Lead"          # hiring-manager lens, derived from occupation
 deliverables: [cv_ats.pdf, cv.docx, cover_letter.md, answers.md]
-apply_threshold: 70                 # minimum fit score for the writer
+apply_threshold: 70                 # 0-100: minimum fit score for the writer, and for an automatic submit
 max_analyses_per_day: 5
 max_company_searches: 12            # page reads allowed for one company profile
 analyze_flagged: true
-auto_apply: try                     # never | ask | try: see "Consent to submit"
-apply_consent: per_opening          # fixed: each submit needs the user's apply for that opening
-review_before_submit: false         # true: the user checks the screenshot before any submit
+auto_apply: try                     # never | ask | try | auto: see "Consent to submit"
+apply_consent: per_opening          # per_opening (try, ask) | standing (auto)
+auto_apply_since: 2026-10-01        # the day the user agreed to auto; required with auto
+daily_apply_cap: 10                 # auto: submissions a day, every method
+daily_easy_apply_cap: 5             # auto: LinkedIn Easy Apply submissions a day
+review_before_submit: false         # true: the user checks the screenshot before any submit (ask)
+linkedin_browse: true               # the scout may read LinkedIn posts and the applier may use Easy Apply
 confidential_search: false
 ```
 
@@ -94,34 +93,37 @@ stale_days: 60
 ---
 ```
 
-Language levels live in `achievements.yaml -> languages`. A required language not declared there is a DISCARD; a
-gap of `discard_gap_steps` CEFR steps or more is a DISCARD; a gap of `flag_gap_steps` or more is a FLAG; an unknown
-required level is a FLAG; at or below the declared level is a PASS.
+Language levels live in `achievements.yaml -> languages`. A required language not declared there is a DISCARD; a gap of `discard_gap_steps` CEFR steps or more is a DISCARD; a gap of `flag_gap_steps` or more is a FLAG; an unknown required level is a FLAG; at or below the declared level is a PASS.
 
-Required for a search: occupation, target_roles, seniority, years_experience, work_mode, search_keywords, and at
-least one language in `achievements.yaml`. Missing optional keys mean no constraint.
+Required for a search: occupation, target_roles, seniority, years_experience, work_mode, search_keywords, and at least one language in `achievements.yaml`. Missing optional keys mean no constraint.
 
 ## Consent to submit
 
-Three values, in plain words:
+Four values, in plain words:
 
 - `auto_apply: never`: the squad never submits. The applier writes a manual kit (`kit.md`) with the link.
 - `auto_apply: ask`: the applier fills the form and stops before the submit, with a screenshot. The user approves it in
   chat; only then it submits. Requires `review_before_submit: true`.
 - `auto_apply: try`: the applier submits once, for simple forms, after the user's `apply` for that opening. Any other
   form gets the kit.
+- `auto_apply: auto`: the user said yes once. The applier submits on its own, every day, with no per-opening apply:
+  only an APPROVED review, a PURSUE analysis with no gate FAIL and `fit.score` at or above `apply_threshold`, an employer ATS link
+  (or a LinkedIn `/jobs/view` page for Easy Apply) and room under `daily_apply_cap` (default 10) and
+  `daily_easy_apply_cap` (default 5). Needs `apply_consent: standing`, `auto_apply_since` (the day the user said yes)
+  and `review_before_submit: false`; it never submits a form that asks for payment, a paid test or data the files lack.
 
-`apply_consent: per_opening` is fixed: no submit runs on standing permission. Each opening needs its own `apply`.
+`apply_consent` follows the mode: `per_opening` for try and ask (each submit needs its own `consent.json`), `standing`
+for auto (profile.md is the consent). A cap reached means the opening waits for tomorrow, never a kit.
 
 ## Years of experience
 
-Gates compute years from the dated `experiences` in `achievements.yaml` (overlaps counted once); `years_experience`
-is used only when no experience has dates. With `seniority_basis: total` every "N years" requirement, "as tech lead"
-included, compares with the total; with `role`, "N years as <role>" compares with matching titles only (validate_profile.py checks).
+Gates compute years from the dated `experiences` in `achievements.yaml` (overlaps counted once); `years_experience` is
+used only when no experience has dates. With `seniority_basis: total` every "N years" requirement compares with the
+total; with `role`, "N years as <role>" compares with matching titles (validate_profile.py checks).
 
 ## achievements.yaml
 
-The only source of claims (jobs-contract -> Pitfalls).
+The only source of claims (jobs-contract -> Pitfalls). Store text in every language the user applies in; the user confirms each.
 
 ```yaml
 experiences:
@@ -152,8 +154,6 @@ star_stories:                     # interview stories; drafted with the user, ne
   - {id: STAR-001, achievements: [ACH-007], situation: "", task: "", action: "", result: "", verified: false}
 ```
 
-Store text in every language the user applies in; the user confirms each.
-
 ## contact.yaml
 
 Sensitive; keep it out of git. Readers: jobs-contract step 2.
@@ -168,8 +168,7 @@ links: ["https://github.com/example"]
 
 ## application-data.yaml
 
-Only when `auto_apply` is `try` or `ask`. Sensitive; keep it out of git. Every country in `eligibility` needs a row in
-`work_authorization`.
+Only when `auto_apply` is `try`, `ask` or `auto`. Sensitive; keep it out of git. Every country in `eligibility` needs a row in `work_authorization`.
 
 ```yaml
 work_authorization:
@@ -184,17 +183,17 @@ saved_answers: []                   # {question, answer}; added only with the us
 
 ## Check the files: validate_profile.py
 
-Run it after writing the files and before telling the user they are saved:
+Run it after the writes and before telling the user the files are saved:
 
 ```bash
 python3 -I "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/validate_profile.py" --project <P> --json
 ```
 
-Exit 0: no findings. Exit 1: each finding names its file, key and message; fix every one, asking the user for any fact.
-Exit 2: usage error. The script only reads, and it never prints contact values.
+Exit 0: no findings. Exit 1: each finding names its file, key and message; fix every one, asking the user for any fact. Exit 2: usage error. The script only reads, and it never prints contact values.
 
-It checks: required keys; enum values (`search`, `auto_apply`, `candidate.stage`, `work_mode`, `proficiency`, CEFR
-levels); `scoring.weights` sums to 100; quoted country codes; `user_language` (ISO 639-1); `timezone` (IANA);
-`review_before_submit` true for `ask`; work-mode words in `deal_breakers`; ids referenced from achievements exist;
-dates parse and end after they start; computed years against `years_experience`; `application-data.yaml` covers every
-eligibility country.
+It checks: required keys; enum values (`search`, `auto_apply`, `apply_consent`, `candidate.stage`, `work_mode`,
+`proficiency`, CEFR levels); `apply_consent` matching the mode and `auto_apply_since` dated with `auto`; the daily caps
+whole numbers; `review_before_submit` true for `ask` and false for `auto`; `scoring.weights` sums to 100; quoted country
+codes; `user_language` (ISO 639-1); `timezone` (IANA); work-mode words in `deal_breakers`; ids referenced from
+achievements exist; dates parse and end after they start; computed years against `years_experience`;
+`application-data.yaml` covers every eligibility country.

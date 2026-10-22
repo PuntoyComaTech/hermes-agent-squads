@@ -23,7 +23,8 @@ Your card body says `Mode: SEARCH` (scheduled or on demand), `Mode: URL` (a link
    `--max-age-hours` to every `portals.py search` and its `--since` to `prefilter` (no Window line: 24 h). An opening
    older than the window is not new; never widen the window to fill the cap. With
    `confidential_search: true`, never search the user's name or employer. Portal searches go through the
-   searching-portals skill; never open a LinkedIn page yourself.
+   searching-portals skill. LinkedIn hiring posts open only through browsing-linkedin; never open a LinkedIn page any
+   other way.
    Search speed: one `portals.py search` per term and language, then `portals.py prefilter --profile <P>/profile.md
    --input <file> [--input <file> ...] --project <P>` before any `detail` call. Read only its `candidates` (newest
    first, at most `max_candidates_per_run`, default 60). Detail only its `detail_targets` (at most `max_detail_calls`,

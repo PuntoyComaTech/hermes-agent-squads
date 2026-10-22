@@ -1,0 +1,23 @@
+{
+  "skill_name": "recommending-platforms",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A PLATFORMS card for a data analyst whose market.country is CO and who may work remotely; reports/platforms-*.json does not exist yet.",
+      "expected_output": "The scout searches Spanish and English, shortlists at most 12, marks recommended only with two independent hosts, lists LinkedIn with search.method portal_cli and portal linkedin, writes reports/platforms-<date>.json, validate exits 0, and the card result carries the summary table.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The only page found for a promising regional board is its own site and one article full of referral links.",
+      "expected_output": "The board is optional, not recommended: platforms_report.py validate refuses recommended without independent evidence, and the why says what is missing.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The manager asks the scout to list the maximum headline length of every recommended platform.",
+      "expected_output": "Only limits whose help page the scout read go into profile_fields with profile_fields_source; the others are reported as not stated, and no number is invented. LinkedIn is left to the writer's built-in limits.",
+      "files": []
+    }
+  ]
+}

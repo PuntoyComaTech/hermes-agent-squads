@@ -1,0 +1,32 @@
+{
+  "name": "elempleo",
+  "description": "elempleo Colombia: public job listings by keyword and city, with the board's workplace label.",
+  "hosts": [
+    "elempleo.com"
+  ],
+  "url_hosts": [
+    "elempleo.com"
+  ],
+  "enabled": true,
+  "markets": [
+    "co"
+  ],
+  "cmd": [
+    "{python}",
+    "{dir}/cli.py"
+  ],
+  "search_flags": {
+    "query": "--query",
+    "location": "--location",
+    "remote": "--remote",
+    "limit": "--limit",
+    "format": "--format"
+  },
+  "search_defaults": [],
+  "required_search": [
+    "query"
+  ],
+  "example_query": "analista de datos",
+  "example_location": "Bogotá",
+  "retry_query": "ingeniero"
+}

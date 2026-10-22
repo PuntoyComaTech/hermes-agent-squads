@@ -11,7 +11,7 @@ only after the user agrees. Nothing is sent to anyone. Statuses and legacy spell
 ## When to Use
 
 - The user reports an outcome: applied, screening, interview, offer, rejected, no reply, offer declined, withdrawn.
-- A jobs-writer card returns with `Mode: INBOX` and a path to `reports/inbox-YYYY-MM-DD.json`.
+- A jobs-inbox card returns with `Mode: INBOX` and a path to `reports/inbox-YYYY-MM-DD.json`.
 - The user asks what is due: a follow-up, or a stale sweep.
 - An interview stage was just recorded: offer a thank-you draft.
 
@@ -27,7 +27,7 @@ only after the user agrees. Nothing is sent to anyone. Statuses and legacy spell
    - An offer declined is written as `withdrawn` with the note `offer declined`.
    - On an interview stage, offer one thank-you draft (step 3, `FOLLOWUP` rules).
 3. **FOLLOWUP.** `tracker.py followups --project <P>` lists open rows quiet for `follow_up_days` with fewer than two
-   follow-ups. Each row has a `draft_path`. For a draft, file a jobs-writer card with `skills: [triaging-inbox]`,
+   follow-ups. Each row has a `draft_path`. For a draft, file a jobs-inbox card with `skills: [triaging-inbox]`,
    body `Mode: FOLLOWUP <ID> <n>`; the writer writes the draft and never sends it. When the user confirms they sent
    it: `tracker.py update --project <P> --id <ID> --follow-ups-inc --on <date>`.
 4. **STALE.** `tracker.py stale --project <P>` lists submitted rows quiet for `stale_days`. The inbox card names each such

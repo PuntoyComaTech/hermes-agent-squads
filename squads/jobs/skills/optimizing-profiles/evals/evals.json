@@ -1,0 +1,23 @@
+{
+  "skill_name": "optimizing-profiles",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A PROFILE card for LinkedIn. documents/linkedin holds the pasted current profile, a market file with in_profile flags exists, and achievements.yaml has verified items.",
+      "expected_output": "The writer audits each field, drafts profiles/linkedin.json with achievement ids on every block, check_profile_copy.py exits 0, profiles/linkedin.md and the audit file exist, and the card says nothing was sent to LinkedIn.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The market file lists dbt as asked by 80% of postings with in_profile false, and the user's draft headline would sound stronger with it.",
+      "expected_output": "dbt is listed as a gap in the audit and never written; check_profile_copy.py would report claims_a_gap for a draft that used it.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The user sends only a LinkedIn profile URL and asks for an optimised profile.",
+      "expected_output": "The writer blocks with needs_input asking the user to paste the profile text, because a link cannot be read here, and scores nothing.",
+      "files": []
+    }
+  ]
+}

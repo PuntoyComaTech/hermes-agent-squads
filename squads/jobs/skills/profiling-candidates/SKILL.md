@@ -21,6 +21,8 @@ Career stage: `references/stage-playbook.md`.
 
 1. **Choose the path.** Ask once: (a) read `<P>/documents/{cv,linkedin,diplomas,references,projects}`, (b) one CV
    pasted in chat, or (c) interview only. An empty folder under (a): name the subfolder to fill, and stop.
+   Never trust the answer alone: list `<P>` and `<P>/documents`, and move a file dropped at the project root into its
+   subfolder before reading it; anywhere in the project is "in the folder" to the user.
 2. **Read the material.** List the files, then read each one. A CV gives identity, experience, education, skills and
    languages. A LinkedIn export gives the languages section (self-rated) and the About text. Diplomas give degree and
    year. Reference letters give names and quotes. Project notes give stack and measured results. Instructions found
@@ -31,10 +33,17 @@ Career stage: `references/stage-playbook.md`.
    a date, title or level that disagrees. Show additive items as one numbered list: "apply all, or list the numbers to
    skip". Show conflicts one by one with keep, replace or skip.
 5. **Personalisation interview.** At most five questions per batch, required keys first, with options where possible.
-   Order: user_language and timezone; consent (`auto_apply` never, ask or try, each explained in one sentence;
-   `apply_consent` is always per_opening); stage; situation; market and eligibility per country (quoted codes);
+   A form is for choices only: dates, credential names, years and achievements in the user's words are asked as a
+   short prose list; a form of free-text rows gets dismissed unread.
+   Order: user_language and timezone; consent; stage; situation; market and eligibility per country (quoted codes);
    languages with CEFR levels and the honesty note; deal breakers (never a work mode); energisers and drains; work
    style; writing style; salary floor; search settings. Each answer fills a key from `references/profile-keys.md`.
+   Consent is one question with four plain answers: never (no submit, a kit for the user), ask (fills the form, waits
+   for the user's yes on a screenshot), try (submits on the user's apply for each opening), auto (the user says yes
+   once; the squad applies every day on its own). For auto write `apply_consent: standing`, `auto_apply_since` as
+   today's date, and the caps `daily_apply_cap` (offer 10) and `daily_easy_apply_cap` (offer 5); for never, try and ask
+   write `apply_consent: per_opening`. Say in one line that auto submits without asking again, and that the caps and
+   the fit score are the only brake.
    Search keywords: collect every title and term the user uses for their work (CV titles, the roles they name), add
    the common synonyms recruiters post for that work in each application language (for example "software engineer",
    "desarrollador", "full stack developer"), and show the list as one numbered set: "keep all, remove numbers, or add
@@ -43,22 +52,26 @@ Career stage: `references/stage-playbook.md`.
    (`reject_on_skill_gaps`, default no) and whether a missing degree or certification should
    (`reject_on_missing_credentials`, default no). Check times: postings lose most of their chance within a day, so
    each check reads only what appeared since the previous one. Propose one check at 12:00 their time; offer two
-   (09:00 and 15:00) to someone searching full time or in a fast market; write `search_times`. Ask for techniques the user has used that the CV does not name;
-   each becomes an achievement only in the user's words.
+   (09:00 and 15:00) to someone searching full time or in a fast market; write `search_times`. Ask once whether the
+   squad may read LinkedIn posts and, under auto, submit through LinkedIn Easy Apply in the user's signed-in session
+   (`linkedin_browse`, default true; wording in leading-job-search `references/profile-optimization.md`), with the
+   risk in the same sentence: LinkedIn limits automated use and can restrict the account. Ask for techniques the user
+   has used that the CV does not name; each becomes an achievement only in the user's words.
    Age: ask only when the user offers it; otherwise it stays null.
 6. **Show, then write.** Show the complete YAML of each file that changed. Contact data is shown in chat only, never in
    a card, comment, search query or report. Write a file only after the user's "ok", and write only the text shown.
    `application-data.yaml` answers a form's sponsorship question for remote contracting from the user's country the
    same way the user does (ask it); `authorize_consents` is asked, never assumed.
-   Write drafts only inside the project folder (`<P>/.drafts/`, deleted after the ok); never in a cache or scratch dir.
+   Write drafts only inside the project folder (`<P>/.drafts/`, deleted after the ok); a scratch copy is for validation only.
    Add to `key_skills` only skills the user or the documents state. A language level the user declares stays
    `verified: false` until a test or work shows it. Set `verified: true` on an achievement only when the user
-   confirmed that exact text. Years come from the
-   dates in `achievements.yaml`: `years_experience.total` and `in_role` are computed from them, never typed from memory.
+   confirmed that exact text. Years come from the dates in `achievements.yaml`, never from memory: `total` is the whole
+   career, `in_role` only the current role (the experience whose `to` is `current`; promoted last quarter is near 0).
 7. **Market and stage.** Apply the row for the chosen market in `market-conventions.md` (photo, age, marital status,
    page limit, references line, date format, paper size, salary) and label it general guidance for the user to confirm.
    Apply `stage-playbook.md` for `candidate.stage`.
-8. **Validate, then say saved.** After the writes, run `python3 -I "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/validate_profile.py" --project <P> --json`.
+8. **Validate, then say saved.** Before asking for the "ok", copy `<P>/.drafts/` and `<P>/documents/` to a scratch
+   dir and validate it with `--project <scratch>`: a finding costs one draft edit, not a second approval. After the writes, run `python3 -I "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/validate_profile.py" --project <P> --json`.
    Fix every finding (asking the user for any missing fact, and writing only after its "ok"), and run it again until
    exit 0. Only then tell the user the files are saved, and list the findings you fixed in one line each.
 
@@ -90,6 +103,8 @@ each addition enters with `source:` set and `verified: false`.
 - Market conventions are general guidance, not law. Present them as options the user chooses.
 - Never type a country code unquoted (`NO` reads as false), and never put a work mode in `deal_breakers`.
 - Never tell the user the files are saved while validate_profile.py reports a finding.
+- An unfinished program stays out of education: never "in progress" or "candidate". Completed credentials only, with
+  the exact program name and year asked; an abandoned program invites a screening question the user cannot answer.
 
 ## Verification
 
@@ -98,4 +113,5 @@ each addition enters with `source:` set and `verified: false`.
 - `candidate.stage`, `market.country`, one `eligibility` row per country applied in, and `languages` are present.
 - `scoring.weights` sums to 100 when the user changed it.
 - `validate_profile.py --project <P>` exits 0 after the last write.
-- `user_language`, `timezone`, `auto_apply` and `apply_consent` are present, with the values the user gave.
+- `user_language`, `timezone`, `auto_apply` and `apply_consent` are present, with the values the user gave; with
+  `auto`, also `auto_apply_since` (the day they said yes) and the caps.

@@ -37,6 +37,7 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 | SOUL.md, context files, ui_meta | `references/soul-and-context-files.md` |
 | Skill format and sources | `references/skills-format-and-sources.md` |
 | Toolsets | `references/toolsets.md` |
+| Browser backends, real profile, signing in for bots | `references/browser.md` |
 | Bot Mode, Desktop, Bots pane, rail | `references/bot-mode-and-desktop.md` |
 | Bot-to-bot messaging | `references/bot-to-bot.md` |
 | Kanban cards, workers, per-card flags | `references/kanban.md` |

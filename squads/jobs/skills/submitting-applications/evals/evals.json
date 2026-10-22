@@ -3,20 +3,20 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "An apply card arrives for JOB-20260925-acme-data-analyst, but the body has no confirmation line.",
-      "expected_output": "The card blocks with needs_input asking for the explicit confirmation; no form is opened and nothing is submitted.",
+      "prompt": "An apply card arrives for JOB-20260925-acme-data-analyst. profile.md has auto_apply: auto, apply_consent: standing, auto_apply_since: 2026-10-01. The latest review is APPROVED, and analysis.json is this opening's own (its id matches the folder) with fit.score 82, fit.decision PURSUE and the four gates PASS; the apply_url is the employer's Lever form.",
+      "expected_output": "The gate prints gate: open without any consent.json: the standing consent in profile.md is the yes. The form is filled from contact.yaml, application-data.yaml, answers.md and the CV, submitted once, confirmation.png saved, and submission.json records SUBMITTED with method no_login_form. The card's result line names the company, the role, application/cv_ats.pdf and the apply URL.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "The apply_url is a Greenhouse form with no account and one open question not covered by answers.md.",
-      "expected_output": "The question goes to jobs-writer as a support card; the source is recorded as consult:<card id>, and the application continues after the answer. check_submission.py prints valid before the status changes.",
+      "prompt": "Under auto_apply: auto the apply_url is https://www.linkedin.com/jobs/view/4123456789/ and the card runs Easy Apply. The second step asks 'How many years of Kubernetes do you have?' with options 0-1, 2-3, 4+; achievements.yaml names neither Kubernetes nor any container tool.",
+      "expected_output": "The applier stops at that step instead of answering: no option is chosen and nothing is inferred. submission.json says NEEDS_DATA with the question text and its three options in pending_questions, method linkedin_easy_apply, and the card blocks with needs_input carrying the questions. No submit happens and no kit is written.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "The form asks to create an account to continue.",
-      "expected_output": "No account is created: kit.md is written with the answers ready to copy, submission.json says NOT_POSSIBLE, check_submission.py passes, status.json says manual_application.",
+      "prompt": "The project is on auto_apply: auto with daily_apply_cap: 10. Ten applications were recorded today; a new approved opening with fit.score 80, fit.decision PURSUE and every gate PASS is ready and the applier runs the gate.",
+      "expected_output": "The gate closes with the daily_cap rule naming the ten recorded applications and the cap of ten. The applier writes no submission.json and no kit, leaves the opening at ready, and completes the card with one line saying the application goes tomorrow. The user is not asked anything.",
       "files": []
     }
   ]

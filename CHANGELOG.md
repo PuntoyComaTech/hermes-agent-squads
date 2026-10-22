@@ -3,6 +3,45 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.9.0 - 2026-10-22
+
+### Added
+
+- Shared signed-in browser. A bot manifest with `shared_browser: true` (toolset `browser`) drives one headless
+  Chromium per machine, signed in once by the owner, instead of a browser of its own. `squadctl` points the bot's
+  `browser.cdp_url` at it, keeps `browser.use_real_profile` off, installs the `shared-browser-tabs` plugin (one tab per
+  task, `new_tab` navigates in place, the tab and its harness daemon are closed when the turn ends) and adds a
+  no-agent `browser-sweep` cron to the manager every 3 hours for tabs a crashed run left. `scripts/shared_browser.py`
+  runs the browser as a launchd service and opens the sign-in window (`login <url>`: a plain window, because Google
+  refuses sign-in where a debugging port is open). The builder profile and unmarked bots never use it.
+- Jobs squad 4.1.0:
+  - Portals `computrabajo`, `elempleo` and `talent` (zero dependencies, schema.org JSON-LD over HTTP).
+  - `browsing-linkedin` (scout): LinkedIn hiring-post search in the shared browser, read-only, Boolean terms and a
+    recency window; job listings stay with the portal tool.
+  - `recommending-platforms` (scout): job platforms per country from independent evidence.
+  - `optimizing-profiles` (writer): reads the user's own LinkedIn profile, drafts copy from verified achievements, and
+    after the user approves each field edits it and re-reads to verify (`own_profile.py`, `profile_diff.py`,
+    `check_profile_copy.py`).
+  - `auto_apply: auto`: a standing consent recorded once, with `daily_apply_cap` and `daily_easy_apply_cap`;
+    `check_submission.py` enforces an approved review, a PURSUE analysis with no gate FAIL, `apply_threshold` and the
+    caps, under a project lock with a reservation per open gate (`apply_state.py`), so parallel applier runs never pass
+    the cap and a real submit is never left unrecorded; the applier gains
+    LinkedIn Easy Apply (`easy-apply.md`).
+  - New optional bot `jobs-inbox` (Gmail connector, no web, no browser): job mail and the verification codes other
+    bots ask for (`Mode: CODE`, `extract_code.py`). Gmail leaves `jobs-writer`.
+- Profile key `linkedin_browse` (default true, asked once) and a `profile` chain.
+- Reference `hermes-platform/references/browser.md`; decisions D-042 to D-044 and C-13.
+
+### Changed
+
+- `jobs-scout`, `jobs-writer` and `jobs-applier` run on the shared browser. Its headless service cannot resolve the
+  Google mail, files and account hosts (`--host-resolver-rules`); the bots' blocklist is a literal-URL filter on top. `jobs-scout` and `jobs-applier` no longer block `linkedin.com`.
+- `squadctl` no longer mirrors the owner's `browser.use_real_profile` to the builder itself, nor to a `shared_browser`
+  bot: a builder chat browsing there opened the owner's sessions in a profile copy.
+- The bots' base rule allows the shared browser (`browser.cdp_url`) besides the real-profile copy.
+- `followup_gate.py` files its inbox card for `jobs-inbox` (`--inbox`; `--writer` still works).
+- `squadctl`: a bot manifest with an empty `website_blocklist: []` clears a blocklist an earlier version installed.
+
 ## 2.8.0 - 2026-10-22
 
 ### Changed
