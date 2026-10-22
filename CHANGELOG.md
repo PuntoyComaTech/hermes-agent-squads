@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.6.1 - 2026-10-21
+
+### Fixed
+
+- `squadctl apply --yes` skipped the provider-key copy when `hermes auth list` showed the root key as an `env:` row:
+  that row is the CLI's own environment, not the bot's store, so the bot started on its fallback model. Only stored
+  credentials now count; the root key is copied into the bot (mode 600).
+
 ## 2.6.0 - 2026-10-21
 
 Jobs squad 4.0: a job search built around one person.

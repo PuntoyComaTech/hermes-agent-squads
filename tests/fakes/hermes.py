@@ -268,10 +268,19 @@ def main():
         assert rest[:1] == ["list"], rest
         # real shape (hermes_cli/auth_commands): provider header lines only; the indented credential rows below
         # them are never parsed by squadctl, which reads names, never values.
+        # Stored credentials (auth-names.json) show a stored source. Like the real CLI, a key the listing process can
+        # see in the root env file is listed too, sourced `env:<KEY>`: that row describes the CLI's environment,
+        # not the profile's own store, and a bot run does not get it.
         names = HOME / "auth-names.json"
-        for slug in (json.loads(names.read_text()) if names.is_file() else []):
+        rows = {slug: "manual" for slug in (json.loads(names.read_text()) if names.is_file() else [])}
+        root_env = ROOT / ".env"
+        for line in (root_env.read_text().splitlines() if root_env.is_file() else []):
+            key = line.strip().removeprefix("export ").split("=", 1)[0].strip()
+            if key.endswith("_API_KEY") and "=" in line:
+                rows.setdefault(key[: -len("_API_KEY")].lower().replace("_", "-"), f"env:{key}")
+        for slug, source in rows.items():
             print(f"{slug} (1 credentials):")
-            print("  #1  key-name  api_key id=1 priority=0 env:X <-")
+            print(f"  #1  key-name  api_key id=1 priority=0 {source} <-")
     elif cmd == "project":
         need_profile()
         sub, args = rest[0], rest[1:]

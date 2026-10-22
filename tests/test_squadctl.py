@@ -439,6 +439,21 @@ def test_provider_key_is_copied_from_the_root_env_file(env, capsys, monkeypatch)
     assert "sk-root...alue" not in json.dumps(out)
 
 
+def test_a_root_key_the_cli_lists_as_env_is_still_copied_into_the_bot(env, capsys, monkeypatch):
+    """Real install: `hermes -p <bot> auth list` printed the root key as an `env:` credential, apply took it for the
+    profile's own store, copied nothing, and the bot ran on its fallback model. An env-sourced row is not the bot's."""
+    monkeypatch.delenv("PROV_REVIEW_API_KEY", raising=False)
+    (env.root / ".env").write_text("PROV_REVIEW_API_KEY=sk-root...alue\n")
+    env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web-qa", "--yes", capsys=capsys)
+    (qa,) = out["bots"]
+    assert "credentials PROV_REVIEW_API_KEY: copied into web-qa (mode 600)" in qa["actions"], qa
+    assert (env.root / "profiles" / "web-qa" / ".env").read_text() == "PROV_REVIEW_API_KEY=sk-root...alue\n"
+    _, out = env.run("doctor", "web", capsys=capsys)
+    checks = {c["check"]: c for c in out["checks"]}
+    assert checks["web-qa:credentials"]["status"] == "ok" and "env file" in checks["web-qa:credentials"]["detail"]
+
+
 def test_doctor_credentials_check_and_models_never_pass_without_them(env, capsys, monkeypatch):
     """C-14: `<bot>:credentials` per bot; `models ok` passes only when the bot can authenticate."""
     monkeypatch.delenv("PROV_REVIEW_API_KEY", raising=False)

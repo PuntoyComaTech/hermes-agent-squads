@@ -1409,9 +1409,20 @@ class Applier:
         return env_pairs(self.ctx.root / ENV_FILE).get(key) or os.environ.get(key) or None
 
     def auth_slugs(self, name: str) -> set[str]:
-        """Provider slugs the profile auth store holds (`hermes -p <name> auth list`, header names only)."""
+        """Provider slugs the profile auth store holds (`hermes -p <name> auth list`).
+
+        A provider counts only with a credential row whose source is not `env:<KEY>`. The CLI lists keys it sees in
+        its own environment (the root env file) as `env:` rows; a bot run does not get them, so such a row is not a
+        credential of the profile and must never stop the copy."""
         out = self.ctx.hermes("auth", "list", profile=name, check=False)
-        return set(re.findall(r"^([a-z0-9][a-z0-9._-]*)(?: \([^)]*\))?:", out, re.M))
+        held, slug = set(), None
+        for line in out.splitlines():
+            head = re.match(r"^([a-z0-9][a-z0-9._-]*)(?: \([^)]*\))?:", line)
+            if head:
+                slug = head.group(1)
+            elif slug and re.match(r"^\s+#\d+\s", line) and not re.search(r"\senv:[A-Za-z_][A-Za-z0-9_]*", line):
+                held.add(slug)
+        return held
 
     def _credential(self, name: str, bot: dict) -> dict:
         """One provider credential as facts: which key name, where it already lives, where a value could come from.
