@@ -12,6 +12,7 @@ file (mode 600, name+value, value never shown) and passthrough shows names and s
 from __future__ import annotations
 
 import argparse
+import atexit
 import hashlib
 import json
 import os
@@ -27,6 +28,7 @@ HERE = Path(__file__).resolve().parent
 SRC = HERE.parent
 sys.path.insert(0, str(HERE))
 import _profile_apply as pa  # noqa: E402  (stdlib-only helpers shared with the in-runtime writer)
+import hermes_home as hh  # noqa: E402  (which data root owns the installed Hermes)
 import merge3  # noqa: E402  (three-way merge: local skill edits survive an update)
 
 AUX_TASKS = ("title_generation", "goal_judge", "curator", "compression", "kanban_decomposer", "triage_specifier",
@@ -214,6 +216,9 @@ class Ctx:
         self.builder = a.builder
         self.json = a.json
         self._runtime: tuple[str, str] | None = None
+        self._owner: Path | None | bool = False  # False: not asked yet
+        self._probe: Path | None = None
+        self._shared = False
         self._identity: str | None = None
         self._defaults: set[str] | None = None
         self._vision: dict[tuple[str, str], bool] = {}
@@ -224,7 +229,40 @@ class Ctx:
     def home(self, bot: str) -> Path:
         return self.profiles / bot
 
+    def owner(self) -> Path | None:
+        """Data root that owns the installed Hermes (hermes_home.owner_root); None when Hermes cannot tell."""
+        if self._owner is False:
+            try:
+                self._owner = hh.owner_root(*self.runtime())
+            except Fail:
+                self._owner = None
+        return self._owner if isinstance(self._owner, Path) else None
+
+    def borrows(self) -> bool:
+        """True when this root keeps dependency state apart from the owner: Hermes syncs its own environment."""
+        return hh.borrows(self.root, self.owner())
+
+    def share_cache(self) -> None:
+        """Before the first Hermes run in a borrowing root: link its uv cache to the owner's, so the one dependency
+        sync Hermes owes that root installs from cache instead of downloading every wheel."""
+        if not self._shared:
+            self._shared = True
+            if self.borrows():
+                hh.share_uv_cache(self.root, self.owner())
+
+    def runtime_home(self) -> Path:
+        """HERMES_HOME for questions about the installed code (identity, default toolsets, registries): this root,
+        or, when it borrows the install, an empty home inside the owner root, which Hermes never syncs."""
+        owner = self.owner()
+        if owner is None or not self.borrows():
+            return self.root
+        if self._probe is None:
+            self._probe = hh.probe_home(owner)
+            atexit.register(shutil.rmtree, self._probe, True)
+        return self._probe
+
     def hermes(self, *args: str, profile: str | None = None, check: bool = True, stdin: str | None = None) -> str:
+        self.share_cache()
         cmd = ["hermes", *(["-p", profile] if profile else []), *args]
         env = {**os.environ, "HERMES_HOME": str(self.root)}
         try:
@@ -259,7 +297,7 @@ class Ctx:
         boot = "import sys; sys.path.insert(0, %r); sys._hermes_pin_default_home = True; import hermes_bootstrap; " % hroot
         try:
             p = subprocess.run([py, "-I", "-c", boot + code], capture_output=True, text=True, timeout=120,
-                               stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+                               stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.runtime_home())})
         except (OSError, subprocess.SubprocessError) as exc:
             raise Fail(f"cannot read {what} from the installed Hermes: {exc}") from None
         if p.returncode != 0 or not p.stdout.strip():
@@ -295,7 +333,8 @@ class Ctx:
                     "print(json.dumps(d(sys.argv[1], sys.argv[2], {}) == 'native'))") % hroot
             try:
                 p = subprocess.run([py, "-I", "-c", code, provider, model], capture_output=True, text=True,
-                                   timeout=120, stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+                                   timeout=120, stdin=subprocess.DEVNULL,
+                                   env={**os.environ, "HERMES_HOME": str(self.runtime_home())})
                 self._vision[key] = p.returncode == 0 and p.stdout.strip().splitlines()[-1:] == ["true"]
             except (OSError, subprocess.SubprocessError):
                 self._vision[key] = False
@@ -317,7 +356,7 @@ class Ctx:
                         "p = R.get(sys.argv[1]); "
                         "print(json.dumps(list(getattr(p, 'api_key_env_vars', ()) or []) if p else None))") % hroot
                 p = subprocess.run([py, "-I", "-c", code, provider], capture_output=True, text=True, timeout=60,
-                                   stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.root)})
+                                   stdin=subprocess.DEVNULL, env={**os.environ, "HERMES_HOME": str(self.runtime_home())})
                 keys = json.loads(p.stdout.strip().splitlines()[-1]) if p.returncode == 0 and p.stdout.strip() else None
             except (OSError, ValueError, Fail, subprocess.SubprocessError):
                 keys = None
@@ -329,6 +368,7 @@ class Ctx:
 
     def apply_config(self, home: Path, payload: dict) -> None:
         """One write pass per home through Hermes's own config writer (_profile_apply.py)."""
+        self.share_cache()
         py, hroot = self.runtime()
         boot = ("import sys,runpy; sys.path.insert(0, %r); sys._hermes_pin_default_home=True; "
                 "import hermes_bootstrap; runpy.run_path(%r, run_name='__main__')") % (

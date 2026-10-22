@@ -138,6 +138,11 @@ def probe_runtime(env: dict | None = None) -> list[dict] | None:
     if not rt:
         return None
     (python, flag), src = rt
+    home = (env or os.environ).get("HERMES_HOME")
+    if home:  # a data root that borrows the install syncs its own dependencies first: from the shared cache
+        sys.path.insert(0, str(SCRIPTS))
+        import hermes_home as hh
+        hh.share_uv_cache(Path(home), hh.owner_root(python, src))
     try:
         out = subprocess.run([python, flag, "-c", PROBE.format(src=src)], capture_output=True, text=True,
                              timeout=180, env=env)
