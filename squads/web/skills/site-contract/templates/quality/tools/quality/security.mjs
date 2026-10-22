@@ -3,15 +3,15 @@
 // "Could not run" is never "clean": a missing lockfile, an empty history or a scanner error exits 2.
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { delimiter, isAbsolute, join } from "node:path";
 
-const TOOLS_BIN = join(
-  process.env.HERMES_WEB_TOOLS_DIR ?? join(process.env.HERMES_REAL_HOME ?? homedir(), ".local", "share", "hermes-web-tools"),
-  "bin",
-);
 // absolute folders only: an empty or relative PATH entry would run a file of that name committed in the repo
-const SEARCH = [...(process.env.PATH ?? "").split(delimiter), TOOLS_BIN, "/opt/homebrew/bin", "/usr/local/bin"].filter(
+// the scanners come from Homebrew (security_tools.py): its bin folder is searched even on a bare PATH, from
+// HOMEBREW_PREFIX (what `brew shellenv` exports) or else Homebrew's default prefixes
+const BREW_BINS = process.env.HOMEBREW_PREFIX
+  ? [join(process.env.HOMEBREW_PREFIX, "bin")]
+  : ["/opt/homebrew/bin", "/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin"];
+const SEARCH = [...(process.env.PATH ?? "").split(delimiter), ...BREW_BINS].filter(
   (dir) => dir !== "" && isAbsolute(dir),
 );
 // default deny: only these licenses ship in a site bundle. Copyleft (GPL, AGPL), source-available (SSPL, BUSL,
@@ -146,7 +146,11 @@ const gates = {
         say(`${label}: known vulnerabilities\n${lastLines(row.text)}`);
       }
     }
-    return osv.status === 0 && audit.status === 0;
+    const clean = osv.status === 0 && audit.status === 0;
+    if (!clean) {
+      say("fix: python3 <site-contract>/scripts/security_fix.py --repo . installs each fix, even one younger than the release-age rule");
+    }
+    return clean;
   },
   secrets() {
     const gitleaks = find("gitleaks");

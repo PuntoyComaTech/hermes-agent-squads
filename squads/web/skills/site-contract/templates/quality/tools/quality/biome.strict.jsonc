@@ -1,6 +1,7 @@
 {
-  // Strict base written by site_base.py. Workers never relax it: a rule that blocks real work goes to the manager.
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  // The squad's strict rules. The project's own biome.json (from the stack's create CLI or `biome init`) extends
+  // this file, so Biome's version and schema stay the installer's. Workers never relax it: a rule that blocks real
+  // work goes to the manager.
   "files": {
     "includes": [
       "**",
@@ -11,6 +12,8 @@
       "!!**/.wrangler",
       "!!**/coverage",
       "!!**/playwright-report",
+      "!!**/public",
+      "!!**/.hermes-live",
       "!!src/routeTree.gen.ts",
       "!!tools/quality/node_modules"
     ]

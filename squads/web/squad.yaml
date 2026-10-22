@@ -1,7 +1,7 @@
 schema: 2
 key: web
 name: Web
-version: 3.4.0
+version: 3.5.0
 description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
 hermes_requires: ">=0.22.0"
 board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
@@ -15,6 +15,7 @@ bots:
     description: "Interviews the user, writes spec.md, plans milestones, files chains, triages changes and accepts work"
     lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, web, vision, delegation]
+    requires: {apps: [brew]}
     skills: {squad: [leading-web, site-contract], auto_load: leading-web,
              keep: [official:software-development/grill-me]}
     plugins: {enable: [disk-cleanup]}
@@ -59,7 +60,7 @@ bots:
              keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
     plugins: {enable: [disk-cleanup]}
     mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
-    requires: {apps: [uv]}
+    requires: {apps: [brew]}
   web-deployer:
     role: worker
     title: Web deployer

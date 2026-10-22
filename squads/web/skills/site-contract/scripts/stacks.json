@@ -1,8 +1,7 @@
 {
-  "_comment": "Pins scaffold_site.py writes. A bump needs a decisions.md line. Pins are at least 14 days old: npm's min-release-age refuses newer ones.",
-  "schema": 3,
+  "_comment": "What site_base.py runs, never what it writes by hand. Every project starts from its framework's official create CLI and every package arrives through `pnpm add <name>` with no version: pnpm resolves the newest release that is at least 3 days old (pnpm.minimumReleaseAge, also passed to `pnpm dlx`). No version lives here except a constraint with its reason (`constraints`). A security fix younger than that is let in by security_fix.py, exact release only. `fresh_allow` lists packages the versions gate lets stay behind the newest major, with the reason.",
+  "schema": 4,
   "node": ">=22",
-  "package_manager": "pnpm@10.34.6",
   "built_dependencies": [
     "esbuild",
     "workerd",
@@ -11,54 +10,80 @@
     "@tailwindcss/oxide",
     "@biomejs/biome"
   ],
-  "devDependencies": {
-    "@biomejs/biome": "2.5.15",
-    "typescript": "7.0.2",
-    "vitest": "5.0.3",
-    "@vitest/coverage-v8": "5.0.3",
-    "@playwright/test": "1.64.0",
-    "lighthouse": "13.5.0",
-    "axe-core": "4.14.0",
-    "jscpd": "5.4.0",
-    "knip": "6.40.0",
-    "lefthook": "2.2.0",
-    "@types/node": "24.19.1"
-  },
+  "devDependencies": [
+    "@biomejs/biome",
+    "vitest",
+    "@vitest/coverage-v8",
+    "@playwright/test",
+    "jscpd",
+    "knip",
+    "lefthook",
+    "lighthouse",
+    "axe-core",
+    "@types/node"
+  ],
   "quality_tools": {
-    "_comment": "tools/quality/package.json: SonarJS and dependency-cruiser need the TypeScript JavaScript API, which TypeScript 7 does not ship; they run here on TypeScript 6.",
-    "eslint": "10.12.0",
-    "eslint-plugin-sonarjs": "4.2.2",
-    "typescript-eslint": "8.71.1",
-    "dependency-cruiser": "18.5.0",
-    "jiti": "2.7.0",
-    "typescript": "6.0.3",
-    "@types/node": "24.19.1",
-    "eslint-plugin-security": "4.2.0",
-    "eslint-plugin-no-unsanitized": "4.1.5",
-    "type-coverage": "2.30.3"
+    "_comment": "tools/quality: SonarJS and dependency-cruiser need the TypeScript JavaScript API, which TypeScript 7 does not ship, so this folder installs TypeScript 6 (a constraint, not a pin).",
+    "packages": [
+      "eslint",
+      "eslint-plugin-sonarjs",
+      "typescript-eslint",
+      "dependency-cruiser",
+      "jiti",
+      "@types/node",
+      "eslint-plugin-security",
+      "eslint-plugin-no-unsanitized",
+      "type-coverage",
+      "typescript@6"
+    ]
   },
   "cloudflare": {
-    "_comment": "wrangler is added to the site repo when provider is cloudflare; cf and wrangler run from these pins through npx, never a global install.",
-    "wrangler": "4.148.0",
-    "cf": "1.0.0-beta.13"
+    "_comment": "Added to the site repo when site.yaml provider is cloudflare. The cf CLI runs through `pnpm dlx cf@latest` under the same 3-day rule.",
+    "devDependencies": [
+      "wrangler"
+    ]
+  },
+  "vercel": {
+    "_comment": "Runs through `pnpm dlx vercel@latest` under the 3-day rule when site.yaml provider is vercel."
+  },
+  "motion": {
+    "packages": [
+      "gsap",
+      "@gsap/react",
+      "three",
+      "@react-three/fiber",
+      "@react-three/drei"
+    ],
+    "notes": "Added only when the spec asks for motion or 3D: `pnpm add <name>`, no version."
   },
   "stacks": {
     "astro": {
       "type": "static",
       "why": "Almost no JavaScript on the wire, content in Markdown.",
-      "dependencies": {
-        "astro": "7.3.7"
-      },
-      "devDependencies": {
-        "@astrojs/check": "0.9.10",
-        "typescript": "6.0.3",
-        "tailwindcss": "4.3.3",
-        "@tailwindcss/vite": "4.3.3"
-      },
+      "create": [
+        "create-astro@latest",
+        "{dir}",
+        "--template",
+        "minimal",
+        "--no-install",
+        "--no-git",
+        "--skip-houston",
+        "--no-ai",
+        "--yes"
+      ],
+      "after_install": [
+        [
+          "astro",
+          "add",
+          "tailwind",
+          "--yes"
+        ]
+      ],
+      "devDependencies": [
+        "@astrojs/check",
+        "typescript@6"
+      ],
       "scripts": {
-        "dev": "astro dev",
-        "build": "astro build",
-        "preview": "astro preview",
         "check": "astro check"
       },
       "output": "dist",
@@ -69,27 +94,34 @@
       "entry": [
         "src/pages/**/*.astro"
       ],
-      "notes": "Static output by default; add an adapter only when a page needs a server. @astrojs/check needs TypeScript 6."
+      "notes": "Static output by default; `pnpm astro add <adapter>` only when a page needs a server.",
+      "typecov_ignore": [
+        ".astro/**"
+      ]
     },
     "nextjs": {
       "type": "dynamic_seo",
       "why": "Server rendering and metadata for pages that must be indexed.",
-      "dependencies": {
-        "next": "16.4.1",
-        "react": "19.3.0",
-        "react-dom": "19.3.0"
-      },
-      "devDependencies": {
-        "@types/react": "19.3.0",
-        "@types/react-dom": "19.3.0",
-        "tailwindcss": "4.3.3",
-        "@tailwindcss/postcss": "4.3.3"
-      },
+      "create": [
+        "create-next-app@latest",
+        "{dir}",
+        "--ts",
+        "--tailwind",
+        "--biome",
+        "--app",
+        "--src-dir",
+        "--import-alias",
+        "@/*",
+        "--use-pnpm",
+        "--skip-install",
+        "--disable-git",
+        "--yes",
+        "--no-agent-feedback"
+      ],
+      "after_install": [],
+      "devDependencies": [],
       "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "preview": "next start",
-        "check": "tsc --noEmit"
+        "check": "next typegen && tsc --noEmit"
       },
       "output": ".next",
       "port": 3000,
@@ -99,30 +131,37 @@
       "entry": [
         "src/app/**/{page,layout,route}.tsx"
       ],
-      "notes": "Server components by default; a Cloudflare deploy goes through the provider's own Next adapter."
+      "notes": "Server components by default; the create CLI also writes AGENTS.md, Next's own guide for coding agents. `next typegen` writes the route types (LayoutProps, PageProps) that tsc needs.",
+      "typecov_ignore": [
+        ".next/**"
+      ]
     },
     "tanstack": {
       "type": "saas",
       "why": "Public pages rendered on the server plus a fast private app.",
-      "dependencies": {
-        "@tanstack/react-start": "1.168.60",
-        "@tanstack/react-router": "1.170.41",
-        "react": "19.3.0",
-        "react-dom": "19.3.0"
-      },
-      "devDependencies": {
-        "vite": "8.3.3",
-        "@vitejs/plugin-react": "6.1.2",
-        "@types/react": "19.3.0",
-        "@types/react-dom": "19.3.0",
-        "tailwindcss": "4.3.3",
-        "@tailwindcss/vite": "4.3.3",
-        "@tanstack/router-cli": "1.167.40"
-      },
+      "create": [
+        "@tanstack/cli@latest",
+        "create",
+        "{name}",
+        "--target-dir",
+        "{dir}",
+        "--framework",
+        "React",
+        "--package-manager",
+        "pnpm",
+        "--no-install",
+        "--no-git",
+        "--toolchain",
+        "biome",
+        "--deployment",
+        "{provider}",
+        "--no-examples",
+        "--no-intent",
+        "--non-interactive"
+      ],
+      "after_install": [],
+      "devDependencies": [],
       "scripts": {
-        "dev": "vite dev",
-        "build": "vite build",
-        "preview": "vite preview",
         "check": "tsr generate && tsc --noEmit"
       },
       "output": "dist",
@@ -131,59 +170,25 @@
         "src"
       ],
       "entry": [
-        "src/routes/**/*.tsx"
+        "src/routes/**/*.tsx",
+        "src/router.tsx"
       ],
-      "notes": "Public routes server-rendered for search engines; the private app is client-first. `tsr generate` writes src/routeTree.gen.ts before the type check (vite dev writes it too). typecov_ignore: the router file reads the generated route tree, whose generated code carries `as any`.",
       "typecov_ignore": [
         "src/router.tsx"
-      ]
+      ],
+      "notes": "The create CLI wires the provider's adapter (--deployment) and writes wrangler.jsonc for Cloudflare. `tsr generate` writes src/routeTree.gen.ts."
     }
   },
-  "motion": {
-    "gsap": "3.15.0",
-    "@gsap/react": "2.1.2",
-    "three": "0.186.1",
-    "@react-three/fiber": "9.8.2",
-    "@react-three/drei": "10.7.9",
-    "notes": "Added only when the spec asks for motion or 3D: pnpm add <name>@<pin>."
-  },
-  "vercel": {
-    "_comment": "Run through npx at this pin when site.yaml -> provider is vercel.",
-    "vercel": "62.7.0"
-  },
   "security_tools": {
-    "_comment": "Scanner pins. Each sha256 is copied from the release's own checksum file when the pin is set, so a download is checked against a digest this repo holds, not one fetched next to it. A bump needs a decisions.md line, a release at least 14 days old and its new digests.",
-    "osv-scanner": {
-      "version": "2.6.0",
-      "sha256": {
-        "osv-scanner_darwin_amd64": "60c5296637e977b28eeda5c7f13573e447659a632922737f94d11fa7e30ad6ca",
-        "osv-scanner_darwin_arm64": "98c460dcd37de25819babd757d04542045b6243113e209edcd4d89fedb0256b4",
-        "osv-scanner_linux_amd64": "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108",
-        "osv-scanner_linux_arm64": "2c71403eb443d05891c4f268c3ad771cf4f16e5443463fd7851ef8f454d3c7e4"
-      }
+    "_comment": "Installed with Homebrew, their official installer on macOS and Linux, and kept current by it. Semgrep's registry rules are under the Semgrep Rules License v1.0.",
+    "formulae": {
+      "osv-scanner": "osv-scanner",
+      "gitleaks": "gitleaks",
+      "nuclei": "nuclei",
+      "semgrep": "semgrep"
     },
-    "gitleaks": {
-      "version": "8.30.1",
-      "sha256": {
-        "gitleaks_8.30.1_darwin_arm64.tar.gz": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
-        "gitleaks_8.30.1_darwin_x64.tar.gz": "dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709",
-        "gitleaks_8.30.1_linux_arm64.tar.gz": "e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080",
-        "gitleaks_8.30.1_linux_x64.tar.gz": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-      }
-    },
-    "nuclei": {
-      "version": "3.11.1",
-      "templates": "10.5.0",
-      "sha256": {
-        "nuclei_3.11.1_linux_amd64.zip": "ea63d4ae232808cd7c6bc00d0142428e231fab59dae01042246097d195835ab6",
-        "nuclei_3.11.1_linux_arm64.zip": "8044e3d9768ba0a744b2872c1a87e813006f013da97ca9f50f7661a4203bec07",
-        "nuclei_3.11.1_macOS_amd64.zip": "75c47ce11e9dbd4288a1c895ed85e3c4df9f4acb8237d6d178da6dccd1628f2a",
-        "nuclei_3.11.1_macOS_arm64.zip": "7d7e291addd1fc29a9bf8d089afe878a9799b20229cbea2fb1693fc40fd4c5f0"
-      },
-      "templates_sha256": "dd836a827b4147d7d8294ca6a89526288ccb1a4bcc895dceac7af3563bc61775"
-    },
+    "nuclei_templates": "https://github.com/projectdiscovery/nuclei-templates",
     "semgrep": {
-      "version": "1.180.0",
       "rules": [
         "p/javascript",
         "p/typescript",
@@ -197,8 +202,8 @@
     }
   },
   "pnpm": {
-    "_comment": "Written into pnpm-workspace.yaml of every site. minimumReleaseAge is minutes (14 days): pnpm resolves nothing newer. trustPolicy blocks a package whose publisher trust dropped; versions older than trustPolicyIgnoreAfter (6 months) are not judged, and trustPolicyExclude names a package measured to trip it with no incident (chromium-bidi, under lighthouse: a release published without publisher evidence). strictDepBuilds fails on an install script nobody approved (built_dependencies). Overrides force a patched transitive release, picked at least 14 days old; drop one when its parent moves past it. minimumReleaseAgeExclude lets one exact security release in before 14 days: only when an advisory's fix is younger than that (next 16.4.1 fixes GHSA-2464-fhr4-w9xw, an unauthenticated RCE, and GHSA-p3m5-59mp-jv5r); exact versions only, never a name alone; drop the entry once the release is 14 days old.",
-    "minimumReleaseAge": 20160,
+    "_comment": "Written into pnpm-workspace.yaml of every site. minimumReleaseAge is minutes (3 days): known npm supply-chain attacks were caught and pulled within hours to two days, so a 3-day wait skips them without holding back ordinary updates. trustPolicy blocks a package whose publisher trust dropped; versions older than trustPolicyIgnoreAfter (6 months) are not judged, and trustPolicyExclude names a package measured to trip it with no incident (chromium-bidi, under lighthouse). strictDepBuilds fails on an install script nobody approved (built_dependencies, written as allowBuilds). Overrides force a patched transitive release; drop one when its parent moves past it. A security fix younger than 3 days goes under minimumReleaseAgeExclude through security_fix.py: exact versions only, removed once old enough.",
+    "minimumReleaseAge": 4320,
     "trustPolicy": "no-downgrade",
     "blockExoticSubdeps": true,
     "strictDepBuilds": true,
@@ -208,18 +213,12 @@
     "trustPolicyIgnoreAfter": 262800,
     "trustPolicyExclude": [
       "chromium-bidi"
-    ],
-    "minimumReleaseAgeExclude": [
-      "next@16.4.1",
-      "@next/env@16.4.1",
-      "@next/swc-darwin-arm64@16.4.1",
-      "@next/swc-darwin-x64@16.4.1",
-      "@next/swc-linux-arm64-gnu@16.4.1",
-      "@next/swc-linux-arm64-musl@16.4.1",
-      "@next/swc-linux-x64-gnu@16.4.1",
-      "@next/swc-linux-x64-musl@16.4.1",
-      "@next/swc-win32-arm64-msvc@16.4.1",
-      "@next/swc-win32-x64-msvc@16.4.1"
     ]
+  },
+  "constraints": {
+    "typescript@6": "astro check (astro stack) and SonarJS and dependency-cruiser (tools/quality) say they do not support TypeScript 7 yet; each tool's own message asks for TypeScript 6. Drop the constraint when they do."
+  },
+  "fresh_allow": {
+    "@types/node": "its types follow the Node.js major the site runs on, not the newest Node.js"
   }
 }

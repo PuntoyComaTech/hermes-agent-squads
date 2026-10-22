@@ -18,12 +18,27 @@ every test can never keep it green.
 Run it yourself right after `site.yaml` exists, before the first card, for every site (new or existing repo):
 
 ```bash
-python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/site_base.py" --repo <repo> --stack <site.yaml stack> --name <slug> --provider <site.yaml provider> --install --json
+python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/site_base.py" --site <site folder> --json
 ```
 
-- Empty repo: the stack skeleton, the quality configs, `git init` on `main`, installs, hooks, the gate, first commit.
-- Existing repo: every file it already has is kept (listed under `kept`); `package.json` gains the pins and the
-  squad's `quality*` scripts (a repo's own `quality*` script is replaced and listed under `replaced_scripts`),
+One command: it reads `stack`, `slug`, `provider` and `repo.path` from `site.yaml` and does everything below.
+
+Every install goes through an official installer; nothing an installer owns is written by hand, and no version is
+typed from memory:
+
+- Empty repo: the stack's own create CLI (`stacks.json -> stacks.<stack>.create`: `create-astro`, `create-next-app`,
+  the TanStack CLI) through `pnpm dlx` under the 3-day rule; pnpm pinned to its newest release 3 days old
+  (`npm view pnpm time`, then `npm pkg set packageManager`); each package the template named re-added with
+  `pnpm add <name>@<its major>` (the major the framework chose, the newest release of it 3 days old); the squad's
+  tools with `pnpm add -D <name>`, no version; framework additions through the framework's command
+  (`astro add tailwind`); Biome's config from `biome init` (unless the create CLI wrote one), extending the squad's
+  rules in `tools/quality/biome.strict.jsonc`; then the quality configs, `git init` on `main`, hooks, the gate,
+  first commit.
+- Gate red on the template's own code (`next` in the JSON): fix that code so it meets the rule (for example props
+  marked `Readonly`), never a rule, threshold or ignore; run the same command again. It keeps every file, runs the
+  gate and makes the first commit.
+- Existing repo: every file it already has is kept (listed under `kept`); its own pnpm pin stays; `package.json`
+  gains the squad's `quality*` scripts (a repo's own `quality*` script is replaced and listed under `replaced_scripts`),
   `tsconfig.json` the strict options (a commented tsconfig that needs one is rewritten without its comments, and the
   JSON says so under `notes`); a weaker pnpm supply-chain setting is raised to the base's (`strengthened`). A `manual` item in the JSON is a strict option the script
   could not set: `ok` is false until you set it. Report the `kept` configs to the user only when one is weaker than the
@@ -33,8 +48,9 @@ python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/site_base.py" --rep
 - `ok: false`: the JSON names the failed step and its output tail. Fix what the base itself wrote; a failure in the
   user's existing code becomes the first milestone (`change: make the code pass the quality gate`), never a relaxed
   rule.
-- pnpm missing: the script enables it through corepack, else installs the pinned pnpm with npm. Node missing: the one
-  install the user does (https://nodejs.org, LTS); say it in one line with the link.
+- pnpm missing: the script enables it through corepack (`corepack enable pnpm`), else `npm install -g pnpm`; inside
+  the repo the pinned version runs either way. Node or Homebrew missing: the one install the user does
+  (https://nodejs.org, LTS; https://brew.sh); say it in one line with the link.
 
 ## 2. What the gate enforces
 
@@ -53,21 +69,33 @@ whole gate before every push; every builder runs the whole gate when its card's 
 | `quality:secrets` | gitleaks | a key or token in the files or in any commit of the history |
 | `quality:licenses` | `pnpm licenses` | GPL, AGPL, SSPL, BUSL, non-commercial or unknown licenses in what ships (LGPL and MPL pass) |
 | `quality:deps` | osv-scanner on the lockfile, `pnpm audit` | a package with a known vulnerability or a malicious-package advisory |
+| `quality:fresh` | `tools/quality/fresh.mjs` | a version typed from memory: a dependency pnpm never resolved (package.json and lockfile disagree), an exact pin, a major behind the newest one old enough to install; exceptions only in `tools/quality/fresh-allow.json`, each with its reason |
 | `quality:test` | Vitest with coverage | failing tests; < 80 % coverage on `src/lib`, `src/domain`, `src/server` |
 
 Slow scanners do not run on every edit: Semgrep (SAST) and nuclei (DAST, against the deployed preview) run once per
 review in `code_audit.py`, which installs them on first use. `security_tools.py` installs osv-scanner, gitleaks, nuclei
-and Semgrep at pinned versions into one user folder: single binaries checked against the release's SHA-256 file, Semgrep
-through uv. No sudo, no global install. Semgrep's rules fall under the Semgrep Rules License v1.0.
+and Semgrep with Homebrew, their official installer (it keeps them current: `brew upgrade`), and nuclei's templates
+with nuclei's own updater, else a shallow clone of the official template repository, refreshed weekly. It never
+downloads a binary itself. Semgrep's rules fall under the Semgrep Rules License v1.0.
 
-Supply chain, in the repo's `pnpm-workspace.yaml`: no release younger than 14 days (`minimumReleaseAge`), no package
-whose publisher trust dropped (`trustPolicy`), no install script nobody approved (`strictDepBuilds`: a new package
-that needs one is a `decisions.md` line adding it to `onlyBuiltDependencies`), and overrides that force a patched
-transitive release. A `quality:deps` failure is fixed by `pnpm update <pkg>` (still 14 days old), else an override
-with a `decisions.md` line; an `osv-scanner.toml` ignore is the manager's, with a reason and an expiry date. When
-the only fixed release is younger than 14 days, the fix wins: the manager adds that exact version (never a bare
-package name) under `minimumReleaseAgeExclude`, with a `decisions.md` line naming the advisory, and removes it once
-the release is 14 days old.
+Supply chain, in the repo's `pnpm-workspace.yaml`: no release younger than 3 days (`minimumReleaseAge`; known npm
+attacks were caught and pulled within hours to two days), no package whose publisher trust dropped (`trustPolicy`), no
+install script nobody approved (`strictDepBuilds`: a new package that needs one is a `decisions.md` line adding it to
+`allowBuilds`). When pnpm flags a trust drop on a package the base adds (a release published without the provenance
+its earlier ones had: a possible takeover), the base holds that package at its last trusted release, lists it under
+`held` and in `fresh-allow.json`; never let the flagged release in.
+
+A security fix never waits. A `quality:deps` failure is fixed with one command, run by whoever hits it:
+
+```bash
+python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/security_fix.py" --repo <repo>
+```
+
+It installs the lowest release that clears every advisory (`pnpm add` for a direct dependency, an override for a
+transitive one). When that release is younger than 3 days, that exact release and the packages released with it at
+the same version (its own scope) go under `minimumReleaseAgeExclude`, and nothing else; the exception is removed once
+the release is old enough. Each fix is a line in the site's `decisions.md`. `site_base.py` runs it before the first
+gate. An `osv-scanner.toml` ignore is the manager's, with a reason and an expiry date.
 
 Response headers (CSP, HSTS, framing, referrer, permissions, cross-origin) ship from the first commit: Astro in
 `public/_headers` (or `vercel.json`), Next in `next.config.ts`. A TanStack Start site renders on the server, so its
@@ -85,7 +113,7 @@ python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/web_access.py" stat
 
 - Logged in: reuse it. Say nothing about it to the user.
 - Not logged in, or the CLI is missing: `web_access.py ensure <tool>` installs the CLI (gh with Homebrew; `cf`,
-  `wrangler` and `vercel` run through npx at the pins in `scripts/stacks.json`) and starts its login in the background. Its JSON carries `url`
+  `wrangler` and `vercel` run as `pnpm dlx <tool>@latest` under the 14-day rule) and starts its login in the background. Its JSON carries `url`
   and, for a device login, `code`:
   - open `url` as a tab beside the chat (`desktop_preview`, label "GitHub login", "Cloudflare login" or "Vercel
     login"); the Cloudflare and Vercel URLs already carry the code, the GitHub code is on the clipboard (macOS) and in the message;

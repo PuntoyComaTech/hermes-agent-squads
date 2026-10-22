@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Stack skeletons (pinned in stacks.json beside this script), used by site_base.py.
+"""Stack facts for site_base.py: the official create command of each stack (stacks.json beside this script), the
+response headers every site ships, and the few squad files the create CLIs do not write (an end-to-end smoke test).
 
-Not a tool for the bots: run site_base.py, which writes the skeleton together with the strict quality gate. Run
+Not a tool for the bots: run site_base.py, which runs the create CLI and lays the strict quality gate on top. Run
 directly, this prints that and exits 2.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
@@ -16,44 +16,9 @@ HERE = Path(__file__).resolve().parent
 STACKS_FILE = HERE / "stacks.json"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 
-GITIGNORE = """node_modules/
-dist/
-build/
-.next/
-.astro/
-coverage/
-playwright-report/
-.env
-.env.*
-.dev.vars
-*.local
-.DS_Store
-"""
-
-TSCONFIG = """{
-  "compilerOptions": {
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "target": "ES2024",
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx"
-  }
-}
-"""
+# lines the squad needs ignored; appended to the create CLI's own .gitignore when missing
+GITIGNORE_EXTRA = ("coverage/", "playwright-report/", "test-results/", ".env*", ".dev.vars", ".wrangler/",
+                   ".hermes-live/", ".DS_Store")
 
 PLAYWRIGHT = """import { defineConfig } from "@playwright/test";
 
@@ -88,28 +53,7 @@ SECURITY_HEADERS = {
                                "'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src "
                                "'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 }
-
-
-def header_files(stack: str, provider: str) -> dict[str, str]:
-    """The response headers every site ships, in the form its host reads: Next in next.config.ts, a static site as
-    `public/_headers` (Cloudflare) or vercel.json (Vercel). TanStack Start renders on the server: its headers belong
-    in the server middleware, the first card of that stack (site-contract references/project-base.md)."""
-    if stack == "nextjs":
-        rows = ",\n".join(f'          {{ key: "{k}", value: "{v}" }}' for k, v in SECURITY_HEADERS.items())
-        return {"next.config.ts": 'import type { NextConfig } from "next";\n\nconst config: NextConfig = {\n'
-                                  "  async headers() {\n    return [\n      {\n        source: \"/:path*\",\n"
-                                  f"        headers: [\n{rows},\n        ],\n      }},\n    ];\n  }},\n}};\n\n"
-                                  "export default config;\n"}
-    if stack != "astro":
-        return {}
-    if provider == "vercel":
-        doc = {"headers": [{"source": "/(.*)", "headers": [{"key": k, "value": v}
-                                                           for k, v in SECURITY_HEADERS.items()]}]}
-        return {"vercel.json": json.dumps(doc, indent=2) + "\n"}
-    return {"public/_headers": "/*\n" + "".join(f"  {k}: {v}\n" for k, v in SECURITY_HEADERS.items())}
-
-
-WELCOME = "# {name}\n\nScaffolded by the web squad's `scaffold_site.py` from `stacks.json`.\n"
+NEXT_CONFIG_OPEN = re.compile(r"^(const \w+\s*:\s*NextConfig\s*=\s*\{)[ \t]*$", re.M)
 
 
 def load_stacks() -> dict:
@@ -124,89 +68,67 @@ def load_stacks() -> dict:
     return data
 
 
-def package_json(stacks: dict, stack: str, name: str) -> str:
-    spec = stacks["stacks"][stack]
-    scripts = {**spec["scripts"], "test": "vitest run", "e2e": "playwright test",
-               "lint": "biome check .", "format": "biome check --write ."}
-    doc = {
-        "name": name,
-        "private": True,
-        "type": "module",
-        "scripts": scripts,
-        "dependencies": dict(sorted(spec["dependencies"].items())),
-        "devDependencies": dict(sorted({**stacks["devDependencies"], **spec["devDependencies"]}.items())),
-    }
-    return json.dumps(doc, indent=2) + "\n"
+def dlx(stacks: dict) -> list[str]:
+    """`pnpm dlx` under the squad's release-age rule: a create CLI is resolved like any dependency, never newer
+    than 3 days."""
+    return ["pnpm", f"--config.minimum-release-age={stacks['pnpm']['minimumReleaseAge']}", "dlx"]
 
 
-def astro_config() -> str:
-    return "import { defineConfig } from \"astro/config\";\nimport tailwindcss from \"@tailwindcss/vite\";\n\nexport default defineConfig({\n  vite: { plugins: [tailwindcss()] },\n});\n"
+def create_argv(stacks: dict, stack: str, target: str, name: str, provider: str) -> list[str]:
+    """The stack's official create command, non-interactive, writing into `target`."""
+    fill = {"dir": target, "name": name, "provider": provider}
+    return dlx(stacks) + [part.format(**fill) for part in stacks["stacks"][stack]["create"]]
 
 
-def files_for(stacks: dict, stack: str, name: str) -> dict[str, str]:
-    files: dict[str, str] = {
-        ".gitignore": GITIGNORE,
-        "tsconfig.json": TSCONFIG,
-        "playwright.config.ts": PLAYWRIGHT,
-        "e2e/home.e2e.ts": TEST_SPEC,
-        "package.json": package_json(stacks, stack, name),
-        "README.md": WELCOME.format(name=name),
-    }
-    if stack == "astro":
-        files["astro.config.mjs"] = astro_config()
-        files["src/styles/global.css"] = "@import \"tailwindcss\";\n"
-        files["src/pages/index.astro"] = (
-            "---\nimport \"../styles/global.css\";\n---\n"
-            "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n"
-            "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
-            "    <meta name=\"description\" content=\"Replace with the site's own description.\" />\n"
-            "    <title>" + name + "</title>\n  </head>\n  <body>\n    <main>\n      <h1>" + name + "</h1>\n"
-            "      <p>Replace this skeleton with the milestone's pages.</p>\n    </main>\n  </body>\n</html>\n"
-        )
-    elif stack == "nextjs":
-        files["next.config.ts"] = "import type { NextConfig } from \"next\";\n\nconst config: NextConfig = {};\n\nexport default config;\n"
-        files["postcss.config.mjs"] = "export default { plugins: { \"@tailwindcss/postcss\": {} } };\n"
-        files["src/app/globals.css"] = "@import \"tailwindcss\";\n"
-        files["src/app/layout.tsx"] = (
-            "import type { ReactNode } from \"react\";\nimport \"./globals.css\";\n\n"
-            "export const metadata = { title: \"" + name + "\", description: \"\" };\n\n"
-            "export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {\n"
-            "  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n"
-        )
-        files["src/app/page.tsx"] = (
-            "export default function Home() {\n  return (\n    <main>\n      <h1>" + name + "</h1>\n"
-            "      <p>Replace this skeleton with the milestone's pages.</p>\n    </main>\n  );\n}\n"
-        )
-    elif stack == "tanstack":
-        files["vite.config.ts"] = (
-            "import { defineConfig } from \"vite\";\nimport tailwindcss from \"@tailwindcss/vite\";\n"
-            "import { tanstackStart } from \"@tanstack/react-start/plugin/vite\";\n"
-            "import viteReact from \"@vitejs/plugin-react\";\n\n"
-            "export default defineConfig({ plugins: [tailwindcss(), tanstackStart(), viteReact()] });\n"
-        )
-        files["src/router.tsx"] = (
-            "import { createRouter } from \"@tanstack/react-router\";\nimport { routeTree } from \"./routeTree.gen\";\n\n"
-            "export function getRouter() {\n  return createRouter({ routeTree, scrollRestoration: true });\n}\n"
-        )
-        files["src/styles/app.css"] = "@import \"tailwindcss\";\n"
-        files["src/routes/__root.tsx"] = (
-            "/// <reference types=\"vite/client\" />\n"
-            "import { HeadContent, Outlet, Scripts, createRootRoute } from \"@tanstack/react-router\";\n"
-            "import appCss from \"../styles/app.css?url\";\n\n"
-            "export const Route = createRootRoute({\n  head: () => ({\n"
-            "    meta: [{ charSet: \"utf-8\" }, { name: \"viewport\", content: \"width=device-width, initial-scale=1\" }, "
-            "{ title: \"" + name + "\" }],\n    links: [{ rel: \"stylesheet\", href: appCss }],\n  }),\n"
-            "  component: RootComponent,\n});\n\n"
-            "function RootComponent() {\n  return (\n    <html lang=\"en\">\n      <head>\n        <HeadContent />\n      </head>\n"
-            "      <body>\n        <Outlet />\n        <Scripts />\n      </body>\n    </html>\n  );\n}\n"
-        )
-        files["src/routes/index.tsx"] = (
-            "import { createFileRoute } from \"@tanstack/react-router\";\n\n"
-            "export const Route = createFileRoute(\"/\")({ component: Home });\n\n"
-            "function Home() {\n  return (\n    <main>\n      <h1>" + name + "</h1>\n"
-            "      <p>Replace this skeleton with the milestone's pages.</p>\n    </main>\n  );\n}\n"
-        )
-    return files
+def next_headers(config: str) -> str | None:
+    """next.config.ts with the security headers added to the config object the create CLI wrote; None when that
+    object is not where the CLI puts it (the manager adds them by hand then)."""
+    if "async headers()" in config:
+        return config
+    rows = "".join(f'          {{ key: "{k}", value: "{v}" }},\n' for k, v in SECURITY_HEADERS.items())
+    block = ("\n  async headers() {\n    return [\n      {\n        source: \"/:path*\",\n        headers: [\n"
+             f"{rows}        ],\n      }},\n    ];\n  }},")
+    new, count = NEXT_CONFIG_OPEN.subn(lambda m: m.group(1) + block, config, count=1)
+    return new if count else None
+
+
+def header_files(stack: str, provider: str, repo: Path | None = None) -> dict[str, str]:
+    """The response headers every site ships, in the form its host reads: Next in next.config.ts (added to the
+    create CLI's file), a static site as `public/_headers` (Cloudflare) or vercel.json (Vercel). TanStack Start
+    renders on the server: its headers go in the server middleware, the first api card of that stack."""
+    if stack == "nextjs":
+        path = (repo / "next.config.ts") if repo else None
+        current = path.read_text(encoding="utf-8") if path and path.is_file() else None
+        new = next_headers(current) if current is not None else None
+        return {"next.config.ts": new} if new and new != current else {}
+    if stack != "astro":
+        return {}
+    if provider == "vercel":
+        doc = {"headers": [{"source": "/(.*)", "headers": [{"key": k, "value": v}
+                                                           for k, v in SECURITY_HEADERS.items()]}]}
+        return {"vercel.json": json.dumps(doc, indent=2) + "\n"}
+    return {"public/_headers": "/*\n" + "".join(f"  {k}: {v}\n" for k, v in SECURITY_HEADERS.items())}
+
+
+def astro_styles(repo: Path) -> dict[str, str]:
+    """The home page importing the stylesheet `astro add tailwind` wrote, as Tailwind's Astro guide says: until a
+    page imports it, the stylesheet and tailwindcss are unused code (knip fails the gate)."""
+    page, sheet = repo / "src" / "pages" / "index.astro", repo / "src" / "styles" / "global.css"
+    if not (page.is_file() and sheet.is_file()):
+        return {}
+    text = page.read_text(encoding="utf-8")
+    if "styles/global.css" in text or not text.startswith("---\n"):
+        return {}
+    return {"src/pages/index.astro": '---\nimport "../styles/global.css";\n' + text[len("---\n"):]}
+
+
+def gitignore(current: str | None) -> str | None:
+    """The create CLI's .gitignore plus the lines the squad needs; None when nothing is missing."""
+    have = {ln.strip() for ln in (current or "").splitlines()}
+    missing = [ln for ln in GITIGNORE_EXTRA if ln not in have and "/" + ln not in have]
+    if not missing:
+        return None
+    return (current or "").rstrip("\n") + "\n\n# web squad\n" + "\n".join(missing) + "\n"
 
 
 def write_tree(target: Path, files: dict[str, str], dry: bool) -> list[str]:
@@ -231,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nExit 2 when run with any other arguments: use site_base.py.")
         return 0
     print("scaffold_site.py is a library: run site_base.py --repo <repo> --stack <stack> --name <slug> --install "
-          "(skeleton plus the strict quality gate)", file=sys.stderr)
+          "(the stack's official create CLI plus the strict quality gate)", file=sys.stderr)
     return 2
 
 

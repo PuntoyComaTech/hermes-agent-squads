@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Get the site's deploy access ready with no work for the user beyond one click: GitHub (`gh`) and the hosting CLI.
 
-`status` reads what already works: each CLI found (PATH, else a local or cached npx copy) and whether its stored login
+`status` reads what already works: each CLI found (PATH, else its official package through `pnpm dlx`) and whether its stored login
 is valid. A login the user already has is reused, never asked again. Nothing secret is printed: only exit codes are
 read for the login checks.
 
-`ensure <tool>` makes one tool ready: when the CLI is missing it is installed (gh with Homebrew; cf, wrangler and
-vercel run through npx at the pins in stacks.json, nothing global); when it is not logged in it starts the CLI's own browser login in
+`ensure <tool>` makes one tool ready: when the CLI is missing it is installed (gh with Homebrew, its official
+installer; cf, wrangler and vercel run as `pnpm dlx <tool>@latest` under the squad's 3-day release-age rule, or
+`npx <tool>@latest` without pnpm, nothing global); when it is not logged in it starts the CLI's own browser login in
 the background and prints the URL (and the one-time code for a device login) for the manager to open as a tab beside
 the chat. The user approves it there; `wait <tool>` then polls until the login is valid. The bot never types a
 password, a code or a token: the user's click in the provider's own page is the credential.
@@ -30,10 +31,9 @@ sys.path.insert(0, str(HERE))
 from toolpath import augment_path  # noqa: E402
 
 STACKS = HERE / "stacks.json"
-_PINS = json.loads(STACKS.read_text(encoding="utf-8")) if STACKS.is_file() else {}
-NPX_PINS = {"wrangler": (_PINS.get("cloudflare") or {}).get("wrangler", "4"),
-            "cf": (_PINS.get("cloudflare") or {}).get("cf", "latest"),
-            "vercel": (_PINS.get("vercel") or {}).get("vercel", "latest")}
+_STACKS = json.loads(STACKS.read_text(encoding="utf-8")) if STACKS.is_file() else {}
+PACKAGED = ("wrangler", "cf", "vercel")  # official npm packages, run without a global install
+AGE = str((_STACKS.get("pnpm") or {}).get("minimumReleaseAge", 4320))
 URL_RE = re.compile(r"https://\S+")
 CODE_RE = re.compile(r"(?:one-time code|enter the code)[:\s]*\n?\s*([A-Za-z0-9]{4}-?[A-Za-z0-9]{4})", re.I)
 TOOLS = ("gh", "cf", "wrangler", "vercel")
@@ -41,11 +41,14 @@ LOG_DIR = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")) / "cache"
 
 
 def launcher(tool: str) -> list[str] | None:
-    """How to run the tool here: on PATH, else npx (cf and wrangler only); None when it cannot run."""
+    """How to run the tool here: on PATH, else its official package through pnpm dlx (3-day rule) or npx; None
+    when it cannot run."""
     if shutil.which(tool):
         return [tool]
-    if tool in NPX_PINS and shutil.which("npx"):
-        return ["npx", "--yes", f"{tool}@{NPX_PINS[tool]}"]
+    if tool in PACKAGED and shutil.which("pnpm"):
+        return ["pnpm", f"--config.minimum-release-age={AGE}", "dlx", f"{tool}@latest"]
+    if tool in PACKAGED and shutil.which("npx"):
+        return ["npx", "--yes", f"{tool}@latest"]
     return None
 
 
@@ -100,10 +103,10 @@ def install(tool: str) -> dict:
             return {"ok": False, "detail": "gh is missing and Homebrew is not installed: https://cli.github.com"}
         rc = quiet(["brew", "install", "gh"], timeout=900)
         return {"ok": rc == 0 and bool(shutil.which("gh")), "detail": "brew install gh"}
-    if not shutil.which("npx"):
-        return {"ok": False, "detail": "npx is missing: install Node.js 22+ (https://nodejs.org)"}
-    argv = launcher(tool) or []
-    rc = quiet(argv + ["--version"], timeout=900)  # npx downloads the pinned copy once
+    argv = launcher(tool)
+    if not argv:
+        return {"ok": False, "detail": "pnpm and npx are missing: install Node.js 22+ (https://nodejs.org)"}
+    rc = quiet(argv + ["--version"], timeout=900)  # the first run downloads the package once
     return {"ok": rc == 0, "detail": " ".join(argv) + " --version"}
 
 

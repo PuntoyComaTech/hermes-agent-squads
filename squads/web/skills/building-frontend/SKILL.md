@@ -17,7 +17,7 @@ description: "Builds the UI, motion and 3D of a site milestone. Use when a card 
 3. The manager laid the strict base (`pnpm -C <repo> quality` passes on `main`). No `package.json` or no `quality` script in `<repo>/`: `kanban_block(kind="needs_input", reason="the strict base is missing: run site_base.py")`; never scaffold or configure lint yourself.
 4. Design system before pages. No `DESIGN.md`: write it with the `design-md` skill from `inputs/` and `references/ui.md`. Tokens, components and layout primitives per `references/ui.md`.
 5. Pages: one route per row of `spec.md -> Pages`.
-6. Motion or scroll animation: `references/motion.md`. 3D, only when the spec asks for it: `references/three.md`. Packages and pins: site-contract `scripts/stacks.json -> motion`.
+6. Motion or scroll animation: `references/motion.md`. 3D, only when the spec asks for it: `references/three.md`. Packages: site-contract `scripts/stacks.json -> motion`, added with `pnpm add <name>` and no version.
    Save each finished piece as you go (site-contract step 8): the design tokens, each component, each section, each page. The user watches the live tab; a card that commits once at the end leaves them blind.
 7. Content: only what the user gave or approved; drafted copy is listed as "draft, needs the user's ok" in the milestone note. Never invent prices, addresses, hours, reviews or legal claims.
 8. Before the final commit: `pnpm -C <repo> quality` (site-contract step 9). Fix red; never relax a rule.
@@ -30,7 +30,7 @@ description: "Builds the UI, motion and 3D of a site milestone. Use when a card 
 - Never hard-code text that belongs in `spec.md` or `DESIGN.md`.
 - Never import server-only modules or secrets into a client bundle.
 - Never load a font or library from a third-party CDN; use the stack's own pipeline.
-- Never add a dependency for something twenty lines of code can do. Never change a pin from site-contract `scripts/stacks.json` without a `decisions.md` line.
+- Never add a dependency for something twenty lines of code can do. Add a package only with `pnpm add <name>` (or the framework's own `add` command), never by editing `package.json` or with a version typed from memory; pnpm picks the newest release 3 days old. A `quality:deps` failure: run site-contract `scripts/security_fix.py --repo <repo>`, never pin a version yourself.
 - Never add `// biome-ignore`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error` or `any`, and never edit `biome.jsonc`, `tsconfig.json`, `knip.json`, `.jscpd.json` or `tools/quality/`: split the function, type the value, extract the shared code.
 
 ## Verification

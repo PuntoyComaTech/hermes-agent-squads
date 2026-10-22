@@ -4,7 +4,7 @@
 Runs from the site folder, like check_site.py, and writes `reviews/<ID>-r<R>/code-checks.json`:
   steps    each `pnpm quality` step (types, lint, sonar, arch, dupes, unused, typecov, secrets, licenses, deps,
            test) with ok, seconds and the last error lines, so the verdict names the step that failed;
-  sast     Semgrep over src/ (rules pinned in stacks.json); an ERROR finding is critical, the rest are notes;
+  sast     Semgrep over src/ (rule packs listed in stacks.json); an ERROR finding is critical, the rest are notes;
   dast     with --url, nuclei against the preview's origin (exposures, misconfigurations, missing response headers);
   diff     files and lines changed on web/<ID> against main, tests touched, the largest changed file.
 A scanner that cannot run, a step that times out and a diff that cannot be read are critical findings: "nothing
@@ -29,9 +29,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from site_base import GATE  # noqa: E402
 import security_tools  # noqa: E402
-from toolpath import augment_path, tools_dir  # noqa: E402
+from toolpath import augment_path  # noqa: E402
 
-PINS = security_tools.PINS
 TAIL_LINES = 14
 BUDGET = 40 * 60  # seconds for the whole run
 STEP_TIMEOUT = {"test": 900, "types": 600}  # other gate steps: 300 s
@@ -81,8 +80,8 @@ def sast(repo: Path, budget: Budget) -> dict:
     limit = budget.left(600)
     if not limit:
         return {"ran": False, "reason": "the audit's time budget ran out"}
-    rules = [arg for rule in PINS["semgrep"]["rules"] for arg in ("--config", rule)]
-    code, text, secs = run([str(security_tools.bin_dir() / "semgrep"), "scan", "--metrics=off", "--quiet", "--json",
+    rules = [arg for rule in security_tools.CONFIG["semgrep"]["rules"] for arg in ("--config", rule)]
+    code, text, secs = run([security_tools.which("semgrep") or "semgrep", "scan", "--metrics=off", "--quiet", "--json",
                             *rules, "src"], repo, timeout=limit)
     try:
         doc = json.loads(text[text.index("{"):])
@@ -107,8 +106,8 @@ def dast(url: str, repo: Path, budget: Budget) -> dict:
     limit = budget.left(600)
     if not limit:
         return {"ran": False, "reason": "the audit's time budget ran out"}
-    argv = [str(security_tools.bin_dir() / "nuclei"), "-u", url, "-silent", "-jsonl", "-disable-update-check",
-            "-ud", str(tools_dir() / "nuclei-templates"), "-tags", "exposure,misconfig,headers,config,token",
+    argv = [security_tools.which("nuclei") or "nuclei", "-u", url, "-silent", "-jsonl", "-disable-update-check",
+            "-ud", str(security_tools.templates_dir()), "-tags", "exposure,misconfig,headers,config,token",
             "-etags", "intrusive,dos,fuzz", "-rl", "300", "-c", "50"]
     code, text, secs = run(argv, repo, timeout=limit)
     if code != 0:  # nuclei reports findings in its JSON lines; a non-zero exit is an error, never a clean scan

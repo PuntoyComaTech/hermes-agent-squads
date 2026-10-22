@@ -77,8 +77,10 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
 - Accounts: GitHub and Cloudflare (free tiers). The manager reuses a login you already have; otherwise it installs
   the CLI and opens the provider's own approval page in a tab beside the chat. You click approve; no token, no
   terminal.
-- Node 22+ and git. pnpm comes through corepack; `gh` through Homebrew; `cf` and `wrangler` run through npx at the
-  pinned version. Chrome for the QA checks. Playwright, axe-core and Lighthouse install inside each site repo.
+- Node 22+, git and Homebrew. Everything else comes from its official installer, never written by hand: the site
+  from its framework's create CLI (`create-astro`, `create-next-app`, the TanStack CLI), every package through
+  `pnpm add` with no version, pnpm itself pinned to its newest release that is 3 days old, `gh` and the scanners
+  through Homebrew, `cf` and `wrangler` through `pnpm dlx`. Chrome for the QA checks.
 - Every site starts on a strict base the manager installs before any code is written, as one `pnpm quality` gate the
   git hooks enforce (the whole gate on every push):
   - code: strict TypeScript, type coverage at 100 % (no `any`, even through a library), Biome, the Sonar rules run
@@ -86,14 +88,17 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
     knip (dead code and unused dependencies) and coverage on logic;
   - security: osv-scanner and `pnpm audit` (vulnerable and malicious packages), gitleaks (secrets, history
     included) and a license check; response headers (CSP, HSTS, framing) from the first commit;
-  - supply chain: pnpm refuses releases younger than 14 days, a package whose publisher trust dropped, and install
+  - versions: `quality:fresh` fails on a version typed from memory (an old major, an exact pin, a line pnpm never
+    resolved);
+  - supply chain: pnpm refuses releases younger than 3 days (a security fix is let in at once, that exact release
+    only, by `security_fix.py`), a package whose publisher trust dropped, and install
     scripts nobody approved.
 - QA adds, once per review, Semgrep (static security rules) and nuclei (an attack scan of the deployed preview), and
-  a code-review lens: architecture, SOLID, scalability, security by trace, test quality. The scanners install
-  themselves at pinned versions with checked downloads, in one user folder (no sudo). Semgrep's rules fall under the
+  a code-review lens: architecture, SOLID, scalability, security by trace, test quality. The scanners come from
+  Homebrew, which keeps them current; nuclei's templates from its official repository. Semgrep's rules fall under the
   Semgrep Rules License v1.0; osv-scanner is Apache-2.0, gitleaks and nuclei MIT.
 - Hosting is Cloudflare by default. A server-rendered site past the free tier needs the paid Workers plan, stated in
-  the plan and in the publish question. Stacks and pinned versions: `skills/site-contract/scripts/stacks.json`.
+  the plan and in the publish question. Stacks and their create commands: `skills/site-contract/scripts/stacks.json`.
 
 ## While it is built
 
@@ -113,7 +118,7 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
 | `squad.yaml` | Manifest: bots, lanes, chains, cron, keeps |
 | `souls/` | One SOUL per bot |
 | `skills/` | `leading-web`, `building-frontend`, `building-backend`, `reviewing-sites`, `deploying-sites`, `site-contract` |
-| `skills/site-contract/scripts/` | `check_site.py`, `code_audit.py`, `site_base.py`, `scaffold_site.py`, `stacks.json`, `security_tools.py`, `toolpath.py`, `web_access.py`, `live_view.py`, `save_progress.py` |
+| `skills/site-contract/scripts/` | `check_site.py`, `code_audit.py`, `site_base.py`, `scaffold_site.py`, `stacks.json`, `security_tools.py`, `security_fix.py`, `toolpath.py`, `web_access.py`, `live_view.py`, `save_progress.py` |
 | `skills/site-contract/templates/quality/` | The strict gate's configs: Biome, SonarJS and security rules, dependency-cruiser, security.mjs, jscpd, lefthook, Vitest |
 | `skills/site-contract/references/engineering-rules.md` | The layers, SOLID, scalability and security rules builders write to and the code lens reviews against |
 

@@ -1,20 +1,16 @@
-"""The web squad's security layer, exercised the way the bots use it: pinned downloads, the repo's three security
-gates, the headers every site ships, and QA's code audit.
+"""The web squad's security layer, exercised the way the bots use it: scanners from Homebrew, the repo's three
+security gates, the headers every site ships, and QA's code audit.
 
 Each test describes what must hold when a bot uses the feature, and fails when the feature breaks. Fake scanners
 reproduce the real tools' exit codes and output shapes (checked against osv-scanner 2.6, gitleaks 8.30, nuclei 3.11
 and semgrep 1.180); the real binaries run in the `real_toolchain` tests of test_web_base.py.
 """
-import hashlib
-import io
 import json
 import os
 import shutil
 import stat
 import subprocess
 import sys
-import tarfile
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -40,159 +36,103 @@ def fake_bin(folder: Path, name: str, body: str) -> Path:
     return path
 
 
-def sha(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-# ---------------------------------------------------------------- pinned, verified downloads
-
-def release(mirror: Path, tool: str, payload: bytes) -> tuple[str, bytes]:
-    """Lay out one release asset the way the project publishes it; returns (asset name, asset bytes)."""
-    pin = security_tools.PINS[tool]["version"]
-    asset, sums, kind = security_tools.asset_for(tool, pin)
-    if kind == "tar":
-        buf = io.BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:gz") as tf:
-            info = tarfile.TarInfo(tool)
-            info.size = len(payload)
-            tf.addfile(info, io.BytesIO(payload))
-        data = buf.getvalue()
-    else:
-        data = payload
-    folder = mirror / tool / pin
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / asset).write_bytes(data)
-    (folder / sums).write_text(f"{sha(data)}  {asset}\n")  # a compromised release ships a matching checksum file
-    return asset, data
-
+# ---------------------------------------------------------------- scanners from their official installer
 
 @pytest.fixture
-def tools_home(tmp_path, monkeypatch):
-    tools, mirror = tmp_path / "tools", tmp_path / "mirror"
-    monkeypatch.setenv("HERMES_WEB_TOOLS_DIR", str(tools))
-    monkeypatch.setenv(security_tools.MIRROR, f"file://{mirror}")
-    return tools, mirror
+def only(tmp_path, monkeypatch):
+    """security_tools sees only the folder this test fills: no real Homebrew or scanner of this machine leaks in."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    monkeypatch.setenv("HERMES_WEB_TOOLS_DIR", str(tmp_path / "tools"))
+    monkeypatch.setattr(security_tools, "which", lambda tool: shutil.which(tool, path=str(bin_dir)))
+    return bin_dir
 
 
-def pin_digest(monkeypatch, tool: str, asset: str, digest: str) -> None:
-    monkeypatch.setitem(security_tools.PINS[tool], "sha256", {asset: digest})
+def fake_brew(bin_dir: Path, log: Path, installs: dict[str, str]) -> None:
+    """A Homebrew that records each call and, for `install <formula>`, drops that formula's binary next to it."""
+    cases = "".join(f'  {formula}) printf \'#!/bin/sh\\necho "{tool} 1.2.3"\\n\' > "{bin_dir}/{tool}"; '
+                    f'chmod +x "{bin_dir}/{tool}";;\n' for formula, tool in installs.items())
+    fake_bin(bin_dir, "brew", f'echo "$@" >> "{log}"\n[ "$1" = install ] || exit 1\n'
+                              f'case "$2" in\n{cases}  *) echo "Error: No formula $2"; exit 1;;\nesac\n')
 
 
-def test_a_scanner_installs_only_when_it_matches_the_digest_this_repo_pins(tools_home, monkeypatch):
-    """The bots download scanners that then run on the user's code. A release (or mirror) that swaps the binary
-    also swaps its own checksum file, so only a digest held in this repo can catch it."""
-    tools, mirror = tools_home
-    good = b"#!/bin/sh\necho scanner-ok\n"
-    for tool in ("gitleaks", "osv-scanner"):  # a tar.gz release and a raw-binary release
-        asset, data = release(mirror, tool, good)
-        pin_digest(monkeypatch, tool, asset, sha(data))
+def test_a_missing_scanner_is_installed_by_homebrew_and_reused_after(only, tmp_path):
+    """The bots install scanners the way a person would: `brew install`, which also keeps them current. A second
+    run finds the installed tool and never calls Homebrew again."""
+    log = tmp_path / "brew.log"
+    fake_brew(only, log, {"gitleaks": "gitleaks", "osv-scanner": "osv-scanner"})
     rows = [security_tools.ensure(t) for t in ("gitleaks", "osv-scanner")]
     assert all(r["ready"] for r in rows), rows
-    out = subprocess.run([str(security_tools.bin_dir() / "gitleaks")], capture_output=True, text=True)
-    assert out.stdout.strip() == "scanner-ok"
-    assert security_tools.ensure("gitleaks")["detail"] == "already installed"
-
-    shutil.rmtree(tools)
-    shutil.rmtree(mirror)
-    release(mirror, "gitleaks", b"#!/bin/sh\necho evil\n")  # its own checksum file agrees with the swap
-    refused = security_tools.ensure("gitleaks")  # the pinned digest is still the good one
-    assert refused["ready"] is False and "pinned digest" in refused["detail"]
-    assert not (security_tools.bin_dir() / "gitleaks").exists(), "a refused download leaves nothing behind"
-
-
-def test_a_binary_changed_after_install_is_reinstalled(tools_home, monkeypatch):
-    tools, mirror = tools_home
-    asset, data = release(mirror, "gitleaks", b"#!/bin/sh\necho scanner-ok\n")
-    pin_digest(monkeypatch, "gitleaks", asset, sha(data))
-    assert security_tools.ensure("gitleaks")["ready"]
-    (security_tools.bin_dir() / "gitleaks").write_text("#!/bin/sh\necho swapped\n")  # replaced or half-written
-    assert security_tools.installed_version("gitleaks") is None
+    assert log.read_text().splitlines() == ["install gitleaks", "install osv-scanner"]
+    assert rows[0]["version"] == "gitleaks 1.2.3"
     again = security_tools.ensure("gitleaks")
-    assert again["ready"] and again["detail"].startswith("installed")
-    out = subprocess.run([str(security_tools.bin_dir() / "gitleaks")], capture_output=True, text=True)
-    assert out.stdout.strip() == "scanner-ok"
+    assert again["ready"] and again["detail"] == "already installed"
+    assert log.read_text().count("install") == 2, "an installed scanner is never reinstalled"
 
 
-def test_downloads_refuse_plain_http(tools_home, monkeypatch):
-    monkeypatch.setenv(security_tools.MIRROR, "http://mirror.example")
+def test_without_homebrew_nothing_is_downloaded_and_the_bot_is_told_how(only, tmp_path):
     row = security_tools.ensure("gitleaks")
-    assert row["ready"] is False and "non-https" in row["detail"]
-    with pytest.raises(ValueError, match="non-https"):
-        security_tools.fetch("http://github.com/x")
+    assert row["ready"] is False and "https://brew.sh" in row["detail"] and "brew install gitleaks" in row["detail"]
+    assert not any(only.iterdir()) and not (tmp_path / "tools").exists(), "no binary fetched by the squad itself"
 
 
-def test_every_binary_pin_carries_a_digest_for_each_supported_host():
-    """A pin without the digest of a host's asset would refuse to install there: the bots on that machine would run
-    without scanners. Darwin and Linux on arm64 and x86_64 are the hosts Hermes runs on."""
-    for tool in security_tools.LAYOUT:
-        pin = security_tools.PINS[tool]["version"]
-        names = security_tools.PLATFORM_NAMES[tool]
-        wanted = {security_tools.LAYOUT[tool][0].format(v=pin, os=names["os"][o], arch=names["arch"][a])
-                  for o in ("darwin", "linux") for a in ("arm64", "x86_64")}
-        digests = security_tools.PINS[tool]["sha256"]
-        assert wanted <= set(digests), (tool, wanted - set(digests))
-        assert all(len(d) == 64 and int(d, 16) >= 0 for d in digests.values())
-    assert len(security_tools.PINS["nuclei"]["templates_sha256"]) == 64
-    assert "semgrep" not in security_tools.LAYOUT  # it installs through uv, never as an unchecked binary
+def test_a_failed_homebrew_install_is_not_ready(only, tmp_path):
+    log = tmp_path / "brew.log"
+    fake_brew(only, log, {})  # Homebrew answers, but has no such formula: the scanner never appears
+    row = security_tools.ensure("osv-scanner")
+    assert row["ready"] is False and "No formula osv-scanner" in row["detail"]
 
 
-def templates_zip(files: dict[str, str]) -> bytes:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        for name, body in files.items():
-            zf.writestr(name, body)
-    return buf.getvalue()
-
-
-def template_release(mirror: Path, data: bytes) -> None:
-    pin = security_tools.PINS["nuclei"]["templates"]
-    folder = mirror / "nuclei-templates" / pin
-    folder.mkdir(parents=True)
-    (folder / f"nuclei-templates-{pin}.zip").write_bytes(data)
-
-
-def test_nuclei_templates_are_fetched_verified_and_trimmed_to_http(tools_home, monkeypatch):
-    """A slow link kills nuclei's own 60 s downloader; the squad fetches the pinned release itself and keeps only
-    the http templates, so no code or file protocol template ever lands on the user's disk."""
-    tools, mirror = tools_home
-    data = templates_zip({"nuclei-templates-x/http/exposures/env.yaml": "id: env",
-                          "nuclei-templates-x/code/run.yaml": "id: code", "nuclei-templates-x/http/notes.md": "doc",
-                          "nuclei-templates-x/http/../../../escape.yaml": "id: out"})
-    template_release(mirror, data)
-    monkeypatch.setitem(security_tools.PINS["nuclei"], "templates_sha256", sha(data))
+def test_nuclei_templates_come_from_nuclei_else_the_official_repository(only, tmp_path):
+    """nuclei's own updater gives up after 60 s on a slow link; git has no such cap, so the squad falls back to a
+    shallow clone of the official template repository, never to its own download."""
+    fake_bin(only, "nuclei", 'echo "[FTL] context deadline exceeded"\nexit 1\n')  # the updater fails like it did
+    calls = tmp_path / "git.log"
+    fake_bin(only, "git", f'echo "$@" >> "{calls}"\nfor last; do :; done\n'
+                          'mkdir -p "$last/http/exposures" && echo "id: env" > "$last/http/exposures/env.yaml"\n')
     assert security_tools.templates_ready() is False
-    assert security_tools.ensure_templates().get("ready") is not False
-    folder = tools / "nuclei-templates"
-    assert (folder / "http" / "exposures" / "env.yaml").is_file()
-    assert not (folder / "code").exists() and not (folder / "http" / "notes.md").exists()
-    assert not (tools.parent / "escape.yaml").exists() and not (tools / "escape.yaml").exists()
-    assert security_tools.templates_ready() is True
+    row = security_tools.ensure_templates()
+    assert row.get("ready") is not False and security_tools.templates_ready() is True, row
+    argv = calls.read_text().split()
+    assert argv[:3] == ["clone", "--depth", "1"] and security_tools.CONFIG["nuclei_templates"] in argv
+    assert security_tools.ensure_templates() == {}, "fresh templates are not fetched again"
 
 
-def test_tampered_nuclei_templates_are_refused_and_leave_nuclei_not_ready(tools_home):
-    tools, mirror = tools_home
-    template_release(mirror, templates_zip({"x/http/a.yaml": "id: a"}))  # not the pinned release's bytes
-    refused = security_tools.ensure_templates()
-    assert refused["ready"] is False and "pinned digest" in refused["detail"]
-    assert not (tools / "nuclei-templates").exists() and security_tools.templates_ready() is False
+def test_a_failed_refresh_keeps_the_templates_already_there(only, tmp_path):
+    folder = tmp_path / "tools" / "nuclei-templates"
+    (folder / "http").mkdir(parents=True)
+    (folder / "http" / "a.yaml").write_text("id: a")
+    stamp = folder / ".fetched"
+    stamp.write_text("old")
+    os.utime(stamp, (0, 0))  # a week old: due for a refresh
+    fake_bin(only, "nuclei", "exit 1\n")
+    fake_bin(only, "git", "exit 128\n")  # offline
+    row = security_tools.ensure_templates()
+    assert row.get("ready") is not False and (folder / "http" / "a.yaml").is_file()
 
 
-def test_status_does_not_call_nuclei_ready_without_its_templates(tmp_path):
-    tools = tmp_path / "tools"
-    pin = security_tools.PINS["nuclei"]["version"]
-    binary = fake_bin(tools / "bin", "nuclei", "exit 0\n")
-    (tools / "bin" / "nuclei.version").write_text(f"{pin} {sha(binary.read_bytes())}")
+def test_status_does_not_call_nuclei_ready_without_its_templates(only):
+    fake_bin(only, "nuclei", 'echo "Nuclei Engine Version: v3.11.1"\n')
     done = subprocess.run([sys.executable, "-I", str(SCRIPTS / "security_tools.py"), "status"], capture_output=True,
-                          text=True, env={**os.environ, "HERMES_WEB_TOOLS_DIR": str(tools)})
+                          text=True, env={**os.environ, "PATH": f"{only}{os.pathsep}/usr/bin:/bin",
+                                          "HERMES_WEB_TOOLS_DIR": str(only.parent / "tools")})
     row = next(r for r in json.loads(done.stdout)["tools"] if r["tool"] == "nuclei")
-    assert row["installed"] == pin and row["ready"] is False
+    assert row["path"] == str(only / "nuclei") and row["ready"] is False and done.returncode == 1
+
+
+def test_every_scanner_has_an_official_formula_and_no_pinned_binary():
+    """The squad holds no scanner version, digest or download URL of its own: Homebrew installs and updates them."""
+    assert set(security_tools.FORMULAE) == set(security_tools.TOOLS)
+    source = (SCRIPTS / "security_tools.py").read_text()
+    for gone in ("urlopen", "sha256", "tarfile", "zipfile"):
+        assert gone not in source, gone
 
 
 # ---------------------------------------------------------------- the repo's security gates
 
 def gate(cwd: Path, bin_dir: Path, name: str, path: str | None = None) -> subprocess.CompletedProcess:
     env = {**os.environ, "PATH": path or f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-           "HERMES_WEB_TOOLS_DIR": str(cwd / "no-tools"), "HERMES_REAL_HOME": str(cwd / "no-home")}
+           "HOMEBREW_PREFIX": str(cwd / "no-homebrew"), "HERMES_REAL_HOME": str(cwd / "no-home")}
     return subprocess.run([shutil.which("node"), str(SECURITY_MJS), name], cwd=cwd, capture_output=True, text=True,
                           env=env, timeout=60)
 
@@ -283,9 +223,27 @@ def test_a_scanner_named_file_committed_in_the_repo_is_never_run(tmp_path):
 
 # ---------------------------------------------------------------- what the base writes
 
+def create_cli_output(repo: Path, stack: str) -> None:
+    """What each create CLI leaves in the repo (trimmed from real runs of create-astro, create-next-app and the
+    TanStack CLI): the base is laid on top of it."""
+    repo.mkdir(parents=True, exist_ok=True)
+    pkg = {"astro": {"name": "acme", "type": "module", "dependencies": {"astro": "^7.4.2"}},
+           "nextjs": {"name": "acme", "dependencies": {"next": "16.4.2", "react": "19.3.0"},
+                      "devDependencies": {"typescript": "^5"}},
+           "tanstack": {"name": "acme", "dependencies": {"@tanstack/react-start": "^1.168.60"},
+                        "pnpm": {"onlyBuiltDependencies": ["esbuild", "workerd"]}}}[stack]
+    (repo / "package.json").write_text(json.dumps(pkg))
+    (repo / "tsconfig.json").write_text('{"extends": "astro/tsconfigs/strict", "include": ["**/*"]}')
+    if stack == "nextjs":
+        (repo / "next.config.ts").write_text('import type { NextConfig } from "next";\n\n'
+                                             "const nextConfig: NextConfig = {\n  /* config options here */\n};\n\n"
+                                             "export default nextConfig;\n")
+
+
 def test_the_base_carries_every_security_setting_and_header(tmp_path):
     stacks = scaffold_site.load_stacks()
-    files, _, _ = site_base.plan_files(tmp_path, stacks, "astro", "acme", "cloudflare")
+    create_cli_output(tmp_path, "astro")
+    files, _ = site_base.plan_files(tmp_path, stacks, "astro", "acme", "cloudflare", created=True)
     pkg = json.loads(files["package.json"])["scripts"]
     assert pkg["quality"].split(" && ") == [f"pnpm run quality:{s}" for s in site_base.GATE]
     assert pkg["quality:deps"] == "node tools/quality/security.mjs deps"
@@ -293,21 +251,25 @@ def test_the_base_carries_every_security_setting_and_header(tmp_path):
     assert "--strict" in pkg["quality:typecov"] and pkg["format"] == "biome check --write ."
     for name in ("pnpm-workspace.yaml", "tools/quality/pnpm-workspace.yaml"):
         yaml = files[name]
-        for line in ("minimumReleaseAge: 20160", "trustPolicy: no-downgrade", "strictDepBuilds: true",
+        for line in ("minimumReleaseAge: 4320", "trustPolicy: no-downgrade", "strictDepBuilds: true",
                      "blockExoticSubdeps: true", "  - chromium-bidi", '  sharp: ">=0.35.5"',
-                     "minimumReleaseAgeExclude:"):
+                     "allowBuilds:", "  'lefthook': true"):
             assert line in yaml.splitlines(), (name, line)
-    quality = json.loads(files["tools/quality/package.json"])["devDependencies"]
-    assert {"eslint-plugin-security", "eslint-plugin-no-unsanitized", "type-coverage"} <= set(quality)
+    assert {"eslint-plugin-security", "eslint-plugin-no-unsanitized", "type-coverage"} <= set(
+        stacks["quality_tools"]["packages"])
     assert "domain-is-framework-free" in files["tools/quality/dependency-cruiser.cjs"]
     headers = files["public/_headers"]
     for header in ("Strict-Transport-Security", "Content-Security-Policy", "X-Frame-Options", "X-Content-Type-Options",
                    "Referrer-Policy", "Permissions-Policy", "Cross-Origin-Opener-Policy"):
         assert f"  {header}: " in headers, header
-    vercel, _, _ = site_base.plan_files(tmp_path / "v", stacks, "astro", "acme", "vercel")
+    create_cli_output(tmp_path / "v", "astro")
+    vercel, _ = site_base.plan_files(tmp_path / "v", stacks, "astro", "acme", "vercel", created=True)
     assert "public/_headers" not in vercel and "frame-ancestors 'none'" in vercel["vercel.json"]
-    nxt, _, _ = site_base.plan_files(tmp_path / "n", stacks, "nextjs", "acme", "cloudflare")
-    assert "async headers()" in nxt["next.config.ts"] and "Content-Security-Policy" in nxt["next.config.ts"]
+    create_cli_output(tmp_path / "n", "nextjs")
+    nxt, _ = site_base.plan_files(tmp_path / "n", stacks, "nextjs", "acme", "cloudflare", created=True)
+    config = nxt["next.config.ts"]
+    assert "async headers()" in config and "Content-Security-Policy" in config
+    assert "/* config options here */" in config and config.count("const nextConfig") == 1  # the CLI's file, extended
 
 
 def test_an_existing_repo_cannot_keep_weaker_supply_chain_settings(tmp_path):
@@ -315,25 +277,28 @@ def test_an_existing_repo_cannot_keep_weaker_supply_chain_settings(tmp_path):
     (tmp_path / "package.json").write_text('{"name": "theirs"}')
     (tmp_path / "pnpm-workspace.yaml").write_text(
         "packages:\n  - apps/*\nminimumReleaseAge: 0\ntrustPolicy: off\nstrictDepBuilds: false\n"
-        "trustPolicyIgnoreAfter: 999999\noverrides:\n  left: 1.0.0\nminimumReleaseAgeExclude:\n  - 'theirs@1.0.0'\n")
+        "trustPolicyIgnoreAfter: 999999\noverrides:\n  left: 1.0.0\nminimumReleaseAgeExclude:\n  - 'theirs@1.0.0'\n"
+        "allowBuilds:\n  esbuild: true\n")
     report: dict = {}
-    files, _, _ = site_base.plan_files(tmp_path, scaffold_site.load_stacks(), "astro", "theirs", "cloudflare", report)
+    files, _ = site_base.plan_files(tmp_path, scaffold_site.load_stacks(), "astro", "theirs", "cloudflare", report)
     merged = files["pnpm-workspace.yaml"].splitlines()
     assert "packages:" in merged and "  - apps/*" in merged and "  left: 1.0.0" in merged  # theirs stays
-    for line in ("minimumReleaseAge: 20160", "trustPolicy: no-downgrade", "strictDepBuilds: true",
+    for line in ("minimumReleaseAge: 4320", "trustPolicy: no-downgrade", "strictDepBuilds: true",
                  "blockExoticSubdeps: true", '  sharp: ">=0.35.5"'):
         assert line in merged, line
     assert "trustPolicyIgnoreAfter: 999999" in merged  # already stricter than the base: kept
-    assert merged.count("overrides:") == 1 and merged.count("minimumReleaseAge: 20160") == 1
-    assert "pnpm-workspace.yaml minimumReleaseAge: 0 -> 20160" in report["strengthened"]
+    assert merged.count("overrides:") == 1 and merged.count("minimumReleaseAge: 4320") == 1
+    assert "pnpm-workspace.yaml minimumReleaseAge: 0 -> 4320" in report["strengthened"]
     assert any("overrides: added sharp" in row for row in report["strengthened"])
-    # a security release younger than 14 days still installs: the base's exact-version exceptions join theirs
-    assert "  - 'theirs@1.0.0'" in merged and "  - 'next@16.4.1'" in merged
-    assert merged.count("minimumReleaseAgeExclude:") == 1
+    assert "  - 'theirs@1.0.0'" in merged and merged.count("minimumReleaseAgeExclude:") == 1  # theirs stays
+    # the build approvals the base needs join their allowBuilds block, in its form, never a second block
+    assert merged.count("allowBuilds:") == 1 and "  esbuild: true" in merged and "  'lefthook': true" in merged
+    assert "onlyBuiltDependencies:" not in merged, "pnpm 12 fails on a setting it does not know"
 
 
 def test_a_commented_tsconfig_is_kept_when_strict_and_reported_when_rewritten(tmp_path):
-    strict = "{\n  // ours\n  \"compilerOptions\": " + json.dumps(site_base.STRICT_TS) + "\n}\n"
+    strict = ("{\n  // ours\n  \"compilerOptions\": " + json.dumps(site_base.STRICT_TS)
+              + ',\n  "exclude": ' + json.dumps(["node_modules", *site_base.TS_EXCLUDE]) + "\n}\n")
     assert site_base.strict_tsconfig(strict) == (strict, "already strict")
     text, note = site_base.strict_tsconfig('{\n  // why\n  "compilerOptions": {"strict": false}\n}\n')
     assert json.loads(text)["compilerOptions"]["strict"] is True and "rewritten without them" in note
@@ -344,13 +309,201 @@ def test_a_commented_tsconfig_is_kept_when_strict_and_reported_when_rewritten(tm
     assert any("comments" in n for n in report["notes"])
 
 
-def test_age_exceptions_name_exact_versions_and_never_a_package():
-    """A security fix younger than 14 days may skip the wait, but only that release: a name alone would let every
-    future release of the package skip it too, which is the attack the rule exists to stop."""
-    young = scaffold_site.load_stacks()["pnpm"].get("minimumReleaseAgeExclude") or []
-    for spec in young:
-        name, _, version = spec.rpartition("@")
-        assert name and version[:1].isdigit() and "*" not in spec and "||" not in spec, spec
+def test_the_base_waits_three_days_and_holds_no_static_exception():
+    """3 days skips the attacks seen so far (pulled within hours to two days); a fix younger than that is let in
+    by security_fix.py when an advisory asks for it, never by a list someone forgets to empty."""
+    pnpm = scaffold_site.load_stacks()["pnpm"]
+    assert pnpm["minimumReleaseAge"] == 3 * 24 * 60
+    assert not pnpm.get("minimumReleaseAgeExclude") and "security_fixes" not in scaffold_site.load_stacks()
+
+
+# ---------------------------------------------------------------- security fixes that never wait
+
+import security_fix  # noqa: E402
+
+NEXT_ADVISORY = {"id": "GHSA-2464-fhr4-w9xw", "affected": [  # the shape osv-scanner 2.6 printed for next 16.4.0
+    {"package": {"name": "next", "ecosystem": "npm"},
+     "ranges": [{"type": "SEMVER", "events": [{"introduced": "10.0.0"}, {"fixed": "15.5.28"}]}]},
+    {"package": {"name": "next", "ecosystem": "npm"},
+     "ranges": [{"type": "SEMVER", "events": [{"introduced": "16.0.0"}, {"fixed": "16.4.1"}]}]}]}
+
+
+def osv_report(name: str, version: str, *vulns: dict) -> dict:
+    return {"results": [{"packages": [{"package": {"name": name, "version": version, "ecosystem": "npm"},
+                                       "vulnerabilities": list(vulns)}]}]}
+
+
+def test_the_fix_is_the_lowest_release_clearing_every_advisory_on_the_installed_line():
+    dos = {"id": "GHSA-p3m5", "affected": [{"package": {"name": "next"}, "ranges": [
+        {"events": [{"introduced": "16.0.0"}, {"fixed": "16.4.2"}]}]}]}
+    fixes, unfixable = security_fix.plan_fixes(osv_report("next", "16.4.0", NEXT_ADVISORY, dos))
+    assert fixes == [{"name": "next", "installed": "16.4.0", "fixed": "16.4.2", "advisories": ["GHSA-2464-fhr4-w9xw", "GHSA-p3m5"]}]
+    assert not unfixable
+    alone, _ = security_fix.plan_fixes(osv_report("next", "16.4.0", NEXT_ADVISORY))
+    assert alone[0]["fixed"] == "16.4.1", "the range that holds 16.4.0, never the 15.x fix of another range"
+    old_line, _ = security_fix.plan_fixes(osv_report("next", "15.2.0", NEXT_ADVISORY))
+    assert old_line[0]["fixed"] == "15.5.28", "a site on 15 gets the 15 fix, not a forced major jump"
+    none = {"id": "GHSA-nofix", "affected": [{"package": {"name": "left"}, "ranges": [{"events": [{"introduced": "0"}]}]}]}
+    fixes, unfixable = security_fix.plan_fixes(osv_report("left", "1.0.0", none))
+    assert not fixes and unfixable[0]["advisories"] == ["GHSA-nofix"]
+
+
+def test_only_the_fix_and_its_own_family_may_skip_the_wait():
+    """next@16.4.1 ships with @next/env@16.4.1 and its binaries; anything else pnpm calls young stays out."""
+    young = [("next", "16.4.1"), ("@next/env", "16.4.1"), ("@next/swc-darwin-arm64", "16.4.1"),
+             ("@next/env", "16.4.0"), ("evil", "1.0.0"), ("nextjs-helper", "16.4.1")]
+    allowed, refused = security_fix.siblings(young, "next", "16.4.1")
+    assert allowed == ["next@16.4.1", "@next/env@16.4.1", "@next/swc-darwin-arm64@16.4.1"]
+    assert refused == ["@next/env@16.4.0", "evil@1.0.0", "nextjs-helper@16.4.1"]
+    scoped, _ = security_fix.siblings([("@astrojs/node", "9.1.2"), ("@astrojs/internal", "9.1.2")], "@astrojs/node", "9.1.2")
+    assert scoped == ["@astrojs/node@9.1.2", "@astrojs/internal@9.1.2"]
+
+
+def fix_fixture(tmp: Path, extra_young: str = "", direct: bool = True) -> tuple[Path, dict]:
+    """A site whose next 16.4.0 is vulnerable: osv-scanner reports it until pnpm installs the fix; pnpm refuses
+    the fix until next@16.4.1 and @next/env@16.4.1 are excepted (as pnpm 12 words it); npm knows publish times."""
+    site, repo, bin_dir = tmp / "acme", tmp / "acme" / "repo", tmp / "bin"
+    repo.mkdir(parents=True)
+    (site / "site.yaml").write_text("slug: acme\n")
+    deps = {"dependencies": {"next": "16.4.0"}} if direct else {}
+    (repo / "package.json").write_text(json.dumps({"name": "acme", **deps}))
+    (repo / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
+    (repo / "pnpm-workspace.yaml").write_text("minimumReleaseAge: 4320\nminimumReleaseAgeExclude:\n  - 'aged@1.0.0'\n")
+    state = tmp / "fixed"
+    report = json.dumps(osv_report("next", "16.4.0", NEXT_ADVISORY))
+    fake_bin(bin_dir, "osv-scanner", f'if [ -f "{state}" ]; then echo "{{}}"; exit 0; fi\n'
+                                     f"cat <<'EOF'\n{report}\nEOF\necho 'Scanned 73 packages' >&2\nexit 1\n")
+    fake_bin(bin_dir, "npm", 'case "$2" in aged@1.0.0) echo \'{"1.0.0": "2026-01-01T00:00:00Z"}\';; '
+                             '*) echo "{}";; esac\n')
+    young = ["next@16.4.1", "@next/env@16.4.1", *([extra_young] if extra_young else [])]
+    lines = "".join(f'  echo "    {spec} was published at 2026-10-22T10:00:00Z, within the minimumReleaseAge cutoff"\n'
+                    for spec in young)
+    fake_bin(bin_dir, "pnpm", f'echo "$@" >> "{tmp}/pnpm.log"\nmissing={1 if extra_young else 0}\n'
+                              "grep -q \"'next@16.4.1'\" pnpm-workspace.yaml || missing=1\n"
+                              "grep -q \"'@next/env@16.4.1'\" pnpm-workspace.yaml || missing=1\n"
+                              'if [ $missing = 1 ]; then\n  echo "Error: ERR_PNPM_NO_MATURE_MATCHING_VERSION"\n'
+                              f'{lines}  exit 1\nfi\ntouch "{state}"\n')
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin", "HOMEBREW_PREFIX": str(tmp / "no-brew")}
+    return repo, env
+
+
+def run_fix(repo: Path, env: dict) -> tuple[int, dict]:
+    done = subprocess.run([sys.executable, "-I", str(SCRIPTS / "security_fix.py"), "--repo", str(repo)],
+                          capture_output=True, text=True, env=env, timeout=120)
+    return done.returncode, json.loads(done.stdout)
+
+
+def test_a_young_security_fix_is_installed_now_as_exact_releases_and_logged(tmp_path):
+    repo, env = fix_fixture(tmp_path)
+    code, out = run_fix(repo, env)
+    assert code == 0 and out["ok"], out
+    fix = out["fixed"][0]
+    assert fix["fixed"] == "16.4.1" and fix["how"] == "direct"
+    assert fix["excepted"] == ["next@16.4.1", "@next/env@16.4.1"]
+    ws = (repo / "pnpm-workspace.yaml").read_text().splitlines()
+    assert "  - 'next@16.4.1'" in ws and "  - 'next'" not in ws, "an exact release, never the name alone"
+    assert "  - 'aged@1.0.0'" not in ws and out["pruned"] == ["aged@1.0.0"], "an exception past 3 days is removed"
+    assert "add next@^16.4.1" in (tmp_path / "pnpm.log").read_text()
+    log = (repo.parent / "decisions.md").read_text()
+    assert "next 16.4.0 -> 16.4.1 (GHSA-2464-fhr4-w9xw)" in log and "next@16.4.1" in log
+
+
+def test_an_unrelated_young_release_is_never_let_in_with_a_fix(tmp_path):
+    repo, env = fix_fixture(tmp_path, extra_young="evil@9.9.9")
+    code, out = run_fix(repo, env)
+    assert code == 1 and not out["ok"] and "evil@9.9.9" in out["failed"][0]["refused"]
+    assert "evil" not in (repo / "pnpm-workspace.yaml").read_text()
+
+
+def test_a_vulnerable_transitive_package_is_fixed_with_an_override(tmp_path):
+    repo, env = fix_fixture(tmp_path, direct=False)
+    code, out = run_fix(repo, env)
+    assert code == 0 and out["fixed"][0]["how"] == "override", out
+    assert "  'next': \"^16.4.1\"" in (repo / "pnpm-workspace.yaml").read_text()
+    assert "add " not in (tmp_path / "pnpm.log").read_text(), "a transitive package is never made a direct one"
+
+
+def test_a_scan_that_cannot_run_is_not_clean(tmp_path):
+    repo, env = fix_fixture(tmp_path)
+    (tmp_path / "bin" / "osv-scanner").unlink()
+    code, out = run_fix(repo, env)
+    assert code == 2 and "osv-scanner is not installed" in out["error"]
+
+
+# ---------------------------------------------------------------- versions typed from memory
+
+FRESH_MJS = CONTRACT / "templates" / "quality" / "tools" / "quality" / "fresh.mjs"
+
+
+def fresh_repo(tmp: Path, deps: dict, locked: dict, outdated: dict, times: dict) -> tuple[Path, dict]:
+    """package.json, a pnpm 12 lockfile (two YAML documents) and a pnpm that answers `outdated` and `view time`."""
+    (tmp / "package.json").write_text(json.dumps({"name": "acme", "dependencies": deps}))
+    rows = "".join(f"      {n}:\n        specifier: {s}\n        version: 1.0.0\n" for n, s in locked.items())
+    (tmp / "pnpm-lock.yaml").write_text("---\nlockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    configDependencies: {}\n\n"
+                                        "---\nlockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n"
+                                        + rows + "\npackages:\n\n  'react@17.0.2':\n    resolution: {}\n")
+    (tmp / "pnpm-workspace.yaml").write_text("minimumReleaseAge: 4320\n")
+    fake_bin(tmp / "bin", "pnpm", f"if [ \"$1\" = outdated ]; then echo '{json.dumps(outdated)}'; exit 1; fi\n"
+                                  f"echo '{json.dumps(times)}'\n")
+    return tmp, {**os.environ, "PATH": f"{tmp / 'bin'}{os.pathsep}{os.environ['PATH']}"}
+
+
+def fresh(cwd: Path, env: dict) -> subprocess.CompletedProcess:
+    return subprocess.run([shutil.which("node"), str(FRESH_MJS), "--json"], cwd=cwd, capture_output=True, text=True,
+                          env=env, timeout=60)
+
+
+def days_ago(days: float) -> str:
+    import datetime
+    stamp = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+    return stamp.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+@needs_node
+def test_a_major_typed_from_memory_fails_the_gate(tmp_path):
+    """react 17 from memory, while 19 has been installable for months: the gate names it and the command to fix."""
+    repo, env = fresh_repo(tmp_path, {"react": "^17.0.2"}, {"react": "^17.0.2"},
+                           {"react": {"current": "17.0.2", "latest": "19.3.1", "wanted": "17.0.2"}},
+                           {"17.0.2": days_ago(1500), "19.0.0": days_ago(300), "19.3.1": days_ago(20)})
+    done = fresh(repo, env)
+    assert done.returncode == 1 and json.loads(done.stdout) == [
+        {"name": "react", "kind": "behind", "current": "17", "mature": "19",
+         "detail": "on 17, the newest line is 19: pnpm add react@19"}]
+
+
+@needs_node
+def test_a_major_too_new_to_install_is_not_demanded(tmp_path):
+    """The gate never asks for a release pnpm itself would refuse: react 20 out yesterday is not yet installable."""
+    repo, env = fresh_repo(tmp_path, {"react": "^19.3.1"}, {"react": "^19.3.1"},
+                           {"react": {"current": "19.3.1", "latest": "20.0.0", "wanted": "19.3.1"}},
+                           {"19.3.1": days_ago(20), "20.0.0": days_ago(1)})
+    assert fresh(repo, env).returncode == 0
+
+
+@needs_node
+def test_a_hand_written_line_and_an_exact_pin_fail_the_gate(tmp_path):
+    repo, env = fresh_repo(tmp_path, {"zod": "^3.22.0", "next": "16.4.0"}, {"next": "16.4.0"}, {}, {})
+    findings = {(f["name"], f["kind"]) for f in json.loads(fresh(repo, env).stdout)}
+    assert findings == {("zod", "not-resolved"), ("next", "exact-pin")}
+
+
+@needs_node
+def test_an_exception_needs_its_reason(tmp_path):
+    repo, env = fresh_repo(tmp_path, {"next": "16.4.0"}, {"next": "16.4.0"}, {}, {})
+    allow = tmp_path / "tools" / "quality" / "fresh-allow.json"
+    allow.parent.mkdir(parents=True)
+    allow.write_text(json.dumps({"next": "held at next@16.4.0: 16.4.1 lost its provenance"}))
+    assert fresh(repo, env).returncode == 0
+    allow.write_text(json.dumps({"next": " "}))
+    done = fresh(repo, env)
+    assert done.returncode == 2 and "needs its reason" in done.stderr
+
+
+@needs_node
+def test_a_registry_that_does_not_answer_is_not_current(tmp_path):
+    repo, env = fresh_repo(tmp_path, {"react": "^17.0.2"}, {"react": "^17.0.2"}, {}, {})
+    fake_bin(tmp_path / "bin", "pnpm", "echo 'ERR_PNPM_META_FETCH_FAIL'\nexit 1\n")
+    assert fresh(repo, env).returncode == 2
 
 
 # ---------------------------------------------------------------- QA's code audit
@@ -372,12 +525,9 @@ SEMGREP = {"results": [{"check_id": "a.b.react-dangerouslysetinnerhtml", "path":
            "errors": [{"level": "warn", "type": "PartialParsing", "message": "skipped one construct"}]}
 
 
-def install_fake(tools: Path, name: str, body: str) -> None:
-    """A fake scanner registered at its pin, the way security_tools.py records a real install."""
-    binary = fake_bin(tools / "bin", name, body)
-    pin = security_tools.PINS[name]["version"]
-    digest = "" if name == "semgrep" else f" {sha(binary.read_bytes())}"
-    (tools / "bin" / f"{name}.version").write_text(pin + digest)
+def install_fake(bin_dir: Path, name: str, body: str) -> None:
+    """A fake scanner where Homebrew would leave the real one: on PATH."""
+    fake_bin(bin_dir, name, body)
 
 
 def audit_fixture(tmp: Path, failing_step: str | None, *, base_branch: str = "main") -> tuple[Path, Path, dict]:
@@ -400,10 +550,11 @@ def audit_fixture(tmp: Path, failing_step: str | None, *, base_branch: str = "ma
     fail = (f'if [ "$3" = "quality:{failing_step}" ]; then echo "{failing_step} broke: 3 problems"; exit 1; fi\n'
             if failing_step else "")
     fake_bin(tmp / "bin", "pnpm", fail + "exit 0\n")
-    install_fake(tools, "semgrep", f"cat <<'EOF'\n{json.dumps(SEMGREP)}\nEOF\n")
-    install_fake(tools, "nuclei", "".join(f"echo '{json.dumps(r)}'\n" for r in NUCLEI_ROWS))
-    (tools / "nuclei-templates").mkdir()
-    (tools / "nuclei-templates" / ".ready").write_text(security_tools.PINS["nuclei"]["templates"])
+    install_fake(tmp / "bin", "semgrep", f"cat <<'EOF'\n{json.dumps(SEMGREP)}\nEOF\n")
+    install_fake(tmp / "bin", "nuclei", "".join(f"echo '{json.dumps(r)}'\n" for r in NUCLEI_ROWS))
+    (tools / "nuclei-templates" / "http").mkdir(parents=True)
+    (tools / "nuclei-templates" / "http" / "headers.yaml").write_text("id: http-missing-security-headers")
+    (tools / "nuclei-templates" / ".fetched").write_text("today")
     env = {**os.environ, "PATH": f"{tmp / 'bin'}{os.pathsep}{os.environ['PATH']}", "HERMES_WEB_TOOLS_DIR": str(tools)}
     return site, repo, env
 
@@ -437,7 +588,7 @@ def test_hsts_is_required_on_https_only(tmp_path):
     """A local http preview cannot send HSTS; a deployed https preview must."""
     site, repo, env = audit_fixture(tmp_path, None)
     row = {**NUCLEI_ROWS[0], "matcher-name": "strict-transport-security"}
-    install_fake(tmp_path / "tools", "nuclei", f"echo '{json.dumps(row)}'\n")
+    install_fake(tmp_path / "bin", "nuclei", f"echo '{json.dumps(row)}'\n")
     audit(site, repo, env, "--url", "http://localhost:4321")
     assert not any("strict-transport-security" in c for c in report_of(site)["critical"])
     audit(site, repo, env, "--url", "https://p.example")
@@ -453,20 +604,21 @@ def test_hsts_is_required_on_https_only(tmp_path):
 ], ids=["semgrep-crashed", "semgrep-lost-a-file", "semgrep-json-then-failed", "nuclei-errored"])
 def test_a_scanner_that_failed_is_a_critical_finding_not_a_clean_pass(tmp_path, scanner, body):
     site, repo, env = audit_fixture(tmp_path, None)
-    install_fake(tmp_path / "tools", scanner, body)
+    install_fake(tmp_path / "bin", scanner, body)
     done = audit(site, repo, env, "--url", "https://p.example")
     assert done.returncode == 0
     expect = "sast did not run" if scanner == "semgrep" else "dast did not run"
     assert any(c.startswith(expect) for c in json.loads(done.stdout)["critical"]), done.stdout
 
 
-def test_a_scanner_that_cannot_be_installed_is_a_critical_finding(tmp_path):
-    site, repo, env = audit_fixture(tmp_path, None)
-    (tmp_path / "tools" / "bin" / "semgrep.version").write_text("0.0.0")  # not the pin: it must reinstall, and cannot
-    env["PATH"] = f"{tmp_path / 'bin'}:/usr/bin:/bin"  # no uv here
-    done = audit(site, repo, env)
-    assert done.returncode == 0
-    assert any(c.startswith("sast did not run") for c in json.loads(done.stdout)["critical"])
+def test_a_scanner_that_cannot_be_installed_is_a_critical_finding(only, tmp_path):
+    """No semgrep and a Homebrew that cannot install it: the code lens must say SAST never ran, not report a clean
+    scan."""
+    import code_audit
+    fake_brew(only, tmp_path / "brew.log", {})
+    got = code_audit.sast(tmp_path, code_audit.Budget(60))
+    assert got["ran"] is False and "No formula semgrep" in got["reason"]
+    assert (tmp_path / "brew.log").read_text().strip() == "install semgrep"
 
 
 def test_a_diff_that_cannot_be_read_is_a_critical_finding(tmp_path):

@@ -1,7 +1,7 @@
 """The web squad's project base, live tab, progress saves and logins, exercised the way the bots use them.
 
-Fast tests drive the real scripts against temp git repos and fake CLIs on PATH. The `real_toolchain` tests install
-the pinned toolchain with pnpm (network) and prove the gate rejects the bad practices it promises to block.
+Fast tests drive the real scripts against temp git repos and fake CLIs on PATH. The `real_toolchain` tests run each
+stack's official create CLI and pnpm (network) and prove the gate rejects the bad practices it promises to block.
 """
 import json
 import os
@@ -43,36 +43,207 @@ def env_with(bin_dir: Path, tmp: Path) -> dict:
     return {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "HERMES_HOME": str(tmp / "hh")}
 
 
-# ---------------------------------------------------------------- strict base: what it writes
+# ---------------------------------------------------------------- strict base: official installers first
 
-def test_a_new_site_gets_the_whole_quality_gate(tmp_path):
+def fake_create_cli(bin_dir: Path, log: Path, exit_code: int = 0) -> None:
+    """A pnpm whose `dlx <create-cli>` behaves like the real create CLIs: it writes the template into the target
+    folder (the argument ending in the project name) and logs how it was called."""
+    fake_bin(bin_dir, "pnpm", f'echo "$@" >> "{log}"\n'
+                              f'[ {exit_code} = 0 ] || {{ echo "create failed: network"; exit {exit_code}; }}\n'
+                              'for a in "$@"; do case "$a" in */.create-*/*)\n'
+                              '  mkdir -p "$a/src/pages"; echo "# from the template" > "$a/README.md"\n'
+                              '  echo "---\\n---\\n<h1>template</h1>" > "$a/src/pages/index.astro"\n'
+                              "  printf '{\"name\":\"acme\",\"dependencies\":{\"astro\":\"^7.4.2\"},"
+                              "\"scripts\":{\"dev\":\"astro dev\"}}' > \"$a/package.json\";; esac; done\n")
+
+
+def test_a_new_site_starts_from_the_stacks_official_create_cli(tmp_path):
+    """The skeleton is the framework's own: its create CLI runs under the 3-day rule, without installing, and the
+    squad only lays its gate on top. Nothing the template owns is written by the squad."""
+    repo, log = tmp_path / "acme" / "repo", tmp_path / "pnpm.log"
+    repo.mkdir(parents=True)
+    fake_create_cli(tmp_path / "bin", log)
+    done = run("site_base.py", "--repo", str(repo), "--stack", "astro", "--name", "acme", "--json",
+               env=env_with(tmp_path / "bin", tmp_path))
+    result = json.loads(done.stdout)
+    assert done.returncode == 0 and result["steps"][0]["step"] == "create (official CLI)", done.stdout
+    call = log.read_text().split()
+    assert call[:3] == ["--config.minimum-release-age=4320", "dlx", "create-astro@latest"]
+    assert {"--no-install", "--no-git", "--yes"} <= set(call) and call[3].endswith("/acme")
+    assert (repo / "README.md").read_text() == "# from the template\n"  # the CLI's file, untouched
+    assert "<h1>template</h1>" in (repo / "src" / "pages" / "index.astro").read_text()
+    pkg = json.loads((repo / "package.json").read_text())
+    assert pkg["dependencies"] == {"astro": "^7.4.2"} and pkg["scripts"]["dev"] == "astro dev"
+    assert pkg["scripts"]["quality"].startswith("pnpm run quality:types") and "devDependencies" not in pkg
+    for squad_file in ("tools/quality/biome.strict.jsonc", "tools/quality/eslint.config.mjs", "knip.json",
+                       "lefthook.yml", "pnpm-workspace.yaml", "src/lib/slug.test.ts", "public/_headers"):
+        assert (repo / squad_file).is_file(), squad_file
+    assert not [p.name for p in repo.parent.iterdir() if p.name.startswith(".create-")], "no leftover work folder"
+
+
+def test_a_failed_create_cli_leaves_the_repo_empty(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fake_create_cli(tmp_path / "bin", tmp_path / "pnpm.log", exit_code=1)
+    done = run("site_base.py", "--repo", str(repo), "--stack", "nextjs", "--name", "acme", "--json",
+               env=env_with(tmp_path / "bin", tmp_path))
+    step = json.loads(done.stdout)["steps"][0]
+    assert done.returncode == 1 and step["ok"] is False and "create failed: network" in step["tail"]
+    assert list(repo.iterdir()) == [], "no gate laid over a missing template"
+
+
+def test_each_stack_names_its_official_create_cli():
     stacks = site_base.sc.load_stacks()
-    files, kept, fresh = site_base.plan_files(tmp_path, stacks, "astro", "acme", "cloudflare")
-    assert fresh and not kept
-    for config in ("biome.jsonc", "tools/quality/eslint.config.mjs", "tools/quality/dependency-cruiser.cjs",
-                   ".jscpd.json", "knip.json", "lefthook.yml", "vitest.config.ts", "tools/quality/package.json"):
-        assert config in files, config
-    pkg = json.loads(files["package.json"])
-    s = pkg["scripts"]
-    assert s["quality"].split(" && ") == [f"pnpm run quality:{x}" for x in
-                                          ("types", "lint", "sonar", "arch", "dupes", "unused", "typecov", "secrets",
-                                           "licenses", "deps", "test")]
-    assert s["quality:types"] == "astro check"
-    assert s["quality:lint"].startswith("biome ci") and "--error-on-warnings" in s["quality:lint"]
-    assert "eslint" in s["quality:sonar"] and "eslint.config.mjs" in s["quality:sonar"]
-    assert "--max-warnings=0" in s["quality:sonar"]
-    assert "depcruise" in s["quality:arch"] and "dependency-cruiser.cjs" in s["quality:arch"]
-    assert s["quality:dupes"].startswith("jscpd") and s["quality:unused"] == "knip"
-    assert s["quality:test"] == "vitest run --coverage"
-    assert "src/lib/slug.test.ts" in files and "passWithNoTests: false" in files["vitest.config.ts"]
-    assert "wrangler" in pkg["devDependencies"]  # provider cloudflare: wrangler runs from the repo, not global
-    assert pkg["packageManager"].startswith("pnpm@")
-    biome = files["biome.jsonc"]
-    assert '"noExplicitAny": "error"' in biome and "noExcessiveCognitiveComplexity" in biome
-    tsconfig = json.loads(files["tsconfig.json"])["compilerOptions"]
-    assert tsconfig["strict"] and tsconfig["noUncheckedIndexedAccess"] and tsconfig["exactOptionalPropertyTypes"]
-    assert "biome.json" not in files  # the scaffold's loose config never lands beside the strict one
-    assert '"$schema"' in files["biome.jsonc"] and "\t" not in files["biome.jsonc"]  # shipped in its own format
+    argv = {s: site_base.sc.create_argv(stacks, s, "/x/acme", "acme", "cloudflare") for s in stacks["stacks"]}
+    assert argv["astro"][3] == "create-astro@latest" and argv["nextjs"][3] == "create-next-app@latest"
+    assert argv["tanstack"][3:5] == ["@tanstack/cli@latest", "create"] and "cloudflare" in argv["tanstack"]
+    for stack, call in argv.items():
+        assert call[:3] == ["pnpm", "--config.minimum-release-age=4320", "dlx"], stack
+        assert "/x/acme" in call and not any("{" in part for part in call), stack
+
+
+def test_no_dependency_version_is_typed_by_the_squad():
+    """Every package arrives through `pnpm add <name>`: a version in stacks.json is either a declared constraint
+    with its reason or an advisory fix, never a pin someone has to keep updating."""
+    stacks = site_base.sc.load_stacks()
+    names = [*stacks["devDependencies"], *stacks["cloudflare"]["devDependencies"], *stacks["motion"]["packages"],
+             *stacks["quality_tools"]["packages"],
+             *(n for s in stacks["stacks"].values() for n in s.get("devDependencies", []))]
+    versioned = {n for n in names if "@" in n.lstrip("@")}
+    assert versioned <= set(stacks["constraints"]), versioned - set(stacks["constraints"])
+    assert all(reason.strip() for reason in stacks["constraints"].values())
+
+
+def test_template_packages_keep_the_major_the_framework_chose(tmp_path):
+    (tmp_path / "package.json").write_text(json.dumps({
+        "dependencies": {"astro": "^7.4.2", "next": "16.4.2", "@tanstack/react-devtools": "0.10.13",
+                         "ui": "workspace:*", "lib": "github:o/r"},
+        "devDependencies": {"typescript": "~5.9.3", "@types/node": ">=20"}}))
+    assert site_base.template_majors(tmp_path) == {
+        "dependencies": ["astro@7", "next@16", "@tanstack/react-devtools@0.10"],  # a 0.x line breaks on minors
+        "devDependencies": ["typescript@5", "@types/node@20"]}
+
+
+def test_pnpm_is_pinned_to_its_newest_release_at_least_3_days_old():
+    day = 86400
+    now = 1_800_000_000
+    iso = lambda days_ago: __import__("datetime").datetime.fromtimestamp(  # noqa: E731
+        now - days_ago * day, __import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z")
+    times = {"created": iso(900), "modified": iso(0), "10.34.6": iso(60), "12.14.0": iso(4), "12.13.0": iso(9),
+             "12.15.0": iso(1), "13.0.0-rc.1": iso(30), "9.15.9": iso(400)}
+    assert site_base.newest_mature(times, 4320, now=now) == "12.14.0"
+    assert site_base.newest_mature({"12.15.0": iso(1)}, 4320, now=now) is None
+
+
+def test_pnpm_11_and_later_get_allow_builds_and_lose_the_dead_pnpm_field(tmp_path):
+    """pnpm 11 stopped reading package.json's `pnpm` field and pnpm 12 fails on a setting it does not know: the
+    template's build approvals must move into allowBuilds, or esbuild and workerd never build."""
+    (tmp_path / "package.json").write_text(json.dumps(
+        {"name": "acme", "pnpm": {"onlyBuiltDependencies": ["esbuild", "msw"]}}))
+    report: dict = {}
+    files, _ = site_base.plan_files(tmp_path, site_base.sc.load_stacks(), "tanstack", "acme", "cloudflare", report,
+                                    pnpm_major=12)
+    assert "pnpm" not in json.loads(files["package.json"])
+    ws = files["pnpm-workspace.yaml"].splitlines()
+    assert "allowBuilds:" in ws and "  'msw': true" in ws and "  'lefthook': true" in ws
+    assert "onlyBuiltDependencies:" not in ws and any("allowBuilds" in n for n in report["notes"])
+    old, _ = site_base.plan_files(tmp_path, site_base.sc.load_stacks(), "tanstack", "acme", "cloudflare", {},
+                                  pnpm_major=10)
+    assert "onlyBuiltDependencies:" in old["pnpm-workspace.yaml"] and "allowBuilds" not in old["pnpm-workspace.yaml"]
+
+
+def test_the_projects_biome_config_extends_the_squad_rules(tmp_path):
+    """Biome's own config (from the create CLI or `biome init`) stays, so its schema matches the installed Biome;
+    it extends the squad's rules, and its own file list keeps the squad's exclusions."""
+    theirs = {"$schema": "https://biomejs.dev/schemas/2.4.2/schema.json",
+              "files": {"includes": ["**", "!node_modules"]}, "formatter": {"indentStyle": "tab"}}
+    out = json.loads(site_base.biome_extends(json.dumps(theirs)))
+    assert out["extends"] == [site_base.BIOME_POLICY] and out["formatter"] == {"indentStyle": "tab"}
+    assert out["$schema"] == theirs["$schema"] and "!!**/public" in out["files"]["includes"]
+    assert out["files"]["includes"][:2] == ["**", "!node_modules"]
+    assert site_base.biome_extends(json.dumps(out)) is None, "already extended: left alone"
+    assert (site_base.TEMPLATES / site_base.BIOME_POLICY).is_file()
+
+
+def test_type_coverage_receives_its_ignore_globs_unexpanded(tmp_path):
+    """The gate scripts run in sh, which expands an unquoted `.next/**` into folder names before type-coverage
+    sees it; the generated route types would then count against the 100 %."""
+    (tmp_path / ".next" / "types").mkdir(parents=True)
+    (tmp_path / ".next" / "types" / "validator.ts").write_text("export {};\n")
+    fake_bin(tmp_path / "tools" / "quality" / "node_modules" / ".bin", "type-coverage",
+             'for a in "$@"; do echo "$a"; done\n')
+    cmd = site_base.typecov_command(site_base.sc.load_stacks()["stacks"]["nextjs"])
+    args = subprocess.run(["sh", "-c", cmd], cwd=tmp_path, capture_output=True, text=True).stdout.splitlines()
+    assert ".next/**" in args and ".next/types" not in args
+
+
+def test_the_gate_tools_and_its_reports_are_not_type_checked_as_project_code():
+    text, _ = site_base.strict_tsconfig('{"extends": "astro/tsconfigs/strict", "include": ["**/*"], '
+                                        '"exclude": ["dist"]}')
+    exclude = json.loads(text)["exclude"]
+    assert exclude[0] == "dist" and {"tools/quality", "coverage", "playwright-report"} <= set(exclude)
+    bare, _ = site_base.strict_tsconfig('{"compilerOptions": {}}')
+    assert json.loads(bare)["exclude"][0] == "node_modules"  # an explicit exclude replaces TypeScript's default
+
+
+def test_one_command_reads_the_users_choice_from_site_yaml(tmp_path):
+    """The manager runs one command; stack, name, provider and repo folder come from what the user chose."""
+    site = tmp_path / "acme"
+    site.mkdir()
+    (site / "site.yaml").write_text("slug: acme\nstack: tanstack   # saas -> tanstack\nprovider: vercel\n"
+                                    "design:\n  path: ignored\nrepo:\n  path: web\n")
+    done = run("site_base.py", "--site", str(site), "--dry-run", "--json")
+    out = json.loads(done.stdout)
+    assert done.returncode == 0 and out["stack"] == "tanstack" and out["repo"] == str((site / "web").resolve())
+    assert "@tanstack/cli@latest" in out["create"] and "vercel" in out["create"] and "acme" in out["create"]
+    (site / "site.yaml").write_text("stack: astro\n")
+    missing = run("site_base.py", "--site", str(site), "--json")
+    assert missing.returncode == 2 and "no slug" in missing.stderr
+
+
+def test_a_release_that_lost_its_publisher_trust_is_held_back_not_installed(tmp_path):
+    """lefthook 2.2.2 was published by hand without the provenance 2.2.1 had: pnpm calls it a possible takeover.
+    The base adds 2.2.1 instead, says so, and never lets 2.2.2 in."""
+    log = tmp_path / "pnpm.log"
+    fake_bin(tmp_path / "bin", "pnpm", f'echo "$@" >> "{log}"\ncase " $* " in *" lefthook@2.2.1 "*) exit 0;; esac\n'
+                                       "echo 'Error:   x adding a new package'\n"
+                                       "echo '  |-> Failed to resolve dependency: High-'\n"
+                                       "echo '  │   risk trust downgrade for \"lefthook@2.2.2\" (possible package takeover)'\n"
+                                       "exit 1\n")
+    fake_bin(tmp_path / "bin", "npm", "echo '{\"2.2.0\": \"2026-10-07T19:12:00Z\", \"2.2.1\": \"2026-10-08T10:39:00Z\", "
+                                      "\"2.2.2\": \"2026-10-13T09:47:00Z\", \"2.3.0-rc.1\": \"2026-10-01T00:00:00Z\"}'\n")
+    old = os.environ["PATH"]
+    os.environ["PATH"] = f"{tmp_path / 'bin'}{os.pathsep}{old}"
+    try:
+        out = site_base.add_holding_untrusted(["pnpm", "add", "-D", "vitest", "lefthook"], tmp_path, "squad tools", 4320)
+        transitive = site_base.add_holding_untrusted(["pnpm", "add", "-D", "vitest"], tmp_path, "squad tools", 4320)
+    finally:
+        os.environ["PATH"] = old
+    assert out["ok"] and out["argv"] == ["pnpm", "add", "-D", "vitest", "lefthook@2.2.1"], out
+    assert out["held"] == ["lefthook@2.2.1 (pnpm trustPolicy flagged 2.2.2: published without the provenance of "
+                           "earlier releases)"]
+    assert "lefthook@2.2.2" not in log.read_text().replace("trust", "")
+    assert not transitive["ok"] and "a manager decision" in transitive["tail"]
+
+
+def test_versions_left_behind_are_only_the_installers_choice_or_a_stated_reason(tmp_path):
+    """The versions gate's exceptions come from the official installer (a major its template chose), a stated
+    constraint or a trust hold, and a second run keeps the first run's list. A package the bot added and left behind
+    gets no exception."""
+    (tmp_path / "tools" / "quality").mkdir(parents=True)
+    findings = [{"name": "typescript", "kind": "behind", "current": "5", "mature": "7"},
+                {"name": "react", "kind": "behind", "current": "17", "mature": "19"}]
+    (tmp_path / "tools" / "quality" / "fresh.mjs").write_text(f"process.stdout.write({json.dumps(json.dumps(findings))});\n")
+    stacks = site_base.sc.load_stacks()
+    template = {"devDependencies": ["typescript@5", "@types/node@20"]}
+    held = ["lefthook@2.2.1 (pnpm trustPolicy flagged 2.2.2: published without the provenance of earlier releases)"]
+    row = site_base.fresh_allow(tmp_path, stacks, "nextjs", template, held)
+    allow = json.loads((tmp_path / "tools" / "quality" / "fresh-allow.json").read_text())
+    assert row["ok"] and allow["typescript"] == "create-next-app chose typescript@5 for this stack"
+    assert "react" not in allow and allow["lefthook"].startswith("held at lefthook@2.2.1")
+    assert set(allow) == {"typescript", "lefthook", "@types/node"}
+    site_base.fresh_allow(tmp_path, stacks, "nextjs", {}, [])  # the second run, after the template's code was fixed
+    assert json.loads((tmp_path / "tools" / "quality" / "fresh-allow.json").read_text()) == allow
 
 
 def test_an_existing_repo_keeps_its_files_and_gains_the_gate(tmp_path):
@@ -81,25 +252,22 @@ def test_an_existing_repo_keeps_its_files_and_gains_the_gate(tmp_path):
          "devDependencies": {"vitest": "4.0.0"}}))
     (tmp_path / "biome.json").write_text("{}")
     (tmp_path / "tsconfig.json").write_text('{\n  // a comment\n  "compilerOptions": {}\n}\n')
-    stacks = site_base.sc.load_stacks()
     report: dict = {}
-    files, kept, fresh = site_base.plan_files(tmp_path, stacks, "tanstack", "theirs", "vercel", report)
-    assert not fresh
-    assert "biome.json" in kept and "biome.jsonc" not in files and "src/router.tsx" not in files
+    files, kept = site_base.plan_files(tmp_path, site_base.sc.load_stacks(), "tanstack", "theirs", "vercel", report)
+    assert "biome.json" not in files and "src/router.tsx" not in files and "src/lib/slug.ts" not in files
     opts = json.loads(files["tsconfig.json"])["compilerOptions"]  # a tsconfig with comments is still made strict
     assert opts["strict"] is True and opts["exactOptionalPropertyTypes"] is True and not report.get("manual")
     pkg = json.loads(files["package.json"])
     assert pkg["scripts"]["lint"] == "their-lint"  # theirs wins outside the gate
     assert pkg["scripts"]["quality"].startswith("pnpm run quality:types")  # a weak old gate never survives
     assert report["replaced_scripts"] == ["quality"]
-    assert pkg["devDependencies"]["vitest"] == "4.0.0"
-    assert "quality" in pkg["scripts"] and "wrangler" not in pkg["devDependencies"]
+    assert pkg["devDependencies"] == {"vitest": "4.0.0"}, "dependencies change only through pnpm add"
 
 
 def test_a_plain_tsconfig_is_made_strict(tmp_path):
     (tmp_path / "package.json").write_text('{"name": "x"}')
     (tmp_path / "tsconfig.json").write_text('{"compilerOptions": {"strict": false, "target": "ES2020"}}')
-    files, _, _ = site_base.plan_files(tmp_path, site_base.sc.load_stacks(), "nextjs", "x", "cloudflare")
+    files, _ = site_base.plan_files(tmp_path, site_base.sc.load_stacks(), "nextjs", "x", "cloudflare")
     opts = json.loads(files["tsconfig.json"])["compilerOptions"]
     assert opts["strict"] is True and opts["noUncheckedIndexedAccess"] is True and opts["target"] == "ES2020"
 
@@ -399,6 +567,7 @@ def test_the_gate_passes_a_fresh_base_and_rejects_each_bad_practice(tmp_path, sc
     done = run("site_base.py", "--repo", str(repo), "--stack", "astro", "--name", "gate-demo", "--install", "--json", env=scanner_env)
     result = json.loads(done.stdout)
     assert done.returncode == 0, [s for s in result["steps"] if not s["ok"]]
+    assert result["steps"][0]["step"] == "create (official CLI)" and "create-astro@latest" in result["steps"][0]["argv"]
     assert git(repo, "log", "--format=%s").splitlines() == ["chore: strict project base"]
     assert (repo / ".git" / "hooks" / "pre-commit").is_file()  # lefthook installed
 
@@ -421,15 +590,54 @@ def test_the_gate_passes_a_fresh_base_and_rejects_each_bad_practice(tmp_path, sc
     assert "src/lib/raw.ts" in caught["sonar"][1] and "no-unsafe-return" in caught["sonar"][1]  # an `any` returned
 
 
+def readonly_props(repo: Path, tail: str) -> int:
+    """What the manager does with a `prefer-read-only-props` finding in the template's code: mark the props
+    read-only. Returns how many places it fixed."""
+    import re
+    fixed = 0
+    for path, line in re.findall(r"^(/\S+\.tsx)$\n\s+(\d+):\d+\s+error\s+.*sonarjs/prefer-read-only-props", tail, re.M):
+        src = Path(path)
+        text = src.read_text()
+        new = re.sub(r"\}: (\{ [^}]+ \})\)", r"}: Readonly<\1>)", text, count=1)
+        if new != text:
+            src.write_text(new)
+            fixed += 1
+    return fixed
+
+
 @pytest.mark.real_toolchain
 @real_toolchain
 @pytest.mark.parametrize("stack", ["nextjs", "tanstack"])
 def test_every_stack_starts_green(tmp_path, stack, scanner_env):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    done = run("site_base.py", "--repo", str(repo), "--stack", stack, "--name", f"{stack}-demo", "--install", "--json", env=scanner_env)
+    """Each stack from its own create CLI ends on a green gate and one commit. When the template's code itself
+    breaks a rule, the base stops with `next`; the code is fixed (never the rule) and the same command finishes."""
+    site = tmp_path / f"{stack}-demo"
+    site.mkdir()
+    (site / "site.yaml").write_text(f"slug: {stack}-demo\nstack: {stack}\nprovider: cloudflare\nrepo:\n  path: repo\n")
+    repo = site / "repo"
+    argv = ("site_base.py", "--site", str(site), "--json")  # the manager's one command
+    done = run(*argv, env=scanner_env)
     result = json.loads(done.stdout)
+    failed = [s for s in result["steps"] if not s["ok"]]
+    if failed:
+        assert [s["step"] for s in failed] == ["pnpm quality"] and result["next"], [
+            (s["step"], s["tail"][-800:]) for s in failed]
+        assert readonly_props(repo, failed[0]["tail"]), failed[0]["tail"][-1500:]
+        done = run(*argv, env=scanner_env)
+        result = json.loads(done.stdout)
     assert done.returncode == 0, [(s["step"], s["tail"][-800:]) for s in result["steps"] if not s["ok"]]
+    assert git(repo, "log", "--format=%s").splitlines() == ["chore: strict project base"]
+    assert git(repo, "status", "--porcelain") == ""
+    pkg = json.loads((repo / "package.json").read_text())
+    assert pkg["packageManager"] == f"pnpm@{result['pnpm']}" and "pnpm" not in pkg
+    fresh = subprocess.run(["pnpm", "run", "-s", "quality:fresh"], cwd=repo, capture_output=True, text=True,
+                           timeout=300, env=scanner_env)
+    assert fresh.returncode == 0, fresh.stderr[-600:]
+    pkg["dependencies"]["react"] = "17.0.2"  # a version typed from memory
+    (repo / "package.json").write_text(json.dumps(pkg, indent=2))
+    stale = subprocess.run(["pnpm", "run", "-s", "quality:fresh"], cwd=repo, capture_output=True, text=True,
+                           timeout=300, env=scanner_env)
+    assert stale.returncode == 1 and "react: on 17" in stale.stderr, stale.stderr[-600:]
 
 
 @pytest.mark.real_toolchain
@@ -450,3 +658,10 @@ def test_the_dependency_gate_catches_a_package_with_a_known_vulnerability(tmp_pa
     bad = subprocess.run(["pnpm", "run", "-s", "quality:deps"], cwd=repo, capture_output=True, text=True, timeout=300,
                          env=scanner_env)
     assert bad.returncode == 1 and "lodash" in (bad.stdout + bad.stderr), (bad.stdout + bad.stderr)[-600:]
+    assert "security_fix.py" in bad.stderr  # the failure says how to fix it
+    fixed = run("security_fix.py", "--repo", str(repo), env=scanner_env)
+    out = json.loads(fixed.stdout)
+    assert fixed.returncode == 0 and out["fixed"][0]["name"] == "lodash", fixed.stdout[-800:]
+    again = subprocess.run(["pnpm", "run", "-s", "quality:deps"], cwd=repo, capture_output=True, text=True,
+                           timeout=300, env=scanner_env)
+    assert again.returncode == 0, again.stderr[-600:]

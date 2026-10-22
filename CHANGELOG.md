@@ -3,6 +3,42 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.8.0 - 2026-10-22
+
+### Changed
+
+- Every install goes through its official installer, never through files or versions written by hand. Web squad
+  3.5.0: a new site starts from its framework's own create CLI (`create-astro`, `create-next-app`, the TanStack CLI);
+  each package the template named is re-added with `pnpm add <name>@<its major>`, the squad's tools with
+  `pnpm add -D <name>` and no version, Tailwind through `astro add`, Biome's config from the CLI or `biome init`,
+  extending the squad's rules. `stacks.json` holds no package version except a stated constraint.
+- One command lays a site's base: `site_base.py --site <folder>` reads stack, slug, provider and repo folder from
+  `site.yaml`.
+- Release-age rule from 14 to 3 days: known npm attacks were pulled within hours to two days. pnpm itself runs at its
+  newest release 3 days old (12.14.0 today; the machines had 10.34.6), pinned per site with `npm pkg set
+  packageManager`; build approvals move to `allowBuilds` (pnpm 12 fails on a setting it does not know).
+- Security fixes never wait: `security_fix.py` installs the lowest release that clears every advisory (a direct
+  dependency through `pnpm add`, a transitive one through an override). A fix younger than 3 days goes under
+  `minimumReleaseAgeExclude` as exact releases, its own family only (next@16.4.1 with @next/*@16.4.1), is logged in
+  the site's `decisions.md` and removed once old enough. The base runs it before the first gate; the deps gate
+  names it when it fails.
+- New gate step `quality:fresh` (12 steps): a dependency pnpm never resolved, an exact pin, or a major behind the
+  newest one old enough to install fails. Exceptions live in `tools/quality/fresh-allow.json`, each with its reason:
+  a major the create CLI chose, a stated constraint, `@types/node` following the runtime, or a trust hold.
+- A release pnpm's trustPolicy flags as a possible takeover is never installed: the base holds the package at its
+  last trusted release and says so (lefthook 2.2.2 was published by hand without the provenance of 2.2.1).
+- The scanners install and update through Homebrew; nuclei's templates through nuclei, else a shallow clone of the
+  official repository. The squad no longer downloads, pins or checksums a binary. `web` and `web-qa` require
+  Homebrew.
+- When the gate fails on the template's own code, `site_base.py` says so under `next`; the code is fixed, never a
+  rule, and the same command finishes the base and its first commit.
+- Every bot's base rules: libraries and new projects come from their official installer.
+
+### Fixed
+
+- type-coverage ignore globs reached `sh` unquoted and were expanded before the tool saw them; the gate's own
+  scripts and reports were type-checked as project code under a template's `**/*` include.
+
 ## 2.7.0 - 2026-10-22
 
 ### Added

@@ -5,7 +5,7 @@ description: "Defines the web squad's files, ids, gates and handoffs. Use when a
 
 # Site contract
 
-File and card formats: `references/file-formats.md`. `scripts/check_site.py --site <slug> --id <ID> [--round R]` writes `reviews/<ID>-r<R>/checks.json` and is what a QA or deploy card runs against a preview. `scripts/site_base.py` lays the strict base, `scripts/web_access.py` gets GitHub and the provider logged in, `scripts/live_view.py` keeps the dev server for the live tab, `scripts/save_progress.py` commits a builder's finished piece, `scripts/security_tools.py` installs the pinned scanners, `scripts/code_audit.py` is QA's code and security evidence. Squad scripts run as `python3 "$HERMES_HOME/skills/squad-web/<skill>/scripts/<script>.py"`.
+File and card formats: `references/file-formats.md`. `scripts/check_site.py --site <slug> --id <ID> [--round R]` writes `reviews/<ID>-r<R>/checks.json` and is what a QA or deploy card runs against a preview. `scripts/site_base.py` lays the strict base, `scripts/web_access.py` gets GitHub and the provider logged in, `scripts/live_view.py` keeps the dev server for the live tab, `scripts/save_progress.py` commits a builder's finished piece, `scripts/security_tools.py` installs the scanners with Homebrew, `scripts/security_fix.py` installs every security fix (even one younger than the release-age rule; any bot runs it when `quality:deps` fails), `scripts/code_audit.py` is QA's code and security evidence. Squad scripts run as `python3 "$HERMES_HOME/skills/squad-web/<skill>/scripts/<script>.py"`.
 
 ## When to Use
 

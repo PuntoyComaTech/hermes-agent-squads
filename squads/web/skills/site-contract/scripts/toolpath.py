@@ -13,15 +13,19 @@ def _node_dirs(home: Path) -> list[str]:
 
 
 def tools_dir() -> Path:
-    """Where the squad's scanners live (security_tools.py): one user folder, no sudo, no global install."""
+    """The squad's scanner data (nuclei's template set); the scanners themselves come from Homebrew."""
     home = Path(os.environ.get("HERMES_REAL_HOME") or Path.home())
     return Path(os.environ.get("HERMES_WEB_TOOLS_DIR") or home / ".local" / "share" / "hermes-web-tools")
 
 
 def augment_path() -> str:
-    """Prepend the usual install folders that exist and are missing from PATH; returns the new PATH (also set)."""
+    """Append the usual install folders that exist and are missing from PATH (the caller's PATH keeps priority);
+    returns the new PATH (also set)."""
     home = Path(os.environ.get("HERMES_REAL_HOME") or Path.home())
-    extra = [str(tools_dir() / "bin"), "/opt/homebrew/bin", "/usr/local/bin", str(home / ".local" / "bin"), str(home / ".volta" / "bin"),
+    prefix = os.environ.get("HOMEBREW_PREFIX")  # what `brew shellenv` exports; else Homebrew's default prefixes
+    brew = [str(Path(prefix) / "bin")] if prefix else ["/opt/homebrew/bin", "/home/linuxbrew/.linuxbrew/bin",
+                                                          "/usr/local/bin"]
+    extra = [*brew, str(home / ".local" / "bin"), str(home / ".volta" / "bin"),
              str(home / "Library" / "pnpm"), str(home / ".local" / "share" / "pnpm"), *_node_dirs(home)]
     have = os.environ.get("PATH", "").split(os.pathsep)
     add = [d for d in extra if d not in have and Path(d).is_dir()]
