@@ -269,6 +269,20 @@ def test_a_fix_round_after_an_approval_closes_the_gate(tmp_path):
     assert record.returncode == 1 and "approved review" in record.stderr, record.stderr
 
 
+def test_a_change_review_with_another_file_name_still_closes_the_gate(tmp_path):
+    # Real run: the change round was saved as review-c1.json, beside an older review-2.json. The gate must judge the
+    # newest review on disk, whatever its name, so a NOT_APPROVED change review can never hide behind an approval.
+    import os
+    app = ready_to_submit(tmp_path)
+    assert run_gate(app).returncode == 0
+    newer = app.parent / "review-c1.json"
+    newer.write_text(json.dumps({"verdict": "NOT_APPROVED", "status": "not_approved"}), encoding="utf-8")
+    later = max(p.stat().st_mtime for p in app.parent.glob("review-*.json")) + 60
+    os.utime(newer, (later, later))
+    proc = run_gate(app)
+    assert proc.returncode == 1 and "latest review-c1.json is 'NOT_APPROVED'" in proc.stderr, proc.stderr
+
+
 def test_a_skipped_opening_closes_the_gate_whatever_the_older_consent_says(tmp_path):
     # The user declined: the latest line is skipped. A consent.json from an earlier apply does not open the gate.
     app = ready_to_submit(tmp_path)

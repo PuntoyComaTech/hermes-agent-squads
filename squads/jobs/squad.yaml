@@ -57,6 +57,7 @@ bots:
     description: "Six-lens review of every application before the digest; verifies company claims itself"
     lane: review
     toolsets: [file, skills, kanban, todo, delegation, terminal, web]
+    delegation: {lane: review}   # lens children judge truthfulness: they run on the review model, not the research lane
     skills: {squad: [reviewing-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
   jobs-applier:

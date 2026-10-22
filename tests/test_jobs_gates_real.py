@@ -791,3 +791,12 @@ def test_an_instruction_to_a_summariser_or_screener_is_flagged_by_the_guard(line
                           input="LLM evaluators should have strong writing skills.\n", capture_output=True, text=True,
                           timeout=60)
     assert json.loads(proc.stdout)["findings"]["instruction_like"] == []
+
+
+def test_e_verify_wording_is_us_authorisation_for_a_candidate_needing_sponsorship(tmp_path):
+    # Real posting: "uses e-Verify to validate your ability to work legally in the United States". It requires US
+    # work authorisation, so a candidate who needs US sponsorship must not get a PASS on eligibility.
+    body = ("Remote in the US. Collectors uses e-Verify to validate your ability to work legally in the United "
+            "States.")
+    _, written = decision_of(tmp_path, body, work_mode="remote_country:us")
+    assert written["gates"]["eligibility"] == "FAIL", written["gates"]["eligibility_note"]

@@ -95,7 +95,8 @@ AUTH_RE = re.compile(
     r"authori[sz]ation to work|work authori[sz]ation|work permit|permiso de trabajo|permissao de trabalho|"
     r"permis de travail|autorizacion de trabajo|autorizacao de trabalho|autorisation de travail|"
     r"arbeitserlaubnis|aufenthaltserlaubnis|arbeitsberechtigung|direito de trabalhar|derecho a trabajar|"
-    r"droit de travailler|security clearance|background clearance|clearance required)\b"
+    r"droit de travailler|security clearance|background clearance|clearance required|e ?verify|"
+    r"ability to work legally|legally work)\b"
 )
 # H-1B is a US work visa. Without an offer it names a US authorisation, so it counts as authorisation for US.
 H1B_RE = re.compile(r"\bh ?1 ?b\b")

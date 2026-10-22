@@ -244,6 +244,27 @@ class TestSearch:
         assert last_argv(tmp_path, "fake") == ["search", "--query", "ok", "--jobage", "14", "--limit", "20",
                                                "--format", "json"]
 
+    def test_an_hour_window_reaches_the_portal_in_minutes_and_drops_older_days(self, tmp_path):
+        # The search card's window is hours: a portal that takes minutes gets exactly that window; one that only takes
+        # days gets the whole days that cover it, and rows older than the covered days never come back.
+        make_portal(tmp_path, "minutes", search_flags={"query": "--query", "jobage": "--jobage",
+                                                       "jobage_minutes": "--jobage-minutes", "format": "--format"})
+        make_portal(tmp_path, "days")
+        code, out, err = run(["search", "-q", "dated", "--max-age-hours", "6", "--today", TODAY], root=tmp_path)
+        assert code == 0, err
+        assert last_argv(tmp_path, "minutes") == ["search", "--query", "dated", "--jobage-minutes", "360",
+                                                  "--format", "json"]
+        assert "--jobage" in last_argv(tmp_path, "days") and last_argv(tmp_path, "days")[
+            last_argv(tmp_path, "days").index("--jobage") + 1] == "1"
+        data = stdout_json(out)
+        assert {r["id"] for r in data["results"]} == {"4"}, "rows dated before the window came back"
+        assert data["meta"]["max_age_hours"] == 6
+
+    def test_linkedin_manifest_sends_the_hour_window_in_minutes(self):
+        spec = portals.load_portals(SCRIPTS)[0]["linkedin"]
+        args = portals.build_search_args(spec, query="developer", location="Remote", max_age_hours=24)
+        assert args[args.index("--jobage-minutes") + 1] == "1440" and "--jobage" not in args
+
     def test_passthrough_reaches_a_named_portal(self, tmp_path):
         make_portal(tmp_path, "fake")
         code, _, err = run(["search", "-q", "ok", "--portal", "fake", "--today", TODAY, "--", "--country", "PE"],
@@ -704,7 +725,7 @@ def fictional_rows(total: int, matching: int, today: str = TODAY) -> list:
     return rows
 
 
-def prefilter(tmp_path, rows, profile=PREFILTER_PROFILE, project=None, today=TODAY):
+def prefilter(tmp_path, rows, profile=PREFILTER_PROFILE, project=None, today=TODAY, extra=()):
     tmp_path.mkdir(parents=True, exist_ok=True)
     profile_path = tmp_path / "profile.md"
     profile_path.write_text(profile, encoding="utf-8")
@@ -713,7 +734,7 @@ def prefilter(tmp_path, rows, profile=PREFILTER_PROFILE, project=None, today=TOD
     args = ["prefilter", "--profile", str(profile_path), "--input", str(rows_path), "--today", today]
     if project is not None:
         args += ["--project", str(project)]
-    return run(args)
+    return run(args + list(extra))
 
 
 def test_a_169_row_search_keeps_every_matching_title_and_stays_within_the_caps(tmp_path):
@@ -751,6 +772,17 @@ def test_detail_calls_follow_the_profile_key_and_default_to_fifteen(tmp_path):
     assert len(stdout_json(out)["detail_targets"]) == 3
     code, out, _ = prefilter(tmp_path / "again", rows)
     assert len(stdout_json(out)["detail_targets"]) == 15
+
+
+def test_since_keeps_only_the_postings_of_the_card_window(tmp_path):
+    # The noon card reads what appeared since yesterday's check: rows from earlier days are not candidates, even
+    # inside search_days, so the analysis budget goes to openings that are still fresh.
+    rows = fictional_rows(20, matching=20)
+    code, out, err = prefilter(tmp_path, rows, extra=["--since", "2026-10-19"])
+    assert code == 0, err
+    data = stdout_json(out)
+    assert data["candidates"] and all(r["date"] >= "2026-10-19" for r in data["candidates"]), data["candidates"]
+    assert data["meta"]["since"] == "2026-10-19" and data["meta"]["dropped"]["date"] > 0
 
 
 def test_a_profile_without_search_terms_is_refused_not_guessed(tmp_path):

@@ -6,11 +6,15 @@ Every project of the manager is checked, or only --project. A project is active 
 is an error: that project does not search and the cron alert fires.
 
 The cron runs every hour (squad.yaml), on the host clock. The gate reads the time in each project's `timezone` (IANA
-name), so a project in another zone than the host still gets its card at its own 08:00. The slot is 08:00 on weekdays
-in that zone; a run up to two hours after it belongs to the slot, so the hourly runs of the morning file one card. Any
-other run, and any weekend run in the project's zone, files nothing. The card is filed with
-`hermes -p <manager> kanban --board <board> create` and the key `jobs:search:<project>:<YYYY-MM-DD-HH>`, where HH is
-the slot hour, not the hour the run started.
+name), so a project in another zone than the host still gets its card at its own hour. The slots are the project's
+`search_times` (local "HH:MM", default one check at 12:00) on weekdays in that zone; a run up to two hours after a slot
+belongs to it, so the hourly runs file one card per slot. Any other run, and any weekend run, files nothing.
+
+Freshness: a posting loses most of its chance within a day, so each card searches only what appeared since the previous
+slot (the previous weekday's last slot for the first check of a day; Monday reaches back over the weekend, at most
+72 h). The card names that window; the scout passes it to `portals.py search --max-age-hours` and `prefilter --since`.
+The card is filed with `hermes -p <manager> kanban --board <board> create` and the key
+`jobs:search:<project>:<YYYY-MM-DD-HH>`, where HH is the slot hour, not the hour the run started.
 
 stdout is what the cron delivers. A filed card, a paused search, a missing project and a missing `profile.md` print
 nothing and exit 0 (`squadctl doctor` reports the setup gaps). A hermes failure, a broken `profile.md` or an unknown
@@ -24,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -38,7 +43,9 @@ else:
 import jobs_common as jc  # noqa: E402  - the one YAML reader for profile.md, used by every squad script
 
 STAGE = "search"
-SLOTS = (8,)                    # slot hours in the project's zone; squad.yaml runs the gate every hour
+SLOTS = ((12, 0),)              # default slot (hour, minute) in the project's zone: one check at midday
+MAX_SLOTS = 4                   # search_times holds at most this many checks a day
+MAX_WINDOW = timedelta(hours=72)  # Monday's first check reaches back over the weekend, never further
 CATCH_UP = timedelta(hours=2)   # a run this long after a slot still belongs to it (Hermes replays missed runs)
 WEEKDAYS = (0, 1, 2, 3, 4)      # Monday to Friday in the project's zone, as datetime.weekday()
 PAUSED = frozenset({"paused", "pausada", "pausado", "pause", "pausa"})
@@ -55,6 +62,8 @@ MESSAGES = {
                 "The search did not run.",
         "front": "profile.md: the front matter does not parse ({why}). The search did not run.",
         "no_front": "profile.md: no front matter between --- lines. The search did not run.",
+        "times": "profile.md: search_times must list 1 to 4 distinct local times like \"12:00\", got {value!r}. "
+                 "The search did not run.",
     },
     "es": {
         "search_value": "profile.md: search debe ser active o paused, no {value!r}. La búsqueda no se ejecutó.",
@@ -62,6 +71,8 @@ MESSAGES = {
                 "La búsqueda no se ejecutó.",
         "front": "profile.md: el front matter no se puede leer ({why}). La búsqueda no se ejecutó.",
         "no_front": "profile.md: falta el front matter entre líneas ---. La búsqueda no se ejecutó.",
+        "times": "profile.md: search_times debe listar de 1 a 4 horas locales distintas como \"12:00\", no {value!r}. "
+                 "La búsqueda no se ejecutó.",
     },
 }
 
@@ -214,12 +225,24 @@ def zone_of(meta: dict, lang: str):
         raise ProfileError(MESSAGES[lang]["zone"].format(value=str(name))) from None
 
 
+def times_of(meta: dict, lang: str) -> tuple[tuple[int, int], ...] | None:
+    """The project's check times as (hour, minute), from `search_times`; None when the profile sets none."""
+    raw = meta.get("search_times")
+    if raw in (None, "", []):
+        return None
+    try:
+        return parse_slots(",".join(str(item) for item in raw) if isinstance(raw, list) else str(raw))
+    except ValueError:
+        raise ProfileError(MESSAGES[lang]["times"].format(value=raw)) from None
+
+
 def profile_settings(profile_md: Path) -> dict:
     meta = read_profile(profile_md)
     if meta is None:
-        return {"state": "missing", "zone": None, "language": "en"}
+        return {"state": "missing", "zone": None, "language": "en", "slots": None}
     lang = language_of(meta)
-    return {"state": search_value(meta, lang), "zone": zone_of(meta, lang), "language": lang}
+    return {"state": search_value(meta, lang), "zone": zone_of(meta, lang), "language": lang,
+            "slots": times_of(meta, lang)}
 
 
 def search_state(profile_md: Path) -> str:
@@ -252,25 +275,55 @@ def clock(zone, now_text: str | None) -> datetime:
     return datetime.now(zone).replace(tzinfo=None) if zone else datetime.now().replace(microsecond=0)
 
 
-def parse_slots(text: str) -> tuple[int, ...]:
-    try:
-        hours = sorted({int(part) for part in text.split(",") if part.strip()})
-    except ValueError:
-        hours = []
-    if not hours or any(h < 0 or h > 23 for h in hours):
-        raise ValueError(f"--slots takes hours 0-23 separated by commas, got {text!r}")
-    return tuple(hours)
+TIME_RE = re.compile(r"\A(\d{1,2})(?::(\d{2}))?\Z")
+
+
+def parse_slots(text: str) -> tuple[tuple[int, int], ...]:
+    """Local check times: "12:00", "9:30" or a bare hour "12", comma separated. One per hour at most (the card key
+    carries the hour), 1 to MAX_SLOTS of them."""
+    out = set()
+    for part in (p.strip().strip("'\"") for p in text.split(",")):
+        match = TIME_RE.match(part) if part else None
+        if not match:
+            raise ValueError(f"check times are local times like 12:00 separated by commas, got {text!r}")
+        hour, minute = int(match.group(1)), int(match.group(2) or 0)
+        if hour > 23 or minute > 59:
+            raise ValueError(f"check times are local times like 12:00 separated by commas, got {text!r}")
+        out.add((hour, minute))
+    if not out or len(out) > MAX_SLOTS or len({h for h, _ in out}) != len(out):
+        raise ValueError(f"1 to {MAX_SLOTS} check times, at most one per hour, got {text!r}")
+    return tuple(sorted(out))
 
 
 def slot_at(now: datetime, slots=SLOTS) -> datetime | None:
     """The scheduled slot this run belongs to: the latest slot of today that started at most CATCH_UP ago."""
     if now.weekday() not in WEEKDAYS:
         return None
-    for hour in sorted(slots, reverse=True):
-        start = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    for hour, minute in sorted(slots, reverse=True):
+        start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if start <= now <= start + CATCH_UP:
             return start
     return None
+
+
+def previous_slot(slot: datetime, slots=SLOTS) -> datetime:
+    """The check before this one: an earlier slot today, else the last slot of the previous weekday."""
+    earlier = [slot.replace(hour=h, minute=m) for h, m in slots if (h, m) < (slot.hour, slot.minute)]
+    if earlier:
+        return max(earlier)
+    day = slot
+    for _ in range(7):
+        day -= timedelta(days=1)
+        if day.weekday() in WEEKDAYS:
+            h, m = max(slots)
+            return day.replace(hour=h, minute=m)
+    return slot - timedelta(days=1)
+
+
+def window_of(slot: datetime, slots=SLOTS) -> tuple[datetime, int]:
+    """(since, hours): the postings this check reads, since the previous check, capped at MAX_WINDOW."""
+    since = max(previous_slot(slot, slots), slot - MAX_WINDOW)
+    return since, max(1, math.ceil((slot - since).total_seconds() / 3600))
 
 
 def slot_id(slot: datetime) -> str:
@@ -321,8 +374,11 @@ def card_title(slot: datetime) -> str:
 
 
 def card_body(slug: str, folder: str, now: datetime, slot: datetime, lane: tuple[str, str] | None,
-              language: str) -> str:
+              language: str, slots=SLOTS) -> str:
+    since, hours = window_of(slot, slots)
     lines = ["Mode: SEARCH", f"Date: {now.strftime('%Y-%m-%d %H:%M')}. Slot: {slot_id(slot)}.",
+             f"Window: postings since {since.strftime('%Y-%m-%d %H:%M')} ({hours} h). Search with "
+             f"--max-age-hours {hours}; prefilter with --since {since.strftime('%Y-%m-%d')}.",
              f"Project: {slug} ({folder})",
              f"User language: {language}. The search summary to the user is written in it."]
     if lane:
@@ -333,13 +389,15 @@ def card_body(slug: str, folder: str, now: datetime, slot: datetime, lane: tuple
 
 
 def file_card(bin_name: str, manager: str, args: argparse.Namespace, slug: str, folder: str, now: datetime,
-              slot: datetime, lane: tuple[str, str] | None, language: str) -> dict:
+              slot: datetime, lane: tuple[str, str] | None, language: str, slots=SLOTS) -> dict:
     key = f"jobs:{STAGE}:{slug}:{slot_id(slot)}"
     argv = ["-p", manager, "kanban", "--board", args.board, "create", card_title(slot),
             "--assignee", args.scout, "--created-by", manager, "--skill", args.skill,
             "--project", slug, "--workspace", f"dir:{folder}", "--idempotency-key", key,
-            "--body", card_body(slug, folder, now, slot, lane, language), "--json"]
+            "--body", card_body(slug, folder, now, slot, lane, language, slots), "--json"]
+    since, hours = window_of(slot, slots)
     result = {"key": key, "title": card_title(slot), "assignee": args.scout, "board": args.board,
+              "since": since.strftime("%Y-%m-%d %H:%M"), "window_hours": hours,
               "workspace": f"dir:{folder}", "command": [bin_name, *argv[:-1]]}
     if args.dry_run:
         return result
@@ -351,7 +409,7 @@ def file_card(bin_name: str, manager: str, args: argparse.Namespace, slug: str, 
     return result
 
 
-def run_project(args: argparse.Namespace, slug: str, slots: tuple[int, ...], now_text: str | None) -> dict:
+def run_project(args: argparse.Namespace, slug: str, override, now_text: str | None) -> dict:
     folder = project_folder(args.hermes_bin, args.manager, slug)
     settings = profile_settings(Path(folder) / "profile.md")
     base = {"project": slug}
@@ -360,11 +418,12 @@ def run_project(args: argparse.Namespace, slug: str, slots: tuple[int, ...], now
     if settings["state"] == "paused":
         return {**base, "filed": False, "reason": "paused"}
     now = clock(settings["zone"], now_text)
+    slots = override or settings["slots"] or SLOTS  # --slots, else the profile's search_times, else midday
     slot = slot_at(now, slots)
     if slot is None:
         return {**base, "filed": False, "reason": "outside schedule hours", "now": now.strftime("%Y-%m-%d %H:%M")}
     card = file_card(args.hermes_bin, args.manager, args, slug, folder, now, slot,
-                     review_lane_model(args, args.manager), settings["language"])
+                     review_lane_model(args, args.manager), settings["language"], slots)
     return {**base, "filed": True, "slot": slot_id(slot), **card}
 
 
@@ -380,8 +439,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skill", default="finding-jobs", help="skill the card loads (default finding-jobs)")
     parser.add_argument("--installed", type=Path, help="installed.yaml holding the lane models")
     parser.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"), help="hermes executable")
-    parser.add_argument("--slots", default=",".join(str(h) for h in SLOTS),
-                        help="scheduled hours, comma separated (default: the squad.yaml schedule)")
+    parser.add_argument("--slots", help="check times like 09:00,15:00, overriding every profile's search_times "
+                                        "(default: each profile's search_times, else 12:00)")
     parser.add_argument("--now", help="run time: 'YYYY-MM-DD HH:MM' in the project zone, or an ISO time with an "
                                       "offset (tests and backfills)")
     parser.add_argument("--dry-run", action="store_true", help="print the card, create nothing")
@@ -392,7 +451,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        slots = parse_slots(args.slots)
+        slots = parse_slots(args.slots) if args.slots else None
         if args.now is not None:
             parse_when(args.now, None)  # syntax only; the zone is applied per project
     except ValueError as exc:

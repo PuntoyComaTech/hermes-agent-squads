@@ -39,7 +39,7 @@ RETRY_QUERY_DEFAULT = "manager"
 CLI_TIMEOUT_S = 120
 MAX_WORKERS = 4
 MANIFEST_KEYS = ("name", "hosts", "enabled", "markets", "cmd", "search_flags", "example_query")
-SEARCH_KEYS = ("query", "location", "jobage", "limit", "page", "remote", "format")
+SEARCH_KEYS = ("query", "location", "jobage", "jobage_minutes", "limit", "page", "remote", "format")
 BASE_RESULT_KEYS = ("id", "title", "company", "location", "date", "url", "work_mode")
 NAME_RE = re.compile(r"[a-z][a-z0-9-]*$")
 # A 429, a block page, a server error after retries, or a network failure says nothing about the parser.
@@ -286,7 +286,7 @@ def parse_cli_json(stdout, portal):
 # --- search -------------------------------------------------------------------------------------------------------
 
 def build_search_args(portal, *, query=None, location=None, remote=None, page=1, limit=None, max_age_days=None,
-                      passthrough=()):
+                      max_age_hours=None, passthrough=()):
     """The CLI argument list for one search. Raises before anything runs when the request cannot be honoured."""
     explicit = [("query", query), ("location", location), ("remote", remote)]
     if page > 1:
@@ -313,7 +313,11 @@ def build_search_args(portal, *, query=None, location=None, remote=None, page=1,
         ("location", location),
         ("remote", remote),
         ("page", str(page) if page > 1 else None),
-        ("jobage", str(max_age_days) if max_age_days else None),
+        # An hour window goes to the portal in minutes when it can take them, else as whole days (rounded up);
+        # the date filter below and prefilter --since keep only the window either way.
+        ("jobage_minutes", str(max_age_hours * 60) if max_age_hours else None),
+        ("jobage", None if max_age_hours and "jobage_minutes" in portal.flags
+         else str(-(-max_age_hours // 24)) if max_age_hours else str(max_age_days) if max_age_days else None),
         ("limit", str(limit) if limit else None),
         ("format", "json"),
     ]
@@ -436,8 +440,11 @@ def _attempt(portal, args):
 
 def cmd_search(ns, passthrough):
     portals, problems = load_portals(ns.root)
-    if ns.limit < 1 or ns.max_age_days < 1 or ns.page < 1:
-        raise PortalError("BAD_ARG", "--limit, --max-age-days and --page must be whole numbers of at least 1")
+    if ns.limit < 1 or ns.max_age_days < 1 or ns.page < 1 or (ns.max_age_hours is not None and ns.max_age_hours < 1):
+        raise PortalError("BAD_ARG", "--limit, --max-age-days, --max-age-hours and --page must be whole numbers of at "
+                                     "least 1")
+    if ns.max_age_hours is not None:
+        ns.max_age_days = -(-ns.max_age_hours // 24)  # the date filter works on whole days
     for key, value in (("query", ns.query), ("location", ns.location)):
         if value is not None and (not value.strip() or value.startswith("-")):
             raise PortalError("BAD_ARG", f"--{key} needs a non-empty value that does not start with '-'")
@@ -458,7 +465,8 @@ def cmd_search(ns, passthrough):
         try:
             plans.append((portal, build_search_args(
                 portal, query=ns.query, location=ns.location, remote=ns.remote, page=ns.page,
-                limit=ns.limit, max_age_days=ns.max_age_days, passthrough=passthrough,
+                limit=ns.limit, max_age_days=ns.max_age_days, max_age_hours=ns.max_age_hours,
+                passthrough=passthrough,
             )))
         except PortalError as exc:
             # A portal named with --portal that cannot take the request is a failure. A portal picked by
@@ -495,7 +503,7 @@ def cmd_search(ns, passthrough):
             "dropped_work_mode": mode["dropped"],
             "unconfirmed_work_mode": mode["unconfirmed"],
             "undated": undated,
-            "server_recency": "jobage" in portal.flags,
+            "server_recency": "jobage" in portal.flags or "jobage_minutes" in portal.flags,
         })
     return _emit_search(ns, today, rows_out, per_portal, failed, skipped)
 
@@ -508,6 +516,7 @@ def _emit_search(ns, today, rows_out, per_portal, failed, skipped):
             "count": len(rows_out),
             "today": today.isoformat(),
             "max_age_days": ns.max_age_days,
+            "max_age_hours": ns.max_age_hours,
             "portals": per_portal,
             "failed": failed,
             "skipped": skipped,
@@ -589,7 +598,8 @@ def analysis_cap_state(project: Path, limit: int, today: dt.date) -> dict:
             "unreadable": unreadable}
 
 
-def prefilter_rows(meta: dict, rows: list, today: dt.date, max_candidates: int, max_details: int) -> dict:
+def prefilter_rows(meta: dict, rows: list, today: dt.date, max_candidates: int, max_details: int,
+                   since: dt.date | None = None) -> dict:
     """Keep the rows worth a read: title, company, work mode and posted date are checked on the search row, before any
     detail call. A row is kept when its title shares a significant word with a profile term (search_keywords,
     target_roles, acceptable_roles). Newest first; at most max_candidates are kept and at most max_details of them are
@@ -638,8 +648,8 @@ def prefilter_rows(meta: dict, rows: list, today: dt.date, max_candidates: int, 
         day = parse_date(row.get("date"))
         if day is None:
             undated += 1
-        elif (today - day).days > search_days:
-            counts["date"] += 1
+        elif (today - day).days > search_days or (since and day < since):
+            counts["date"] += 1  # older than the card's window (since) or than search_days
             continue
         kept.append({**row, "matched": matched[:3]})
     kept.sort(key=lambda r: (parse_date(r.get("date")) is None, -(parse_date(r.get("date")) or dt.date.min).toordinal()))
@@ -647,7 +657,8 @@ def prefilter_rows(meta: dict, rows: list, today: dt.date, max_candidates: int, 
     details = [{"portal": c.get("portal"), "target": c.get("id") or c.get("url")} for c in candidates[:max_details]]
     return {"candidates": candidates, "detail_targets": details, "dropped": counts,
             "over_candidate_cap": max(0, len(kept) - max_candidates), "unconfirmed_work_mode": unconfirmed,
-            "undated": undated, "search_days": search_days, "max_candidates": max_candidates,
+            "undated": undated, "search_days": search_days, "since": since.isoformat() if since else None,
+            "max_candidates": max_candidates,
             "max_detail_calls": max_details}
 
 
@@ -674,7 +685,8 @@ def cmd_prefilter(ns, passthrough):
     today = parse_day(ns.today)
     cap = profile_int(meta, "max_candidates_per_run", PREFILTER_CANDIDATES)
     details = profile_int(meta, "max_detail_calls", PREFILTER_DETAILS)
-    plan = prefilter_rows(meta, rows, today, cap, details)
+    since = parse_day(ns.since) if ns.since else None
+    plan = prefilter_rows(meta, rows, today, cap, details, since)
     analysis = None
     if ns.project:
         limit = profile_int(meta, "max_analyses_per_day", 5)
@@ -682,7 +694,8 @@ def cmd_prefilter(ns, passthrough):
     emit({"meta": {"input": len(rows), "today": today.isoformat(), "candidates": len(plan["candidates"]),
                    "dropped": plan["dropped"], "over_candidate_cap": plan["over_candidate_cap"],
                    "unconfirmed_work_mode": plan["unconfirmed_work_mode"], "undated": plan["undated"],
-                   "search_days": plan["search_days"], "max_candidates": plan["max_candidates"],
+                   "search_days": plan["search_days"], "since": plan["since"],
+                   "max_candidates": plan["max_candidates"],
                    "max_detail_calls": plan["max_detail_calls"]},
           "detail_targets": plan["detail_targets"], "analysis_cap": analysis, "candidates": plan["candidates"]})
     return 0
@@ -917,6 +930,8 @@ def build_parser():
     search.add_argument("--portal", action="append", default=[], help="portal to search (repeatable)")
     search.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_AGE_DAYS,
                         help="posted within N days (default 14)")
+    search.add_argument("--max-age-hours", type=int, help="posted within N hours: the search card's window; "
+                                                          "overrides --max-age-days")
     search.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="results per portal (default 20)")
     search.add_argument("--page", type=int, default=1, help="1-indexed page")
     search.add_argument("--today", help="YYYY-MM-DD for a reproducible window (default: today)")
@@ -939,6 +954,7 @@ def build_parser():
                                                                      "or an object with results")
     pre.add_argument("--project", help="project folder: its analysis cap state for today is reported")
     pre.add_argument("--today", help="YYYY-MM-DD for the posted-date window (default: today)")
+    pre.add_argument("--since", help="YYYY-MM-DD: drop rows posted before it (the search card's Window line)")
     pre.set_defaults(func=cmd_prefilter)
     return parser
 

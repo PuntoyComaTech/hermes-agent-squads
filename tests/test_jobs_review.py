@@ -437,6 +437,21 @@ def test_keyword_coverage_zero_blocks_even_when_every_keyword_is_declared_a_gap(
     assert any("keyword coverage is 0.0" in c["instructions"] for c in rev["corrections"])
 
 
+def test_coverage_made_only_of_unbackable_keywords_does_not_loop_forever(tmp_path):
+    # Real run: coverage 0.42, and every missing keyword (AI agents, voice AI, healthcare) was one the user could not
+    # truthfully claim. Three writer and three reviewer rounds later it was still FIX. Declared gaps above the floor
+    # are a warning for the user; an unbacked miss still blocks.
+    set_render(tmp_path, keyword_coverage=0.42, missing_keywords=["voice AI", "healthcare"])
+    blocks = passing_blocks()
+    blocks["ats"]["missing"] = [{"keyword": "voice AI", "evidence": ""}, "healthcare"]
+    rev = review_json(tmp_path, blocks)
+    assert rev["verdict"] == "APPROVED", rev
+    assert any("every missing keyword is a declared gap" in w for w in rev["warnings"])
+    set_render(tmp_path, keyword_coverage=0.42, missing_keywords=["voice AI", "healthcare", "data pipeline"])
+    blocks["ats"]["verdict"] = "FIX"
+    assert review_json(tmp_path, blocks)["verdict"] == "FIX"
+
+
 def test_keyword_coverage_zero_is_refused_as_approved(tmp_path):
     set_render(tmp_path, keyword_coverage=0.0, missing_keywords=["Kubernetes", "Airflow", "dbt"])
     proc = aggregate(tmp_path, passing_blocks())

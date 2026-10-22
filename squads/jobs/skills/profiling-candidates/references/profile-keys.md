@@ -73,8 +73,10 @@ the level you can show. A posting asking for a level above yours is flagged for 
 | follow_up_days | 10 | quiet days before a follow-up draft is offered |
 | stale_days | 60 | quiet days before a submitted row is listed as stale |
 | apply_threshold | 70 | minimum fit score for a writer card |
+| max_analyses_per_day | 5 | deep analyses a day, freshest first; the rest wait for the next check or "analyze <id>" |
 | user_language | required | ISO 639-1 (es, en, pt). Every message to the user is in it; documents follow the posting's language |
-| timezone | required | IANA zone (America/Lima). The search slot (08:00 on weekdays) and "today" use it |
+| timezone | required | IANA zone (America/Lima). The check times and "today" use it |
+| search_times | ["12:00"] | 1 to 4 local check times on weekdays; each check reads only postings since the previous one |
 | auto_apply | required | never (no submit; kit only), ask (submit after the user approves the screenshot), try (submit after the user's apply for that opening) |
 | apply_consent | per_opening | fixed: each submit needs the user's apply for that opening; there is no standing permission |
 | review_before_submit | false | true makes every submit wait for the screenshot approval; required by ask |

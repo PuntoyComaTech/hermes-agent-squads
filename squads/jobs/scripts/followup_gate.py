@@ -99,7 +99,7 @@ def file_card(args, slug: str, folder: str, chase: list, fresh: list, today: str
             "--body", card_body(slug, folder, chase, fresh, today), "--json"]
     result = {"key": key, "title": title, "assignee": args.writer, "board": args.board, "project": slug}
     if args.dry_run:
-        return result
+        return {**result, "body": card_body(slug, folder, chase, fresh, today)}
     stdout = ss.hermes(args.hermes_bin, *argv)
     try:
         result["id"] = str((json.loads(stdout.strip()) or {}).get("id") or "")
@@ -129,7 +129,7 @@ def project_decision(args, slug: str, folder: str, today: str) -> dict:
     card = file_card(args, slug, folder, chase, fresh, today)
     if not args.dry_run:
         mark_reported(tracker, folder, fresh, today)
-    return {"project": slug, "filed": True, "followups": [label(i) for i in chase],
+    return {"project": slug, ("would_file" if args.dry_run else "filed"): True, "followups": [label(i) for i in chase],
             "stale_reported": [label(i) for i in fresh], **card}
 
 

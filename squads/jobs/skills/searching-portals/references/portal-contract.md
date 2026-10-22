@@ -41,7 +41,8 @@ null. Missing text is null, never "". `id` is kept because `detail` needs it and
 ## Search rules
 
 - Window: rows dated more than `--max-age-days` (default 14) before `--today` are dropped and counted in
-  `meta.portals[].dropped_older`. Rows with no date are kept and counted in `undated`.
+  `meta.portals[].dropped_older`. `--max-age-hours N` (the search card's window) replaces it: a portal mapping
+  `jobage_minutes` gets `N*60`, another gets the whole days that cover N. Rows with no date are kept and counted in `undated`.
 - Limit: `--limit` (default 20) caps each portal's rows. Order: newest first, undated last.
 - Work mode: `--remote remote|hybrid|onsite` is applied by the wrapper to the `work_mode` each row states. The portal's
   own label wins; without one, the title and place are read, then the description. A row whose type is not stated

@@ -15,6 +15,9 @@ Jobs squad 4.0: a job search built around one person.
 - Gates before scoring: scam or closed, eligibility, language (flag and discard gap steps), location, role,
   seniority, contract and salary, avoid lists and deal-breakers. Weights, bands and decisions are computed by
   `score_analysis.py`; the user tunes them in `profile.md`.
+- Fresh openings only: each weekday check reads the postings that appeared since the previous one (default one
+  check at 12:00 in the user's time zone, up to four via `search_times`; Monday covers the weekend). The window goes to
+  LinkedIn in minutes (`--max-age-hours`) and to `prefilter --since`.
 - Portal search (`searching-portals`): LinkedIn public listings and freehire as zero-dependency bun tools behind
   `portals.py` (search, detail, health). `adding-portals` guides a board for any market.
 - Batch ranking (`ranking-openings`) over `searches/seen.json` with deadline sweep, retry bookkeeping and staleness.

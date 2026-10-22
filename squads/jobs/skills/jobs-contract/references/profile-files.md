@@ -36,7 +36,7 @@ reject_on_missing_credentials: false  # true: a degree, licence or certification
 plans_to_relocate: false            # true: "must reside in <country>" is a question (FLAG), not a FAIL
 key_skills: [SQL, Python, Power BI]
 search_keywords: {en: ["data analyst", "BI analyst"], es: ["analista de datos"]}   # the user's own terms plus approved suggestions
-search_days: 14                     # maximum age of an opening
+search_times: ["12:00"]             # weekday checks, local time; each reads postings since the previous check
 application_languages: [es, en]
 work_mode: [remote_region, hybrid]  # remote_global | remote_region | remote_country | hybrid | onsite
 cities: [Lima]

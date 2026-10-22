@@ -41,12 +41,19 @@ Career stage: `references/stage-playbook.md`.
    your own". Write only the approved list. Ask how many years above their own the user still applies to
    (`seniority_margin`, default 1), whether a missing skill or tool should ever reject an opening
    (`reject_on_skill_gaps`, default no) and whether a missing degree or certification should
-   (`reject_on_missing_credentials`, default no). Ask for techniques the user has used that the CV does not name;
+   (`reject_on_missing_credentials`, default no). Check times: postings lose most of their chance within a day, so
+   each check reads only what appeared since the previous one. Propose one check at 12:00 their time; offer two
+   (09:00 and 15:00) to someone searching full time or in a fast market; write `search_times`. Ask for techniques the user has used that the CV does not name;
    each becomes an achievement only in the user's words.
    Age: ask only when the user offers it; otherwise it stays null.
 6. **Show, then write.** Show the complete YAML of each file that changed. Contact data is shown in chat only, never in
    a card, comment, search query or report. Write a file only after the user's "ok", and write only the text shown.
-   Set `verified: true` on an achievement or language only when the user confirmed that exact text. Years come from the
+   `application-data.yaml` answers a form's sponsorship question for remote contracting from the user's country the
+   same way the user does (ask it); `authorize_consents` is asked, never assumed.
+   Write drafts only inside the project folder (`<P>/.drafts/`, deleted after the ok); never in a cache or scratch dir.
+   Add to `key_skills` only skills the user or the documents state. A language level the user declares stays
+   `verified: false` until a test or work shows it. Set `verified: true` on an achievement only when the user
+   confirmed that exact text. Years come from the
    dates in `achievements.yaml`: `years_experience.total` and `in_role` are computed from them, never typed from memory.
 7. **Market and stage.** Apply the row for the chosen market in `market-conventions.md` (photo, age, marital status,
    page limit, references line, date format, paper size, salary) and label it general guidance for the user to confirm.

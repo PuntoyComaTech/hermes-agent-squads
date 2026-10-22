@@ -89,8 +89,10 @@ def test_quiet_application_files_one_card_per_day(tmp_path):
 
 def test_dry_run_creates_nothing(tmp_path):
     env, _ = env_with_project(tmp_path, rows=[QUIET])
+    # A dry run says what it would file and shows the card the writer would get; it files nothing.
     out = one(gate(env, "--dry-run", "--json"))
-    assert out["filed"] is True and "id" not in out
+    assert out["would_file"] is True and "filed" not in out and "id" not in out
+    assert "Inbox" in out["title"] and out["body"].strip()
 
 
 def test_help_exits_zero():

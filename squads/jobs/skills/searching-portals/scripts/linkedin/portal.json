@@ -20,6 +20,7 @@
     "query": "--query",
     "location": "--location",
     "jobage": "--jobage",
+    "jobage_minutes": "--jobage-minutes",
     "limit": "--limit",
     "page": "--page",
     "remote": "--remote",

@@ -21,7 +21,8 @@ roles, place filters as facets).
 1. Set the script path once: `P="$HERMES_HOME/skills/squad-jobs/searching-portals/scripts/portals.py"`.
 2. List what is installed: `python3 "$P" list`. Report every entry in `problems`; a broken manifest is never searched.
 3. Search every enabled portal:
-   `python3 "$P" search -q "data analyst" -l "Lima, Peru" --max-age-days 14 --limit 20`
+   `python3 "$P" search -q "data analyst" -l "Lima, Peru" --max-age-hours 24 --limit 20` (the hours of the card's
+   `Window:` line; a portal that takes minutes gets that exact window, others the whole days that cover it)
    - `-q` keywords, `-l` place text, `--remote remote|hybrid|onsite`, `--page N`, `--today YYYY-MM-DD` to pin the window.
    - One plain term per call: a role title or one skill (`data analyst`, then `BI analyst`). Never `OR`, quotes,
      `site:` or a combined string: boards read them as words and silently return another set. Run one call per term
@@ -43,7 +44,7 @@ roles, place filters as facets).
 5b. Pre-filter before any detail: `python3 "$P" prefilter --profile <P>/profile.md --input <search.json> [--input ...]
    --project <P>`. It keeps rows whose title shares a word with `search_keywords`, `target_roles` or
    `acceptable_roles`, drops `avoid_companies`, the wrong `work_mode` and rows older than `search_days`, keeps the
-   newest `max_candidates_per_run` (default 60) and names at most `max_detail_calls` (default 15) `detail_targets`.
+   rows posted before `--since` (the card's window), keeps the newest `max_candidates_per_run` (default 60) and names at most `max_detail_calls` (default 15) `detail_targets`.
    `analysis_cap` gives this project's analysis cards filed today. It makes no network call.
 6. Detail for a shortlisted posting:
    `python3 "$P" detail 4000000003 --portal linkedin` or `python3 "$P" detail https://freehire.me/jobs/<slug>`.

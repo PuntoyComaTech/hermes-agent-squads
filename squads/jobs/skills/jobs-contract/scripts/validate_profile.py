@@ -248,6 +248,13 @@ def check_profile(report, meta):
     lang = text_of(report, PROFILE, "user_language", meta.get("user_language"))
     if lang and not LANG_CODE.match(lang):
         report.add(PROFILE, "user_language", "must be an ISO 639-1 code: two lowercase letters, for example es")
+    times = meta.get("search_times")
+    if times is not None:
+        items = times if isinstance(times, list) else [times]
+        parsed = [re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", str(t).strip()) for t in items]
+        hours = [m.group(1).lstrip("0") or "0" for m in parsed if m]
+        if not items or len(items) > 4 or not all(parsed) or len(set(hours)) != len(hours):
+            report.add(PROFILE, "search_times", "must list 1 to 4 local times like \"12:00\", at most one per hour")
     zone = text_of(report, PROFILE, "timezone", meta.get("timezone"))
     if zone:
         problem = zone_problem(zone)

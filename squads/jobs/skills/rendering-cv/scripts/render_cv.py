@@ -716,7 +716,7 @@ def render_pdf(html_text: str, html_path: Path, pdf_path: Path, engine: str, def
             return "none", None
     if engine == "weasyprint":
         defects.append({"code": "engine_missing",
-                        "message": "weasyprint is not installed: pip install weasyprint (ask the builder)"})
+                        "message": "weasyprint is not installed: pip install weasyprint"})
         return "none", None
     binary = chromium_binary()
     if binary:

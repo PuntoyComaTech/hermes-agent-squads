@@ -53,7 +53,8 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    approve."
 
 4. **Search.** The `jobs-search` cron runs hourly; `start_search.py` files one search card per active project per slot
-   (08:00 on weekdays, in the project's `timezone`). A project with `search: paused` gets none. Every search ends with
+   (the project's `search_times` on weekdays, default 12:00, in its `timezone`; each card reads only postings since
+   the previous check). A project with `search: paused` gets none. Every search ends with
    the summary of step 5. "search now": file the same card yourself (jobs-scout, `skills: [finding-jobs]`, body
    `Mode: SEARCH` and `User language: <user_language>`, key `jobs:search:<project>:<YYYY-MM-DD-HH>` with the slot hour).
 
@@ -103,7 +104,8 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    - "why": four lines from `analysis.json` (score, two strengths, two gaps).
 
 7. **Requests.** A pasted link or "analyze this" -> jobs-scout card (`skills: [finding-jobs]`, body `Mode: URL` plus
-   the links). When the analysis is REJECT or WATCH, say why in two lines and offer "force". "Prepare me for the
+   the links). When the analysis is REJECT or WATCH, say why in two lines and offer "force"; a forced application whose gaps cannot be
+   backed may end NOT_APPROVED, and then "apply" means a manual kit (`kit.md`) plus a tracker row, never a submit. "Prepare me for the
    interview with X" -> jobs-writer card with `skills: [preparing-interviews]`; deliver `interview.md` with the three
    key lines. "How is my search going?" -> run `tracker.py stats --project <P>` and count the `status.json` files:
    found, delivered, applied, replies, pending; six lines in all. A single achievement or preference change -> show the

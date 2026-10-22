@@ -68,7 +68,7 @@ KIT_FILES = ("cv_ats.pdf", "cv.docx", "letter_ats.pdf", "letter.docx", "cover_le
 GATE_STATUSES = ("ready", "applying")
 RECORD_STATUSES = ("ready", "applying", "applied")
 KIT_SHA = re.compile(r"^[0-9a-f]{64}$")
-REVIEW_NAME = re.compile(r"review-(\d+)\.json\Z")
+REVIEW_NAME = re.compile(r"review-(c?)(\d+)\.json\Z")
 BOT_NAMES = frozenset({"jobs", "jobs-scout", "jobs-writer", "jobs-reviewer", "jobs-applier"})
 NEEDS_REVIEW = ("SUBMITTED needs an approved review: openings/<ID>/review-N.json with verdict APPROVED, and a ready "
                 "line in status.json")
@@ -113,17 +113,18 @@ def approval(opening: Path, allowed=GATE_STATUSES):
     """(day, problem). The latest review-N.json must be APPROVED and the latest status.json line must be one of
     `allowed`; day is the day of the latest ready line. A later FIX, NOT_APPROVED, in_review or skipped closes it.
     The record check also accepts `applied`: the record writes it, so a second record must still pass."""
+    # Every review file counts, whatever its numbering (review-2.json, review-c1.json): the newest one on disk is the
+    # latest, so a later change review can never hide behind an older approval.
     reviews = []
     for path in opening.glob("review-*.json"):
-        match = REVIEW_NAME.match(path.name)
-        if match:
-            reviews.append((int(match.group(1)), path))
+        if REVIEW_NAME.match(path.name):
+            reviews.append((path.stat().st_mtime_ns, path.name, path))
     if not reviews:
         return None, NEEDS_REVIEW
-    number, path = max(reviews)
+    _, name, path = max(reviews)
     verdict = (read_object(path) or {}).get("verdict")
     if verdict != "APPROVED":
-        return None, f"SUBMITTED needs an approved review: the latest review-{number}.json is {verdict!r}, not APPROVED"
+        return None, f"SUBMITTED needs an approved review: the latest {name} is {verdict!r}, not APPROVED"
     history = (read_object(opening / "status.json") or {}).get("history")
     lines = [item for item in history if isinstance(item, dict)] if isinstance(history, list) else []
     last = lines[-1].get("status") if lines else None

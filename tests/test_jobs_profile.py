@@ -254,3 +254,15 @@ def test_plans_to_relocate_must_be_yes_or_no(tmp_path):
     # The residence gate reads plans_to_relocate as a boolean; a typed "maybe" would silently mean no.
     folder = write_project(tmp_path, profile=edit(PROFILE, "search: active", "search: active\nplans_to_relocate: maybe"))
     assert keyed(findings(folder), "profile.md", "plans_to_relocate")
+
+
+def test_check_times_the_search_gate_cannot_read_are_caught_at_onboarding(tmp_path):
+    # The cron gate stops on a bad search_times; the profile check must catch it first, while the user is there.
+    for sub in ("ok", "a", "b", "c"):
+        (tmp_path / sub).mkdir()
+    ok = write_project(tmp_path / "ok", profile=edit(PROFILE, "search: active", 'search: active\nsearch_times: ["09:00", "15:00"]'))
+    assert not keyed(findings(ok), "profile.md", "search_times")
+    for sub, bad in zip("abc", ('["noon"]', '["09:00", "09:30"]', '["25:00"]')):
+        folder = write_project(tmp_path / sub,
+                               profile=edit(PROFILE, "search: active", f"search: active\nsearch_times: {bad}"))
+        assert keyed(findings(folder), "profile.md", "search_times"), bad

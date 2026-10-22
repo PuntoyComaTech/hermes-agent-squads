@@ -51,6 +51,7 @@ TEXT_SUFFIXES = (".md", ".txt", ".json", ".html")
 STATUS_FOR = {"APPROVED": "ready", "FIX": "in_review", "NOT_APPROVED": "not_approved"}
 RENDER_ENV_CODES = ("docx_missing", "engine_missing")  # environment notes: a warning, never a block
 KEYWORD_MIN = 0.8  # ATS keyword coverage below this blocks while a missing keyword has no declared gap
+KEYWORD_FLOOR = 0.34  # below this the CV matches under a third of the posting: blocks even when every miss is a gap
 SOURCE_EXCERPT_MIN = 40  # characters of fetched page text a kept company claim must quote
 CONTACT_PATTERNS = (
     re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+"),
@@ -98,6 +99,7 @@ class Collector:
         self.app_files = app_files
         self.opening_refs = opening_refs
         self.render = render  # application/render_report.json as a dict, or None when absent
+        self.declared_gaps = []  # keywords the ats lens says no achievement backs
 
     def supported_claim(self, claim: dict) -> bool:
         """A kept company claim is evidenced by quoted page text or a captured page in the application folder."""
@@ -244,6 +246,7 @@ def lens_ats(c: Collector, block: dict) -> None:
     for i, item in enumerate(c.items(block, "missing", where)):
         w = f"{where}.missing[{i}]"
         if isinstance(item, str) and item.strip():
+            c.declared_gaps.append(item.strip())
             c.warnings.append(f"gap, not written: keyword '{item}' has no supporting achievement")
             continue
         if not isinstance(item, dict):
@@ -257,6 +260,7 @@ def lens_ats(c: Collector, block: dict) -> None:
         if evidence.strip():
             c.blocking_item("ats", w, item.get("correction"), item.get("location"))
         elif keyword:
+            c.declared_gaps.append(keyword)
             c.warnings.append(f"gap, not written: keyword '{keyword}' has no supporting achievement")
     hard = 0
     for i, item in enumerate(c.items(block, "defects", where)):
@@ -313,6 +317,14 @@ def render_checks(c: Collector) -> None:
         c.error(where, "keyword_coverage must be a number from 0 to 1")
         return
     missing = c.render.get("missing_keywords") if isinstance(c.render.get("missing_keywords"), list) else []
+    # A keyword the ats lens declared a gap (no achievement backs it) can never be written truthfully. When every
+    # missing keyword is such a gap, coverage is a warning for the user, not a FIX loop that cannot end.
+    gaps = {str(k).strip().lower() for k in c.declared_gaps}
+    unbacked = [k for k in missing if str(k).strip().lower() not in gaps]
+    if measured < KEYWORD_MIN and not unbacked and measured >= KEYWORD_FLOOR:
+        c.warnings.append(f"keyword coverage {measured}: every missing keyword is a declared gap "
+                          f"({', '.join(map(str, missing))}); the digest tells the user")
+        return
     if measured < KEYWORD_MIN:
         c.blocking_item("ats", f"{where}.keyword_coverage", {
             "type": "content", "mode": "instruction",

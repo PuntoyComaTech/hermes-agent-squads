@@ -48,7 +48,9 @@ Work in `<P>/openings/<ID>/`. `<P>` is the project folder named on your card. Se
    user accepted the eligibility risk. An eligibility FLAG files no writer card: say it in the summary so the
    manager asks the user. Create the writer's card with `kanban_create`: assignee `jobs-writer`, skills
    `[writing-applications]`, `idempotency_key` `jobs:application:<project>:<ID>:write`, document language = the
-   opening's language, plus the fields of jobs-contract step 4. Otherwise create nothing.
+   opening's language, plus the fields of jobs-contract step 4. Otherwise no writer card: finish with
+   `kanban_block(kind="needs_input", reason=...)` in the card's user language, three lines: `<score>/100 <decision>:
+   <role> at <company>`, the deciding reason, and `Reply "force" to prepare it anyway` (WATCH only).
 8. **Record** the stage: `python3 "$S/status.py" append <dir> analyzed --by jobs-scout --note "<decision> <score>"`.
    Then `kanban_complete` with one line: decision, score, and the rule that decided it.
 
