@@ -9,9 +9,13 @@ Two traps make a real-hermes test lie when it runs from inside Hermes (a Kanban 
 """
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import hermes_home as hh  # noqa: E402
 
 HERMES = shutil.which("hermes")
 needs_hermes = pytest.mark.skipif(not HERMES, reason="the real `hermes` binary is not on PATH")
@@ -26,6 +30,8 @@ def temp_root(tmp_path: Path) -> Path:
     real = (Path.home() / ".hermes").resolve()
     if root.resolve() == real or real in root.resolve().parents:
         pytest.skip(f"temp root {root} is under {real}: Hermes would resolve the real root; set TMPDIR elsewhere")
+    if HERMES:  # the temp root borrows the install: its one dependency sync runs from the owner's uv cache
+        hh.share_uv_cache(root, hh.installed_owner())
     return root
 
 

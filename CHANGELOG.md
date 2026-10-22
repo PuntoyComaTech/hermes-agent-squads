@@ -39,6 +39,16 @@ Jobs squad 4.0: a job search built around one person.
 - `jobs-reviewer` gains `terminal` and `web` (company-claim checks); `jobs-applier` and the manager gain `terminal`.
 - `jobs-scout` requires `bun`.
 
+## 2.5.2 - 2026-10-21
+
+### Fixed
+
+- A data root outside the one that owns the installed Hermes (a test's temp root, the release gate's root) made
+  Hermes sync its own ~350 MB dependency environment from an empty uv cache before answering; squadctl's 120 s
+  runtime probe timed out on a loaded machine and the release gates went red for correct code. squadctl now asks
+  the runtime from an empty home inside the owning root (no sync), and a borrowing root links its uv cache to the
+  owner's shared cache. New `scripts/hermes_home.py`.
+
 ## 2.5.1 - 2026-10-21
 
 ### Changed

@@ -168,6 +168,9 @@ def gate_plan(py: str) -> tuple[str, bool, str]:
     """`squadctl plan` for every squad plus --self against a temporary HERMES_HOME."""
     plans = [["plan", "--self", "--json"], *[["plan", key, "--json"] for key in squad_keys()]]
     with tempfile.TemporaryDirectory() as tmp:
+        sys.path.insert(0, str(SRC / "scripts"))
+        import hermes_home as hh
+        hh.share_uv_cache(Path(tmp), hh.installed_owner())  # a borrowing root syncs once, from the shared cache
         env = {**os.environ, "HERMES_HOME": tmp, "HPY_PYTHON": py}
         ran = []
         for args in plans:
