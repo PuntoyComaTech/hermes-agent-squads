@@ -122,3 +122,5 @@ Each is a `ctx.*` call in `register(ctx)`:
   approval transports, model providers that build their own SDK client, streaming dashboard endpoints,
   monkeypatching plugins. A plugin's `hermes <command>` subcommands are skipped; the rest loads.
 - Check `hermes plugins show <name>` and `known_issues` before choosing `host`.
+- `hermes -p <profile> plugins list` wraps the Name column of its table: a grep for a long plugin name misses an
+  enabled one. Read the Status column, or the profile config's `plugins.enabled` list, before reporting it off.

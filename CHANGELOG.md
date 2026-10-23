@@ -3,6 +3,13 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.10.2 - 2026-10-23
+
+### Changed
+
+- `hermes-platform` plugins reference: `plugins list` wraps long names, so check the Status column or the config
+  list before reporting a plugin off.
+
 ## 2.10.1 - 2026-10-23
 
 ### Changed
