@@ -893,6 +893,9 @@ def sched_matches(job: dict, wanted: str) -> bool:
 
 # App locations `shutil.which` misses (GUI apps on macOS).
 APP_MAC_PATHS = {"blender": "/Applications/Blender.app/Contents/MacOS/Blender"}
+# Where an official installer puts a CLI without touching PATH for non-login shells (bun's install script writes
+# ~/.bun/bin and only edits the shell rc). The tools that run them look there too (portals.py find_bun).
+APP_HOME_BINS = {"bun": ".bun/bin/bun"}
 
 # npm-packaged CLIs: when one is not on PATH, `npx --no-install` runs the project-local or cached copy and
 # never downloads anything, so a hit there proves the CLI is reachable from this machine. Without that copy the
@@ -929,6 +932,9 @@ def app_launcher(name: str) -> list[str] | None:
     mac = APP_MAC_PATHS.get(name)
     if mac and Path(mac).is_file():
         return [mac]
+    home_bin = APP_HOME_BINS.get(name)
+    if home_bin and os.access(Path.home() / home_bin, os.X_OK):
+        return [str(Path.home() / home_bin)]
     if name in APP_NPX and shutil.which("npx"):
         argv = ["npx", "--no-install", name]
         done = run_quiet([*argv, "--version"])

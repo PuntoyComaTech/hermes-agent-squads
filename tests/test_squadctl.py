@@ -1966,3 +1966,18 @@ def test_the_builder_never_gets_the_users_real_profile(env, capsys):
     env.squad("builder")
     _, plan = env.run("plan", "--self", capsys=capsys)
     assert "browser.use_real_profile" not in json.dumps(plan)  # squad bots: the real-profile test above
+
+
+def test_doctor_finds_bun_where_its_installer_puts_it(tmp_path, monkeypatch):
+    """bun's official installer writes ~/.bun/bin/bun and edits only the shell rc, so a bot's PATH lacks it. The
+    portal wrapper runs it from there; doctor warned "app bun not found" on a machine where search worked."""
+    home = tmp_path / "home"
+    (home / ".bun" / "bin").mkdir(parents=True)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    monkeypatch.setattr(squadctl.Path, "home", classmethod(lambda cls: home))
+    assert squadctl.app_problem("bun") is not None  # not installed anywhere: still reported
+    bun = home / ".bun" / "bin" / "bun"
+    bun.write_text("#!/bin/sh\necho 1.3.13\n")
+    bun.chmod(0o755)
+    assert squadctl.app_launcher("bun") == [str(bun)]
+    assert squadctl.app_problem("bun") is None

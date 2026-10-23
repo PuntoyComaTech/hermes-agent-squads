@@ -3,6 +3,13 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.9.2 - 2026-10-23
+
+### Fixed
+
+- `squadctl doctor` finds bun in `~/.bun/bin`, where its official installer puts it and where the portal wrapper runs
+  it from; it warned "app bun not found" on machines where the job search worked.
+
 ## 2.9.1 - 2026-10-23
 
 ### Fixed
