@@ -55,6 +55,9 @@ description: "Assigns a model per bot from connected providers. Use when a squad
   kanban dashboard (`skills/hermes-platform/references/kanban.md`).
 - A model change for one card is not a bot assignment: use the card's
   `--model`/`--provider`.
+- Applying a hand-written model table: `apply --models` reads only the
+  advisor's JSON shape. Write `local/models-<key>.json`; a yaml file beside it
+  is ignored.
 
 ## Verification
 

@@ -3,6 +3,18 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.10.1 - 2026-10-23
+
+### Changed
+
+- Builder skills carry the generic lessons learned on installed machines: model files the advisor's JSON shape only
+  (`assigning-models`); real-run stage hand-offs and contract tests after lint (`authoring-skills`); composed SOULs
+  checked by the update-path test (`changing-bots`); fetch, back up and renumber before a release, with history
+  scrubbing in its own reference (`contributing-upstream`); machine-shared crons take a lock and a stamp
+  (`designing-squads`); connector probes, pending sign-ins and client allowlists (`finding-capabilities`); apply traps
+  in their own reference, per-bot content checks and one machine-wide sweep (`installing-squads`); exact project paths
+  only (`managing-projects`).
+
 ## 2.10.0 - 2026-10-23
 
 ### Changed

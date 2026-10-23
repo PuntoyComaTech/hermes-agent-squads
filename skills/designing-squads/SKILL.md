@@ -113,6 +113,11 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
 
 - A profile per specialist when only the model differs: use a per-card model
   override.
+- A cron job that touches a resource the whole machine shares (the one browser,
+  a service, a log): give its script a lock and a `did it run` stamp in the
+  shared state dir, and make the losing fire exit 0 with a skip line. Managers
+  firing at the same minute otherwise multiply the work and log errors the
+  watcher escalates to the user.
 - A chain stage that acts without the user: irreversible steps (apply, send,
   publish, deploy) wait for the user's explicit OK, per action or once as a
   recorded standing consent with caps that a script enforces.

@@ -38,18 +38,38 @@ Active when the user says they maintain the repository and
 prints `true`:
 
 1. Work on a branch of `local/hermes-agent-squads`; keep the diff to the item
-   at hand.
+   at hand. Fetch and fast-forward `origin/main` before the first edit: the
+   repository moves while a fix is in progress. Back up the worktree first
+   (`git ls-files -mo --exclude-standard` into `rsync --files-from`), and
+   `git reset` intent-to-add entries before `git stash`, which refuses to run
+   while they exist.
 2. Bump `distribution.yaml` -> `version` and add a `## <version> - <date>`
-   entry to `CHANGELOG.md`.
-3. Commit. Once per clone, create the test venv:
+   entry to `CHANGELOG.md`. A version conflict resolves to the next number
+   above upstream's, with your entry on top: rebuild `CHANGELOG.md` from
+   upstream's file and re-insert your section under the new number, instead of
+   picking through conflict markers. Decision-log rows collide the same way:
+   when upstream used the ids your branch added, renumber yours above theirs
+   (highest first, so no two rows share a number mid-loop) and update every
+   cross-reference to them in the same change; a stale reference now names
+   someone else's decision.
+3. Commit with the repository's own identity, read from the history
+   (`git log -1 --format='%an <%ae>'`), not the machine's default git identity.
+   Once per clone, create the test venv:
    `python3 -m venv .venv && env -u PYTHONPATH .venv/bin/pip install pytest pyyaml jsonschema`
    (a Hermes shell exports `PYTHONPATH`, which hides the venv's own packages).
-4. In `local/hermes-agent-squads`, run
+4. Right before this step, fetch again and merge `origin/main` if it moved;
+   resolve the conflicts and rerun the full suite on the merged tree. A green
+   run on the old base proves nothing, and a push to `main` is rejected as
+   non-fast-forward. In `local/hermes-agent-squads`, run
    `scripts/hpy release.py --dry-run --python .venv/bin/python`, then the same
    without `--dry-run`. All gates green: it pushes to main. A red gate: it opens
-   a PR (`release.py --help`). The gates run the full pytest suite (about 9
-   minutes): start the release with `terminal(background=true, notify=true)`
-   and poll with `process_manage`; do not block on it.
+   a PR (`release.py --help`). The gates run the full pytest suite (7 to 20
+   minutes, longer under machine load): check `uptime` and free disk first,
+   since each test home can take about 600 MB. Start the release with
+   `terminal(background=true, notify=true)` and poll with `process_manage`; do
+   not block on it. A red gate leaves a PR on `release/<version>`, and a rerun
+   only reports that PR as existing: name the failing gates to the user, then
+   fix them on that branch or close the PR before rerunning.
 5. Update the builder from the same repo with `scripts/hpy auto_update.py
    --force` (builder profile). Hermes replaces shipped skills whole, so
    auto_update three-way merges each locally edited skill file back: kept when
@@ -60,11 +80,23 @@ prints `true`:
    in the next release; squad-, fleet- or user-specific rules stay local.
    Installed copies are not the source.
 
+### Removing personal data from published history
+
+Only with the user's explicit OK for the rewrite and for the force-push; never
+on the working checkout. Steps: `references/removing-personal-data.md`.
+
 ## Pitfalls
 
 - Sending user data, real names, URLs of the user's projects or credentials:
   upstream content is fictional and generic only.
 - Bundling unrelated refactors into a fix PR.
+- Resolving a conflict in code by picking a side: merge both plan or
+  enumeration groups, then read what upstream's new lines do to the feature. A
+  line that mirrors one of the user's own settings can silently override it, so
+  the merged function excludes it there and says why in a comment. Pick a side
+  whole only when the user names the side that was tested end to end: then its
+  function, defaults and schema win, and the other side's docs, skills, comments
+  and tests are brought in line inside the same release.
 - Test fixtures that write fake binaries or `#!` shebangs must quote the
   interpreter and repo paths: a checkout path with a space (a projects folder
   with a space in its name) splits the shebang and fails the test on a

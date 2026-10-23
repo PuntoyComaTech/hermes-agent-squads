@@ -17,7 +17,9 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
    [--hub] [--json]`. Pass the version from `hermes --version`. Connector
    names match under `mcp`.
 2. Prefer a bundled or official skill over a hub one, and a skill over a
-   plugin when the job is procedural.
+   plugin when the job is procedural. Prefer a vendor MCP from the catalog over
+   scraping the same site, once a real call works: a catalog entry proves the
+   vendor exists, not that it admits this tool.
 3. Skill candidate: run `hermes skills inspect <identifier>` and read its trust
    level, author, licence and SKILL.md preview.
 4. Community plugin: read `plugin-catalog/<name>.yaml` in the Hermes tree.
@@ -32,6 +34,10 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
    `mcp` server. Add a `confirm` text to any item that needs the user's OK.
 7. Run `scripts/hpy squadctl.py plan <key> --json`; each `confirm` item shows
    under `pending`. After the OK: `apply <key> --confirm <id>`.
+8. Probe each new connector with one real call before calling it installed:
+   `hermes mcp test <name>`. An OAuth server needs the user's sign-in first
+   (`hermes mcp login <name>`): the agent installs, the approval click cannot be
+   delegated, and the user should hear why.
 
 ## Pitfalls
 
@@ -39,6 +45,22 @@ description: "Searches plugins, skills, MCP and connectors. Use when a squad nee
   only after the user's OK with the disclosure shown.
 - Giving a capability to the whole squad, or a connector to a bot with `web`
   or `browser`: `skills/designing-squads` -> Rules.
+- An OAuth catalog connector that installs and shows unusable (`Error`, `Tool
+  list unavailable`, a refused connection) is a pending sign-in, not a broken
+  entry: run `hermes mcp login <name>` (`--flow device` when the flow needs
+  it). `hermes mcp test <name>` prints the same diagnosis.
+- An authorize callback is not a working connector: a server that allowlists
+  client ids answers `invalid_client` on the first real request even though the
+  browser flow issued a token with the advertised scopes. Probe one call and
+  name the failure class: not authorized, client not allowed, missing scope.
+- A client allowlist is the vendor's wall, not a defect in this tool: the
+  vendor's own approved CLI hits the same refusal with a valid token, so
+  another client is not a diagnosis path. One attempt, then the honest
+  fallback: plain HTTP capture, an aggregator, or the vendor's own app for the
+  user's personal use.
+- Never make a tool pass as another vendor's client to clear an allowlist: the
+  id is not transferable, the server refuses the borrowed identity too, and
+  impersonating it puts the user's account and terms at risk.
 
 ## Verification
 

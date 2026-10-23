@@ -59,6 +59,11 @@ description: "Edits, adds, splits and retires the bots of a squad. Use when a bo
   (`skills/hermes-platform/references/cron-and-gates.md`).
 - `passthrough` on a bot with `web` or `browser`: `skills/designing-squads` ->
   Rules.
+- Editing the prose of a SOUL the repo composes from a base: the update-path
+  test asserts `SOUL.md` is the base file plus its role section, byte for byte,
+  so a sentence added to the composed file alone leaves the suite red. Grep
+  `tests/` for how the SOUL is assembled before editing it, and run that test
+  beside the skill lint after every SOUL edit.
 
 ## Verification
 

@@ -49,6 +49,9 @@ description: "Creates squad Projects and copies them to the workers. Use when a 
 - Assuming a `repo/` subfolder: a folder that already is the git repo keeps its
   layout; read the repo path from the squad's config (web: `site.yaml ->
   repo.path`).
+- Sweeping a shared parent folder with a sync, cleanup or scan: target the
+  exact project paths. A parent that also holds the user's own repos treats
+  them as squad data.
 
 ## Verification
 
