@@ -81,5 +81,7 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
 
 - `scripts/hpy squadctl.py status <key>` shows every bot `ok` with its model.
 - `scripts/hpy squadctl.py plan <key> --json` reports every bot `unchanged`.
+- A squad with `shared_browser` bots: `scripts/hpy shared_browser.py status`
+  shows `listening` and `plist_current: true` after the apply.
 - `hermes -p <bot> cron list` shows exactly the `<key>-*` jobs the manifest
   declares.

@@ -27,7 +27,10 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
    `local/squads/`.
 5. Decide the bots and the board with Rules and Topology below. A single bot
    is a squad whose only bot is the manager `<key>`.
-6. Lane per bot: a key of `scripts/data/model-roles.yaml` -> `lanes`.
+6. Lane per bot: a key of `scripts/data/model-roles.yaml` -> `lanes`. A bot that
+   verifies truthfulness or judges quality takes the reasoning lane, never the
+   cheap one, and so do its delegated children (`delegation: {lane: ...}`): a
+   cheap model passes claims it cannot check.
 7. Write `local/squads/<key>/squad.yaml` against
    `squads/_schema/squad.schema.json`: `schema: 2`, `key`, `name`, `version`,
    `hermes_requires`, `board` (only when Topology says so), `section`,
@@ -67,11 +70,16 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
   with `squadctl apply <key> --with <name>`.
 - Credentials: env names in `passthrough` (never values), only on the bot that
   calls that API, never on a bot with `web` or `browser`.
+- An account a bot must not combine with browsing (mail, a personal feed)
+  gets its own worker bot. `withhold` strips a toolset from a worker only, and
+  squadctl keeps `clarify`, `vision`, `browser` and `cronjob` on every manager,
+  so moving the account up to the manager does not isolate it.
 - A bot that browses signed in: `shared_browser: true` (squadctl requires the
   `browser` toolset). Give it no connector and no credentials yourself. The
   service already makes the Google mail, files and account hosts unresolvable;
-  a `website_blocklist` only catches URLs written literally in a call. The owner signs in once per site with `scripts/hpy shared_browser.py
-  login <url>` (hermes-platform `references/browser.md`).
+  a `website_blocklist` only catches URLs written literally in a call. The
+  owner signs in once per site (`scripts/hpy shared_browser.py login <url>`);
+  bots never take turns on a browser: each run gets its own tab.
 - CLIs a bot drives: `requires.apps`. `squadctl doctor` reports each one
   installed and logged in (`gh auth login`, `cf auth login`, `wrangler login`,
   once, by the user) and never prints a probe's output.
@@ -106,7 +114,16 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
 - A profile per specialist when only the model differs: use a per-card model
   override.
 - A chain stage that acts without the user: irreversible steps (apply, send,
-  publish, deploy) wait for the user's explicit OK.
+  publish, deploy) wait for the user's explicit OK, per action or once as a
+  recorded standing consent with caps that a script enforces.
+- A topology or key offered from memory (which toolset a bot can give up,
+  which config key takes a list): read `scripts/squadctl.py` constants,
+  `squads/_schema/squad.schema.json` or `references/toolsets.md` first. A rule
+  the user accepts and the script then refuses costs a whole design round.
+- Publishing a shipped squad's contract change (bots, skills, cron, chains)
+  without a `distribution.yaml` bump and a CHANGELOG entry: the release gate
+  fails. Before any publish a reviewer who did not write the change (another
+  model or QA run) reads the result, and the user sees the status first.
 - Writing the squad under `squads/`: that tree is distribution-owned. Local
   squads live in `local/squads/<key>/`; publishing one is
   `skills/contributing-upstream`.

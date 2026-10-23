@@ -241,6 +241,9 @@ def cmd_install(_a) -> int:
     if not PLIST.is_file() or PLIST.read_bytes() != data:
         if loaded():
             launchctl("bootout", f"{domain()}/{LABEL}")
+            # bootout returns while launchd still lists the job: reading loaded() at once skips the bootstrap below
+            if not wait_for(lambda: not loaded(), 20):
+                raise SystemExit("launchd did not remove the old shared-browser job; run install again")
         PLIST.write_bytes(data)
     if not loaded():
         if profile_in_use():

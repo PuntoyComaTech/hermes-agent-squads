@@ -646,3 +646,39 @@ def test_login_puts_the_service_back_when_the_window_is_interrupted(tmp_path, mo
         sb.main(["login"])
     assert [c[0] for c in calls] == ["bootout", "bootstrap"], calls
 
+
+
+def test_install_of_a_changed_job_loads_it_again_although_bootout_returns_before_the_job_is_gone(tmp_path, monkeypatch):
+    """`launchctl bootout` returns while launchd is still removing the job. Reading `loaded()` right after it saw
+    the old job, skipped the bootstrap, and the update left the owner's machine with no shared browser at all."""
+    calls, state = [], {"loaded": True, "prints_left": 0}
+
+    def launchctl(*args, check=False):
+        calls.append(args[0])
+        if args[0] == "bootout":
+            state["prints_left"] = 3          # launchd still lists the job for a few probes
+        if args[0] == "bootstrap":
+            state["loaded"] = True
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    def loaded():
+        if state["prints_left"]:
+            state["prints_left"] -= 1
+            if state["prints_left"] == 0:
+                state["loaded"] = False
+            return True
+        return state["loaded"]
+
+    monkeypatch.setattr(sb.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(sb, "ROOT", tmp_path / "sessions")
+    monkeypatch.setattr(sb, "PROFILE_DIR", tmp_path / "sessions" / "hermes")
+    monkeypatch.setattr(sb, "PLIST", tmp_path / "ai.hermes.shared-browser.plist")
+    (tmp_path / "ai.hermes.shared-browser.plist").write_bytes(b"old job")
+    monkeypatch.setattr(sb, "chromium", lambda: "/opt/chrome")
+    monkeypatch.setattr(sb, "launchctl", launchctl)
+    monkeypatch.setattr(sb, "loaded", loaded)
+    monkeypatch.setattr(sb, "profile_in_use", lambda: False)
+    monkeypatch.setattr(sb, "listening", lambda: {"browser": "x", "pages": 1} if "bootstrap" in calls else None)
+    monkeypatch.setattr(sb.time, "sleep", lambda s: None)
+    assert sb.main(["install"]) == 0
+    assert calls.count("bootout") == 1 and calls[-1] == "bootstrap", calls

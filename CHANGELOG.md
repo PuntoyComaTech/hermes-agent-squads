@@ -3,6 +3,20 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.9.1 - 2026-10-23
+
+### Fixed
+
+- `shared_browser.py install` reloads a changed service job: `launchctl bootout` returns while launchd still lists
+  the job, so the reload was skipped and an update left the machine with no shared browser.
+
+### Changed
+
+- `designing-squads`: judging bots and their children take the reasoning lane; an account that must not meet browsing
+  gets its own worker; read squadctl and the schema before proposing a topology; a publish needs the version bump, the
+  CHANGELOG entry and an independent review. Irreversible steps may run on a recorded standing consent with caps.
+- `installing-squads`: after an apply, check that the shared browser is listening.
+
 ## 2.9.0 - 2026-10-22
 
 ### Added
