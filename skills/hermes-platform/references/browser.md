@@ -17,7 +17,8 @@
   `<HERMES_HOME>/browser-profile/<browser>` and drives a copy browser on it; `browser.real_profile_pin` names the
   profile directory (`Profile 3`). It restores the owner's open tabs in the copy.
 - On macOS and Linux the running browser holds `Login Data` and `Web Data` with a write lock: the snapshot fails
-  while any window of that browser is open. Unattended bots therefore cannot rely on it.
+  while any window of that browser is open. Unattended bots therefore cannot rely on it, and squadctl never sets it
+  on a bot.
 
 ## Signing in for bots
 

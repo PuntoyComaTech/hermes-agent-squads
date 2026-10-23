@@ -2,7 +2,7 @@ schema: 2
 key: marketing
 name: Marketing
 description: "Brand onboarding, 90-day plans, weekly calendars and reviewed marketing pieces for several brands"
-version: 3.2.0
+version: 3.3.0
 hermes_requires: ">=0.22.0"
 board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F", description: "Brand plans, weekly calendars and reviewed pieces"}
 section: {id: marketing, name: Marketing}
@@ -34,6 +34,7 @@ bots:
     description: "Dated market, competitor and ad-library evidence"
     lane: research
     toolsets: [file, skills, kanban, todo, web, browser, terminal]
+    shared_browser: true   # the machine's one signed-in browser, one tab per run
     skills:
       squad: [researching-markets, brand-contract]
       auto_load: researching-markets
@@ -59,6 +60,7 @@ bots:
     description: "Statics, carousels, landings, emails, documents and short HyperFrames clips"
     lane: design-pro
     toolsets: [file, skills, kanban, todo, terminal, vision, image_gen, browser]
+    shared_browser: true   # the machine's one signed-in browser, one tab per run
     skills:
       squad: [producing-assets, brand-contract]
       auto_load: producing-assets

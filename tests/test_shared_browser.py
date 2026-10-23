@@ -682,3 +682,26 @@ def test_install_of_a_changed_job_loads_it_again_although_bootout_returns_before
     monkeypatch.setattr(sb.time, "sleep", lambda s: None)
     assert sb.main(["install"]) == 0
     assert calls.count("bootout") == 1 and calls[-1] == "bootstrap", calls
+
+
+def test_the_machine_sweeps_once_although_every_squad_manager_carries_the_cron(tmp_path, monkeypatch):
+    """jobs, web and marketing each ship the 3-hourly sweep on their manager, and all three fire at the same minute
+    on one browser. The first sweeps; the others find it running (lock) or just done (stamp) and exit untouched.
+    An unreachable port proves it: a sweep that really ran would report the browser missing with exit 1."""
+    import fcntl
+    monkeypatch.setenv("HERMES_SHARED_BROWSER_STATE", str(tmp_path))
+    sweep = [sys.executable, str(REPO / "scripts" / "shared_browser_sweep.py"), "--cdp-url",
+             f"http://127.0.0.1:{_free_port()}", "--verbose"]
+    env = {**os.environ, "HERMES_SHARED_BROWSER_STATE": str(tmp_path)}
+    assert subprocess.run(sweep, capture_output=True, text=True, env=env).returncode == 1  # nothing ran before
+    port = int(sweep[3].rsplit(":", 1)[1])
+    stamp = tmp_path / f"sweep-{port}.stamp"
+    with open(stamp, "a+") as fh:  # another manager's sweep holds the lock right now
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        assert subprocess.run(sweep, capture_output=True, text=True, env=env).returncode == 0
+    stamp.write_text(str(int(time.time())))  # another manager's sweep just finished
+    p = subprocess.run(sweep, capture_output=True, text=True, env=env)
+    assert p.returncode == 0 and json.loads(p.stdout) == {"skipped": "another sweep ran recently"}
+    old = time.time() - 3 * 3600
+    os.utime(stamp, (old, old))  # three hours later the next fire sweeps again
+    assert subprocess.run(sweep, capture_output=True, text=True, env=env).returncode == 1

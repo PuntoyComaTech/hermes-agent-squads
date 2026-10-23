@@ -223,29 +223,27 @@ def test_apply_writes_model_toolsets_and_lanes(web):
     assert web.config("web")["memory"]["memory_enabled"] is True
 
 
-def test_browser_bots_use_the_users_real_profile_only_when_the_user_turned_it_on(env, capsys):
-    """A bot that must act as the user (a signed-in job board) browses through Hermes's real-profile copy. Without it
-    the bot sits in a clean throwaway browser and improvises: a debugging port, a copied profile, asking for cookies.
-    The squad mirrors the user's own consent; it never grants it on its own."""
-    env.squad("web")
-    env.run("apply", "web", capsys=capsys)
-    assert "browser" not in env.config("web-frontend")  # the user has not turned it on: nothing is granted
-    (env.root / "config.yaml").write_text("browser:\n  use_real_profile: true\n")
+def test_no_bot_browses_on_a_copy_of_the_owners_profile_and_an_old_copy_is_turned_off(env, capsys):
+    """The owner keeps `browser.use_real_profile` on for their own chats. An earlier version mirrored it onto every
+    bot with a browser, managers included: the copy fails whenever the owner's browser is open and hands a bot the
+    owner's whole personal session. No bot gets it now, and apply turns off the copy an older version left."""
+    (env.root / "config.yaml").write_text("browser:\n  use_real_profile: true\n  real_profile_pin: Profile 3\n")
     builder = env.seed_builder()
     (builder / "config.yaml").write_text("model: {default: seed}\nbrowser:\n  real_profile_pin: Profile 3\n")
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    for bot in ("web", "web-frontend", "web-qa"):
+        assert (env.config(bot).get("browser") or {}).get("use_real_profile") is not True, bot
+    cfg = env.config("web")
+    cfg["browser"] = {"use_real_profile": True, "real_profile_pin": "Profile 3"}  # what 2.7.0-2.9.2 mirrored
+    (env.root / "profiles" / "web" / "config.yaml").write_text(yaml.safe_dump(cfg))
     _, plan = env.run("plan", "web", capsys=capsys)
     assert "browser.use_real_profile" in json.dumps(plan)  # the plan shows the change before it is made
     env.run("apply", "web", capsys=capsys)
-    fe = env.config("web-frontend")
-    assert fe["browser"] == {"use_real_profile": True, "real_profile_pin": "Profile 3"}
-    assert "browser" not in env.config("web-backend")  # no browser toolset, no real logins
-    cfg = env.config("web-frontend")
-    cfg["browser"]["use_real_profile"] = False  # the user switched one bot off by hand
-    (env.root / "profiles" / "web-frontend" / "config.yaml").write_text(yaml.safe_dump(cfg))
-    (env.root / "config.yaml").write_text("browser:\n  use_real_profile: false\n")
-    (builder / "config.yaml").write_text("model: {default: seed}\n")
-    env.run("apply", "web", capsys=capsys)
-    assert env.config("web-frontend")["browser"]["use_real_profile"] is False  # consent withdrawn: not re-granted
+    browser = env.config("web")["browser"]
+    assert browser["use_real_profile"] is False and not browser.get("real_profile_pin")
+    _, again = env.run("plan", "web", capsys=capsys)
+    assert "browser.use_real_profile" not in json.dumps(again), "turned off once, then left alone"
 
 
 def test_apply_never_writes_a_kanban_cap(web, capsys):

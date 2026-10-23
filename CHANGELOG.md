@@ -3,6 +3,19 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.10.0 - 2026-10-23
+
+### Changed
+
+- Every shipped bot that browses uses the machine's one shared signed-in browser: web 3.6.0 (`web-frontend`,
+  `web-qa`, `web-frontend-pro`) and marketing 3.3.0 (`marketing-research`, `marketing-producer`) join jobs.
+  GitHub, Cloudflare and Vercel stay on their CLIs.
+- `squadctl` no longer mirrors the owner's `browser.use_real_profile` onto any bot, managers included; apply turns
+  off a copy an older version left and clears its pin. The owner's own chats keep the setting.
+- The browser sweep ships on every squad's manager but runs once per machine: a lock and a 150-minute stamp make the
+  other fires exit untouched.
+- Base rule for every bot: signed-in browsing only through the shared browser.
+
 ## 2.9.2 - 2026-10-23
 
 ### Fixed

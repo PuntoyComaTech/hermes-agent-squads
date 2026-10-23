@@ -64,6 +64,11 @@ bottom selector, then "+" (New project), and tell the manager about the brand in
 stays `draft` until you approve onboarding; only `active` brands get calendars and reports. A `PAUSE` file in the brand
 folder stops its schedule.
 
+## Browser
+
+Research and production drive the machine's one shared browser (the same one every squad uses), each run in its own
+tab, closed when it ends. Research reads public pages only: no login, CAPTCHA or paywall.
+
 ## Schedule
 
 | Job | When | Does |
@@ -71,6 +76,7 @@ folder stops its schedule.
 | `marketing-plan-week` | Mondays 08:00 | One calendar card per active brand missing next week's calendar |
 | `marketing-report` | the 1st, 08:00 | One report card per active brand whose `data/inbox/` changed |
 | `marketing-watch` | every 30 min | Tells you when a card waits on you or stalls |
+| `marketing-browser-sweep` | every 3 h | Closes tabs a crashed run left on the shared browser; skips when another squad's sweep just ran |
 
 ## File a piece by hand
 

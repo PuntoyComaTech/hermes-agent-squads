@@ -231,7 +231,6 @@ class Ctx:
         self._env_keys: dict[str, list[str]] = {}
         self._registry: dict[str, list[str]] | None = None
         self._connected: list[str] | None = None
-        self._real_profile: dict | None = None
         self.confirmed = set(getattr(a, "confirm", None) or [])
 
     def home(self, bot: str) -> Path:
@@ -414,20 +413,6 @@ class Ctx:
             skip = {ln.split("#", 1)[0].strip() for ln in _read(exclude).splitlines()}
             self._connected = sorted(slugs - skip - {""})
         return self._connected
-
-    def real_profile(self) -> dict:
-        """The user's consent to Hermes's real-profile browsing (`browser.use_real_profile`), read from the root
-        config and the builder's, with the pinned browser profile when one is set: {} when the user has not turned it
-        on. Every bot with the browser toolset gets it, so a bot that must act as the user browses through Hermes's
-        own session copy instead of improvising one (a debugging port, a copied profile, cookies)."""
-        if self._real_profile is None:
-            cfgs = [read_yaml(p / "config.yaml") or {} for p in (self.root, self.home(self.builder))
-                    if (p / "config.yaml").is_file()]
-            on = any(pa.current(c, "browser.use_real_profile") is True for c in cfgs)
-            pin = next((pa.current(c, "browser.real_profile_pin") for c in cfgs
-                        if pa.current(c, "browser.real_profile_pin")), None)
-            self._real_profile = ({"pin": pin} if pin else {"pin": None}) if on else {}
-        return self._real_profile
 
     def apply_config(self, home: Path, payload: dict) -> None:
         """One write pass per home through Hermes's own config writer (_profile_apply.py)."""
@@ -1109,14 +1094,14 @@ class Applier:
                  ["curator.enabled", True, False], ["curator.consolidate", False, False]]
         if "web" in toolsets:
             plan.append(["web.keyless_fallback", True, False])
-        real = self.ctx.real_profile()
-        if "browser" in toolsets and real and not bot.get("shared_browser") and not self.self_mode:
-            # the user's consent, mirrored; never turned on when the user has not, never turned off here.
-            # A shared_browser bot uses the signed-in shared browser instead: a profile copy would win over cdp_url.
-            # The builder never browses as the user: its chats would open the owner's sessions in a profile copy.
-            plan.append(["browser.use_real_profile", True, False])
-            if real.get("pin"):
-                plan.append(["browser.real_profile_pin", real["pin"], False])
+        # No bot browses on a copy of the owner's own browser profile: the copy fails whenever that browser is open
+        # and carries the owner's whole personal session. Signed-in bots use the shared browser (`shared_browser`).
+        # A copy an earlier version mirrored from the owner's config is turned off and its pin cleared.
+        live_browser = (live or {}).get("browser") or {}
+        if live_browser.get("use_real_profile") is True and not bot.get("shared_browser"):
+            plan.append(["browser.use_real_profile", False, False])
+        if live_browser.get("real_profile_pin"):
+            plan.append(["browser.real_profile_pin", "", False])
         if "website_blocklist" in bot:  # an explicit empty list lifts a blocklist an earlier version installed
             domains = list(bot.get("website_blocklist") or [])
             plan += [["security.website_blocklist.enabled", bool(domains), False],

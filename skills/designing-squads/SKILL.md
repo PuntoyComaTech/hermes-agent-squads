@@ -74,8 +74,8 @@ description: "Designs a new local squad or single bot as a squad.yaml. Use when 
   gets its own worker bot. `withhold` strips a toolset from a worker only, and
   squadctl keeps `clarify`, `vision`, `browser` and `cronjob` on every manager,
   so moving the account up to the manager does not isolate it.
-- A bot that browses signed in: `shared_browser: true` (squadctl requires the
-  `browser` toolset). Give it no connector and no credentials yourself. The
+- A bot with the `browser` toolset sets `shared_browser: true` (squadctl
+  requires the toolset); no bot browses on a copy of the owner's profile. Give it no connector and no credentials yourself. The
   service already makes the Google mail, files and account hosts unresolvable;
   a `website_blocklist` only catches URLs written literally in a call. The
   owner signs in once per site (`scripts/hpy shared_browser.py login <url>`);

@@ -30,12 +30,12 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    plugins); the plan lists each copy, so the user's OK covers it. A
    `credentials <NAME>` note is a provider not connected yet: the user
    connects it (`hermes model`), then apply again. Never copy a key by hand.
-   Bots with the browser toolset get `browser.use_real_profile` (and the pin)
-   when the user turned it on in the root or builder config; the builder
-   itself never does. A bot with
-   `shared_browser: true` gets the shared signed-in browser instead (one per
-   machine, signed in once: `scripts/hpy shared_browser.py status|install|login
-   <url>`). Never set up any other browser, debugging port or cookie copy.
+   A bot with `shared_browser: true` (every shipped bot that browses) gets the
+   machine's one signed-in browser: one per machine, signed in once by the
+   owner (`scripts/hpy shared_browser.py status|install|login <url>`). No bot
+   gets `browser.use_real_profile`, even when the owner has it on for their own
+   chats; apply turns off a copy an older version mirrored. Never set up any
+   other browser, debugging port or cookie copy.
 3. If the notes list `no model assigned`, run `skills/assigning-models` first.
 4. `scripts/hpy squadctl.py apply <key> [--models <file>] [--with <bot>]
    [--bots a,b] [--skip-skills] [--confirm <id>]`.

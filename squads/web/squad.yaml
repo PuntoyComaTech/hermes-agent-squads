@@ -1,7 +1,7 @@
 schema: 2
 key: web
 name: Web
-version: 3.5.0
+version: 3.6.0
 description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
 hermes_requires: ">=0.22.0"
 board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
@@ -31,6 +31,7 @@ bots:
     lane: frontend
     reasoning: medium
     toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
+    shared_browser: true   # the machine's one signed-in browser, one tab per run
     skills: {squad: [building-frontend, site-contract], auto_load: building-frontend,
              keep: [official:creative/impeccable, official:web-development/scrollcraft,
                     bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}
@@ -56,6 +57,7 @@ bots:
     description: "Reviews each preview with six lenses, code review included and never fixes what it reviews"
     lane: review
     toolsets: [file, skills, kanban, todo, browser, vision, terminal, delegation]
+    shared_browser: true   # the machine's one signed-in browser, one tab per run
     skills: {squad: [reviewing-sites, site-contract], auto_load: reviewing-sites,
              keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
     plugins: {enable: [disk-cleanup]}
@@ -80,6 +82,7 @@ bots:
     description: "3D, WebGL shaders, GSAP ScrollTrigger/Lenis and complex motion when the brief needs them"
     lane: design-pro
     toolsets: [file, skills, kanban, todo, terminal, vision, browser, image_gen, delegation]
+    shared_browser: true   # the machine's one signed-in browser, one tab per run
     skills: {squad: [building-3d-motion, site-contract], auto_load: building-3d-motion,
              keep: [official:creative/impeccable, official:web-development/scrollcraft,
                     bundled:claude-design, bundled:design-md, bundled:popular-web-designs]}

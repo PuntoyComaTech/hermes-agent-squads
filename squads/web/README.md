@@ -76,7 +76,9 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
 
 - Accounts: GitHub and Cloudflare (free tiers). The manager reuses a login you already have; otherwise it installs
   the CLI and opens the provider's own approval page in a tab beside the chat. You click approve; no token, no
-  terminal.
+  terminal. GitHub and Cloudflare always go through their CLIs (`gh`, `cf`, `wrangler`), never a browser.
+- Browser: frontend and QA drive the machine's one shared browser (the same one every squad uses), each run in
+  its own tab, closed when it ends. The builder installs it; it never uses a copy of your own browser profile.
 - Node 22+, git and Homebrew. Everything else comes from its official installer, never written by hand: the site
   from its framework's create CLI (`create-astro`, `create-next-app`, the TanStack CLI), every package through
   `pnpm add` with no version, pnpm itself pinned to its newest release that is 3 days old, `gh` and the scanners
@@ -110,6 +112,7 @@ In the Desktop app the manager sits under `Managers` and the workers under `Web`
 | Job | When | Does |
 | --- | --- | --- |
 | `web-watch` | every 30 min | Tells you in the manager's chat when a card waits on you or stalls |
+| `web-browser-sweep` | every 3 h | Closes tabs a crashed run left on the shared browser; skips when another squad's sweep just ran |
 
 ## Files
 
