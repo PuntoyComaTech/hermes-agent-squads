@@ -555,3 +555,17 @@ def test_an_ownership_claim_needs_a_cited_led_achievement(tmp_path):
         {"text": "Led the migration of forty reports to Power BI across the region.", "achievements": ["ACH-009"]}]}])
     _, report, _ = run_render(tmp_path, content=content)
     assert any("ownership" in m for m in messages(report, "unsupported_claim")), report["defects"]
+
+
+def test_a_cv_headline_may_use_a_positioning_title_the_user_chose_but_not_one_they_did_not(tmp_path):
+    # Companies name the same work many ways: a headline under a title the user positions under is theirs.
+    content = cv(header={"name": "Ana Example", "headline": "Forward Deployed Engineer"})
+    _, report, _ = run_render(tmp_path / "a", content=content)
+    assert "title_mismatch" in codes(report)
+    chosen = PROFILE.replace("cv_template: classic", 'cv_template: classic\npositioning_titles: ["Forward Deployed Engineer"]')
+    _, report, _ = run_render(tmp_path / "b", content=content, profile=chosen)
+    assert "title_mismatch" not in codes(report), report["defects"]
+    # its synonyms come with it: the family's own titles
+    content = cv(header={"name": "Ana Example", "headline": "Forward Deployed Software Engineer"})
+    _, report, _ = run_render(tmp_path / "c", content=content, profile=chosen)
+    assert "title_mismatch" not in codes(report), report["defects"]

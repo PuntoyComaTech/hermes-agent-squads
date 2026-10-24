@@ -30,6 +30,15 @@ Keys are `jobs:profile:<project>:<YYYY-MM-DD>:<suffix>`. "Which job sites fit my
 card. "Scan the market" alone files platforms (when no file from the last 90 days exists) and market. A pasted profile
 text goes to `<P>/documents/linkedin/` first, after the user's ok.
 
+## Emerging roles
+
+The market card's `offer_positioning` names role families the user's own work fits but `profile.md` does not name
+(an emerging one first). Offer each once, in one line with its one-sentence definition from `role_families.json` and
+the postings count: "your work fits Forward Deployed Engineer (N postings this week): position you as one?". A yes
+adds it to `positioning_titles` and its titles to `search_keywords` at once, no further question; the next profile
+and CV use it. An `unmapped title` the scout reports twice: look it up (`web_search`, the employers' own postings),
+and when its definition fits the user's work, offer it the same way and ask the builder to add the family upstream.
+
 ## Presenting the result
 
 A card with `Mode: PROFILE-PRESENT` carries the writer's file paths. Read the audit, then

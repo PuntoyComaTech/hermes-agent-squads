@@ -36,8 +36,25 @@ inputs; both are the user's to act on.
 ## Headline
 
 Role first, then specialty, then proof: `Data analyst | SQL, Python, Power BI | cut weekly reporting from 6 h to 20 min`.
-Put the target role (from `target_roles`) in the first 70 characters. Do not leave the default "<title> at <company>".
+Put the strongest positioning title in the first 70 characters. Do not leave the default "<title> at <company>".
 The proof is an achievement with its number, cited by id.
+
+## Positioning titles
+
+Companies name the same work many ways, and new names spread fast. The headline and About may use any title of a
+role family the user is recognised in (`jobs_common.recognised_roles`: a title in `target_roles`,
+`acceptable_roles` or `positioning_titles`, or enough of the family's signals in their own achievements), not only
+the titles of their past jobs. The real job title of each experience entry never changes.
+
+- Order by market pull: an `emerging` family the user is recognised in and wants goes first (`Forward Deployed
+  Engineer · Technical Lead · AI Engineer`), then the seniority title, then the classic one.
+- A positioning keyword appears in at least three places or it carries little weight: the headline, the first line
+  of the About, the skills list (its skill form: "Forward Deployed Engineering"), and, where the work matches, a role's
+  bullet or skills. Never a list of the same word.
+- The title it grew out of keeps a place: "full stack" stays in the About's first line ("forward deployed engineer
+  with a full-stack background"), in the skills ("Full-Stack Development") and in the roles that were full stack.
+- Each positioning block cites the achievements that show the family's work (for FDE: an end-to-end delivery for a
+  client, AI integrated into the client's product, MCP servers, agents or skills in production).
 
 ## About
 

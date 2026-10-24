@@ -333,6 +333,77 @@ def skill_families() -> list:
     return _FAMILIES
 
 
+_ROLE_FAMILIES = None
+
+
+def role_families() -> list:
+    """The role families of role_families.json: [{id, label, emerging, titles, signals, min_signals, ...}] with
+    lower-case titles and signals; [] when the file is missing."""
+    global _ROLE_FAMILIES
+    if _ROLE_FAMILIES is None:
+        try:
+            raw = json.loads((Path(__file__).resolve().parent / "role_families.json").read_text(encoding="utf-8"))
+            _ROLE_FAMILIES = [dict(f, titles=[str(t).lower() for t in f["titles"]],
+                                   signals=[str(t).lower() for t in f.get("signals") or []],
+                                   min_signals=int(f.get("min_signals") or 3)) for f in raw["families"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            _ROLE_FAMILIES = []
+    return _ROLE_FAMILIES
+
+
+def _list(value) -> list:
+    if isinstance(value, dict):
+        value = [x for v in value.values() for x in (v if isinstance(v, list) else [v])]
+    if isinstance(value, str):
+        value = [value]
+    return [str(x).strip() for x in value or [] if str(x).strip()]
+
+
+def family_of(title) -> dict | None:
+    """The role family a job title belongs to: 'Senior Forward Deployed Engineer' -> forward-deployed."""
+    t = ascii_fold(str(title or "")).lower()
+    best = None
+    for fam in role_families():
+        for name in fam["titles"]:
+            if word_in(name, t) and (best is None or len(name) > best[1]):
+                best = (fam, len(name))
+    return best[0] if best else None
+
+
+def recognised_roles(meta, evidence_text) -> list:
+    """The role families this candidate can be positioned in, with why: a title the user named (target_roles,
+    acceptable_roles, positioning_titles) or at least `min_signals` of the family's signals in their own evidence
+    (achievements, skills). Companies name the same work many ways; a family is recognised by the work, not the word.
+    Returns [{id, label, emerging, by: 'named'|'evidence', signals: [...]}]."""
+    meta = meta if isinstance(meta, dict) else {}
+    named = [ascii_fold(t).lower() for k in ("target_roles", "acceptable_roles", "positioning_titles")
+             for t in _list(meta.get(k))]
+    out = []
+    for fam in role_families():
+        hits = [s for s in fam["signals"] if word_in(s, evidence_text)]
+        # named: one of the family's titles sits inside a title the user gave ("senior forward deployed engineer");
+        # the reverse ("ai engineer" inside "applied ai engineer") would name a family the user never chose
+        if any(word_in(name, t) for t in named for name in fam["titles"]):
+            out.append({"id": fam["id"], "label": fam["label"], "emerging": bool(fam.get("emerging")),
+                        "by": "named", "signals": hits})
+        elif len(hits) >= fam["min_signals"]:
+            out.append({"id": fam["id"], "label": fam["label"], "emerging": bool(fam.get("emerging")),
+                        "by": "evidence", "signals": hits})
+    return out
+
+
+def positioning_titles(meta, evidence_text) -> list:
+    """Every title the candidate may be presented under: their own target and positioning titles plus every title of a
+    recognised family. Used for headlines, About, skills and search terms; never for a job title in an experience."""
+    meta = meta if isinstance(meta, dict) else {}
+    titles = _list(meta.get("target_roles")) + _list(meta.get("positioning_titles")) + _list(meta.get("acceptable_roles"))
+    ids = {r["id"] for r in recognised_roles(meta, evidence_text)}
+    for fam in role_families():
+        if fam["id"] in ids:
+            titles += [fam["label"]] + fam["titles"]
+    return list(dict.fromkeys(titles))
+
+
 def related_held(term, sources_text) -> str:
     """The member of `term`'s tool family the sources name ('' when none): PostgreSQL -> 'sql' when the candidate's
     files say SQL, GitLab CLI -> 'gh'. A term the sources hold itself returns ''; that is direct evidence."""

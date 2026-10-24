@@ -13,6 +13,10 @@ or any text file (one posting). A term counts once per posting. With --project, 
 `profile.md` (key_skills, search_keywords, target_roles) and `achievements.yaml` (skills, tags, achievement text,
 education, certifications): `in_profile: true` means the user may write it; false means it is a gap, never a claim. A longer term the profile holds
 only in part carries `profile_part` (the part that may be written).
+`role_families` groups the posting titles by the work they name (jobs-contract role_families.json): each family says
+how many postings used it, whether the candidate is recognised in it (`recognised`: named in profile.md, or enough of
+its signals in their own evidence), whether it is `emerging`, and the titles seen. `offer` lists the recognised
+families the profile does not name yet: the manager asks the user once whether to position under them.
 Exit 0 on success, 1 when fewer than 3 postings were readable (a market read from two postings is anecdote: the
 warning goes to stdout and no `--output` file is written, so the writer has no market file to read), 2 on a usage
 error.
@@ -195,6 +199,35 @@ def analyse(postings, min_docs, top, corpus=None) -> dict:
             "titles": [{"title": t, "count": c} for t, c in titles.most_common(15)]}
 
 
+def title_families(postings, meta, evidence) -> tuple[list, list]:
+    jc = jc_module()
+    recognised = {r["id"]: r for r in jc.recognised_roles(meta, evidence)}
+    seen = {}
+    for p in postings:
+        fam = jc.family_of(p["title"])
+        if fam:
+            row = seen.setdefault(fam["id"], {"id": fam["id"], "label": fam["label"], "emerging": bool(fam.get("emerging")),
+                                              "postings": 0, "titles": []})
+            row["postings"] += 1
+            t = re.sub(r"\s+", " ", p["title"]).strip()
+            if t not in row["titles"]:
+                row["titles"].append(t)
+    for fam in jc.role_families():
+        if fam["id"] in recognised and fam["id"] not in seen:
+            seen[fam["id"]] = {"id": fam["id"], "label": fam["label"], "emerging": bool(fam.get("emerging")),
+                               "postings": 0, "titles": []}
+    rows = []
+    for fid, row in seen.items():
+        rec = recognised.get(fid)
+        row["recognised"] = rec is not None
+        row["by"] = rec["by"] if rec else None
+        row["signals"] = rec["signals"] if rec else []
+        rows.append(row)
+    rows.sort(key=lambda r: (-r["postings"], r["label"]))
+    offer = [r["label"] for r in rows if r["recognised"] and r["by"] == "evidence"]
+    return rows, offer
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--input", action="append", required=True)
@@ -214,6 +247,17 @@ def main(argv=None) -> int:
         corpus = profile_corpus(Path(ns.project)) if ns.project else None
         out = {"date": ns.date or dt.date.today().isoformat(), "country": ns.country, "window": ns.window,
                "profile_checked": corpus is not None, **analyse(postings, ns.min_docs, ns.top, corpus)}
+        if ns.project:
+            try:
+                meta = jc_module().read_front_matter(Path(ns.project) / "profile.md")
+            except Exception:  # noqa: BLE001
+                meta = {}
+            try:
+                evidence = json.dumps(jc_module().read_data(Path(ns.project) / "achievements.yaml"), ensure_ascii=False)
+            except Exception:  # noqa: BLE001
+                evidence = ""
+            evidence += " " + json.dumps(meta, ensure_ascii=False)
+            out["role_families"], out["offer_positioning"] = title_families(postings, meta, evidence)
         if ns.leads:
             try:
                 leads = json.loads(Path(ns.leads).read_text(encoding="utf-8")).get("leads", [])

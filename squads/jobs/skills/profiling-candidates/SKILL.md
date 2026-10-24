@@ -47,7 +47,9 @@ Career stage: `references/stage-playbook.md`.
    write `apply_consent: per_opening`. Say in one line that auto submits without asking again, and that the caps and
    the fit score are the only brake.
    Search keywords: collect every title and term the user uses for their work (CV titles, the roles they name), add
-   the common synonyms recruiters post for that work in each application language (for example "software engineer",
+   the titles of each role family their work fits (`jobs_common.recognised_roles`; an emerging one such as Forward
+   Deployed Engineer goes into `positioning_titles` when they agree), and the common synonyms recruiters post for that
+   work in each application language (for example "software engineer",
    "desarrollador", "full stack developer"), and show the list as one numbered set: "keep all, remove numbers, or add
    your own". Write only the approved list. Ask how many years above their own the user still applies to
    (`seniority_margin`, default 1), whether a missing skill or tool should ever reject an opening

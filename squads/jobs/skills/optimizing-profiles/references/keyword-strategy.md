@@ -34,5 +34,7 @@ dashboards").
 
 ## Titles
 
-`titles` counts the job titles in the sample. When the user's current title differs from the common one for the same
-work, the audit proposes the headline wording, never a change to a real job title in Experience.
+`titles` counts the job titles in the sample and `role_families` groups them by the work they name. A family with
+`recognised: true` is the user's to use in the headline, About and skills under any of its names (see
+`linkedin-profile.md`, Positioning titles); `offer_positioning` lists the recognised ones `profile.md` does not name
+yet, which the audit proposes. A real job title in Experience never changes.

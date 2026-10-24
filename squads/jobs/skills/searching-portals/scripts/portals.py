@@ -605,8 +605,14 @@ def prefilter_rows(meta: dict, rows: list, today: dt.date, max_candidates: int, 
     target_roles, acceptable_roles). Newest first; at most max_candidates are kept and at most max_details of them are
     named for a detail call."""
     pairs = []
+    jc = jc_module()
+    # every title of a role family the candidate is recognised in matches too: "Forward Deployed Engineer" for a
+    # full-stack AI engineer whose profile names it in positioning_titles
+    families = [f for f in jc.role_families()
+                if any(r["id"] == f["id"] and r["by"] == "named" for r in jc.recognised_roles(meta, ""))]
     for term in dict.fromkeys(_terms(meta.get("search_keywords")) + _terms(meta.get("target_roles"))
-                              + _terms(meta.get("acceptable_roles"))):
+                              + _terms(meta.get("acceptable_roles")) + _terms(meta.get("positioning_titles"))
+                              + [t for f in families for t in f["titles"] if len(t) > 3]):
         tokens = title_tokens(term)
         if tokens:
             pairs.append((term, tokens))
@@ -615,7 +621,6 @@ def prefilter_rows(meta: dict, rows: list, today: dt.date, max_candidates: int, 
     avoid = _terms(meta.get("avoid_companies"))
     modes = {PROFILE_WORK_MODES[m] for m in _terms(meta.get("work_mode")) if m in PROFILE_WORK_MODES}
     search_days = profile_int(meta, "search_days", DEFAULT_MAX_AGE_DAYS)
-    jc = jc_module()
     counts = {"title": 0, "company": 0, "work_mode": 0, "date": 0, "duplicate": 0}
     unconfirmed = undated = 0
     seen, kept = set(), []

@@ -92,7 +92,9 @@ It never changes a setting (Open to Work visibility, custom URL, photo, Featured
 
 ## Pitfalls
 
-- A skill, tool, number, title or scope `achievements.yaml` does not hold is never written, even when every posting
+- A positioning title is not a lie when the work behind it is the user's: use any title of a recognised role family
+  (`references/linkedin-profile.md`, Positioning titles) and never drop one the user chose for lack of a literal match.
+- A skill, tool, number or scope `achievements.yaml` does not hold is never written, even when every posting
   asks for it. The checker reports `claims_a_gap` and `unsupported_skill`; fix the copy, not the checker.
 - Never touch another person's profile, the feed, messaging, companies, jobs search, the contact-info form or the
   overlay. The guard refuses them and a redirect is not a licence to read what it landed on.
