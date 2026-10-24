@@ -511,6 +511,8 @@ def check_contact(report, data):
     for key in CONTACT_KEYS:
         need(report, CONTACT, data, key)
     text_of(report, CONTACT, "name", data.get("name"))
+    if data.get("short_name") not in (None, ""):  # optional: the name in the CV file name a recruiter sees
+        text_of(report, CONTACT, "short_name", data.get("short_name"))
     email = data.get("email")
     if email is not None and not (isinstance(email, str) and EMAIL.match(email)):
         report.add(CONTACT, "email", "does not look like an email address (the value is not shown)")

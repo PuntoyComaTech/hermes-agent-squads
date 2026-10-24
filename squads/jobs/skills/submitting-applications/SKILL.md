@@ -50,7 +50,7 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    **Easy Apply** runs on the shared signed-in browser: `references/easy-apply.md`. Its steps are mapped one field at a
    time and it stops at the first field without a source. A form that asks for payment, a paid test, or data that is
    not in `contact.yaml` or `application-data.yaml` is never submitted: NEEDS_DATA or NOT_POSSIBLE, never a guess.
-5. **Fill and submit.** Upload `cv_ats.pdf` unless the card says otherwise. Save `before.png` before submitting. When
+5. **Fill and submit.** Upload `CV_<Name>_<Surname>.pdf` (render_cv's copy of `cv_ats.pdf`), unless the card says otherwise. Save `before.png` before submitting. When
    `review_before_submit` is true or `auto_apply` is `ask`, run the gate again with `--before-submit`: it needs the
    user's `screenshot_approval` (see Consent), else block with the screenshot path as the reason. Easy Apply stops on
    its own final review step and compares it with the sources before Submit. Otherwise submit once and save the

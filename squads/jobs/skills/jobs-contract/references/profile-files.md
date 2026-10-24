@@ -160,7 +160,7 @@ star_stories:                     # interview stories; drafted with the user, ne
 Sensitive; keep it out of git. Readers: jobs-contract step 2.
 
 ```yaml
-name: "Ana Example"
+name: "Ana Example"                # short_name (optional) sets the CV file name: CV_Ana_Example.pdf
 email: "ana@example.com"
 phone: "+51 900 000 000"
 location: "Lima, Peru"

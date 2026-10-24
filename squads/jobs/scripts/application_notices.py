@@ -16,7 +16,8 @@ The notice is read on a phone, in the profile's `user_language`:
     <apply link>
     MEDIA:<absolute path of application/cv_ats.pdf>
 
-The `MEDIA:` line makes the delivery upload the PDF as a file, so the owner opens the CV that was sent from the chat
+The attached file is `CV_<Name>_<Surname>.pdf` (render_cv.py's byte copy of cv_ats.pdf, the one the applier uploaded),
+else cv_ats.pdf. The `MEDIA:` line makes the delivery upload the PDF as a file, so the owner opens the CV that was sent from the chat
 instead of reading a path on another computer. A missing CV file prints no `MEDIA:` line and says so.
 
 State: `<manager home>/local/state/application_notices.json` (posted keys `<ID>@<applied date>`). Without a state
@@ -144,7 +145,7 @@ def notice(opening: Path, line: dict, lang: str) -> str:
     link = apply_link(meta, analysis)
     if link:
         out.append(link)
-    cv = opening / "application" / "cv_ats.pdf"
+    cv = ss.jc.cv_upload_path(opening / "application")  # the named copy the applier uploaded, else cv_ats.pdf
     out.append(f"MEDIA:{cv}" if cv.is_file() else words["no_cv"].format(path=cv.name))
     return "\n".join(out)
 

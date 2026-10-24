@@ -136,6 +136,25 @@ def test_the_first_run_after_an_install_does_not_replay_old_applications(tmp_pat
     assert run(env).stdout == "", "the September application was history, not news"
 
 
+def test_the_notice_attaches_the_named_cv_the_applier_uploaded(tmp_path):
+    env, folder = make_env(tmp_path)
+    d = opening(folder, "JOB-20261024-named-backend", "Named")
+    named = d / "application" / "CV_Ana_Example.pdf"
+    named.write_bytes((d / "application" / "cv_ats.pdf").read_bytes())
+    status(d, "applied")
+    submitted(d)
+    assert run(env).stdout.splitlines()[-1] == f"MEDIA:{named}"
+
+
+def test_a_named_copy_that_differs_from_the_reviewed_cv_is_never_attached(tmp_path):
+    env, folder = make_env(tmp_path)
+    d = opening(folder, "JOB-20261024-stale-backend", "Stale")
+    (d / "application" / "CV_Ana_Example.pdf").write_bytes(b"%PDF-1.4 an older render\n")
+    status(d, "applied")
+    submitted(d)
+    assert run(env).stdout.splitlines()[-1] == f"MEDIA:{d / 'application' / 'cv_ats.pdf'}"
+
+
 def test_a_missing_cv_is_said_not_attached(tmp_path):
     env, folder = make_env(tmp_path)
     d = opening(folder, "JOB-20261024-nocv-backend", "Nocv", cv=False)

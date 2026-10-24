@@ -127,6 +127,10 @@ def render_cv_case(tmp_path: Path, content: dict | None = None, *, profile: str 
     return code, report, out
 
 
+def jc_upload(out: Path) -> Path:
+    return render.jc.cv_upload_path(out)
+
+
 def codes(report: dict) -> list:
     return [d["code"] for d in report["defects"]]
 
@@ -363,12 +367,43 @@ def test_without_an_engine_nothing_is_cut_and_the_page_count_is_an_estimate(tmp_
     assert any("not measurable" in w or "estimated" in w for w in report["warnings"])
 
 
+def test_the_cv_a_recruiter_receives_is_named_after_the_candidate(tmp_path, fake_engine):
+    """A recruiter's ATS and the owner's phone show the file name: cv_ats.pdf says nothing; CV_Ana_Example.pdf does."""
+    fake_engine(lambda html_text: 1)
+    code, report, out = render_cv_case(tmp_path)
+    named = out / "CV_Ana_Example.pdf"
+    assert named.read_bytes() == (out / "cv_ats.pdf").read_bytes(), "the upload copy is the reviewed render, byte for byte"
+    assert str(named) in report["files"]
+    assert jc_upload(out) == named
+
+
+def test_a_rerender_under_a_new_name_leaves_no_old_copy_to_upload(tmp_path, fake_engine):
+    fake_engine(lambda html_text: 1)
+    _, _, out = render_cv_case(tmp_path)
+    (out / "CV_Old_Name.pdf").write_bytes(b"%PDF-1.4 earlier render\n")
+    render_cv_case(tmp_path)
+    assert sorted(p.name for p in out.glob("CV_*.pdf")) == ["CV_Ana_Example.pdf"]
+
+
+@pytest.mark.parametrize("full, short, expected", [
+    ("José María Pérez García", "", "CV_Jose_Perez.pdf"),        # two given names + two surnames: first of each
+    ("Søren Kierkegaard", "", "CV_Soren_Kierkegaard.pdf"),
+    ("Jean-Luc Picard", "", "CV_Jean-Luc_Picard.pdf"),
+    ("José María Pérez García", "José Pérez G", "CV_Jose_Perez_G.pdf"),  # contact.yaml short_name wins
+    ("", "", ""),
+])
+def test_the_upload_name_is_ascii_and_reads_as_name_and_surname(full, short, expected):
+    assert render.jc.cv_upload_name(full, short) == expected
+
+
 def test_a_failed_render_never_leaves_a_stale_pdf(tmp_path, no_engine):
     out = tmp_path / "out"
     out.mkdir()
     (out / "cv_ats.pdf").write_bytes(b"%PDF-1.4 old render\n")
+    (out / "CV_Ana_Example.pdf").write_bytes(b"%PDF-1.4 old render\n")
     render_cv_case(tmp_path)
     assert not (out / "cv_ats.pdf").exists()
+    assert not list(out.glob("CV_*.pdf")), "the named upload copy of a failed render is gone too"
 
 
 def test_cut_removes_the_lowest_relevance_bullet_and_keeps_protected_ones(tmp_path, fake_engine):
