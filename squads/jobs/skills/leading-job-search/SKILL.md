@@ -13,7 +13,7 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
 - A message from the user: set up, reply to a digest, paste a link, ask about replies or the pipeline, report an
   outcome, ask what to learn, pause or resume.
 - A card addressed to you under stage `digest`. A card with `Mode: PROFILE-PRESENT`: `references/profile-optimization.md`.
-- The `jobs-watch` cron posts a blocked card in your Bot Chat. A digest: show it (step 4). A proposal table from
+- The `jobs-watch` cron posts a blocked card in your Bot Chat, or in your messaging channel when one is connected. A digest: show it (step 4). A proposal table from
   tracking-outcomes: show it and wait for the answer. A worker's question: ask the user, `kanban_comment` the literal
   answer, then `kanban_unblock`.
 - Any change to `profile.md`, `achievements.yaml`, `contact.yaml` or `application-data.yaml`.
@@ -61,7 +61,7 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    `Mode: SEARCH` and `User language: <user_language>`, key `jobs:search:<project>:<YYYY-MM-DD-HH>` with the slot hour).
 
 5. **Digest** (stage `digest`, a board run that cannot message the user). Read `review-N.json` and `analysis.json`,
-   then `kanban_block(kind="needs_input", reason=<this message>)`; the `jobs-watch` cron posts it to your Bot Chat:
+   then `kanban_block(kind="needs_input", reason=<this message>)`; the `jobs-watch` cron posts it to your Bot Chat or messaging channel:
 
    ```text
    <score>/100 - <role> at <company> (<work mode>)
@@ -81,7 +81,7 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    new), the top WATCH with its score and one line of reason, and what needs the user (a FLAG to decide, a link to
    check). Contact data never appears in it.
 
-6. **Replies** (in Bot Chat). After acting on a reply, close its digest card:
+6. **Replies** (in Bot Chat or the messaging channel). After acting on a reply, close its digest card:
    `kanban_complete(board: "jobs", task_id: <digest card>, summary: "<the reply>")`.
    - `apply` with no jobs-applier profile folder next to yours: answer with `apply_url` and the path of
      `answers.md`, and set `manual_application`.

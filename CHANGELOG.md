@@ -3,6 +3,24 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.11.0 - 2026-10-23
+
+### Added
+
+- `squadctl connect <bot> <platform>`: binds a manager to a Discord, Telegram, Slack, Mattermost or Matrix channel
+  (home channel, mention-free replies, a channel prompt) and sends a test message through `hermes send`. On Discord it
+  finds the channel by name or creates it with `--create`; before the invite is accepted it prints the invite link.
+- Cron field `notify: true`: the job's output goes to the bot's connected channel, or to Bot Chat while none is
+  connected or its token is gone. jobs 4.2.0 (`jobs-search`, `jobs-followups`, `jobs-watch`), web 3.7.0
+  (`web-watch`) and marketing 3.4.0 (`marketing-plan-week`, `marketing-report`, `marketing-watch`) mark their
+  owner-facing jobs.
+- `doctor` checks each connected channel: token present, every notify job delivering there.
+
+### Fixed
+
+- `apply` and `upgrade` reset every squad cron to the manager's Bot Chat, so a job moved to a chat channel went back
+  silently on the next update and the owner stopped receiving digests there.
+
 ## 2.10.2 - 2026-10-23
 
 ### Changed

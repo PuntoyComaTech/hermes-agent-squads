@@ -437,6 +437,21 @@ def main():
             have = set((cfg.get("platform_toolsets") or {}).get("cli") or [])
             cfg.setdefault("platform_toolsets", {})["cli"] = sorted(have | (set(rest[1:]) - set(unknown)))
             save(HOME / "config.yaml", cfg)
+    elif cmd == "send":
+        need_profile()
+        # real shape (hermes_cli/send_cmd.py --json): {"success", "platform", "chat_id", "message_id"}; the target
+        # must be a platform the profile has a token for. Sent messages are appended to $HERMES_HOME/sent.jsonl.
+        target = opt("--to") or opt("-t")
+        plat, _, chat = target.partition(":")
+        env = HOME / ".env"
+        names = {ln.split("=", 1)[0].strip() for ln in (env.read_text().splitlines() if env.is_file() else []) if "=" in ln}
+        tok = {"discord": "DISCORD_BOT_TOKEN", "telegram": "TELEGRAM_BOT_TOKEN"}.get(plat)
+        if tok and tok not in names:
+            print(json.dumps({"success": False, "error": f"{plat} is not configured"}))
+            sys.exit(1)
+        with open(ROOT / "sent.jsonl", "a") as f:
+            f.write(json.dumps({"profile": profile, "to": target, "text": rest[-1]}) + "\n")
+        print(json.dumps({"success": True, "platform": plat, "chat_id": chat, "message_id": "9001"}))
     else:
         die(f"fake hermes: unsupported command {argv}")
 

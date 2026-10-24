@@ -77,7 +77,19 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
    each profile to `local/backups/`, removes `<key>-*` cron jobs, deletes the
    profiles, archives the board and leaves project folders and
    `local/squads/<key>/` in place.
-8. Document the local fleet without touching it: `scripts/hpy squadctl.py
+8. Chat channel ("send it to my Discord/Telegram"): only the squad manager
+   gets one; workers reach the owner through the manager. The owner creates
+   the platform bot and stores its token with `hermes -p <manager> gateway
+   setup` (never handle a token yourself). Then
+   `scripts/hpy squadctl.py connect <manager> discord --channel <name>
+   [--create] --dry-run`, show it, and on OK run it without `--dry-run`, then
+   `hermes -p <manager> gateway restart`. Other platforms take `--chat-id`.
+   An error with an invite link means the bot is not in the server yet: the
+   owner opens the link, then run connect again. Jobs marked `notify: true`
+   move to the channel; housekeeping crons stay on Bot Chat. Ask the owner to
+   write one message there to prove replies; a watch cron is silent until a
+   card needs them, so say so.
+9. Document the local fleet without touching it: `scripts/hpy squadctl.py
    inventory [--profiles a,b] --out local/fleet.yaml`. It reads config, ui_meta,
    skills and cron of every profile, never `.env` or `auth.json`, and writes
    only under `local/`. The result is local data: never published
@@ -113,6 +125,7 @@ description: "Installs, updates and removes squads through squadctl. Use when ad
 - `scripts/hpy squadctl.py plan <key> --json` reports every bot `unchanged`.
 - A squad with `shared_browser` bots: `scripts/hpy shared_browser.py status`
   shows `listening` and `plist_current: true` after the apply.
+- A connected manager: `doctor` shows `<manager>:channel:<platform>` `ok`.
 - `hermes -p <bot> cron list` shows exactly the `<key>-*` jobs the manifest
   declares, `<key>-browser-sweep` on each squad's manager included. That sweep
   is one machine-wide job despite the cron on every manager: it takes a lock and

@@ -977,6 +977,115 @@ def login_probe(name: str) -> tuple[str, str]:
     return "warn", f"not logged in: run `{hint}` once (no credentials stored, or no network)"
 
 
+# --- messaging channels ---------------------------------------------------------------------------------------------
+# A bot's chat channel lives in its own Hermes config (`platforms.<platform>.home_channel`, written by `squadctl
+# connect` or by hand) and its token in its env file. Cron jobs marked `notify: true` deliver there; every other job,
+# and a notify job of a bot with no usable channel, stays on the manager's Bot Chat.
+
+PLATFORM_TOKENS = {"discord": "DISCORD_BOT_TOKEN", "telegram": "TELEGRAM_BOT_TOKEN", "slack": "SLACK_BOT_TOKEN",
+                   "mattermost": "MATTERMOST_TOKEN", "matrix": "MATRIX_ACCESS_TOKEN"}
+DISCORD_API = "https://discord.com/api/v10"
+# View channel, send, embed links, attach files, read history, add reactions, create public threads, send in threads
+DISCORD_INVITE_PERMS = 1024 | 2048 | 16384 | 32768 | 65536 | 64 | 34359738368 | 274877906944
+
+
+def channel_bindings(ctx: "Ctx", bot: str) -> list[dict]:
+    """Every home channel the bot's config names: platform, chat_id, name, the token key it needs and whether the
+    bot's env file holds that key (names only). A platform without a known token key counts as ready."""
+    home = ctx.home(bot)
+    cfg = (read_yaml(home / "config.yaml") or {}) if home.is_dir() else {}
+    have = env_names(home / ENV_FILE)
+    out = []
+    for plat, pc in sorted((cfg.get("platforms") or {}).items()):
+        hc = pc.get("home_channel") if isinstance(pc, dict) else None
+        if not isinstance(hc, dict) or not str(hc.get("chat_id") or "").strip():
+            continue
+        tok = PLATFORM_TOKENS.get(plat)
+        out.append({"platform": plat, "chat_id": str(hc["chat_id"]).strip(), "name": hc.get("name") or "",
+                    "token": tok, "ready": tok is None or tok in have})
+    return out
+
+
+def notify_deliver(ctx: "Ctx", bot: str, fallback: str) -> str:
+    """Delivery target of a `notify: true` job: every ready channel of the bot, else the fallback (Bot Chat). A
+    channel whose token is gone is skipped: a delivery to it would fail on every run."""
+    ready = [b for b in channel_bindings(ctx, bot) if b["ready"]]
+    return ",".join(f"{b['platform']}:{b['chat_id']}" for b in ready) or fallback
+
+
+def discord_api(token: str, method: str, path: str, body: dict | None = None):
+    """One Discord REST call as the bot. The token stays in the header; errors name the method, path and status."""
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request(DISCORD_API + path, method=method,
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Authorization": f"Bot {token}", "Content-Type": "application/json",
+                                          "User-Agent": "DiscordBot (hermes-agent-squads, 1)"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        raise Fail(f"Discord {method} {path.split('?')[0]}: HTTP {e.code}", 3 if e.code == 403 else 1) from None
+    except OSError as e:
+        raise Fail(f"Discord {method} {path.split('?')[0]}: {e.__class__.__name__}") from None
+
+
+def discord_channel(token: str, channel: str, guild: str | None, create: bool | None, topic: str) -> tuple[dict, dict, bool]:
+    """(guild, channel, created) for a channel given by id or name. The bot must already be in the server: an empty
+    server list fails with the invite link. A missing channel is created only with `create`; `create=None` (a dry
+    run) reports it as new without creating it."""
+    guilds = discord_api(token, "GET", "/users/@me/guilds")
+    if not guilds:
+        app = discord_api(token, "GET", "/oauth2/applications/@me")
+        raise Fail("the bot is in no Discord server yet: open https://discord.com/oauth2/authorize?client_id="
+                   f"{app['id']}&scope=bot+applications.commands&permissions={DISCORD_INVITE_PERMS}, authorize it, "
+                   "then run connect again", 2)
+    if guild:
+        guilds = [g for g in guilds if guild in (g["id"], g["name"])]
+        if not guilds:
+            raise Fail(f"the bot is not in a Discord server {guild!r}", 2)
+    elif len(guilds) > 1:
+        raise Fail("the bot is in several servers; pass --guild with one of: " + ", ".join(g["name"] for g in guilds), 2)
+    g = guilds[0]
+    want = channel.strip().lstrip("#")
+    slug = re.sub(r"[^a-z0-9_-]+", "-", want.lower()).strip("-")
+    texts = [c for c in discord_api(token, "GET", f"/guilds/{g['id']}/channels") if c.get("type") == 0]
+    hit = next((c for c in texts if want in (c["id"], c["name"]) or c["name"] == slug), None)
+    if hit:
+        return g, hit, False
+    if want.isdigit():
+        raise Fail(f"no text channel {want} in {g['name']}", 2)
+    if create is None:  # dry run: report the channel create would make, make nothing
+        return g, {"id": "<new>", "name": slug}, True
+    if not create:
+        raise Fail(f"no #{slug} in {g['name']}: pass --create, or create it in Discord and run connect again", 2)
+    try:
+        made = discord_api(token, "POST", f"/guilds/{g['id']}/channels", {"name": slug, "type": 0, "topic": topic})
+    except Fail as e:
+        if e.code == 3:
+            raise Fail(f"the bot may not create channels in {g['name']} (Manage Channels): create #{slug} in "
+                       "Discord, then run connect again without --create", 2) from None
+        raise
+    return g, made, True
+
+
+def squad_of(ctx: "Ctx", bot: str) -> dict:
+    """The installed squad spec that has this bot."""
+    for key in sorted(load_installed(ctx)["squads"]):
+        spec = load_spec(ctx, key)
+        if bot in spec["bots"]:
+            return spec
+    raise Fail(f"{bot} is not a bot of an installed squad", 2)
+
+
+def channel_prompt(spec: dict, bot: str) -> str:
+    b = spec["bots"][bot]
+    return (f"Messaging surface of {b['title']} (profile {bot}, squad {spec.get('name') or spec['key']}). The owner "
+            "reads this channel from a phone: short replies, answer first, no wide tables, the owner's language. "
+            "This channel is mention-free: every message here is addressed to you. Squad notices for the owner "
+            "(digests, blocked cards, alerts) land here; handle a reply to one exactly as in Bot Chat.")
+
+
 class Applier:
     """Reconciles the bots of one squad. With dry=True it only reads and reports."""
 
@@ -1157,7 +1266,9 @@ class Applier:
             args = shlex.split(args) if isinstance(args, str) else list(args)
             agent = j.get("agent")
             want = {"schedule": j["schedule"], "src": j["script"], "args": args, "no_agent": not agent,
-                    "script": f"{full}.sh" if args else j["script"], "deliver": f"bot-chat:{self.spec['manager']}"}
+                    "script": f"{full}.sh" if args else j["script"],
+                    "deliver": notify_deliver(self.ctx, name, f"bot-chat:{self.spec['manager']}") if j.get("notify")
+                    else f"bot-chat:{self.spec['manager']}", "notify": bool(j.get("notify"))}
             if agent:
                 lm = self.lane_model(agent["lane"], agent.get("reasoning"))
                 if not lm:
@@ -2176,6 +2287,28 @@ def web_check(ctx: Ctx, name: str, bot: dict) -> dict:
     return check(f"{name}:web", "ok", web.get("search_backend") or web.get("backend") or "keyless free tier")
 
 
+def channel_checks(ctx: Ctx, ap: "Applier", name: str, bot: dict) -> list[dict]:
+    """One check per messaging channel the bot is bound to: its token is in the env file and every notify job
+    delivers there. A notify job of an unbound bot is fine (Bot Chat)."""
+    out = []
+    raw = json.loads(_read(ctx.home(name) / "cron" / "jobs.json") or "[]")
+    live = {j.get("name"): j for j in (raw.get("jobs", []) if isinstance(raw, dict) else raw)}
+    plan = ap.cron_plan(name, bot, [])
+    for b in channel_bindings(ctx, name):
+        where = f"{b['platform']}:{b['chat_id']}"
+        if not b["ready"]:
+            out.append(check(f"{name}:channel:{b['platform']}", "warn",
+                             f"{b['name'] or where} is set but {b['token']} is not in the env file; notify jobs fall "
+                             f"back to Bot Chat. Run `hermes -p {name} gateway setup`"))
+            continue
+        off = [j for j, w in plan.items() if where in w["deliver"] and where not in str((live.get(j) or {}).get(
+            "deliver") or "")]
+        out.append(check(f"{name}:channel:{b['platform']}", "warn" if off else "ok",
+                         f"{b['name'] or where}: " + (f"{', '.join(off)} still deliver elsewhere; run apply" if off
+                                                      else "token set, notify jobs deliver here")))
+    return out
+
+
 def kanban_cap_checks(ctx: Ctx) -> list[dict]:
     """A warn per home (root or profile) that sets the per-profile kanban cap: squads run without one."""
     homes = [("default", ctx.root)] + ([(p.name, p) for p in sorted(ctx.profiles.iterdir()) if p.is_dir()]
@@ -2295,6 +2428,7 @@ def cmd_doctor(ctx: Ctx, a: argparse.Namespace) -> int:
             out += unpinned_cron_checks(ctx, key, name)
             out += paused_cron_checks(ctx, key, name)
             out.append(web_check(ctx, name, bot))
+            out += channel_checks(ctx, ap, name, bot)
         if key == "jobs":
             # start_search.py stays silent without a project or profile.md; doctor is where the gap shows
             projs = [p for p in installed["projects"].values() if key in (p.get("squads") or [])]
@@ -2390,6 +2524,86 @@ def cmd_project_add(ctx: Ctx, a: argparse.Namespace) -> int:
     return 1 if any(r["result"] == "profile missing" for r in rows) else 0
 
 
+def cmd_connect(ctx: Ctx, a: argparse.Namespace) -> int:
+    """Bind a bot to a messaging channel: its home channel, mention-free replies and a channel prompt, then point the
+    squad's `notify: true` cron jobs there. The token must already be in the bot's env file (`hermes -p <bot> gateway
+    setup`); squadctl reads it only to look the channel up on Discord and never prints it."""
+    bot, plat = a.bot, a.platform
+    spec = squad_of(ctx, bot)
+    home = ctx.home(bot)
+    if not home.is_dir():
+        raise Fail(f"profile {bot} is missing", 2)
+    tok_key = PLATFORM_TOKENS.get(plat)
+    token = env_pairs(home / ENV_FILE).get(tok_key) if tok_key else None
+    if tok_key and not token:
+        raise Fail(f"{tok_key} is not in {bot}'s env file: run `hermes -p {bot} gateway setup` (pick {plat}, paste "
+                   "the bot token), then connect again", 2)
+    acts: list[str] = []
+    if plat == "discord":
+        if not a.channel:
+            raise Fail("discord needs --channel <name or id>", 2)
+        topic = f"{spec['bots'][bot]['title']}: notices and replies"
+        g, ch, made = discord_channel(token, a.channel, a.guild, (None if a.dry_run else True) if a.create
+                                      else False, topic)
+        chat_id, label = ch["id"], f"#{ch['name']}"
+        if made:
+            acts.append(f"discord channel + {label} in {g['name']}")
+    else:
+        if not a.chat_id:
+            raise Fail(f"{plat} needs --chat-id (the chat, group or channel id the bot posts to)", 2)
+        chat_id, label = a.chat_id, a.name or a.chat_id
+    cfg = read_yaml(home / "config.yaml") or {}
+    pcfg = ((cfg.get("platforms") or {}).get(plat) or {})
+    overrides = dict(pcfg.get("channel_overrides") or {})
+    overrides[str(chat_id)] = {**(overrides.get(str(chat_id)) or {}), "system_prompt": channel_prompt(spec, bot)}
+    sets = [[f"platforms.{plat}.home_channel", {"platform": plat, "chat_id": str(chat_id), "name": label}, True],
+            [f"platforms.{plat}.channel_overrides", overrides, True]]
+    if plat == "discord":
+        free = [x.strip() for x in str((cfg.get("discord") or {}).get("free_response_channels") or "").split(",")
+                if x.strip()]
+        if str(chat_id) not in free:
+            free.append(str(chat_id))
+        # a string: the key has a string default, so a list would be stored as one bogus id
+        sets.append(["discord.free_response_channels", ",".join(free), False])
+    diff = pa.changed_keys(cfg, sets)
+    acts += [f"set {k}" for k, *_ in diff]
+    if diff and not a.dry_run and str(chat_id) != "<new>":
+        ctx.apply_config(home, {"set": sets, "ui_meta_bots": None})
+    # cron: the notify jobs follow the binding (a dry run compares against the target the config will hold)
+    installed, models = effective_models(ctx, None)
+    ap = Applier(ctx, spec, models, a.dry_run, False, False)
+    want = f"{plat}:{chat_id}"
+    notes: list[str] = []
+    plan = ap.cron_plan(bot, spec["bots"][bot], notes)
+    jobs = [j for j, w in plan.items() if w["notify"]]
+    if a.dry_run:
+        raw = json.loads(_read(home / "cron" / "jobs.json") or "[]")
+        live = {j.get("name"): j for j in (raw.get("jobs", []) if isinstance(raw, dict) else raw)}
+        acts += [f"cron ~ {j} (deliver {want})" for j in jobs if want not in str((live.get(j) or {}).get("deliver"))]
+    else:
+        acts += ap.cron(bot, spec["bots"][bot], True, notes)
+    sent = None
+    if not a.dry_run and not a.no_test:
+        out = ctx.hermes("send", "--to", want, "--json", a.test_message or (
+            f"{spec['bots'][bot]['title']} connected: notices for you land in this channel; reply here, no mention "
+            "needed."), profile=bot, check=False)
+        try:
+            sent = json.loads(out)
+        except ValueError:
+            sent = {"success": False, "error": out.strip()[:200]}
+        if not sent.get("success"):
+            raise Fail(f"config written, but the test message failed: {sent.get('error') or 'unknown'}; check the "
+                       f"bot's permissions in {label}", 1)
+    res = {"bot": bot, "platform": plat, "channel": label, "chat_id": str(chat_id), "dry_run": a.dry_run,
+           "actions": acts or ["unchanged"], "notify_jobs": jobs}
+    if sent:
+        res["test_message_id"] = sent.get("message_id")
+    if not a.dry_run and diff:
+        res["next"] = f"hermes -p {bot} gateway restart (the gateway reads the channel settings at start)"
+    emit(ctx, res)
+    return 0
+
+
 def cmd_chain(ctx: Ctx, a: argparse.Namespace) -> int:
     spec = load_spec(ctx, a.squad)
     stages = (spec.get("chains") or {}).get(a.chain)
@@ -2478,6 +2692,19 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("path", help="existing project folder")
     pp.add_argument("--dry-run", action="store_true", help="show which profiles would get it; create nothing")
     pp.set_defaults(fn=cmd_project_add)
+    sp = sub.add_parser("connect", parents=[common],
+                        help="bind a bot to a chat channel and send its notify cron jobs there")
+    sp.add_argument("bot", help="profile, usually the squad manager")
+    sp.add_argument("platform", choices=sorted(PLATFORM_TOKENS) + ["signal", "whatsapp", "email", "sms"])
+    sp.add_argument("--channel", help="discord: channel name or id")
+    sp.add_argument("--guild", help="discord: server name or id (needed when the bot is in several)")
+    sp.add_argument("--create", action="store_true", help="discord: create the channel when missing")
+    sp.add_argument("--chat-id", help="other platforms: the chat, group or channel id")
+    sp.add_argument("--name", help="other platforms: a label for the channel")
+    sp.add_argument("--test-message", help="text of the test message (default: a short connected notice)")
+    sp.add_argument("--no-test", action="store_true", help="skip the test message")
+    sp.add_argument("--dry-run", action="store_true", help="show what would change; write and send nothing")
+    sp.set_defaults(fn=cmd_connect)
     sp = sub.add_parser("chain", parents=[common], help="file the dependent cards of a squad chain")
     sp.add_argument("squad", help="squad key")
     sp.add_argument("chain", help="chain name in squad.yaml -> chains")

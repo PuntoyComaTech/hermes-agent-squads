@@ -144,6 +144,10 @@
       "properties": {
         "schedule": {"type": "string", "minLength": 1},
         "script": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+\\.(py|sh)$"},
+        "notify": {
+          "description": "true: the job's output is for the user. It goes to the bot's connected messaging channel (squadctl connect) and to the manager's Bot Chat while none is connected. Default false: Bot Chat only.",
+          "type": "boolean"
+        },
         "args": {
           "oneOf": [
             {"type": "string"},

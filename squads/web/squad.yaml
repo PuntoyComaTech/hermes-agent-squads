@@ -1,7 +1,7 @@
 schema: 2
 key: web
 name: Web
-version: 3.6.0
+version: 3.7.0
 description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
 hermes_requires: ">=0.22.0"
 board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
@@ -21,7 +21,7 @@ bots:
     plugins: {enable: [disk-cleanup]}
     memory: true
     cron:
-      web-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
+      web-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false, notify: true}
       web-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
       web-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   web-frontend:

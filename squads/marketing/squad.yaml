@@ -2,7 +2,7 @@ schema: 2
 key: marketing
 name: Marketing
 description: "Brand onboarding, 90-day plans, weekly calendars and reviewed marketing pieces for several brands"
-version: 3.3.0
+version: 3.4.0
 hermes_requires: ">=0.22.0"
 board: {slug: marketing, name: Marketing, icon: "📣", color: "#D9480F", description: "Brand plans, weekly calendars and reviewed pieces"}
 section: {id: marketing, name: Marketing}
@@ -23,9 +23,9 @@ bots:
     connectors: {enabled: false, suggest: []}
     memory: true
     cron:
-      marketing-plan-week: {schedule: "0 8 * * 1", script: plan_week.py, agent: false}
-      marketing-report: {schedule: "0 8 1 * *", script: report_gate.py, agent: false}
-      marketing-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false}
+      marketing-plan-week: {schedule: "0 8 * * 1", script: plan_week.py, agent: false, notify: true}
+      marketing-report: {schedule: "0 8 1 * *", script: report_gate.py, agent: false, notify: true}
+      marketing-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false, notify: true}
       marketing-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
       marketing-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   marketing-research:

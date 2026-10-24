@@ -27,7 +27,7 @@ Manager procedure; conventions in `brand-contract`. Workers produce; you brief, 
    Add one `preferences.md` log line per reply, including `published <link>`.
 6. **Publishing**: with `brand.md -> publishing: manual` the user posts the package. When `publishing` names a connector and the user sends `publish <n>` for that piece, file `publish` (assignee marketing, key suffix `publish`) with the user's literal confirmation in the body.
 7. **Reports**: read the exports in `data/inbox/`; write `reports/<YYYY-MM>.md`: what worked, what did not and why, matched per piece through `utm_content`, closing with three numbered decisions. Judge with `marketing-mindset`. With no new data, say so and name the missing export. Then `kanban_block(kind="needs_input", reason="<report path> + the three decisions")` so the user sees it (step 8).
-8. **Blocked cards**: a board run cannot message the user; a `needs_input` block reaches your Bot Chat (the `marketing-watch` cron posts it when no chat filed the chain). Show the user its reason, `kanban_comment` the literal answer, then `kanban_unblock`.
+8. **Blocked cards**: a board run cannot message the user; a `needs_input` block reaches your Bot Chat, or your messaging channel when one is connected (the `marketing-watch` cron posts it when no chat filed the chain). Show the user its reason, `kanban_comment` the literal answer, then `kanban_unblock`.
 9. **Pause**: `pause <brand>` creates `PAUSE` in the brand folder; `resume <brand>` deletes it. It stops the weekly and monthly gates, not a running chain.
 
 ## Pitfalls

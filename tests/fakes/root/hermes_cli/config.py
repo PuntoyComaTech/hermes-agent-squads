@@ -10,6 +10,11 @@ def get_config_path() -> Path:
     return Path(os.environ["HERMES_HOME"]) / "config.yaml"
 
 
+# Keys whose DEFAULT_CONFIG value is a string: the real _coerce_config_set_value stores them verbatim, so a
+# numeric channel id stays a string (a coerced int would never match the adapter's string ids).
+STRING_DEFAULTS = {"discord.free_response_channels"}
+
+
 def _coerce(value: str):
     if value in ("true", "false"):
         return value == "true"
@@ -37,5 +42,5 @@ def set_config_value(key: str, value: str, force: bool = False):
     cur = node.get(leaf)
     if isinstance(cur, dict) and not force and not str(value).strip().startswith(("{", "[")):
         raise SystemExit(f"✗ {key} is a mapping section; pass force to replace it with a scalar")
-    node[leaf] = _coerce(value)
+    node[leaf] = value if key in STRING_DEFAULTS else _coerce(value)
     path.write_text(yaml.safe_dump(cfg, sort_keys=False))
