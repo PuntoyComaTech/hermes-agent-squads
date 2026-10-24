@@ -57,7 +57,8 @@ Tools: `$HERMES_HOME/skills/squad-jobs/browsing-linkedin/scripts/` (`$T` below),
    then `python3 $T/market_keywords.py --input <files> --project <P> --country <CC> --window "<label>" --leads <rows> --output <P>/reports/market-<date>.json`.
    Exit 1 means fewer than 3 postings: say it is too few and write nothing for the writer — the tool leaves no
    `--output` file at all, so there is nothing for `jobs-writer` to read. Put the top terms (with
-   `in_profile`) and the top titles in the card result.
+   `in_profile`), the `role_families` (with `emerging` and `recognised`) and `offer_positioning` in the card result.
+   A title used by two or more postings that maps to no family: name it in the result as `unmapped title`.
 9. Record each query in the search file: URL, cards read, kept, dropped by reason.
 
 ## Pitfalls

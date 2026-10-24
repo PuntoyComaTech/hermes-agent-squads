@@ -3,6 +3,27 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.15.0 - 2026-10-24
+
+### Added
+
+- jobs 4.6.0: roles are recognised by the work, not by the literal word. Companies name the same work many ways and
+  new names spread fast (Forward Deployed Engineer postings grew more than tenfold in a year); a real run dropped
+  "Forward Deployed Engineer" from a headline because no achievement held those words, though the achievements
+  describe exactly that work.
+  - `jobs-contract/scripts/role_families.json`: role families (forward-deployed, ai-engineer, full-stack, tech-lead,
+    solutions-architect), each with its titles, the signals that show the work, a definition, `emerging` and sources.
+    `jobs_common.recognised_roles()` recognises a family when the user names one of its titles or when their own
+    evidence holds enough of its signals; `positioning_titles()` returns every title they may be presented under.
+  - `profile.md` `positioning_titles`: titles the user chose beyond their job titles. The CV headline check, the
+    LinkedIn copy checker and the portal prefilter accept every title of a recognised family; experience entries
+    keep their real titles.
+  - `market_keywords.py` groups posting titles into `role_families` and lists `offer_positioning`: families the
+    work fits that the profile does not name yet. The manager offers each once and a yes updates the profile.
+  - LinkedIn guidance: an emerging positioning title may lead the headline, appears in at least three places
+    (headline, About first line, skills, matching roles), and the title it grew out of (full stack) keeps its place.
+  - The copy checker no longer calls a term a gap when the profile as it is now holds it (an older market file).
+
 ## 2.14.1 - 2026-10-24
 
 ### Fixed

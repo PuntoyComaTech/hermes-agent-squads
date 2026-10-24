@@ -117,7 +117,12 @@ def load_project(project: Path) -> dict:
     style = meta.get("writing_style") if isinstance(meta.get("writing_style"), dict) else {}
     avoid = style.get("avoid_phrases") if isinstance(style.get("avoid_phrases"), list) else []
     roles = meta.get("target_roles") if isinstance(meta.get("target_roles"), list) else []
-    return {"ids": ids, "corpus": fold(" ".join(chunks)), "age_ok": candidate.get("include_age_in_cv") is True,
+    # the evidence is the whole of the user's own files: the corpus walk skips the `achievements` key
+    evidence = json.dumps(meta, ensure_ascii=False) + " " + json.dumps(data, ensure_ascii=False)
+    positioning = jc.positioning_titles(meta, evidence)
+    chunks += positioning  # a title of a recognised role family is the user's to claim, under any of its names
+    return {"ids": ids, "corpus": fold(" ".join(chunks)), "positioning": positioning,
+            "recognised": jc.recognised_roles(meta, evidence), "age_ok": candidate.get("include_age_in_cv") is True,
             "confidential": jc.confidential_terms(meta), "not_public": jc.public_profile_terms(meta),
             "avoid": [str(a) for a in avoid if str(a).strip()], "roles": [str(r) for r in roles if str(r).strip()]}
 
@@ -195,6 +200,8 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
         if market:
             for row in market.get("terms") or []:
                 term = str(row.get("term") or "")
+                if term and has_term(term, project["corpus"]):
+                    continue  # the market file may predate the profile: the profile as it is now decides
                 if term and row.get("in_profile") is False and not row.get("profile_part") and has_term(term, text):
                     bad("claims_a_gap", where, f"uses {term!r}, a market term the profile does not hold")
 
@@ -245,7 +252,7 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
     heads = by_section.get("headline")
     if heads and project["roles"]:
         front = fold(heads[0]["text"])[:70]
-        if not any(fold(role) in front for role in project["roles"]):
+        if not any(fold(role) in front for role in project["roles"] + list(project.get("positioning") or [])):
             warnings.append("no target role appears in the first 70 characters of the headline, the part shown in search")
     return defects, warnings
 

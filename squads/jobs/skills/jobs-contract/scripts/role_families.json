@@ -1,0 +1,190 @@
+{
+  "_comment": "Job titles companies use for the same work. Read by jobs_common.role_families(). A family is recognised for a candidate when profile.md names one of its titles (target_roles, acceptable_roles, positioning_titles) or when achievements.yaml and key_skills hold at least `min_signals` of its signals: then any of its titles may be used to position the candidate (headline, About, skills, CV headline, search terms) and the market report offers its titles. A title never replaces a real job title in an experience entry. `emerging: true` marks a title the market adopted recently; `sources` say where its definition was read. Review a family when its `reviewed` date is a year old.",
+  "schema": 1,
+  "families": [
+    {
+      "id": "forward-deployed",
+      "label": "Forward Deployed Engineer",
+      "emerging": true,
+      "reviewed": "2026-10-24",
+      "definition": "Owns a product or AI deployment end to end inside the customer's systems: discovery, scoping, full-stack build, integration (MCP servers, agents, skills) and production rollout. Full-stack range plus customer-facing ownership of the outcome.",
+      "titles": [
+        "forward deployed engineer",
+        "forward-deployed engineer",
+        "forward deployed software engineer",
+        "fde",
+        "fdse",
+        "ai deployment engineer",
+        "deployment engineer",
+        "deployed engineer",
+        "applied ai engineer",
+        "ai solutions engineer",
+        "ingeniero forward deployed",
+        "ingeniera forward deployed",
+        "forward deployed engineering"
+      ],
+      "signals": [
+        "mcp",
+        "agent",
+        "agents",
+        "agentic",
+        "llm",
+        "rag",
+        "langchain",
+        "langgraph",
+        "ai foundry",
+        "full stack",
+        "full-stack",
+        "end to end",
+        "end-to-end",
+        "client",
+        "customer",
+        "integration",
+        "integrated",
+        "production",
+        "centralis",
+        "workflow"
+      ],
+      "min_signals": 5,
+      "sources": [
+        "https://job-boards.greenhouse.io/anthropic/jobs/5423029008",
+        "https://openai.com/careers/forward-deployed-engineer-london/",
+        "https://jobs.lever.co/palantir/a8eb96f4-e39b-4c0f-b42e-610165b88f34",
+        "https://fortune.com/2026/09/03/forward-deployed-engineers-fast-growing-six-figure-silicon-valley-job-integrate-ai-with-customers-tech-careers-palantir/"
+      ]
+    },
+    {
+      "id": "ai-engineer",
+      "label": "AI Engineer",
+      "emerging": true,
+      "reviewed": "2026-10-24",
+      "definition": "Builds product features on top of language models: agents, retrieval, tool calling, evaluation.",
+      "titles": [
+        "ai engineer",
+        "llm engineer",
+        "genai engineer",
+        "generative ai engineer",
+        "agent engineer",
+        "agentic ai engineer",
+        "ai developer",
+        "ai integration engineer",
+        "ingeniero de ia",
+        "ingeniero ia",
+        "desarrollador de ia",
+        "desarrollador ia"
+      ],
+      "signals": [
+        "llm",
+        "rag",
+        "agent",
+        "agents",
+        "agentic",
+        "langchain",
+        "langgraph",
+        "embeddings",
+        "mcp",
+        "tool calling",
+        "prompt",
+        "ai foundry",
+        "openai",
+        "claude"
+      ],
+      "min_signals": 3,
+      "sources": [
+        "https://openai.com/careers/forward-deployed-engineer-london/"
+      ]
+    },
+    {
+      "id": "full-stack",
+      "label": "Full Stack Developer",
+      "emerging": false,
+      "reviewed": "2026-10-24",
+      "definition": "Builds both the interface and the services behind it.",
+      "titles": [
+        "full stack developer",
+        "full-stack developer",
+        "fullstack developer",
+        "full stack engineer",
+        "full-stack engineer",
+        "fullstack engineer",
+        "product engineer",
+        "web developer",
+        "software engineer",
+        "desarrollador full stack",
+        "desarrollador fullstack",
+        "ingeniero full stack",
+        "full-stack development",
+        "full stack development"
+      ],
+      "signals": [
+        "react",
+        "next.js",
+        "vue",
+        "angular",
+        "frontend",
+        "node.js",
+        "nestjs",
+        "express",
+        "django",
+        "fastapi",
+        "api",
+        "graphql",
+        "microservices",
+        "sql"
+      ],
+      "min_signals": 4,
+      "sources": []
+    },
+    {
+      "id": "tech-lead",
+      "label": "Technical Lead",
+      "emerging": false,
+      "reviewed": "2026-10-24",
+      "definition": "Leads the technical delivery of a team while still building.",
+      "titles": [
+        "technical lead",
+        "tech lead",
+        "lead engineer",
+        "lead developer",
+        "engineering lead",
+        "team lead",
+        "lider tecnico",
+        "líder técnico"
+      ],
+      "signals": [
+        "lead",
+        "squad",
+        "team leadership",
+        "mentor",
+        "code review"
+      ],
+      "min_signals": 2,
+      "sources": []
+    },
+    {
+      "id": "solutions-architect",
+      "label": "Solutions Architect",
+      "emerging": false,
+      "reviewed": "2026-10-24",
+      "definition": "Designs how a product fits a customer's systems; advises rather than owning production.",
+      "titles": [
+        "solutions architect",
+        "solution architect",
+        "solutions engineer",
+        "sales engineer",
+        "arquitecto de soluciones"
+      ],
+      "signals": [
+        "architecture",
+        "client",
+        "customer",
+        "integration",
+        "pre-sales",
+        "presales",
+        "scoping"
+      ],
+      "min_signals": 4,
+      "sources": []
+    }
+  ]
+}

@@ -269,6 +269,7 @@ def profile_facts(profile: dict) -> dict:
         "cv_template": str(profile.get("cv_template") or "").strip() or None,
         "target_roles": _list_of_text(profile.get("target_roles")),
         "key_skills": _list_of_text(profile.get("key_skills")),
+        "profile_meta": profile,
     }
 
 
@@ -1541,7 +1542,11 @@ def run(args: argparse.Namespace, gate: bool = True) -> int:
     contact = read_yaml_file(args.contact, "contact") if args.contact else {}
     analysis = read_json_object(args.analysis, "analysis") if args.analysis else {}
     profile_raw = read_text(args.profile, "profile") if args.profile else ""
-    sources = (build_sources(ach_data, profile_raw, analysis, facts["target_roles"], facts["key_skills"])
+    # A headline may use any title of a role family the candidate is recognised in (role_families.json): companies
+    # name the same work many ways. Experience entries keep their real titles (check_job).
+    headline_roles = (jc.positioning_titles(facts["profile_meta"], profile_raw + "\n" + json.dumps(ach_data, ensure_ascii=False))
+                      if ach_data is not None else facts["target_roles"])
+    sources = (build_sources(ach_data, profile_raw, analysis, headline_roles, facts["key_skills"])
                if ach_data is not None else None)
     letter_ids = letter_citations(read_text(args.letter, "letter")) if args.letter else set()
     requested_template = args.template
