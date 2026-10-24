@@ -63,31 +63,31 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
 
 4. **Search.** The `jobs-search` cron runs hourly; `start_search.py` files one search card per active project per slot
    (the project's `search_times` on weekdays, default 12:00, in its `timezone`; each card reads only postings since
-   the previous check). A project with `search: paused` gets none. Every search ends with
-   the summary of step 5. "search now": file the same card yourself (jobs-scout, `skills: [finding-jobs]`, body
+   the previous check). A project with `search: paused` gets none. A search reaches
+   the owner only when it needs them (step 5). "search now": file the same card yourself (jobs-scout, `skills: [finding-jobs]`, body
    `Mode: SEARCH` and `User language: <user_language>`, key `jobs:search:<project>:<YYYY-MM-DD-HH>` with the slot hour).
 
-5. **Digest** (stage `digest`, a board run that cannot message the user). Read `review-N.json` and `analysis.json`,
-   then `kanban_block(kind="needs_input", reason=<this message>)`; the `jobs-watch` cron posts it to your Bot Chat or messaging channel:
+5. **Digest** (stage `digest`, a board run that cannot message the user). Re-read `review-N.json`, `analysis.json`
+   and `gates.eligibility` now. Under `auto_apply: auto` no digest is ever sent: an APPROVED, eligible match at or
+   above `apply_threshold` gets the applier card, anything else stays in the dashboard, and the card ends with
+   `kanban_complete` (`references/apply-modes.md`); the `jobs-notices` cron posts each sent application with its CV.
+   Under `try`, `ask` or `never`: `kanban_block(kind="needs_input", reason=<this message>)`, which the `jobs-watch`
+   cron posts to the owner's channel (or Bot Chat):
 
    ```text
-   <score>/100 - <role> at <company> (<work mode>)
-   Apply: <apply_url>
-   CV: <absolute path of cv_ats.pdf>
-   Reply: "apply", "change: <what>", "no"
-   <ID>
+   <score>/100 · <role> - <company> · <work mode>
+   <analysis.json brief>
+   <apply_url>
+   Reply "apply", "change: <what>" or "no" · <ID>
+   MEDIA:<absolute path of application/cv_ats.pdf>
    ```
 
    Fields come from several files (`references/digest-sources.md`); `scripts/digest_fields.py <P>` prints them all.
-   Add at most one warning line from `analysis.json`. Set `status.json` to `delivered` (append a history line). With `auto_apply: auto` the
-   application is already on its way: `references/apply-modes.md`.
-   Build the digest at digest time: re-read `analysis.json` and `gates.eligibility`. An eligibility FLAG is said in
-   the digest and the match is not offered for writing (step 6).
-   Write the digest in `user_language`; the CV and letter stay in the posting's language.
-   **Search summary.** Each search card ends with one summary block from the scout (`kanban_block`, kind `needs_input`,
-   reason starting "Search"), also when nothing is PASS. Show it in `user_language`: counts (found, PASS, FLAG, DISCARD,
-   new), the top WATCH with its score and one line of reason, and what needs the user (a FLAG to decide, a link to
-   check). Contact data never appears in it.
+   The `MEDIA:` line uploads the CV as a file the owner opens on a phone. At most one warning line, in
+   `user_language`; the CV stays in the posting's language. Set `status.json` to `delivered` (append a history line).
+   An eligibility FLAG is said and the match is not offered for writing (step 6).
+   **Search summary.** A search card blocks only when it needs the owner (a FLAG to decide, a link to check, a broken
+   source): relay that in `user_language`, no contact data. Counts and WATCH matches stay in the dashboard.
 
 6. **Replies** (in Bot Chat or the messaging channel). After acting on a reply, close its digest card:
    `kanban_complete(board: "jobs", task_id: <digest card>, summary: "<the reply>")`.
@@ -131,8 +131,8 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
 - Delivery, corrections in flight, standing rules, cancelled openings: `references/manager-pitfalls.md`.
 
 - Never apply, call or email anyone yourself, and never approve an application.
-- Every message to the user (digest, search summary, block reason, pause confirmation) is in `user_language` from
-  `profile.md`. Documents follow the posting's language.
+- Every message to the user is in `user_language` from `profile.md`; documents follow the posting's language. A file
+  goes as a `MEDIA:<absolute path>` line (an upload); a bare path is unreadable on a phone. One opening per message.
 - Never read mail in this chat. The inbox belongs to jobs-inbox; you only file its card and show its proposals.
 - An ambiguous `apply` (several delivered openings without a quote) is resolved with `clarify`, showing company and
   role as options.
@@ -143,8 +143,8 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
 - `profile.md` and `achievements.yaml` hold only what the user stated or confirmed; nothing is inferred.
 - No outward document of an open application names a `confidential_terms` entry.
 - Every card you file names the project, the opening id or the mode, the paths and the language.
-- The digest carries score, link, CV path and id, and no contact data. Its eligibility line matches the current
-  `analysis.json`, not an earlier card.
-- Every search ends with a summary in `user_language`, with 0 PASS included.
+- The digest carries score, brief, link, id and the CV as a `MEDIA:` line, and no contact data. Its eligibility line
+  matches the current `analysis.json`, not an earlier card. Under `auto` an approved match sends no digest.
+- A search card blocks only for something the owner must decide.
 - No writer card exists for an opening whose eligibility is FLAG without the user's yes.
 - Each user reply ends with `status.json` updated, a card filed, a routed skill run, or a one-line answer.

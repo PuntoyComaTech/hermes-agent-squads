@@ -67,6 +67,22 @@ def apply_url(analysis, opening_md):
     return None
 
 
+def front(opening_md, key):
+    """One scalar from opening.md front matter; '' when absent or a placeholder (unknown)."""
+    found = re.search(r"^%s:\s*(.+?)\s*$" % re.escape(key), opening_md.split("\n---", 2)[0] if opening_md else "", re.M)
+    value = found.group(1).strip().strip("\"'") if found else ""
+    return "" if value.lower() in ("", "unknown", "null", "none", "tbd") else value
+
+
+def brief(analysis):
+    """analysis.json `brief`, else the first sentence of the company summary (as application_notices.py)."""
+    text = str(analysis.get("brief") or "").strip()
+    if not text:
+        summary = str(dig(analysis, "company", "summary") or "").strip()
+        text = re.split(r"(?<=[.!?])\s", summary, maxsplit=1)[0] if summary else ""
+    return " ".join(text.split())
+
+
 def review_verdict(opening_dir):
     rounds = sorted(glob.glob(os.path.join(opening_dir, "review-*.json")))
     if not rounds:
@@ -128,6 +144,11 @@ def main(argv):
         print("== %s [%s]" % (os.path.basename(opening_dir), state))
         print("   verdict: %s %s  (%s)" % (word or "?", score if score is not None else "?", date or "-"))
         print("   company: %s" % company)
+        posted, mode = front(opening_md, "posted_at"), front(opening_md, "work_mode")
+        if posted or mode:
+            print("   posted:  %s   mode: %s" % (posted or "-", mode or "-"))
+        if brief(analysis):
+            print("   brief:   %s" % brief(analysis)[:160])
         print("   gates:   %s" % gate_line)
         for key in ("eligibility_note", "language_note", "location_note", "seniority_note"):
             if gates.get(key):

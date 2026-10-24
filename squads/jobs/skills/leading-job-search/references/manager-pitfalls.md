@@ -13,7 +13,8 @@ while applications are in flight, and before writing a rule the user states.
 
 ## Delivery
 
-- The user reads the squad where its notify crons deliver (`jobs-search`, `jobs-followups`, `jobs-watch`): Bot Chat,
+- The user reads the squad where its notify crons deliver (`jobs-search`, `jobs-followups`, `jobs-watch`,
+  `jobs-notices`): Bot Chat,
   or the chat channel the builder connected (`squadctl connect`). `hermes -p jobs cron list` prints one `Deliver:` line
   per cron, the only proof of where a digest lands; read it before naming a channel, and never announce a channel as
   ready before a `Deliver:` line names it. Connecting a channel or re-pointing a cron is the builder's work.

@@ -63,12 +63,12 @@ Your card body says `Mode: SEARCH` (scheduled or on demand), `Mode: URL` (a link
    `workspace_kind: dir` and `workspace_path` set to the project folder, plus `model` and `provider` from the
    `Analysis cards:` line when present. Append `found` to `status.json` with
    `status.py append <folder> found --by jobs-scout`; analyzing-jobs appends `analyzed`.
-11. **Finish.** Every SEARCH ends with one user-facing summary, also with 0 PASS, written in the card's
-    `User language`: `kanban_block(kind="needs_input", reason=...)` whose reason is three lines:
-    `Search <YYYY-MM-DD HH:00>: <found> found, <PASS> PASS, <FLAG> FLAG, <DISCARD> DISCARD, <new> new.`,
-    `Top: <role> at <company>, <why in one line>` (or none), `Needs you: <a FLAG to decide>` (or nothing),
-    `Cap: <analysis_cap.summary>` (for example `5 of 5 used today; next: tomorrow or ask me to analyze <id>`).
-    Other modes finish with `kanban_complete` and the counts. If no source
+11. **Finish.** A SEARCH finishes with `kanban_complete` and one line of counts (`<found> found, <PASS> PASS,
+    <FLAG> FLAG, <DISCARD> DISCARD, <new> new; cap <analysis_cap.summary>`): the owner reads applications, not
+    search statistics. Only something the owner must decide blocks, in the card's `User language`:
+    `kanban_block(kind="needs_input", reason=...)` naming it in one or two lines (a FLAG to decide, a link to check).
+    Under `auto_apply: auto` a search never blocks: an eligibility FLAG is asked by its analysis card, other FLAGs
+    stay in the project files and are never dropped from them. Other modes finish with `kanban_complete`. If no source
     answers or the project files are missing: `kanban_block(kind="capability", reason="<what is missing>")`.
 
 ## Mode: EVIDENCE

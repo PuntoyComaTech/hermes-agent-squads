@@ -47,6 +47,8 @@ def jobs_spec(spec):
         "jobs-search": {"schedule": "0 * * * *", "script": "start_search.py", "agent": False, "notify": True},
         "jobs-followups": {"schedule": "0 9 * * 1-5", "script": "followup_gate.py", "agent": False, "notify": True},
         "jobs-watch": {"schedule": "*/30 * * * *", "script": "board_watch.py", "agent": False, "notify": True},
+        "jobs-notices": {"schedule": "*/5 * * * *", "script": "application_notices.py", "agent": False,
+                         "notify": True},
         "jobs-awake": {"schedule": "*/4 * * * *", "script": "keep_awake.py", "agent": False},
     }
 
@@ -83,10 +85,14 @@ def test_connect_creates_the_channel_moves_owner_crons_and_sends_a_test(jobs, mo
     assert out["channel"] == "#job-alerts" and out["test_message_id"] == "9001"
     assert ("POST", "/guilds/g1/channels") in discord.calls
     assert delivers(jobs) == {"jobs-search": f"discord:{CHANNEL}", "jobs-followups": f"discord:{CHANNEL}",
-                              "jobs-watch": f"discord:{CHANNEL}", "jobs-awake": "bot-chat:jobs"}
+                              "jobs-watch": f"discord:{CHANNEL}", "jobs-notices": f"discord:{CHANNEL}",
+                              "jobs-awake": "bot-chat:jobs"}
     cfg = jobs.config("jobs")
     assert cfg["platforms"]["discord"]["home_channel"]["chat_id"] == CHANNEL
-    assert "mention-free" in cfg["platforms"]["discord"]["channel_overrides"][CHANNEL]["system_prompt"]
+    prompt = cfg["platforms"]["discord"]["channel_overrides"][CHANNEL]["system_prompt"]
+    assert "mention-free" in prompt
+    assert "MEDIA:<absolute path>" in prompt, "a CV sent as a bare path cannot be opened on the owner's phone"
+    assert cfg["cron"]["wrap_response"] is False, "a notice is the script's text, without the cron header and footer"
     assert cfg["discord"]["free_response_channels"] == CHANNEL  # a string: a list would become one bogus id
     sent = [json.loads(ln) for ln in (jobs.root / "sent.jsonl").read_text().splitlines()]
     assert sent[0]["to"] == f"discord:{CHANNEL}" and sent[0]["profile"] == "jobs"
@@ -205,5 +211,7 @@ def test_shipped_squads_mark_only_user_facing_crons_notify():
         spec = yaml.safe_load((REPO / "squads" / key / "squad.yaml").read_text())
         crons = spec["bots"][key]["cron"]
         assert crons[f"{key}-watch"].get("notify") is True, key
+        if key == "jobs":  # the sent-application notice is the one message auto mode owes the owner
+            assert crons["jobs-notices"].get("notify") is True
         for house in ("awake", "projects"):
             assert not crons[f"{key}-{house}"].get("notify"), (key, house)

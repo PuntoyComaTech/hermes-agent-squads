@@ -3,6 +3,39 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.13.0 - 2026-10-24
+
+### Added
+
+- jobs 4.4.0: cron `jobs-notices` (`application_notices.py`, every 5 minutes, `notify: true`) posts each sent
+  application once, one per message, read at a glance on a phone: role and company, score, work mode, posted and sent
+  dates, a one-line `brief` of the job (new `analysis.json` key, written by analyzing-jobs in the user's language) and
+  the apply link, with the CV that was sent attached through a `MEDIA:` line. Its first run marks older applications as
+  posted, so an install never replays history.
+- Manatal career pages (`careers-page.com/<board>`, where recruitment agencies publish) are a known ATS for
+  `link_check.py`; their postings were `unverified` and could never be applied to automatically.
+
+### Changed
+
+- Under `auto_apply: auto` the owner's channel gets only sent applications and questions the squad cannot answer: an
+  approved match files the applier card with no digest, a search ends with `kanban_complete`, WATCH, NOT_APPROVED,
+  NOT_POSSIBLE and non-eligibility FLAGs stay in the project files (`show my pipeline`, then `force <ID>`), an
+  eligibility FLAG is one line ("Do you qualify?"), and NEEDS_DATA asks every question of a form in one message, then
+  saves the answers. A notice needs `submission.json` `SUBMITTED`: an `applied` the owner reported is never announced
+  as a send. `digest_fields.py` prints the brief, posted date and work mode. A digest under `try`/`ask` attaches its CV (`MEDIA:`) instead of
+  printing a local path, and carries the brief.
+- `board_watch.py` prints a card's block reason as the message itself (no board header, no indent); a worker's
+  question names the worker and its card on one line, and a stale card keeps the first line of its reason. A run
+  prints at most one card that carries a file (`MEDIA:`), so each CV arrives with its own opening.
+- A bot with `notify: true` crons gets `cron.wrap_response: false`: a notice no longer arrives wrapped in "Cronjob
+  Response" and "stop reminder" lines. The channel prompt `squadctl connect` writes says files go as `MEDIA:` lines.
+
+### Fixed
+
+- `board_watch.py` skipped every question of a chain filed from a Desktop or CLI session: those chains hand a `tui`
+  notify subscription to each card, which the watch read as "a chat already got it". The owner, reading the squad from
+  a phone channel, received nothing until they asked. Only a messaging-platform subscription counts now.
+
 ## 2.12.1 - 2026-10-24
 
 ### Added

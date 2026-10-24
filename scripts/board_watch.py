@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""Print the cards of a squad board that need the manager's Bot Chat.
+"""Print the cards of a squad board that need the owner, for the manager's channel or Bot Chat.
 
 Reported once per wait (state: $HERMES_HOME/local/state/board_watch.json):
   - `blocked` with kind `needs_input` (or untyped), at once, with the block reason, unless the card has a
-    notify subscription (the chain started in a chat, so that chat already got the event);
+    notify subscription on a messaging platform (the chain started in that chat, so it already got the event). A
+    Desktop or CLI subscription (`tui`, `cli`) does not count: a chain filed from a Desktop session inherits it on
+    every card, and the owner who reads the squad from a phone channel would never see the question;
   - any other `blocked`, or `running` with no activity, after --hours.
 
-Cron runs it with --no-agent on each manager: non-empty stdout goes to the manager's Bot Chat, empty stdout sends
-nothing. Stdlib only: the cron runs it with the system python3.
+The text is read on a phone. A card that asks the owner prints its block reason as written (the reason is the
+message), and a worker's question names the worker and the card; stale cards get one line each with the first line
+of their reason. A `MEDIA:<path>` line in a reason is kept, so the delivery attaches that file. The delivery sends
+every attachment after the text, so a run prints at most ONE card that carries a file (the rest wait for the next
+run); cards without a file are printed together.
+
+Cron runs it with --no-agent on each manager: non-empty stdout is delivered (`notify: true`: the connected channel,
+else Bot Chat), empty stdout sends nothing. Stdlib only: the cron runs it with the system python3.
 """
 from __future__ import annotations
 
@@ -23,6 +31,7 @@ from pathlib import Path
 
 STATE = "board_watch"
 KEEP = 200  # reported keys kept in the state file
+LOCAL_SURFACES = frozenset({"tui", "cli", "local", "desktop"})  # subscriptions the owner does not read away from the desk
 
 
 def home() -> Path:
@@ -63,8 +72,10 @@ def last_block(base: list[str], card_id: str) -> dict:
 
 
 def subscribed(base: list[str], card_id: str) -> bool:
+    """True when a messaging chat (Discord, Telegram, ...) already gets this card's events."""
     subs = hermes_json([*base, "notify-list", card_id, "--json"], [])
-    return isinstance(subs, list) and bool(subs)
+    return isinstance(subs, list) and any(
+        isinstance(s, dict) and str(s.get("platform") or "").lower() not in LOCAL_SURFACES for s in subs)
 
 
 def load_state(path: Path) -> list[str]:
@@ -95,7 +106,7 @@ def findings(cards: list[dict], base: list[str], hours: float, now: float) -> li
         idle = (now - since) / 3600
         asks_user = status == "blocked" and block.get("kind") in (None, "needs_input")
         if asks_user and not subscribed(base, cid):
-            note = "needs your answer"
+            note = "asks"
         elif idle >= hours:
             note = f"blocked {idle:.0f}h" if status == "blocked" else f"running with no activity for {idle:.0f}h"
         else:
@@ -139,13 +150,25 @@ def main(argv: list[str] | None = None) -> int:
     new = [f for f in found if f["key"] not in reported]
     if not new:
         return 0
-    lines = [f"{board} board: {len(new)} card(s) for you"]
+    manager = home().name
+    blocks, sent, with_file = [], [], False
     for f in new:
-        lines.append(f"- {f['id']} | {f['assignee']} | {f['note']}: {f['title']}")
-        if f["reason"]:
-            lines.extend(f"    {line}" for line in f["reason"].splitlines())
-    print("\n".join(lines))
-    save_state(state, reported + [f["key"] for f in new])
+        carries = "MEDIA:" in f["reason"]
+        if carries and with_file:
+            continue  # its file would land under another card's text: next run
+        with_file = with_file or carries
+        if f["note"] == "asks" and f["reason"]:
+            # the reason is the message; a worker's question also says who asks, so the reply can be routed
+            tail = "" if f["assignee"] == manager else f"\n({f['assignee']}: {f['title']} · {f['id']})"
+            blocks.append(f["reason"] + tail)
+        elif f["note"] == "asks":
+            blocks.append(f"{f['title']} ({f['assignee']} · {f['id']}) is waiting for you")
+        else:
+            first = next((ln.strip() for ln in f["reason"].splitlines() if ln.strip() and "MEDIA:" not in ln), "")
+            blocks.append(f"{f['title']} ({f['assignee']} · {f['id']}): {f['note']}" + (f" - {first}" if first else ""))
+        sent.append(f["key"])
+    print("\n\n".join(blocks))
+    save_state(state, reported + sent)
     return 0
 
 

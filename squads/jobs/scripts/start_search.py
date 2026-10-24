@@ -380,7 +380,7 @@ def card_body(slug: str, folder: str, now: datetime, slot: datetime, lane: tuple
              f"Window: postings since {since.strftime('%Y-%m-%d %H:%M')} ({hours} h). Search with "
              f"--max-age-hours {hours}; prefilter with --since {since.strftime('%Y-%m-%d')}.",
              f"Project: {slug} ({folder})",
-             f"User language: {language}. The search summary to the user is written in it."]
+             f"User language: {language}. Anything the user reads is written in it."]
     if lane:
         lines.append(f"Analysis cards: model {lane[0]}" + (f", provider {lane[1]}" if lane[1] else "")
                      + " (review lane).")

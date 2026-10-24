@@ -39,6 +39,9 @@ Work in `<P>/openings/<ID>/`. `<P>` is the project folder named on your card. Se
    then write `fit.dimensions` for `technical`, `experience`, `behavioral` and `career`: each `{"score": 0-100,
    "note": "one line"}`. Add `fit.strengths`, `fit.gaps`, `fit.hard_gaps`, `fit.transferable`,
    `fit.overselling_risk` (low, medium or high) and `fit.reason` (your wording; the rules write the decision line).
+   Write `brief`: one line in the card's user language, at most 140 characters, saying what the job is (product,
+   stack, scope), for example `Backend de pedidos con IA para distribuidores; Node/AWS; remoto CO`. The owner reads
+   it on a phone next to the CV that was sent.
 6. **Check, then finalize.** `python3 "$A/score_analysis.py" check <dir> --project <P>` lists problems and warnings
    and writes nothing. Fix every problem, then run `finalize` with the same arguments. It computes the gates, the
    weighted score and band, the decision, the salary benchmark, the employer-call advice and the guard, writes
@@ -48,9 +51,13 @@ Work in `<P>/openings/<ID>/`. `<P>` is the project folder named on your card. Se
    user accepted the eligibility risk. An eligibility FLAG files no writer card: say it in the summary so the
    manager asks the user. Create the writer's card with `kanban_create`: assignee `jobs-writer`, skills
    `[writing-applications]`, `idempotency_key` `jobs:application:<project>:<ID>:write`, document language = the
-   opening's language, plus the fields of jobs-contract step 4. Otherwise no writer card: finish with
-   `kanban_block(kind="needs_input", reason=...)` in the card's user language, three lines: `<score>/100 <decision>:
-   <role> at <company>`, the deciding reason, and `Reply "force" to prepare it anyway` (WATCH only).
+   opening's language, plus the fields of jobs-contract step 4. Otherwise no writer card. Under `auto_apply: auto`
+   finish with `kanban_complete` (no message), except an eligibility FLAG: block with one line in the card's user
+   language, `<role> - <company>: <eligibility note>. Do you qualify?`. Under the other modes
+   `kanban_block(kind="needs_input", reason=...)` in the card's user language, three lines: `<score>/100
+   <decision>: <role> at <company>`, the deciding reason, and `Reply "force" to prepare it anyway` (WATCH only).
+   Separately, when the employer's own posting was found, its apply link replaces `apply_url` in `opening.md` (the
+   intake link stays in `url`): the applier submits only there.
 8. **Record** the stage: `python3 "$S/status.py" append <dir> analyzed --by jobs-scout --note "<decision> <score>"`.
    Then `kanban_complete` with one line: decision, score, and the rule that decided it.
 

@@ -97,6 +97,14 @@ def test_reviewed_greenhouse_board_is_verified_and_only_that_board(reviewed):
     assert classify("https://boards.greenhouse.io/otherco/jobs/9", data=reviewed)["verdict"] == "official_ats"
 
 
+def test_an_agency_posting_on_a_manatal_career_page_is_an_employer_ats_link():
+    """Recruitment agencies publish on Manatal's careers-page.com. Unknown, it blocked every automatic apply there."""
+    posting = classify("https://www.careers-page.com/mineo/job/L4W9WY75", company="Mineo")
+    assert (posting["verdict"], posting["board"]) == ("official_ats", "mineo")
+    assert classify("https://www.careers-page.com/apply")["verdict"] == "unverified"  # Manatal's own form, no board
+    assert classify("https://careers-page.com.jobs-offer.example/mineo/job/1")["verdict"] == "unverified"
+
+
 def test_workday_link_gives_the_tenant_site_and_board_url():
     result = classify(ACME_WORKDAY, company="Acme")
     assert result["verdict"] == "official_ats"

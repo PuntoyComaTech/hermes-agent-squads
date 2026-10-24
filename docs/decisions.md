@@ -45,7 +45,7 @@
 - **V-02** One visible manager per squad; no global coordinator or registry.
 - **V-03** Real, tested scripts, never prose scripts. Python wherever YAML/JSON/HTTP is involved; bash only for the shims and one-line cron wrappers.
 - **V-04** Native Hermes Projects (per profile, `projects.db`) hold project folders; the builder never imposes a layout.
-- **V-05** Results reach the user through kanban notify and `bot-chat:<manager>` cron delivery. A board run cannot message the user: a manager card that needs the user ends in `kanban_block(kind="needs_input", reason=<message>)`. The chat that filed the chain gets the event; for cron-filed chains, the `<key>-watch` cron (`scripts/board_watch.py`, no agent) posts it to the manager's Bot Chat.
+- **V-05** Results reach the user through kanban notify and `bot-chat:<manager>` cron delivery. A board run cannot message the user: a manager card that needs the user ends in `kanban_block(kind="needs_input", reason=<message>)`. A messaging chat (Discord, Telegram, ...) subscribed to the card gets the event; every other block, including chains filed from a Desktop or CLI session (their `tui` subscription is not read away from the desk), is posted by the `<key>-watch` cron (`scripts/board_watch.py`, no agent) to the manager's connected channel or Bot Chat, one file-carrying message per run.
 - **V-06** Profiles are created with `--no-skills`, opt-out, then pruned to `hermes-agent`, squad skills and declared keeps. Squad skills are copied (sha marker), not linked.
 - **V-07** A new profile only per permission boundary or reasoning effort; model-only differences use per-card `--model`.
 - **V-08** Model ids live only in `scripts/data/model-roles.yaml` and `local/installed.yaml`. Lanes hold regex candidates per family.

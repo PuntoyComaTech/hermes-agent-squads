@@ -47,6 +47,16 @@
       "reserved": []
     },
     {
+      "id": "manatal",
+      "brand": "careers-page",
+      "hosts": [
+        "www.careers-page.com",
+        "careers-page.com"
+      ],
+      "shape": "path",
+      "reserved": ["apply", "static", "api"]
+    },
+    {
       "id": "smartrecruiters",
       "brand": "smartrecruiters",
       "hosts": [

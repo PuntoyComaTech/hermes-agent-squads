@@ -60,7 +60,8 @@ The guard's excerpts never go into a file: they are shown to the user once.
           "transferable": [], "overselling_risk": "low", "reason": ""},
   "salary_benchmark": null,
   "employer_call_advised": {"advised": false, "why": "", "questions": []},
-  "guard": "clean", "posted_at": "2026-09-24", "deadline": null
+  "guard": "clean", "posted_at": "2026-09-24", "deadline": null,
+  "brief": "one line in the user's language: what the job is (product, stack, scope), 140 characters at most"
 }
 ```
 

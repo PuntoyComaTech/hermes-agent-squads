@@ -1083,7 +1083,8 @@ def channel_prompt(spec: dict, bot: str) -> str:
     return (f"Messaging surface of {b['title']} (profile {bot}, squad {spec.get('name') or spec['key']}). The owner "
             "reads this channel from a phone: short replies, answer first, no wide tables, the owner's language. "
             "This channel is mention-free: every message here is addressed to you. Squad notices for the owner "
-            "(digests, blocked cards, alerts) land here; handle a reply to one exactly as in Bot Chat.")
+            "(digests, blocked cards, alerts) land here; handle a reply to one exactly as in Bot Chat. A file goes as "
+            "a line `MEDIA:<absolute path>` (it uploads); never send a bare local path, the phone cannot open it.")
 
 
 class Applier:
@@ -1203,6 +1204,9 @@ class Applier:
                  ["curator.enabled", True, False], ["curator.consolidate", False, False]]
         if "web" in toolsets:
             plan.append(["web.keyless_fallback", True, False])
+        if any(j.get("notify") for j in (bot.get("cron") or {}).values()):
+            # a notice read on a phone is the script's own text: no "Cronjob Response" header or "stop reminder" footer
+            plan.append(["cron.wrap_response", False, False])
         # No bot browses on a copy of the owner's own browser profile: the copy fails whenever that browser is open
         # and carries the owner's whole personal session. Signed-in bots use the shared browser (`shared_browser`).
         # A copy an earlier version mirrored from the owner's config is turned off and its pin cleared.
