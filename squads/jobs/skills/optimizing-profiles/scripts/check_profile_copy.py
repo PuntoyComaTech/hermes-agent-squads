@@ -6,17 +6,26 @@ renders the paste-ready Markdown only when the copy is clean. Nothing here logs 
 the user pastes the text.
 
 Usage:
-  check_profile_copy.py COPY.json --project P [--market FILE] [--render OUT.md] [--json]
+  check_profile_copy.py COPY.json --project P [--current current.json] [--market FILE] [--render OUT.md] [--json]
 
 COPY.json:
   {"platform": "linkedin", "language": "en",
    "limits": {"headline": 220, "about": 2600},            # section -> max characters; LinkedIn's are built in
-   "blocks": [{"section": "headline|about|experience|...", "label": "optional", "text": "...",
+   "blocks": [{"section": "headline|about|experience|education|...", "label": "optional", "text": "...",
                "achievements": ["ACH-007"], "no_claim": false}],
-   "skills": ["SQL", "Power BI"], "custom_url": "firstname-lastname"}
+   "skills": ["SQL", "Power BI"], "top_skills": ["SQL"], "custom_url": "firstname-lastname"}
+  An experience block names its role with `company` and `title` and may carry `role_skills` (at most 5, the skills
+  LinkedIn shows under that role); an education block names its school with `institution` (an education block's
+  `text` is its description; `achievements` cites the EDU id).
+
+--current (LinkedIn): the profile as captured. Then every role and every school on the profile needs a block
+(role_not_covered, education_not_covered), a block for a role or school the profile does not hold is refused
+(unknown_role, unknown_education), and the copy's `language` must be one of the profile's languages (wrong_language).
 
 Defects (exit 1): over_limit, too_long, uncited_claim, unknown_achievement, unverified_achievement, unsupported_skill,
-claims_a_gap, banned_phrase, private_data, confidential_term, not_public, skills_over_limit, bad_custom_url. Warnings never change
+claims_a_gap, banned_phrase, private_data, confidential_term, not_public, skills_over_limit, top_skill_not_listed,
+bad_custom_url, and with --current: role_not_covered, unknown_role, education_not_covered, unknown_education,
+wrong_language. Warnings never change
 the exit code.
 
 too_long: a public profile is read by a person in seconds before any search engine ranks it. The About stays within
@@ -38,9 +47,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 LINKEDIN_LIMITS = {"headline": 220, "about": 2600, "experience": 2000, "experience_title": 100, "recommendation": 3000,
-                   "skill": 80, "skills_count": 100}
+                   "education": 1000, "skill": 80, "skills_count": 100, "role_skills": 5, "top_skills": 5}
 # Readable-at-a-glance caps, below the platform limits: the first ~265 characters of the About show before "see more".
-CONCISE = {"about": 1500, "experience": 600}
+CONCISE = {"about": 1500, "experience": 600, "education": 400}
 BANNED = ("passionate", "results-oriented", "results oriented", "results-driven", "results driven", "thought leader",
           "synergy", "go-getter", "rockstar", "rock star", "ninja", "guru", "dynamic professional",
           "proven track record", "apasionad", "orientad[oa] a resultados", "l[ií]der de opini[oó]n", "sinergia",
@@ -205,6 +214,28 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
     if len(seen) > limits.get("skills_count", 10 ** 6):
         bad("skills_over_limit", "skills", f"{len(seen)} skills, the limit is {limits['skills_count']}")
 
+    for i, block in enumerate(blocks):
+        own = block.get("role_skills")
+        if own is None:
+            continue
+        where = block.get("label") or f"{block['section']}[{i}]"
+        if not isinstance(own, list) or not all(isinstance(s, str) for s in own):
+            raise UsageError(f"blocks[{i}].role_skills is a list of text")
+        if len(own) > limits.get("role_skills", 10 ** 6):
+            bad("skills_over_limit", where, f"{len(own)} role skills, LinkedIn shows at most {limits['role_skills']}")
+        for skill in own:
+            if not has_term(skill, project["corpus"]):
+                bad("unsupported_skill", f"{where}: {skill}", "is not in key_skills, achievements.yaml skills, tags or text")
+    top = copy.get("top_skills")
+    if top is not None:
+        if not isinstance(top, list) or not all(isinstance(s, str) for s in top):
+            raise UsageError("`top_skills` is a list of text")
+        if len(top) > limits.get("top_skills", 10 ** 6):
+            bad("skills_over_limit", "top_skills", f"{len(top)} top skills, LinkedIn pins at most {limits['top_skills']}")
+        for skill in top:
+            if skill.strip().lower() not in seen:
+                bad("top_skill_not_listed", skill, "a top skill must also be in `skills`")
+
     url = copy.get("custom_url")
     if url is not None and not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", str(url)):
         bad("bad_custom_url", "custom_url", "lowercase letters, digits and single dashes only")
@@ -219,6 +250,43 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
     return defects, warnings
 
 
+def key(text) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip().lower()
+
+
+def coverage(copy: dict, current: dict) -> list:
+    """Every role and school on the captured profile has a block, and no block names one it does not hold."""
+    defects = []
+    blocks = [b for b in copy.get("blocks") or [] if isinstance(b, dict)]
+    roles = {(key(r.get("company")), key(r.get("title"))): r for r in current.get("experience") or [] if isinstance(r, dict)}
+    schools = {key(e.get("institution")): e for e in current.get("education") or [] if isinstance(e, dict)}
+    drafted_roles = {(key(b.get("company")), key(b.get("title"))) for b in blocks if b.get("section") == "experience"}
+    drafted_schools = {key(b.get("institution")) for b in blocks if b.get("section") == "education"}
+    for k, row in roles.items():
+        if k not in drafted_roles:
+            defects.append({"defect": "role_not_covered", "where": f"{row.get('title')} at {row.get('company')}",
+                            "detail": "this role is on the profile and the copy leaves it as it is: draft its "
+                                      "description from the achievements of that company and period"})
+    for k in sorted(drafted_roles - set(roles)):
+        defects.append({"defect": "unknown_role", "where": f"{k[1]} at {k[0]}",
+                        "detail": "the profile holds no role with this company and title: write the block for the "
+                                  "role as LinkedIn names it (titles and dates stay the user's)"})
+    for k, row in schools.items():
+        if k not in drafted_schools:
+            defects.append({"defect": "education_not_covered", "where": row.get("institution"),
+                            "detail": "this school is on the profile and the copy leaves it as it is"})
+    for k in sorted(drafted_schools - set(schools)):
+        defects.append({"defect": "unknown_education", "where": k,
+                        "detail": "the profile holds no school with this name"})
+    languages = [str(x) for x in current.get("profile_languages") or []]
+    lang = str(copy.get("language") or "").strip().lower()[:2]
+    if languages and lang not in languages:
+        defects.append({"defect": "wrong_language", "where": "language",
+                        "detail": f"the copy is in {lang or 'no language'}; the profile's languages are "
+                                  f"{', '.join(languages)}: one copy per profile language"})
+    return defects
+
+
 def render(copy: dict) -> str:
     out = [f"# {copy.get('platform', 'profile')} - paste-ready copy", "",
            "Paste each block into the matching field yourself. Nothing here was sent to the platform.", ""]
@@ -229,9 +297,14 @@ def render(copy: dict) -> str:
             out += [f"## {current}", ""]
         if block.get("label"):
             out += [f"**{block['label']}**", ""]
-        out += [block["text"].strip(), "", f"<!-- achievements: {', '.join(block.get('achievements') or []) or 'none'} -->", ""]
+        out += [block["text"].strip(), ""]
+        if block.get("role_skills"):
+            out += [f"Skills: {', '.join(block['role_skills'])}", ""]
+        out += [f"<!-- achievements: {', '.join(block.get('achievements') or []) or 'none'} -->", ""]
     if copy.get("skills"):
         out += ["## skills", "", ", ".join(copy["skills"]), ""]
+    if copy.get("top_skills"):
+        out += ["## top skills", "", " • ".join(copy["top_skills"]), ""]
     if copy.get("custom_url"):
         out += ["## custom URL", "", f"linkedin.com/in/{copy['custom_url']}" if str(copy.get("platform")).lower() == "linkedin"
                 else str(copy["custom_url"]), ""]
@@ -243,6 +316,7 @@ def main(argv=None) -> int:
     p.add_argument("copy")
     p.add_argument("--project", required=True)
     p.add_argument("--market")
+    p.add_argument("--current", help="documents/linkedin/current.json: check that every role and school is covered")
     p.add_argument("--render")
     p.add_argument("--json", action="store_true")
     ns = p.parse_args(argv)
@@ -255,6 +329,12 @@ def main(argv=None) -> int:
         if not isinstance(copy, dict) or not Path(ns.project).is_dir():
             raise UsageError("COPY.json must be an object and --project an existing folder")
         defects, warnings = check(copy, load_project(Path(ns.project)), market)
+        if ns.current:
+            try:
+                current = json.loads(Path(ns.current).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise UsageError(f"cannot read --current: {exc}") from exc
+            defects += coverage(copy, current if isinstance(current, dict) else {})
     except UsageError as exc:
         sys.stderr.write(json.dumps({"error": str(exc), "code": "BAD_INPUT"}) + "\n")
         return 2

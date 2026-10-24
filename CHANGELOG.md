@@ -3,6 +3,24 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.14.0 - 2026-10-24
+
+### Fixed
+
+- jobs 4.5.0: a LinkedIn optimisation covers the whole profile in every profile language. A real run drafted roles
+  under the titles in `achievements.yaml`, so three roles LinkedIn names differently were never paired and kept no
+  description; education and the skills under each role had no copy; and both languages were verified against one
+  capture of a page that mixes them, so `verify` said 4 of 12 and the run called it noise.
+  - `check_profile_copy.py --current` refuses a copy that leaves a role or school of the profile uncovered
+    (`role_not_covered`, `education_not_covered`), names one the profile does not hold (`unknown_role`,
+    `unknown_education`) or is written in a language the profile does not have (`wrong_language`). Education blocks
+    (400 characters), `role_skills` (5 per role) and `top_skills` (5) are checked like the rest.
+  - `parse_profile.py` reads the profile's own "Profile language" card (`profile_languages`), moves LinkedIn's
+    "Top skills" line out of the About text (`top_skills`), and no longer takes a role's first bullet for its location.
+  - `profile_diff.py verify` takes one capture per language and checks each approved row against its own language;
+    skills compare as a set, ignoring LinkedIn's order and casing. `diff` offers education, role skills and top skills.
+  - The capture reference documents the language card, the per-language edit forms and the education form.
+
 ## 2.13.2 - 2026-10-24
 
 ### Added

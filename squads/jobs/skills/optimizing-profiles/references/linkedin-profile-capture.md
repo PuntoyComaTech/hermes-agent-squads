@@ -12,6 +12,7 @@ the page's own text.
 - The profile card: name, headline, location, About
 - The details pages: experience, education, skills
 - The edit forms and their language tabs
+- Profile languages and one capture per language
 - Measured against unverified
 
 ## The browser in one tab
@@ -141,6 +142,25 @@ tab before typing, and type only into the tab whose text equals the captured tex
 
 The About counter is the only counter the profile shows; the headline field shows none, so its 220-character limit is
 enforced by `check_profile_copy.py`, not read from the page.
+
+## Profile languages and one capture per language
+
+`details/education/` (and the other details pages) carry a card whose `componentkey` ends in `SupportedLocales`: its
+lines are `Profile language`, then one line per language, the primary first (`Español`, `English`). Add them to the
+capture as `profile_languages`. Every edit form shows the same tabs: `Spanish (Primary profile)` and `English`
+(`?language=en&country=US`).
+
+The displayed page mixes languages: with the browser in English, the headline and About showed the English version
+while the role descriptions showed the Spanish one. So the page is the structure (roles, schools, skills, edit ids)
+and the forms are the text: for each language, open each field's form in that tab and read its control (Headline,
+About, each role's Description, each school's Degree, Field of study and Description). Write the capture with
+`"language": "<code>"` and parse it into `current.<code>.json`. Reading a form is not editing it: close it with
+`Escape`, never with `Save`.
+
+Measured on 2026-10-24: the education form holds `School*`, `Degree`, `Field of study`, start and end selects,
+`Grade`, `Activities and societies` and `Description, maximum 1,000 characters`; a role form lists its skills as
+checkboxes (checked = shown under that role). The About card's last lines, `Top skills` and `Python • N8N •
+LangChain`, are LinkedIn's pinned skills, not About text: `parse_profile.py` moves them to `top_skills`.
 
 ## Measured against unverified
 

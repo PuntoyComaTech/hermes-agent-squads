@@ -8,7 +8,11 @@ the profile: the writer edits, this tool judges.
 
 Usage:
   profile_diff.py diff   CURRENT.json DRAFT.json [--json]
-  profile_diff.py verify APPROVED.json CURRENT.json [--json]
+  profile_diff.py verify APPROVED.json CURRENT.json [CURRENT.en.json ...] [--json]
+
+A profile with two languages holds two texts per field. Each CURRENT file is one language's capture (`language` in
+the file); an approved row with `language` is checked against the capture of that language, and a row whose language
+no capture holds fails as "no capture in <lang>". Skills and top skills are one list for every language.
 
 CURRENT.json is `documents/linkedin/current.json` (parse_profile.py). DRAFT.json is the copy the writer checked with
 check_profile_copy.py: `blocks` with `section` and `text`, plus `skills`. An experience block names its role with
@@ -17,7 +21,10 @@ check_profile_copy.py: `blocks` with `section` and `text`, plus `skills`. An exp
 APPROVED.json is what the manager writes after the user's yes, one row per approved field:
   {"fields": [{"field": "headline", "after": "..."}, {"field": "about", "after": "..."}]}
 
-Field ids: `headline`, `about`, `skills`, `experience:<company>:<title>`. `diff` exits 0 always (it reports, it does not
+Field ids: `headline`, `about`, `skills`, `top_skills`, `experience:<company>:<title>`,
+`role_skills:<company>:<title>` (the skills shown under a role) and `education:<institution>` (its description).
+Skills are compared as a set, case-insensitively: LinkedIn orders them itself and keeps its own casing for a skill
+that was already on the profile. `diff` exits 0 always (it reports, it does not
 judge); `verify` exits 0 when every approved field matches, 1 when one differs and 2 on a usage error.
 """
 
@@ -84,6 +91,17 @@ def role_key(block: dict) -> tuple[str, str]:
     return company, title
 
 
+def skill_set(items) -> list[str]:
+    return sorted({norm(x).lower() for x in items or [] if norm(x)})
+
+
+def find_school(current: dict, institution: str) -> dict | None:
+    for row in current.get("education") or []:
+        if isinstance(row, dict) and norm(row.get("institution")).lower() == institution.lower():
+            return row
+    return None
+
+
 def find_role(current: dict, company: str, title: str) -> dict | None:
     """The row the field id names, by company and title; a role the profile does not hold has no row.
 
@@ -113,6 +131,17 @@ def diff(current: dict, draft: dict) -> dict:
     if isinstance(skills, list) and skills:
         add("skills", f"Skills ({len(skills)})", list(current.get("skills") or []),
             [str(s) for s in skills])
+        fields[-1]["changed"] = skill_set(current.get("skills")) != skill_set(skills)
+    top = draft.get("top_skills")
+    if isinstance(top, list) and top:
+        add("top_skills", "Top skills", list(current.get("top_skills") or []), [str(s) for s in top])
+    for block in blocks_of(draft):
+        if str(block.get("section") or "") != "education":
+            continue
+        school = norm(block.get("institution"))
+        row = find_school(current, school) if school else None
+        add(f"education:{school}", f"Education: {school or 'school'}", None if row is None else row.get("description", ""),
+            str(block["text"]).strip(), matched=row is not None)
     for block in blocks_of(draft):
         if str(block.get("section") or "") != "experience":
             continue
@@ -124,6 +153,11 @@ def diff(current: dict, draft: dict) -> dict:
             add(field, label, None, str(block["text"]).strip(), matched=False)
         else:
             add(field, label, row.get("description", ""), str(block["text"]).strip())
+        if isinstance(block.get("role_skills"), list) and block["role_skills"]:
+            have = None if row is None else list(row.get("skills") or [])
+            add(f"role_skills:{company}:{title}", f"Skills of {label}", have, [str(s) for s in block["role_skills"]],
+                matched=row is not None)
+            fields[-1]["changed"] = have is None or skill_set(have) != skill_set(block["role_skills"])
     changed = [f["field"] for f in fields if f["changed"]]
     return {"platform": draft.get("platform") or current.get("platform"), "captured": current.get("captured"),
             "fields": fields, "changed": changed,
@@ -137,8 +171,15 @@ def value_of(current: dict, field: str):
         return current.get("headline", "")
     if field == "about":
         return current.get("about", "")
-    if field == "skills":
-        return [norm(s) for s in current.get("skills") or []]
+    if field in ("skills", "top_skills"):
+        return [norm(s) for s in current.get(field) or []]
+    if field.startswith("education:"):
+        row = find_school(current, norm(field[len("education:"):]))
+        return None if row is None else row.get("description", "")
+    if field.startswith("role_skills:"):
+        company, _, title = field[len("role_skills:"):].rpartition(":")
+        row = find_role(current, norm(company), norm(title))
+        return None if row is None else [norm(s) for s in row.get("skills") or []]
     if field.startswith(EXPERIENCE):
         body = field[len(EXPERIENCE):]
         company, _, title = body.rpartition(":")
@@ -147,7 +188,9 @@ def value_of(current: dict, field: str):
     return None
 
 
-def verify(approved: dict, current: dict) -> dict:
+def verify(approved: dict, current: dict | list) -> dict:
+    captures = current if isinstance(current, list) else [current]
+    by_language = {str(c.get("language") or "").lower()[:2]: c for c in captures}
     rows = approved.get("fields")
     if not isinstance(rows, list) or not rows:
         raise UsageError("APPROVED.json needs a non-empty `fields` list")
@@ -159,15 +202,26 @@ def verify(approved: dict, current: dict) -> dict:
         want = row["after"] if "after" in row else row.get("text")
         if want is None:
             raise UsageError(f"approved row {field!r} has no `after` text")
-        have = value_of(current, field)
-        if isinstance(want, list) or isinstance(have, list):
-            ok = [norm(x) for x in (want or [])] == [norm(x) for x in (have or [])]
+        lang = str(row.get("language") or "").lower()[:2]
+        shared = field in ("skills", "top_skills") or field.startswith("role_skills:")
+        capture = captures[0] if (shared or not lang) else by_language.get(lang)
+        if capture is None:
+            results.append({"field": field, "language": lang, "ok": False, "expected_chars": len(norm(want)),
+                            "found_chars": None})
+            failures.append({"field": field, "language": lang, "reason": f"no capture in {lang}: re-read the "
+                             f"profile in that language tab", "expected": norm(str(want))[:120], "found": ""})
+            continue
+        have = value_of(capture, field)
+        if field == "top_skills":
+            ok = have is not None and [norm(x).lower() for x in want or []] == [norm(x).lower() for x in have]
+        elif isinstance(want, list) or isinstance(have, list):
+            ok = have is not None and skill_set(want) == skill_set(have)
         else:
             ok = have is not None and norm(have) == norm(want)
-        results.append({"field": field, "ok": ok, "expected_chars": len(norm(want)),
+        results.append({"field": field, "language": lang, "ok": ok, "expected_chars": len(norm(want)),
                         "found_chars": (len(norm(have)) if have is not None else None)})
         if not ok:
-            failures.append({"field": field, "reason": "field not on the profile" if have is None
+            failures.append({"field": field, "language": lang, "reason": "field not on the profile" if have is None
                              else "the profile text differs", "expected": norm(want)[:120],
                              "found": norm(have)[:120]})
     return {"ok": not failures, "fields": results, "failures": failures,
@@ -183,14 +237,14 @@ def main(argv=None) -> int:
     d.add_argument("--json", action="store_true")
     v = sub.add_parser("verify", help="did every approved field land?")
     v.add_argument("approved")
-    v.add_argument("current")
+    v.add_argument("current", nargs="+", help="one capture per profile language")
     v.add_argument("--json", action="store_true")
     ns = p.parse_args(argv)
     try:
         if ns.cmd == "diff":
             out = diff(load(ns.current, "CURRENT.json"), load(ns.draft, "DRAFT.json"))
         else:
-            out = verify(load(ns.approved, "APPROVED.json"), load(ns.current, "CURRENT.json"))
+            out = verify(load(ns.approved, "APPROVED.json"), [load(c, "CURRENT.json") for c in ns.current])
     except UsageError as exc:
         sys.stderr.write(json.dumps({"error": str(exc), "code": "BAD_INPUT"}) + "\n")
         return 2
@@ -208,7 +262,7 @@ def main(argv=None) -> int:
         print(f"{out['counts']['changed']} of {out['counts']['fields']} fields change")
     else:
         for f in out["fields"]:
-            print(("ok   " if f["ok"] else "FAIL ") + f["field"])
+            print(("ok   " if f["ok"] else "FAIL ") + f["field"] + (f" [{f['language']}]" if f.get("language") else ""))
         for f in out["failures"]:
             print(f"  {f['field']}: {f['reason']}")
         print("verified" if out["ok"] else f"{len(out['failures'])} field(s) did not land")

@@ -11,6 +11,8 @@ enforces today, and the weights are what public guides report, so treat the weig
 - About
 - Experience
 - Skills
+- Education
+- Languages
 - Other fields and settings
 
 ## How search reads a profile
@@ -59,8 +61,22 @@ Twenty to thirty targeted skills, each one the user holds (`key_skills`, achieve
 three in this order: the target role's core skill, the strongest differentiator, the market's most asked skill that the
 user holds. Order the rest by how many market postings ask for them.
 
+Each role also shows up to five skills of its own (`role_skills`): the ones that role proves, so a recruiter filtering
+by skill finds the role that used it. Top skills are the 3 to 5 LinkedIn pins on the About card.
+
+## Education
+
+Every school on the profile gets a description of at most 400 characters: what was studied in the market's words (a
+bootcamp is "full-stack web development", a course list names the subjects that still matter), cited by its EDU id.
+School, degree name and dates are the user's to change: a mismatch with `achievements.yaml` goes to the audit.
+
+## Languages
+
+A profile has one primary language and optional secondary ones (the "Profile language" card). Each language holds its
+own copy of every field, and a recruiter sees the one matching their interface. Draft one complete copy per language,
+the same facts in both, written natively rather than word for word.
+
 ## Other fields and settings
 
 Photo, banner and Featured are advice only. Open to Work: public frame or recruiters-only; the user chooses and the
-audit states both. A secondary-language profile is a separate copy in that language, drafted when
-`application_languages` lists more than one.
+audit states both.
