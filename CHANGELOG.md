@@ -23,6 +23,31 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
   - LinkedIn guidance: an emerging positioning title may lead the headline, appears in at least three places
     (headline, About first line, skills, matching roles), and the title it grew out of (full stack) keeps its place.
   - The copy checker no longer calls a term a gap when the profile as it is now holds it (an older market file).
+## 2.14.3 - 2026-10-24
+
+### Fixed
+
+- Root cause of the home-folder search: a bot's skills told it to run a script of a skill another bot holds, so the
+  script was not in its profile and the bot went looking for it. `tests/test_skill_ownership.py` now walks every bot of
+  every squad and fails when a skill it holds runs a script (by `$HERMES_HOME/skills/...` path or by name after
+  "run") from a skill it does not hold; it caught two more such orders in jobs.
+- jobs 4.5.3: the manager computes the consent kit hash with `jobs-contract/scripts/kit_hash.py` (one definition in
+  `jobs_common.kit_sha256`, which the submit gate also uses) instead of the applier's `check_submission.py`. Adding a
+  job board moves to the scout, which holds `portals.py`: the manager asks the five answers and files a
+  `Mode: PORTAL` card.
+- Every bot's base: a tool, access or file its skills name that is missing is reported to the user for the builder,
+  never hunted for.
+
+## 2.14.2 - 2026-10-24
+
+### Fixed
+
+- Bots no longer search the home folder or `/`: on macOS that walk raised a privacy prompt for each private folder
+  (Desktop, Downloads, Photos, other apps' data), attributed to `osascript` because the gateway runs under it. The base
+  SOUL now says so next to the project rule.
+- jobs 4.5.2: the manager presenting the LinkedIn copy reads the writer's files and no longer looks for the writer's
+  check scripts, which live in the writer's profile; that hunt was what reached the home folder.
+
 
 ## 2.14.1 - 2026-10-24
 

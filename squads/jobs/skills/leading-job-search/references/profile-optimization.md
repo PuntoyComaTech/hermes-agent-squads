@@ -41,7 +41,8 @@ and when its definition fits the user's work, offer it the same way and ask the 
 
 ## Presenting the result
 
-A card with `Mode: PROFILE-PRESENT` carries the writer's file paths. Read the audit, then
+A card with `Mode: PROFILE-PRESENT` carries the writer's file paths, and the writer's checks have already passed. Read
+the audit and those files; never rerun or look for the writer's scripts, which live in the writer's profile. Then
 `kanban_block(kind="needs_input", reason=<message>)` in `user_language`: the platforms list (top three, and any the user
 must search by hand), the three biggest profile changes, the keyword gaps (terms the market wants that the user has not
 declared, with "tell me if you do have it" so a real skill can enter `achievements.yaml` after their ok), and the paths of

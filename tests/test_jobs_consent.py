@@ -51,9 +51,13 @@ def approve(app, day="2026-10-20"):
         {"date": f"{day}T09:05", "status": "ready", "by": "jobs-reviewer"}], "status": "ready"}), encoding="utf-8")
 
 
+KIT_HASH = SUBMIT.parents[1] / "jobs-contract" / "scripts" / "kit_hash.py"
+
+
 def kit_hash(app):
-    """What the manager runs when the user says apply: check_submission.py --kit-hash on application/."""
-    proc = subprocess.run([sys.executable, str(CHECK), "--kit-hash", str(app)], capture_output=True, text=True)
+    """What the manager runs when the user says apply: jobs-contract's kit_hash.py, a skill the manager holds (the
+    applier's check_submission.py is not installed on the manager). The gate must accept the hash it prints."""
+    proc = subprocess.run([sys.executable, str(KIT_HASH), str(app)], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     return proc.stdout.strip()
 
