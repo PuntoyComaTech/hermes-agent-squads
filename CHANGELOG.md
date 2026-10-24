@@ -3,6 +3,16 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.14.2 - 2026-10-24
+
+### Fixed
+
+- Bots no longer search the home folder or `/`: on macOS that walk raised a privacy prompt for each private folder
+  (Desktop, Downloads, Photos, other apps' data), attributed to `osascript` because the gateway runs under it. The base
+  SOUL now says so next to the project rule.
+- jobs 4.5.2: the manager presenting the LinkedIn copy reads the writer's files and no longer looks for the writer's
+  check scripts, which live in the writer's profile; that hunt was what reached the home folder.
+
 ## 2.14.1 - 2026-10-24
 
 ### Fixed
