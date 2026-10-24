@@ -14,11 +14,17 @@ CAPTURE.json (what the three snippets return, merged):
    "about": "...", "featured": [],
    "experience": {"found": true, "groups": [{"company": "...", "all": ["...", "..."], "roles": [["title", "dates", "..."]]}]},
    "education": {"found": true, "items": [["institution", "degree", "dates", "..."]]},
-   "skills": {"count": 36, "items": ["SQL", "..."]}}
+   "skills": {"count": 36, "items": ["SQL", "..."]},
+   "profile_languages": ["Español", "English"], "language": "es"}
+
+`profile_languages` is the profile's own "Profile language" card (primary first); `language` is the language whose text
+this capture holds (default: the primary). The page mixes languages field by field, so a secondary language is
+captured from the edit forms' language tabs and parsed into its own file (`current.en.json`).
 
 Output: `current.json` with `platform`, `captured`, `url`, `own_profile`, `name`, `headline`, `location`, `about`,
-`experience` (one row per role), `education`, `skills`, `skills_count`, `featured` and `missing` (sections the capture
-did not carry). Exit 0 written, 1 when the capture holds no profile at all (a sign-in page, a checkpoint, an empty
+`experience` (one row per role), `education`, `skills`, `skills_count`, `top_skills` (the "Top skills" line LinkedIn
+appends to the About card, never part of the About text), `profile_languages`, `language`, `featured` and `missing`
+(sections the capture did not carry). Exit 0 written, 1 when the capture holds no profile at all (a sign-in page, a checkpoint, an empty
 tab), 2 usage error.
 """
 
@@ -39,8 +45,33 @@ EMPLOYMENT = re.compile(r"^(full-time|part-time|contract|freelance|internship|se
                         r"apprenticeship|jornada completa|media jornada|contrato|pasantía)\b", re.I)
 
 
+TOP_SKILLS = re.compile(r"\n\s*(?:top skills|aptitudes principales|principais compet[eê]ncias)\s*\n(?P<list>[\s\S]*)$",
+                        re.I)
+LANGUAGE_NAMES = {"español": "es", "spanish": "es", "english": "en", "inglés": "en", "português": "pt",
+                  "portuguese": "pt", "français": "fr", "french": "fr", "deutsch": "de", "german": "de",
+                  "italiano": "it", "italian": "it", "nederlands": "nl"}
+
+
 class UsageError(ValueError):
     pass
+
+
+def language_code(value) -> str:
+    """'Español', 'Spanish (Primary profile)', 'es', 'en_US' -> a two-letter code, or '' when unknown."""
+    text = re.sub(r"\(.*?\)", "", one_line(value)).strip().lower()
+    if re.fullmatch(r"[a-z]{2}([_-][a-z]{2})?", text):
+        return text[:2]
+    return LANGUAGE_NAMES.get(text, "")
+
+
+def split_top_skills(about: str) -> tuple[str, list[str]]:
+    """The About card ends with LinkedIn's own 'Top skills' line; it is a setting, not About text."""
+    match = TOP_SKILLS.search("\n" + about)
+    if not match:
+        return about, []
+    body = ("\n" + about)[:match.start()].strip()
+    items = [one_line(x) for x in re.split(r"\s*[•·|]\s*|\n", match.group("list")) if one_line(x)]
+    return body, items
 
 
 def clean(value) -> str:
@@ -84,7 +115,9 @@ def role_from(lines: list[str]) -> dict:
     dates = one_line(lines[1]) if len(lines) > 1 else ""
     rest = [one_line(x) for x in lines[2:] if one_line(x)]
     location, skills, description = "", [], []
-    if rest and not SKILLS_LINE.match(rest[0]) and not DATES.match(rest[0]):
+    # a role with no location line starts straight with its description: a bullet or a sentence is not a place
+    if (rest and not SKILLS_LINE.match(rest[0]) and not DATES.match(rest[0])
+            and not re.match(r"^[•\-*–]", rest[0]) and len(rest[0]) <= 80 and not rest[0].endswith(".")):
         location = rest.pop(0)
     for line in rest:
         if SKILLS_LINE.match(line):
@@ -147,7 +180,14 @@ def build(capture: dict, today: str) -> dict:
         raise UsageError("CAPTURE.json must be an object")
     url = one_line(capture.get("url"))
     match = SLUG.search(url)
-    about = clean(capture.get("about"))
+    about, top_skills = split_top_skills(clean(capture.get("about")))
+    raw_languages = capture.get("profile_languages")
+    languages = []
+    for item in raw_languages if isinstance(raw_languages, list) else []:
+        code = language_code(item)
+        if code and code not in languages:
+            languages.append(code)
+    language = language_code(capture.get("language")) or (languages[0] if languages else "")
     experience = experience_rows(capture.get("experience"))
     education = education_rows(capture.get("education"))
     skills_section = capture.get("skills")
@@ -164,6 +204,8 @@ def build(capture: dict, today: str) -> dict:
             missing.append(key)
     if not skills and "skills" not in missing:
         missing.append("skills")
+    if not languages:
+        missing.append("profile_languages")
     count = skills_section.get("count")
     return {
         "platform": "linkedin",
@@ -178,6 +220,10 @@ def build(capture: dict, today: str) -> dict:
         "education": education,
         "skills": skills,
         "skills_count": len(skills) or (count if isinstance(count, int) else 0),
+        "top_skills": top_skills,
+        "profile_languages": languages,
+        "primary_language": languages[0] if languages else "",
+        "language": language,
         "featured": [one_line(x) for x in (capture.get("featured") or []) if one_line(x)],
         "missing": sorted(set(missing)),
     }

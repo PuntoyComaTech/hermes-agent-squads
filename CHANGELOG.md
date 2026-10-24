@@ -3,11 +3,11 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
-## 2.13.3 - 2026-10-24
+## 2.14.1 - 2026-10-24
 
 ### Fixed
 
-- jobs 4.4.3: the review no longer loops. `aggregate_review.py --apply` (the reviewer always passes it) writes every
+- jobs 4.5.1: the review no longer loops. `aggregate_review.py --apply` (the reviewer always passes it) writes every
   wording, spelling and positioning fix itself (`applied`; a re-run finds it in place) and lists judgement fixes under
   `polish`, which the reviewer carries out and re-renders (it now holds rendering-cv). Only hard items decide the
   verdict: truth, dropped company claims, render defects, keyword coverage, market and language rules, unanswerable
@@ -17,6 +17,24 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
   `documents/cv/`); the manager searches them and its memory before asking, and copies a fact it finds into
   `achievements.yaml`. A detail no document claims (which vector store sat behind "vector retrieval") is an interview
   question, never a block or a question to the user.
+
+## 2.14.0 - 2026-10-24
+
+### Fixed
+
+- jobs 4.5.0: a LinkedIn optimisation covers the whole profile in every profile language. A real run drafted roles
+  under the titles in `achievements.yaml`, so three roles LinkedIn names differently were never paired and kept no
+  description; education and the skills under each role had no copy; and both languages were verified against one
+  capture of a page that mixes them, so `verify` said 4 of 12 and the run called it noise.
+  - `check_profile_copy.py --current` refuses a copy that leaves a role or school of the profile uncovered
+    (`role_not_covered`, `education_not_covered`), names one the profile does not hold (`unknown_role`,
+    `unknown_education`) or is written in a language the profile does not have (`wrong_language`). Education blocks
+    (400 characters), `role_skills` (5 per role) and `top_skills` (5) are checked like the rest.
+  - `parse_profile.py` reads the profile's own "Profile language" card (`profile_languages`), moves LinkedIn's
+    "Top skills" line out of the About text (`top_skills`), and no longer takes a role's first bullet for its location.
+  - `profile_diff.py verify` takes one capture per language and checks each approved row against its own language;
+    skills compare as a set, ignoring LinkedIn's order and casing. `diff` offers education, role skills and top skills.
+  - The capture reference documents the language card, the per-language edit forms and the education form.
 
 ## 2.13.2 - 2026-10-24
 
@@ -291,20 +309,11 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 - `security_tools.py` installs osv-scanner, gitleaks, nuclei and Semgrep at pinned versions in one user folder: single
   binaries checked against the release's SHA-256 file, Semgrep through uv.
 - Web QA reviews with six lenses: the new code-review lens (architecture, SOLID, scalability, security by trace, test
-  quality) reads `engineering-rules.md`, and `code_audit.py` gives it evidence: each gate step, Semgrep, nuclei against
-  the preview and the diff's shape. A scanner that could not run is a critical finding, never a clean pass.
-- Measured on a real base: no single tool catches everything (SonarJS, `eslint-plugin-security` and Semgrep each caught
-  different planted flaws), so they all run; the slow ones (Semgrep, nuclei) run once per review, not on every edit.
+  quality) reads `engineering-rules.md`, and `code_audit.py` gives it evidence: each gate step, Semg
 
-### Fixed
+... [OUTPUT TRUNCATED - 1,078 chars omitted out of 51,006 total] ...
 
-- Next.js sites start on `next` 16.4.1: 16.4.0 carries an unauthenticated remote code execution
-  (GHSA-2464-fhr4-w9xw) and a denial of service (GHSA-p3m5-59mp-jv5r), both published today and caught by the new
-  dependency gate. The fix is 8 days old, so the base lets exactly that release (and its `@next/*` binaries) skip
-  the 14-day wait through pnpm's `minimumReleaseAgeExclude`; any other young release is still refused.
-- Bots that browse as the user use Hermes's own real-profile browser. When the user has turned on
-  `browser.use_real_profile` (root or builder config), every bot with the browser toolset gets it, with the same
-  `real_profile_pin`, on every apply and daily update; it is never granted when the user has not, and never re-granted
+ver granted when the user has not, and never re-granted
   to a bot the user switched off. Every bot's base rules forbid the improvised routes: starting a browser, a
   debugging port, a copied profile, reading cookie or keychain files, asking for cookies.
 - Every bot gets every provider the user connected, on every `squadctl apply` and every daily update: each API key

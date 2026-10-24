@@ -38,21 +38,29 @@ It never changes a setting (Open to Work visibility, custom URL, photo, Featured
    so is any `contact-info` form or `overlay`. A refused address is never opened, and a page that redirects elsewhere
    is closed and reported, not read.
 4. **Capture** with the snippets in `references/linkedin-profile-capture.md`: the profile card (name, headline,
-   location, About), then `details/experience/`, `details/education/`, `details/skills/`. Merge the four results into
-   one object and run `python3 "$T/parse_profile.py" <capture> --output <P>/documents/linkedin/current.json --json`.
-   Exit 1 means the capture held no profile: report it, do not draft.
+   location, About), then `details/experience/`, `details/education/` (with its "Profile language" card),
+   `details/skills/`. Merge them and run `python3 "$T/parse_profile.py" <capture> --output
+   <P>/documents/linkedin/current.json --json`. Exit 1 means the capture held no profile: report it, do not draft.
+   The page mixes languages field by field, so for **each** language in `profile_languages` read every field's text
+   from its edit form in that language tab and parse it into `current.<lang>.json` (`"language": "<lang>"`).
 5. **Audit** each field against `references/linkedin-profile.md` (another platform:
    `references/platform-adapters.md`). Each field is `ok` or `needs_work` with the reason in one line.
 6. **Keywords** (`references/keyword-strategy.md`): a market term with `in_profile: true` that the current text lacks
    is an opportunity; with `in_profile: false` it is a gap and is never written (list it for planning-upskilling); a
    term with `profile_part` is written as that part only.
 7. **Draft** `<P>/profiles/<platform>.json` (shape: `check_profile_copy.py --help`) from `current.json`, not from
-   memory. An experience block carries `company` and `title` exactly as `current.json` does, so the diff can pair it.
-   First person, each block citing the achievement ids that back it, `no_claim: true` for a paragraph that asserts
-   nothing. Write in the language of `application_languages[0]`, and a second copy for each other language the
-   platform supports.
+   memory, covering the whole profile: headline, About, **one block per role on the profile** (`company` and `title`
+   exactly as `current.json` names them, `role_skills`: up to 5 of the skills that role used), **one block per
+   school** (`institution` as captured, a short description citing its EDU id), `skills` and `top_skills` (the 3 to 5
+   to pin). A role whose title or dates differ from `achievements.yaml` still gets its block, written from the
+   achievements of that company and period; the title and date fix goes to the audit as a user edit. First person,
+   each block citing the achievement ids that back it, `no_claim: true` for a paragraph that asserts nothing. Write
+   one copy per language in `profile_languages`, primary first (`linkedin.json`, `linkedin-<lang>.json`), with the
+   same facts, translated rather than re-invented. A language in `application_languages` the profile lacks is advice
+   in the audit (adding a profile language is the user's setting).
 8. Run `python3 "$T/check_profile_copy.py" <P>/profiles/<platform>.json --project <P> --market <market file>
-   --render <P>/profiles/<platform>.md`. Fix every defect by removing or softening the claim; never loosen the check.
+   --current <P>/documents/linkedin/current.json --render <P>/profiles/<platform>.md` for each language copy.
+   `role_not_covered` and `education_not_covered` mean a section was skipped: draft it, never drop the check. Fix every defect by removing or softening the claim; never loosen the check.
    `too_long` means a person cannot read it in seconds: cut, do not move text to another field. `confidential_term`
    or `not_public` means a client, brand, team size or internal project: name the sector and scope instead. A CV may
    carry a `not_public` name; the public profile never does.
@@ -70,13 +78,15 @@ It never changes a setting (Open to Work visibility, custom URL, photo, Featured
 
 1. Read the approved fields file (shape: `profile_diff.py --help`). Fields not in it are not touched, ever.
 2. Re-read the profile first (step 4) into `current.json`: the user may have edited it since the draft.
-3. One field at a time, in the form that owns it: headline in the intro form, About in the summary form, an experience
-   description in that role's form (its edit link is on `details/experience/`). Before typing, compare the field's text
+3. One field at a time, in the form that owns it and in the language tab the approved row names: headline in the
+   intro form, About in the summary form, an experience description and its skills in that role's form, an education
+   description in that school's form (edit links on `details/experience/` and `details/education/`), top skills in
+   the About card's "Top skills" editor. Before typing, compare the field's text
    with `current.json`. Equal: replace the text and press `Save`. Not equal (a different language tab, a blank form, a
    field shaped differently): **change nothing**, and report that field as not applied with the reason.
 4. After each `Save`, confirm the form closed without an error; never press Save twice for one field.
-5. Re-read the whole profile (step 4) into `current.json`, then `python3 "$T/profile_diff.py" verify <approved>
-   <current.json>`. Exit 0: every approved field holds the approved text. Exit 1: report each failed field as failed;
+5. Re-read the whole profile (step 4) into one capture per language, then `python3 "$T/profile_diff.py" verify
+   <approved> <current.json> <current.en.json>`. Exit 0: every approved field holds the approved text. Exit 1: report each failed field as failed;
    a field that failed once is not retried on this card.
 6. `kanban_complete` with the verify result, the fields applied and the fields failed. Never file a retry card.
 
