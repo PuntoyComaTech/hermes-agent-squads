@@ -37,8 +37,12 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
    re-run that one child once with the rule quoted. Still exit 1 -> `kanban_block(kind="needs_input", reason="review round <N> cannot be aggregated: <rule>")`.
    Exit 2 -> a lens block is not valid JSON or lacks a lens: re-run that child.
 
-   With the verdict known, run the same command with `--summary "<1 to 5 lines in the user's language>"` and
-   `--out <P>/openings/<ID>/review-<N>.json`. The script writes nothing when a rule fails.
+   Always add `--apply`: wording, spelling and positioning are yours to fix, never a reason for another round. With
+   the verdict known, run it again with `--summary "<1 to 5 lines in the user's language>"` and
+   `--out <P>/openings/<ID>/review-<N>.json`: it writes every soft `replace` (`applied`) into the files. Then carry
+   out each `polish` instruction yourself, in the documents, without new facts. When `cv_content.json` or
+   `cover_letter.md` changed, re-render with rendering-cv step 1 (and step 2 for the letter); a render defect makes it
+   a FIX for the writer. The script writes nothing when a rule fails.
 5. `status.json`: append one history line (never rewrite earlier ones). The review's `status` field gives the value:
    `ready` on APPROVED, `not_approved` on NOT_APPROVED, `in_review` on FIX.
 6. Hand off with `kanban_create`, `parents: [<your card id>]`, `workspace_kind: dir`, `workspace_path: <P>`:
@@ -62,7 +66,8 @@ script itself: it blocks whatever the lens verdicts say, so the writer always ge
 
 ## Pitfalls
 
-- Never edit a document. The only files you write are the lens blocks, the review, and status.json.
+- Edit documents only for wording, spelling and positioning (`applied`, `polish`), never a fact: a fact is a hard
+  item for the writer. Never ask the user a detail the documents do not claim.
 - Never ask jobs-writer anything. A fit fact you cannot settle from `analysis.json` goes to jobs-scout as a support
   card (jobs-contract step 5).
 - A company claim whose source URL came from `opening.md` is refused by the script. Locate the company page by search

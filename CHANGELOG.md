@@ -3,6 +3,21 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.13.3 - 2026-10-24
+
+### Fixed
+
+- jobs 4.4.3: the review no longer loops. `aggregate_review.py --apply` (the reviewer always passes it) writes every
+  wording, spelling and positioning fix itself (`applied`; a re-run finds it in place) and lists judgement fixes under
+  `polish`, which the reviewer carries out and re-renders (it now holds rendering-cv). Only hard items decide the
+  verdict: truth, dropped company claims, render defects, keyword coverage, market and language rules, unanswerable
+  stretches, confidential terms. A real application took 7 rounds for 3 spellings and 1 phrasing; it now closes in one.
+- The reviewer and the manager asked the user for facts the user had already given. Grounding now reads every file the
+  user wrote (`achievements.yaml`, `profile.md`, `application-data.yaml` saved answers, the user's own CV in
+  `documents/cv/`); the manager searches them and its memory before asking, and copies a fact it finds into
+  `achievements.yaml`. A detail no document claims (which vector store sat behind "vector retrieval") is an interview
+  question, never a block or a question to the user.
+
 ## 2.13.2 - 2026-10-24
 
 ### Added

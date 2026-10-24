@@ -12,7 +12,10 @@ The user wants the squad to move on its own, and to keep their employer's work p
 
 The user wants the squad to move on its own. Ask only for these, and never twice for the same thing:
 
-- a fact you do not have (a date, a tool used, a degree name): ask once, in one line, all the questions together;
+- a fact you do not have (a date, a tool used, a degree name): ask once, in one line, all the questions together.
+  First search every file the user wrote (`achievements.yaml`, `profile.md`, `application-data.yaml`,
+  `documents/cv/`, your memory): a fact in any of them is known. Copy it into `achievements.yaml` and say so after;
+  never ask it. A detail no document claims (which vector store) is never asked: it is interview preparation;
 - `apply` for one opening (or the screenshot under `auto_apply: ask`), and anything else that contacts a third party;
 - a public write: the LinkedIn fields, once, on the final text;
 - the `RESET` word, a paid action, a credential.

@@ -890,3 +890,44 @@ def test_owned_skills_pass_skill_lint():
     report = json.loads(proc.stdout)
     assert report["findings"] == [], report["findings"]
     assert proc.returncode == 0
+
+
+
+# --- --apply: the reviewer fixes wording itself; only hard items decide (the Factored review-7 case) --------------
+
+def spelling_finding(old="customise", new="customize"):
+    return {"location": "cover_letter.md, paragraph 1", "text": old, "fix": "US spelling",
+            "correction": {"type": "format", "mode": "replace", "file": "cover_letter.md", "old": old, "new": new}}
+
+
+def test_a_later_round_with_only_wording_fixes_is_approved_and_the_fix_is_written(tmp_path):
+    """Round 7 of a real application: 3 spellings and 1 phrasing left; each is a quotable replace the reviewer can
+    do itself. Before --apply this was NOT_APPROVED and an 8th round."""
+    blocks = passing_blocks()
+    blocks["writing"]["verdict"] = "FIX"
+    blocks["writing"]["findings"] = [spelling_finding("6 hours", "six hours")]
+    setup_case(tmp_path)
+    out = tmp_path / "review-7.json"
+    review = review_json(tmp_path, blocks, 7, "--apply", "--out", str(out))
+    assert review["verdict"] == "APPROVED" and review["corrections"] == []
+    assert (tmp_path / "application" / "cover_letter.md").read_text() == "The weekly report fell from six hours to 2 hours.\n"
+    assert json.loads(out.read_text())["applied"][0]["result"] == "written"
+    # a re-run after the write finds the fix already in place: still approved, nothing written twice
+    again = review_json(tmp_path, blocks, 7, "--apply")
+    assert again["verdict"] == "APPROVED"
+
+
+def test_a_truth_problem_still_blocks_with_apply(tmp_path):
+    blocks = draft_fail(passing_blocks())
+    blocks["writing"]["verdict"] = "FIX"
+    blocks["writing"]["findings"] = [spelling_finding("weekly", "Weekly")]
+    review = review_json(tmp_path, blocks, 2, "--apply")
+    assert review["verdict"] == "NOT_APPROVED"
+    assert [c["lens"] for c in review["corrections"]] == ["truthfulness"], "wording is not sent back for a round"
+
+
+def test_without_apply_wording_still_blocks_as_before(tmp_path):
+    blocks = passing_blocks()
+    blocks["writing"]["verdict"] = "FIX"
+    blocks["writing"]["findings"] = [spelling_finding("6 hours", "six hours")]
+    assert review_json(tmp_path, blocks, 2)["verdict"] == "NOT_APPROVED"

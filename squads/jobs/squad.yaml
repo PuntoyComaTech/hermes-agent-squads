@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.4.2
+version: 4.4.3
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
 section: {id: jobs, name: Jobs}
@@ -65,7 +65,7 @@ bots:
     lane: review
     toolsets: [file, skills, kanban, todo, delegation, terminal, web]
     delegation: {lane: review}   # lens children judge truthfulness: they run on the review model, not the research lane
-    skills: {squad: [reviewing-applications, jobs-contract]}
+    skills: {squad: [reviewing-applications, rendering-cv, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
   jobs-applier:
     role: worker

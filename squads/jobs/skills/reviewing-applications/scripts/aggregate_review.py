@@ -21,6 +21,13 @@ Rules, applied deterministically:
   that file when --application-dir is given). mode "instruction" needs instructions. Both need a type.
 - No blocking item -> APPROVED. Blocking items -> FIX in round 1, NOT_APPROVED in any later round.
   truthfulness FAIL is therefore never APPROVED.
+- --apply (the reviewer's normal run): wording and positioning are the reviewer's to fix, not a reason for another
+  round. Writing findings, recruiter blockers and supported missing keywords are "soft": a soft `replace` correction is
+  written into the application file at once (listed under `applied`; one already in place counts as applied, so a
+  re-run after a re-render is safe; a JSON file that would no longer parse is left alone), and a soft `instruction`
+  goes to `polish`, which the reviewer carries out itself before the hand-off. Only the hard items decide the verdict:
+  truthfulness, dropped company claims, render and lens hard defects, keyword coverage, market and language rules,
+  unanswerable hiring-manager stretches, confidential terms.
 - A kept company claim needs a source URL the reviewer located itself (the flag alone is not evidence), and either
   source_excerpt (at least 40 characters of the fetched page text) or source_file (a captured page in the application
   folder). A URL that appears in --opening is refused.
@@ -95,7 +102,10 @@ def url_key(url: str) -> str:
 class Collector:
     """Holds the rule violations (errors), the corrections, the warnings and the blocking count per lens."""
 
-    def __init__(self, app_files, opening_refs, render=None):
+    def __init__(self, app_files, opening_refs, render=None, apply=False):
+        self.apply = apply
+        self.soft = []  # (lens, correction) of soft blocking items, decided by aggregate()
+        self.hard = 0
         self.errors = []
         self.corrections = []
         self.warnings = []
@@ -132,13 +142,17 @@ class Collector:
             return []
         return value
 
-    def blocking_item(self, lens, where, raw, location):
+    def blocking_item(self, lens, where, raw, location, hard=True):
         self.blocking[lens] += 1
         if not location or not str(location).strip():
             self.error(where, "a blocking item needs a location")
         correction = self.check_correction(raw, where, location)
-        if correction is not None:
-            self.corrections.append({"lens": lens, **correction})
+        if hard or not self.apply:
+            self.hard += 1
+            if correction is not None:
+                self.corrections.append({"lens": lens, **correction})
+        elif correction is not None:
+            self.soft.append({"lens": lens, **correction})
 
     def check_correction(self, raw, where, location):
         if not isinstance(raw, dict):
@@ -180,6 +194,9 @@ class Collector:
                 self.error(where, f"'{file_name}' is not in the application folder")
                 return None
             count = text.count(old)
+            if count == 0 and self.apply and new and new in text:
+                return {"type": ctype, "location": location, "mode": "replace", "file": file_name, "old": old,
+                        "new": new, "already_applied": True}
             if count != 1:
                 self.error(where, f"'old' occurs {count} times in {file_name}; quote a span that occurs once")
                 return None
@@ -264,7 +281,7 @@ def lens_ats(c: Collector, block: dict) -> None:
             c.error(w, "'evidence' must be an achievement id or an empty string")
             continue
         if evidence.strip():
-            c.blocking_item("ats", w, item.get("correction"), item.get("location"))
+            c.blocking_item("ats", w, item.get("correction"), item.get("location"), hard=False)
         elif keyword:
             c.declared_gaps.append(keyword)
             c.warnings.append(f"gap, not written: keyword '{keyword}' has no supporting achievement")
@@ -353,7 +370,7 @@ def lens_recruiter(c: Collector, block: dict) -> None:
             continue
         loc = c.text(item, "location", w)
         c.text(item, "problem", w)
-        c.blocking_item("recruiter", w, item.get("correction"), loc)
+        c.blocking_item("recruiter", w, item.get("correction"), loc, hard=False)
     market = block.get("market")
     if not isinstance(market, dict):
         c.error(where, "'market' object is required")
@@ -426,7 +443,7 @@ def lens_writing(c: Collector, block: dict) -> None:
         loc = c.text(item, "location", w)
         c.text(item, "text", w)
         c.text(item, "fix", w)
-        c.blocking_item("writing", w, item.get("correction"), loc)
+        c.blocking_item("writing", w, item.get("correction"), loc, hard=False)
     lang = block.get("language")
     if not isinstance(lang, dict):
         c.error(where, "'language' object is required")
@@ -511,7 +528,7 @@ def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, con
         confidential_checks(c, list(confidential))
     for lens in LENSES:
         run_lens(c, lens, blocks[lens])
-    total = sum(c.blocking.values()) + c.forced
+    total = c.hard + c.forced
     if total == 0:
         verdict = "APPROVED"
     else:
@@ -528,12 +545,34 @@ def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, con
         "status": STATUS_FOR[verdict],
         "reviews": {lens: blocks[lens] for lens in LENSES},
         "corrections": c.corrections,
+        "applied": [s for s in c.soft if s["mode"] == "replace"],
+        "polish": [s for s in c.soft if s["mode"] == "instruction"],
         "dropped_claims": c.dropped,
         "warnings": c.warnings,
         "summary_for_user": summary,
     }
     scan_contact(c, review, "review")
     return review
+
+
+def apply_soft(folder: Path, review: dict) -> None:
+    """Write each soft replace into its file; a correction already in place, or one that breaks a JSON file, is
+    marked instead of written."""
+    for item in review["applied"]:
+        if item.pop("already_applied", False):
+            item["result"] = "already in place"
+            continue
+        path = folder / item["file"]
+        text = path.read_text(encoding="utf-8")
+        new_text = text.replace(item["old"], item["new"], 1)
+        if path.suffix == ".json":
+            try:
+                json.loads(new_text)
+            except ValueError:
+                item["result"] = "not written: the file would no longer be valid JSON"
+                continue
+        path.write_text(new_text, encoding="utf-8")
+        item["result"] = "written"
 
 
 def load_blocks(paths) -> dict:
@@ -633,6 +672,9 @@ def parse_args(argv=None):
     p.add_argument("--summary", help="summary_for_user: 1 to 5 lines, in the user's language")
     p.add_argument("--out", help="write review-N.json here, only when every rule passes")
     p.add_argument("--json", action="store_true", help="print the review (or {ok: false, errors}) as JSON")
+    p.add_argument("--apply", action="store_true",
+                   help="fix wording and positioning in place: soft replace corrections are written into the "
+                        "application (with --out), soft instructions are listed under polish; only hard items decide")
     return p.parse_args(argv)
 
 
@@ -650,7 +692,7 @@ def main(argv=None) -> int:
     except InputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    c = Collector(app_files, refs, render)
+    c = Collector(app_files, refs, render, apply=args.apply)
     profile = Path(args.application_dir).resolve().parents[2] / "profile.md" if args.application_dir else None
     try:
         terms = _JC.confidential_terms(_JC.read_front_matter(profile)) if profile and profile.is_file() else []
@@ -664,6 +706,8 @@ def main(argv=None) -> int:
             print(json.dumps({"ok": False, "errors": c.errors}, indent=2, ensure_ascii=False))
         return 1
     if args.out:
+        if args.apply:
+            apply_soft(Path(args.application_dir), review)
         write_json(args.out, review)
     if args.json:
         print(json.dumps(review, indent=2, ensure_ascii=False))

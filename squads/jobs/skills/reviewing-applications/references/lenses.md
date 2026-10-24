@@ -18,22 +18,22 @@ Shared rules; truthfulness; ats; recruiter; hiring_manager; writing; correction 
 
 ## truthfulness
 
-Files: `application/` (all text documents), `achievements.yaml`, `profile.md`, `opening.md` (company names only).
+Files: `application/` (all text documents), `achievements.yaml`, `profile.md`, `application-data.yaml`
+(`saved_answers`), the user's own CV text in `documents/cv/` and `opening.md` (company names only).
 
 Checks each claim (numbers, dates, titles, companies, tools, proficiency, languages) against a `verified: true`
 entry. Nothing raised, nothing rounded up. A result sentence without an achievement citation is a finding.
 
-**Grounding (over all sources).** A claim is grounded when `achievements.yaml` OR `profile.md` supports it.
+**Grounding.** A claim is grounded when any of the user's own files above supports it: a title the user writes
+for their own program ("Web and Mobile Developer") is grounded by their CV or a saved answer.
 A draft claim neither source supports is a `draft` finding and blocks. A tool named from a held member of its
 family (`related_tool` in `render_report.json`, `skill_families.json`) is grounded, never a finding. When the two sources contradict each other,
-or one records a fact the other does not, the finding is `profile_consistency`: a warning for the user, the draft
-stays as it is.
+or one records a fact the other does not, the finding is `profile_consistency`: a warning in the review, the draft
+stays as it is, and nobody asks the user about it (the manager aligns the files from the source the user wrote).
 
-**Company claims.** Every company-specific statement in the letter (product, news, mission, team, a company number)
-is a company claim. Search for the company by name, open its own pages, and verify each claim on a page the reviewer
-located itself. Search snippets are leads, not sources. A URL that appears in `opening.md` is never a source. A claim
-with no verifiable page is `dropped`: its sentence gets a correction that removes it or replaces it with a grounded
-statement, and it is listed in `dropped_claims` so the writer knows what went.
+**Company claims.** Every company-specific statement in the letter (product, news, mission, team, a number) is a
+company claim, verified on a page the reviewer located itself (snippets are leads; an `opening.md` URL is never a
+source). A claim with no verifiable page is `dropped`: a correction removes or grounds it, listed in `dropped_claims`.
 
 ```json
 {
@@ -61,8 +61,8 @@ statement, and it is listed in `dropped_claims` so the writer knows what went.
 }
 ```
 
-Rules: `conflicting_sources` is required for `profile_consistency`, which carries no correction. `correction` is
-required for `draft` findings and for `dropped` claims. Any draft finding or dropped claim makes the verdict FAIL.
+`conflicting_sources` is required for `profile_consistency` (no correction); `correction` for `draft` findings and
+`dropped` claims, either of which makes the verdict FAIL.
 
 ## ats
 
@@ -131,7 +131,8 @@ interview questions follow from the documents?
 **Backtrack test.** For each claim that states a result or a scope (led, owned, built, shipped, cut, managed, any
 number), write the question an interviewer would ask to get the detail behind it. Answer it from `achievements.yaml`
 and `profile.md` only. `answerable_from_sources: false` means the sources cannot back the detail: a fabricated
-stretch. It blocks, with a correction that rewrites the claim to the scope and proficiency the sources state.
+stretch. It blocks, with a correction that rewrites the claim to the scope and proficiency the sources state. A detail
+the documents do not state (which vector store) is an `interview_questions` entry, never a block or a user question.
 
 ```json
 {
@@ -193,6 +194,7 @@ Enforced by `scripts/aggregate_review.py`. The lenses never run it; the parent d
    mismatch.
 3. No block in any lens: APPROVED, status `ready`.
 4. Any block: round 1 gives FIX (status `in_review`); round 2 or later gives NOT_APPROVED (status `not_approved`).
-   Truthfulness FAIL is never APPROVED.
+   Truthfulness FAIL is never APPROVED. With `--apply` (always, in this squad) only hard blocks count: writing
+   findings, recruiter blockers and supported keywords are fixed by the reviewer in place (`applied`, `polish`).
 5. `summary_for_user`: 1 to 5 lines in the user's language, no internal field names.
 6. Contact data anywhere in the review is an error and nothing is written.
