@@ -91,7 +91,8 @@ template only after the ATS and layout gate passes. Full procedure: `references/
 
 ## Verification
 
-- `render_report.json` `files` matches what is on disk, and every required file is listed.
+- `render_report.json` `files` matches what is on disk, and every required file is listed, including the upload copy
+  `CV_<Name>_<Surname>.pdf` (byte-identical to `cv_ats.pdf`; contact.yaml `short_name` sets the name).
 - `pages_actual` equals `pages_expected` when the card sets one, and is within `page_budget` otherwise.
 - `verify_pdf.py` passes with `--ascii-dates` and the printed name; `verify_layout.py` reports clean, or the card lists
   each problem.

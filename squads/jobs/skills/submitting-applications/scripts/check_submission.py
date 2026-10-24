@@ -56,6 +56,9 @@ Authority for SUBMITTED:
   (the newest `applied` line of each opening, dated today, this opening excluded) plus the live reservations of the
   project. daily_apply_cap (default 10) caps them all; daily_easy_apply_cap (default 5) caps the linkedin_easy_apply
   ones. A cap reached closes the gate with a `daily_cap` rule: the applier applies the next day, never a kit.
+- Easy Apply pace (pre-click --gate only): two linkedin_easy_apply gates of the project open at least
+  easy_apply_gap_minutes (default 1, 0 turns it off) apart, read from the application/gate.json stamps. A closer one
+  closes the gate with `easy_apply_gap` and the seconds left: wait them and run the gate again.
 - linkedin_easy_apply: only on an https://<locale.>linkedin.com/jobs/view/<id> link, only under auto_apply: auto.
   Every other method needs an employer ATS link (link_check.py); a job board or portal page is kit only.
 - profile.md review_before_submit (default false): true also needs consent.json screenshot_approval
@@ -75,7 +78,7 @@ import json
 import re
 import sys
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 SKILLS = Path(__file__).resolve().parents[2]
@@ -116,6 +119,7 @@ BOT_NAMES = frozenset({"jobs", "jobs-scout", "jobs-writer", "jobs-reviewer", "jo
 RECHECK_SOFT = frozenset({"daily_cap", "review.replaced", "review.status", "consent.date"})
 DEFAULT_APPLY_CAP = 10
 DEFAULT_EASY_APPLY_CAP = 5
+DEFAULT_EASY_APPLY_GAP = 1  # minutes between two Easy Apply gates: LinkedIn restricts accounts that apply in bursts
 DEFAULT_THRESHOLD = 70
 NEEDS_REVIEW = ("SUBMITTED needs an approved review: openings/<ID>/review-N.json with verdict APPROVED, and a ready "
                 "line in status.json")
@@ -226,6 +230,22 @@ def kit_sha256(application: Path):
     return digest.hexdigest()
 
 
+def last_easy_apply_gate(project: Path, exclude: str = ""):
+    """UTC time of the newest Easy Apply gate opened in the project (application/gate.json), or None."""
+    newest = None
+    folder = project / "openings"
+    for stamp_file in sorted(folder.glob("JOB-*/application/gate.json")) if folder.is_dir() else []:
+        doc = read_object(stamp_file) or {}
+        if stamp_file.parent.parent.name == exclude or doc.get("method") != "linkedin_easy_apply":
+            continue
+        try:
+            when = datetime.strptime(str(doc.get("opened_at") or ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        newest = when if newest is None or when > newest else newest
+    return newest
+
+
 def submissions_today(project: Path, day: date, exclude: str = "") -> dict:
     """The submissions the project already holds on `day`: the recorded ones plus the reservations of open gates.
 
@@ -302,6 +322,7 @@ class Checker:
         self.apply_url = ""
         self.method = ""
         self.today = date.today()
+        self.gate_open_now = False  # True only on the pre-click --gate: the Easy Apply gap never refuses a record
         self._settings = None
 
     def error(self, where: str, message: str) -> None:
@@ -419,6 +440,7 @@ class Checker:
                                  f"are submitted, and every other form class goes to a manual kit")
             return
         project = opening.parent.parent
+        self.gate_open_now = True
         self.check_confidential(project)
         # One applier at a time reads the caps and takes its place: the reservation written below is what a second
         # applier sees, so nine of ten leaves one place and not two.
@@ -657,6 +679,25 @@ class Checker:
             self.error("daily_cap", f"{counts['easy_apply']} LinkedIn Easy Apply submissions are already recorded "
                                     f"today and daily_easy_apply_cap is {caps['daily_easy_apply_cap']}: apply this "
                                     f"opening tomorrow, never a kit")
+        elif self.method == "linkedin_easy_apply" and self.gate_open_now:
+            self.check_easy_apply_gap(opening, settings)
+
+    def check_easy_apply_gap(self, opening: Path, settings: dict) -> None:
+        """LinkedIn restricts accounts that apply in bursts: two Easy Apply gates open at least
+        `easy_apply_gap_minutes` (default 1) apart. A closed gap is `easy_apply_gap`: wait the seconds named, then
+        run the gate again; never a kit and never tomorrow."""
+        gap = settings.get("easy_apply_gap_minutes", DEFAULT_EASY_APPLY_GAP)
+        if isinstance(gap, bool) or not isinstance(gap, (int, float)) or not 0 <= gap <= 60:
+            self.error("easy_apply_gap_minutes", f"must be a number of minutes from 0 to 60 in profile.md "
+                                                 f"(default {DEFAULT_EASY_APPLY_GAP})")
+            return
+        last = last_easy_apply_gate(opening.parent.parent, exclude=opening.name)
+        if last is None or gap == 0:
+            return
+        left = int(gap * 60 - (datetime.now(timezone.utc) - last).total_seconds())
+        if left > 0:
+            self.error("easy_apply_gap", f"the last Easy Apply gate opened {int(gap * 60) - left} s ago and "
+                                         f"easy_apply_gap_minutes is {gap:g}: wait {left} s, then run the gate again")
 
     def check_screenshot_approval(self, consent: dict, approved) -> None:
         shot = consent.get("screenshot_approval")

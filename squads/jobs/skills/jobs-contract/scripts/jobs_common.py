@@ -318,6 +318,35 @@ def slugify(text: str, limit: int = 40) -> str:
     return flat[:limit].strip("-")
 
 
+CV_FILE = "cv_ats.pdf"  # the canonical render: the kit hash, the gates and the review read this one
+
+
+def cv_upload_name(full_name: str, short_name: str = "") -> str:
+    """The file name a recruiter sees: `CV_<Name>_<Surname>.pdf`, ASCII, from the name printed on the CV.
+
+    `short_name` (contact.yaml) wins. Otherwise four or more words read as two given names and two surnames (Latin
+    convention: first given name + first surname); fewer read as given name + last word. '' without a usable name."""
+    words = [w for w in re.split(r"\s+", ascii_fold(short_name or full_name).strip()) if re.sub(r"[^A-Za-z]", "", w)]
+    if not words:
+        return ""
+    picked = words if short_name else ([words[0], words[2]] if len(words) >= 4 else [words[0], words[-1]][:len(words)])
+    parts = ["-".join(s.capitalize() for s in re.sub(r"[^A-Za-z0-9-]", "", w).split("-")) for w in picked]
+    return "CV_" + "_".join(p for p in parts if p) + ".pdf"
+
+
+def cv_upload_path(application) -> Path:
+    """The CV to upload and to show: the named copy when it is byte-identical to cv_ats.pdf, else cv_ats.pdf."""
+    app = Path(application)
+    canonical = app / CV_FILE
+    for named in sorted(app.glob("CV_*.pdf")):
+        try:
+            if canonical.is_file() and named.read_bytes() == canonical.read_bytes():
+                return named
+        except OSError:
+            continue
+    return canonical
+
+
 def now_iso() -> str:
     return datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M")
 

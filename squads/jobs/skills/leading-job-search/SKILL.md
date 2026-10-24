@@ -79,7 +79,7 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
    <analysis.json brief>
    <apply_url>
    Reply "apply", "change: <what>" or "no" · <ID>
-   MEDIA:<absolute path of application/cv_ats.pdf>
+   MEDIA:<absolute path of application/CV_<Name>_<Surname>.pdf>
    ```
 
    Fields come from several files (`references/digest-sources.md`); `scripts/digest_fields.py <P>` prints them all.

@@ -3,6 +3,8 @@
 
 Inputs:  --content cv_content.json (--kind cv) or cover_letter.md (--kind letter)
 Outputs: --output cv_ats.html, cv_ats.txt, cv_ats.pdf (letter: letter_ats.*), cv.docx (letter: letter.docx),
+         CV_<Name>_<Surname>.pdf: a byte copy of cv_ats.pdf named after the printed name (contact.yaml
+         `short_name` wins), the file the applier uploads and the owner receives; earlier CV_*.pdf copies are removed,
          render_report.json, or render_report_letter.json for --kind letter (pages, page budget, cuts, stretch flags, keyword coverage, defects, warnings)
 
 Profile facts (--profile profile.md): candidate.stage (section order and stage checks), candidate.age printed only
@@ -1644,6 +1646,15 @@ def run(args: argparse.Namespace, gate: bool = True) -> int:
     files = [str(html_path), str(txt_path)]
     if result["engine"] != "none":
         files.append(str(pdf_path))
+    if kind == "cv":
+        for old in out.glob("CV_*.pdf"):
+            old.unlink(missing_ok=True)  # a copy of an earlier render (or an earlier name) is never uploaded
+        upload = jc.cv_upload_name(header.get("name") or "", str(contact.get("short_name") or ""))
+        if upload and pdf_path.is_file():
+            shutil.copyfile(pdf_path, out / upload)
+            files.append(str(out / upload))
+        elif pdf_path.is_file():
+            warnings.append("no name on the CV: the upload copy CV_<Name>_<Surname>.pdf was not written")
     if docx_engine != "none":
         files.append(str(docx_path))
 

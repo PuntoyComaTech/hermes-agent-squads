@@ -47,7 +47,7 @@ def jobs_spec(spec):
         "jobs-search": {"schedule": "0 * * * *", "script": "start_search.py", "agent": False, "notify": True},
         "jobs-followups": {"schedule": "0 9 * * 1-5", "script": "followup_gate.py", "agent": False, "notify": True},
         "jobs-watch": {"schedule": "*/30 * * * *", "script": "board_watch.py", "agent": False, "notify": True},
-        "jobs-notices": {"schedule": "*/5 * * * *", "script": "application_notices.py", "agent": False,
+        "jobs-notices": {"schedule": "15 * * * *", "script": "application_notices.py", "agent": False,
                          "notify": True},
         "jobs-awake": {"schedule": "*/4 * * * *", "script": "keep_awake.py", "agent": False},
     }

@@ -314,6 +314,10 @@ def check_profile(report, meta, today=None):
         cap = meta.get(key)
         if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 1):
             report.add(PROFILE, key, f"must be a whole number of applications from 1 up (default {default})")
+    gap = meta.get("easy_apply_gap_minutes")
+    if gap is not None and (isinstance(gap, bool) or not isinstance(gap, (int, float)) or not 0 <= gap <= 60):
+        report.add(PROFILE, "easy_apply_gap_minutes", "must be a number of minutes from 0 to 60 (default 1): the pause "
+                                                      "between two LinkedIn Easy Apply submissions")
     threshold = meta.get("apply_threshold")
     if threshold is not None and (isinstance(threshold, bool) or not isinstance(threshold, (int, float))
                                   or not math.isfinite(threshold) or not 0 <= threshold <= 100):
@@ -511,6 +515,8 @@ def check_contact(report, data):
     for key in CONTACT_KEYS:
         need(report, CONTACT, data, key)
     text_of(report, CONTACT, "name", data.get("name"))
+    if data.get("short_name") not in (None, ""):  # optional: the name in the CV file name a recruiter sees
+        text_of(report, CONTACT, "short_name", data.get("short_name"))
     email = data.get("email")
     if email is not None and not (isinstance(email, str) and EMAIL.match(email)):
         report.add(CONTACT, "email", "does not look like an email address (the value is not shown)")

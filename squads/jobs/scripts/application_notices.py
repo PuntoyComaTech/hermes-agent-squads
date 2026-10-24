@@ -4,9 +4,11 @@
 Every project of the manager is read, or only --project. An application counts as sent by the squad when the last line
 of its `openings/<ID>/status.json` history is `applied` AND `application/submission.json` says `result: SUBMITTED`
 (record_submission.py writes both after the click). An `applied` the owner reported ("I applied") has no submission
-file and is never announced as a send. Each one is posted
-once, oldest first, ONE per run: the delivery attaches every `MEDIA:` file after the text, so two notices in one
-message would separate each CV from its opening. The cron runs every few minutes, so a busy day still clears fast.
+file and is never announced as a send. Each one is posted once, oldest first, ONE PER MESSAGE: a delivery attaches
+every `MEDIA:` file after the text, so two notices in one message would separate each CV from its opening. The cron
+runs hourly; when several applications went out in that hour, all but the newest are sent first, each on its own,
+with `hermes -p <manager> send` to the manager's home channel, and the newest is printed for the cron to deliver. With
+no home channel (Bot Chat only) or a failed send, the rest wait for the next run, one per run.
 
 The notice is read on a phone, in the profile's `user_language`:
 
@@ -16,7 +18,8 @@ The notice is read on a phone, in the profile's `user_language`:
     <apply link>
     MEDIA:<absolute path of application/cv_ats.pdf>
 
-The `MEDIA:` line makes the delivery upload the PDF as a file, so the owner opens the CV that was sent from the chat
+The attached file is `CV_<Name>_<Surname>.pdf` (render_cv.py's byte copy of cv_ats.pdf, the one the applier uploaded),
+else cv_ats.pdf. The `MEDIA:` line makes the delivery upload the PDF as a file, so the owner opens the CV that was sent from the chat
 instead of reading a path on another computer. A missing CV file prints no `MEDIA:` line and says so.
 
 State: `<manager home>/local/state/application_notices.json` (posted keys `<ID>@<applied date>`). Without a state
@@ -24,7 +27,7 @@ file (the first run after an install) only applications sent in the last 24 hour
 as posted, so an install never floods the channel with history.
 
 stdout is what the cron delivers (`notify: true`: the connected channel, else Bot Chat). Nothing to post prints
-nothing. A hermes failure prints one line once an hour at most (the cron runs every 5 minutes) and exits 1. A state
+nothing. A hermes failure prints one line once an hour at most and exits 1. A state
 file that does not parse is treated as a first run. Stdlib only: the cron runs it with the system python3.
 """
 from __future__ import annotations
@@ -47,6 +50,7 @@ FIRST_RUN_WINDOW = timedelta(hours=24)
 ERROR_QUIET = timedelta(hours=1)
 UNKNOWN = frozenset({"", "unknown", "tbd", "n/a", "none", "null"})
 BRIEF_MAX = 160
+MAX_PER_RUN = 30  # an hour's sends at most; more wait for the next run
 
 TEXT = {
     "en": {"head": "Applied: {role} - {company}", "posted": "posted {d}", "sent": "sent {d}",
@@ -144,7 +148,7 @@ def notice(opening: Path, line: dict, lang: str) -> str:
     link = apply_link(meta, analysis)
     if link:
         out.append(link)
-    cv = opening / "application" / "cv_ats.pdf"
+    cv = ss.jc.cv_upload_path(opening / "application")  # the named copy the applier uploaded, else cv_ats.pdf
     out.append(f"MEDIA:{cv}" if cv.is_file() else words["no_cv"].format(path=cv.name))
     return "\n".join(out)
 
@@ -189,6 +193,31 @@ def report_error(path: Path, text: str, now: datetime) -> None:
         write_json(marker, {"text": text, "at": now.isoformat(timespec="minutes")})
 
 
+def home_target(manager: str) -> str:
+    """`<platform>:<chat_id>` of the manager's first home channel (config.yaml), '' when it has none."""
+    path = ss.profile_home(manager) / "config.yaml"
+    try:
+        cfg = ss.jc.load_yaml(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except Exception:  # noqa: BLE001 - an unreadable config means no channel: one notice per run via the cron
+        return ""
+    platforms = (cfg or {}).get("platforms") if isinstance(cfg, dict) else None
+    for plat, pc in sorted((platforms or {}).items()) if isinstance(platforms, dict) else []:
+        hc = pc.get("home_channel") if isinstance(pc, dict) else None
+        chat = str((hc or {}).get("chat_id") or "").strip() if isinstance(hc, dict) else ""
+        if chat:
+            return f"{plat}:{chat}"
+    return ""
+
+
+def send_now(bin_name: str, manager: str, target: str, text: str) -> bool:
+    """One message through `hermes send` (MEDIA: lines upload as files). False when it did not go out."""
+    try:
+        ss.hermes(bin_name, "-p", manager, "send", "--to", target, "--quiet", text)
+        return True
+    except ss.RunError:
+        return False
+
+
 def recent(line: dict, now: datetime) -> bool:
     try:
         when = datetime.fromisoformat(str(line.get("date") or "")[:16])
@@ -231,7 +260,15 @@ def main(argv: list[str] | None = None) -> int:
     posted = load_state(state)
     if posted is None:  # first run: history is marked, only the last day is news
         posted = [k for k, _, ln, _ in rows if not recent(ln, now)]
-    todo = [r for r in rows if r[0] not in posted]
+    todo = [r for r in rows if r[0] not in posted][:MAX_PER_RUN]
+    target = home_target(args.manager) if len(todo) > 1 else ""
+    while len(todo) > 1 and target:
+        key, opening, line, lang = todo[0]
+        if not send_now(args.hermes_bin, args.manager, target, notice(opening, line, lang)):
+            break  # this and the rest go out on the next runs
+        posted.append(key)
+        save_state(state, posted)  # a crash after a send never sends it twice
+        todo.pop(0)
     if todo:
         key, opening, line, lang = todo[0]
         print(notice(opening, line, lang))

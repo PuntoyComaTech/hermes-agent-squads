@@ -498,3 +498,35 @@ def test_apply_state_documents_the_lock_wait_and_the_release_command():
     text = APPLY_STATE.read_text(encoding="utf-8")
     assert "--release" in text and "--opening" in text
     assert "waits with no timeout" in text, "the lock wait is kept as it is and written down"
+
+
+
+# --- Easy Apply pace: LinkedIn restricts accounts that apply in bursts ----------------------------------------------
+
+EASY_URL = "https://www.linkedin.com/jobs/view/4483184903"
+
+
+def easy_stamp(project, opening_id, seconds_ago):
+    """The gate.json an Easy Apply gate left on another opening, `seconds_ago` seconds back."""
+    app = project / "openings" / opening_id / "application"
+    app.mkdir(parents=True, exist_ok=True)
+    when = datetime.fromtimestamp(datetime.now(timezone.utc).timestamp() - seconds_ago, timezone.utc)
+    (app / "gate.json").write_text(json.dumps({"opening_id": opening_id, "method": "linkedin_easy_apply",
+                                               "mode": "auto", "opened_at": when.strftime("%Y-%m-%dT%H:%M:%SZ")}))
+
+
+def test_a_second_easy_apply_within_a_minute_waits_and_then_opens(tmp_path):
+    app = make_opening(tmp_path, apply_url=EASY_URL)
+    easy_stamp(tmp_path, "JOB-20260925-globex-analyst", seconds_ago=20)
+    early = gate(app, "--method", "linkedin_easy_apply")
+    assert early.returncode == 1 and "easy_apply_gap" in early.stdout + early.stderr
+    assert "wait" in early.stdout + early.stderr, "the applier is told how long to wait, not to give up"
+    easy_stamp(tmp_path, "JOB-20260925-globex-analyst", seconds_ago=75)
+    later = gate(app, "--method", "linkedin_easy_apply")
+    assert later.returncode == 0, later.stdout + later.stderr
+
+
+def test_the_pause_never_holds_back_an_employer_form_or_the_record_of_a_click(tmp_path):
+    app = make_opening(tmp_path)
+    easy_stamp(tmp_path, "JOB-20260925-globex-analyst", seconds_ago=5)
+    assert gate(app, "--method", "no_login_form").returncode == 0

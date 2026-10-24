@@ -3,6 +3,27 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.13.1 - 2026-10-24
+
+### Fixed
+
+- web 3.7.1: `fresh.mjs` reads pnpm 12 lockfiles, which double-quote keys (`"@vitest/coverage-v8":`, `".":`). It read them
+  as missing and failed every new site's quality gate with "the lockfile nothing: add it with pnpm add".
+
+### Changed
+
+- jobs 4.4.1: `jobs-notices` runs hourly (`15 * * * *`) instead of every 5 minutes. The hour's sends each arrive in
+  their own message with their own CV: all but the newest go through `hermes send` to the manager's home channel,
+  the newest is the cron's own output; with no channel they go one per run.
+- LinkedIn Easy Apply keeps a pause between two submissions, `easy_apply_gap_minutes` in `profile.md` (default 1, 0
+  turns it off): a closer gate closes with `easy_apply_gap` and the seconds to wait, never a kit. A burst of Easy
+  Apply submissions is what gets an account restricted; the daily caps stay as an outer bound.
+- The CV a recruiter receives is `CV_<Name>_<Surname>.pdf`, not `cv_ats.pdf`. `render_cv.py` writes it as a
+  byte copy of `cv_ats.pdf` (the file the review, the gates and the kit hash keep reading), named after the printed
+  name in ASCII: given name and first surname, so "José María Pérez García" is `CV_Jose_Perez.pdf`; an optional
+  `contact.yaml` `short_name` sets it. A re-render or a failed render removes earlier copies. The applier uploads it,
+  and the sent-application notice attaches it only while it still matches `cv_ats.pdf` byte for byte.
+
 ## 2.13.0 - 2026-10-24
 
 ### Added

@@ -52,7 +52,7 @@ auto_apply: try                     # never | ask | try | auto: see "Consent to 
 apply_consent: per_opening          # per_opening (try, ask) | standing (auto)
 auto_apply_since: 2026-10-01        # the day the user agreed to auto; required with auto
 daily_apply_cap: 10                 # auto: submissions a day, every method
-daily_easy_apply_cap: 5             # auto: LinkedIn Easy Apply submissions a day
+daily_easy_apply_cap: 5             # auto: LinkedIn Easy Apply submissions a day; easy_apply_gap_minutes: 1 between two
 review_before_submit: false         # true: the user checks the screenshot before any submit (ask)
 linkedin_browse: true               # the scout may read LinkedIn posts and the applier may use Easy Apply
 confidential_search: false
@@ -160,7 +160,7 @@ star_stories:                     # interview stories; drafted with the user, ne
 Sensitive; keep it out of git. Readers: jobs-contract step 2.
 
 ```yaml
-name: "Ana Example"
+name: "Ana Example"                # short_name (optional) sets the CV file name: CV_Ana_Example.pdf
 email: "ana@example.com"
 phone: "+51 900 000 000"
 location: "Lima, Peru"

@@ -104,7 +104,7 @@ def test_nothing_short_of_a_submit_reaches_the_owner(tmp_path):
     assert run(env).stdout == ""
 
 
-def test_two_sends_go_out_one_per_run_oldest_first(tmp_path):
+def test_without_a_channel_two_sends_go_out_one_per_run_oldest_first(tmp_path):
     """The delivery attaches every MEDIA file after the text: two openings in one message would split CV from job."""
     env, folder = make_env(tmp_path)
     old = opening(folder, "JOB-20261024-beta-backend", "Beta")
@@ -134,6 +134,25 @@ def test_the_first_run_after_an_install_does_not_replay_old_applications(tmp_pat
     out = run(env).stdout
     assert out.startswith("Postulé: Senior Backend Engineer - New")
     assert run(env).stdout == "", "the September application was history, not news"
+
+
+def test_the_notice_attaches_the_named_cv_the_applier_uploaded(tmp_path):
+    env, folder = make_env(tmp_path)
+    d = opening(folder, "JOB-20261024-named-backend", "Named")
+    named = d / "application" / "CV_Ana_Example.pdf"
+    named.write_bytes((d / "application" / "cv_ats.pdf").read_bytes())
+    status(d, "applied")
+    submitted(d)
+    assert run(env).stdout.splitlines()[-1] == f"MEDIA:{named}"
+
+
+def test_a_named_copy_that_differs_from_the_reviewed_cv_is_never_attached(tmp_path):
+    env, folder = make_env(tmp_path)
+    d = opening(folder, "JOB-20261024-stale-backend", "Stale")
+    (d / "application" / "CV_Ana_Example.pdf").write_bytes(b"%PDF-1.4 an older render\n")
+    status(d, "applied")
+    submitted(d)
+    assert run(env).stdout.splitlines()[-1] == f"MEDIA:{d / 'application' / 'cv_ats.pdf'}"
 
 
 def test_a_missing_cv_is_said_not_attached(tmp_path):
@@ -186,3 +205,28 @@ def test_a_hermes_failure_is_said_once_an_hour_not_every_five_minutes(tmp_path):
     assert first.returncode == 1 and "jobs-notices:" in first.stdout
     assert run(env, "--now", "2026-10-24T10:05").stdout == ""
     assert "jobs-notices:" in run(env, "--now", "2026-10-24T11:10").stdout
+
+
+
+def test_an_hours_sends_each_arrive_in_their_own_message_with_their_own_cv(tmp_path):
+    """Hourly run, three applications that hour, Discord connected: two go out through `hermes send`, the newest is
+    the cron's own message. Each message holds one opening and one CV."""
+    env, folder = make_env(tmp_path)
+    root = Path(env["HERMES_HOME"]).parent.parent
+    (Path(env["HERMES_HOME"]) / "config.yaml").write_text(
+        "platforms:\n  discord:\n    home_channel: {platform: discord, chat_id: '777', name: '#postulaciones'}\n")
+    (Path(env["HERMES_HOME"]) / ".env").write_text("DISCORD_BOT_TOKEN=x\n")
+    now = datetime.now()
+    for minutes, company in ((50, "Alfa"), (30, "Beta"), (5, "Gamma")):
+        d = opening(folder, f"JOB-20261024-{company.lower()}-backend", company)
+        status(d, "applied")
+        submitted(d)
+        backdate(d, (now - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M"))
+    out = run(env)
+    assert out.returncode == 0, out.stderr
+    sent = [json.loads(ln) for ln in (root / "sent.jsonl").read_text().splitlines()]
+    assert [s["to"] for s in sent] == ["discord:777", "discord:777"]
+    assert ["Alfa" in sent[0]["text"], "Beta" in sent[1]["text"]] == [True, True]
+    assert all(s["text"].count("MEDIA:") == 1 for s in sent)
+    assert out.stdout.startswith("Postulé: Senior Backend Engineer - Gamma") and out.stdout.count("MEDIA:") == 1
+    assert run(env).stdout == "" and len((root / "sent.jsonl").read_text().splitlines()) == 2, "each one once"

@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.4.0
+version: 4.4.1
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
 section: {id: jobs, name: Jobs}
@@ -25,7 +25,7 @@ bots:
       jobs-search: {schedule: "0 * * * *", script: start_search.py, agent: false, notify: true}   # hourly; the gate picks the slot
       jobs-followups: {schedule: "0 9 * * 1-5", script: followup_gate.py, agent: false, notify: true}
       jobs-watch: {schedule: "*/30 * * * *", script: board_watch.py, agent: false, notify: true}
-      jobs-notices: {schedule: "*/5 * * * *", script: application_notices.py, agent: false, notify: true}  # one sent application per run, CV attached
+      jobs-notices: {schedule: "15 * * * *", script: application_notices.py, agent: false, notify: true}  # hourly: each sent application in its own message, CV attached
       jobs-awake: {schedule: "*/4 * * * *", script: keep_awake.py, agent: false}
       jobs-projects: {schedule: "*/10 * * * *", script: project_sync.py, agent: false}
   jobs-scout:
