@@ -44,7 +44,9 @@ while applications are in flight, and before writing a rule the user states.
   of `profile.md`, where every worker reads it on every run; a card body reaches one card only. Say in one line where it
   went. Write it in the positive form the writer applies ("one-line bullets, sector instead of client"), and name the
   channel when a fact is allowed in one document type and not another.
-- Names that must never leave the project go into `confidential_terms` (enforced by the scripts). A fact that is not a
+- Names that must never leave the project go into `confidential_terms`; names a CV may carry but LinkedIn may not
+  (clients, team size) go into `keep_off_public_profile` (both enforced by the scripts). Ask where a name is
+  allowed before treating "do not mention it" as "never". A fact that is not a
   name (a parallel engagement, a private notice period) is a `CONFIDENTIAL:` note line: workers obey it, and it never
   appears in a card body, block reason, digest or chat answer, not even as a hint. A form or interview question that
   would expose it is the user's to answer.

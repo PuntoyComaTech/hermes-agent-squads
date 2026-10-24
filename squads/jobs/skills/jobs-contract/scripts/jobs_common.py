@@ -429,6 +429,13 @@ def confidential_terms(meta) -> list:
     return [str(t).strip() for t in raw if str(t).strip()] if isinstance(raw, list) else []
 
 
+def public_profile_terms(meta) -> list:
+    """profile.md `keep_off_public_profile`: names and phrases allowed in a CV, letter or form answer sent to one
+    employer, but never on a public profile (LinkedIn): clients of the current employer, team size."""
+    raw = meta.get("keep_off_public_profile") if isinstance(meta, dict) else None
+    return [str(t).strip() for t in raw if str(t).strip()] if isinstance(raw, list) else []
+
+
 def confidential_hits(text, terms) -> list:
     """The confidential terms found in text as whole words (accent- and case-insensitive)."""
     return [t for t in terms if word_in(t, text)]

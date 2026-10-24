@@ -59,8 +59,9 @@ Career stage: `references/stage-playbook.md`.
    (`linkedin_browse`, default true; wording in leading-job-search `references/profile-optimization.md`), with the
    risk in the same sentence: LinkedIn limits automated use and can restrict the account. Ask for techniques the user
    has used that the CV does not name; each becomes an achievement only in the user's words. When the user is
-   employed, ask once what must never be named (clients, brands, internal projects, a parallel job): names go into
-   `confidential_terms`, other facts into a `CONFIDENTIAL:` note. Ask for the companies that must never receive a CV
+   employed, ask once what must never be named, and where: never anywhere (a parallel job, an internal project) goes
+   into `confidential_terms`; fine in a CV but not public (clients, team size) into `keep_off_public_profile`; other
+   facts into a `CONFIDENTIAL:` note. Ask for the companies that must never receive a CV
    (`avoid_companies`, every name variant).
    Age: ask only when the user offers it; otherwise it stays null.
 6. **Write, then show.** A fact the user typed goes in as they said it; a text you drafted goes in after their "ok".

@@ -3,6 +3,21 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.13.1 - 2026-10-24
+
+### Added
+
+- jobs 4.4.1: `profile.md` `keep_off_public_profile` for names a CV, letter or form answer sent to one employer may
+  carry but a public profile may not (clients of the current employer, team size). Only the LinkedIn copy checker
+  refuses them (`not_public`); `confidential_terms` stays the never-anywhere list. The manager files a name the user
+  keeps off LinkedIn into the scoped list without asking.
+
+### Fixed
+
+- web 3.7.1: the versions gate (`tools/quality/fresh.mjs`) read only pnpm 9 lockfiles. pnpm 12 quotes scoped names
+  with double quotes, so every scoped package of a fresh base was reported "the lockfile nothing" and `pnpm quality`
+  failed on a site nobody had touched.
+
 ## 2.13.0 - 2026-10-24
 
 ### Added

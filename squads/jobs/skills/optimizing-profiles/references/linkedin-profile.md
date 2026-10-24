@@ -49,7 +49,8 @@ titles and skills more than from a long About, so length buys nothing.
 
 Each role: a scope sentence, then two to four one-line bullets, each an action verb, the object and the result, cited
 by achievement id, at most 600 characters in all. Name sectors and scope, never a client, brand or internal project of
-the current employer (`confidential_terms`); a client list ends in "among others". The job title is the real title; the target role appears in bullets only where it is true. Link
+the current employer (`confidential_terms`, `keep_off_public_profile`), and no team size the user kept off the profile;
+a client list ends in "among others". The job title is the real title; the target role appears in bullets only where it is true. Link
 `public_evidence` pieces as attachments or Featured items.
 
 ## Skills

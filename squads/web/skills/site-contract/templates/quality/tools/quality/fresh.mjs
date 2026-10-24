@@ -44,8 +44,9 @@ function minimumAgeMs() {
   return hit ? Number(hit[1]) * MINUTE_MS : 0;
 }
 
+// pnpm 9 quotes a scoped name with single quotes, pnpm 12 with double quotes
 function unquote(text) {
-  return text.trim().replace(/^'(.*)'$/, "$1");
+  return text.trim().replace(/^'(.*)'$/, "$1").replace(/^"(.*)"$/, "$1");
 }
 
 // one lockfile line in the root importer: a package name (6 spaces) or its specifier (8 spaces)
@@ -77,7 +78,7 @@ function lockedSpecifiers() {
 // where a lockfile line sits: a top section or importer (resets), a dependency group, or a package inside one
 function readLockLine(line, state, out) {
   if (/^\S/.test(line) || /^ {2}\S/.test(line)) {
-    state.root = /^ {2}(\.|'\.'):$/.test(line);
+    state.root = /^ {2}(\.|'\.'|"\."):$/.test(line);
     state.group = false;
   } else if (state.root && /^ {4}\S/.test(line)) {
     state.group = /^ {4}(dependencies|devDependencies|optionalDependencies):$/.test(line);
