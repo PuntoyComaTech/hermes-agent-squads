@@ -384,7 +384,7 @@ def test_leading_job_search_is_a_manager_and_routes_to_the_others():
     text = (SKILLS / "leading-job-search" / "SKILL.md").read_text(encoding="utf-8")
     assert len(text.splitlines()) <= 150
     for target in ("profiling-candidates", "tracking-outcomes", "planning-upskilling", "triaging-inbox",
-                   "build_dashboard.py", "adding-portals", "jobs:inbox:<project>:<YYYY-MM-DD>", "Mode: INBOX"):
+                   "build_dashboard.py", "adding-portals", "Mode: PORTAL", "jobs:inbox:<project>:<YYYY-MM-DD>", "Mode: INBOX"):
         assert target in text, f"leading-job-search must route to or name {target}"
     assert "kanban_block" in text and "search: paused" in text
 

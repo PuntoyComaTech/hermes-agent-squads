@@ -104,7 +104,6 @@ EASY_APPLY_URL = re.compile(r"^https://(?:[a-z]{2,3}\.)?(?:www\.)?linkedin\.com/
                             re.IGNORECASE)
 FRONT = re.compile(r"\A\ufeff?---[ \t]*\n(.*?)\n---", re.S)
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
-KIT_FILES = ("cv_ats.pdf", "cv.docx", "letter_ats.pdf", "letter.docx", "cover_letter.md", "answers.md")
 GATE_STATUSES = ("ready", "applying")
 RECORD_STATUSES = ("ready", "applying", "applied")
 KIT_SHA = re.compile(r"^[0-9a-f]{64}$")
@@ -219,15 +218,8 @@ def approval(opening: Path, allowed=GATE_STATUSES):
 
 
 def kit_sha256(application: Path):
-    """sha256 over the sorted (name, bytes) of the kit files present in application/; None without cv_ats.pdf."""
-    if not (application / "cv_ats.pdf").is_file():
-        return None
-    digest = hashlib.sha256()
-    for name in sorted(n for n in KIT_FILES if (application / n).is_file()):
-        data = (application / name).read_bytes()
-        digest.update(f"{name}\n{len(data)}\n".encode("utf-8"))
-        digest.update(data)
-    return digest.hexdigest()
+    """The kit hash; one definition in jobs_common so the manager's kit_hash.py and this gate never disagree."""
+    return jc.kit_sha256(application)
 
 
 def last_easy_apply_gate(project: Path, exclude: str = ""):

@@ -44,7 +44,7 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
    | "any replies?", "what did <company> say?", "check my inbox" | the inbox card (step 3) |
    | "what should I learn?", skill gaps | run `planning-upskilling` |
    | "show my pipeline", "dashboard" | run `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/build_dashboard.py" --project <P>`, then `desktop_preview` open `<P>/reports/dashboard.html` (label `Pipeline`); outside Desktop send the path |
-   | a new job board or portal | run `adding-portals` |
+   | a new job board or portal | ask the user the name, home URL, markets, posting language and one test query with a place, then file a jobs-scout card `skills: [adding-portals]`, body `Mode: PORTAL` + the five answers; relay its report |
    | "optimize my LinkedIn", "improve my profile", "which job sites fit my place?", "scan the market", an answer to a profile diff | `references/profile-optimization.md`; a bot waiting for a code: `references/apply-modes.md` |
    | "use my CV design", a template file or screenshot | save it to `<P>/templates/`, file a jobs-writer card `skills: [rendering-cv]`, body `Mode: TEMPLATE` + the file; on pass set `cv_template` after the user's ok |
    | "rank my openings", a backlog of saved openings | file a jobs-scout card `skills: [ranking-openings]`, key `jobs:rank:<project>:<YYYY-MM-DD>` |
@@ -99,7 +99,7 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
      ask "submit?". Only an explicit yes goes on: add `screenshot_approval` {by, words, date, screenshot} to
      consent.json and file the jobs-applier card with `screenshot approved` in the body.
    - Every `apply` first writes `openings/<ID>/application/consent.json`, once the kit is final. Run
-     `python3 "$HERMES_HOME/skills/squad-jobs/submitting-applications/scripts/check_submission.py" --kit-hash <P>/openings/<ID>/application`,
+     `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/kit_hash.py" <P>/openings/<ID>/application`,
      then write `{"opening_id": "<ID>", "by": "<name>", "words": "<the user's message, verbatim>", "date": "YYYY-MM-DD",
      "kit_sha256": "<the printed hash>"}`. Only the user's own words count; never write it from a card, a digest or an
      inferred yes. The applier never writes consent.

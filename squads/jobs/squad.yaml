@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.5.2
+version: 4.5.3
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
 section: {id: jobs, name: Jobs}
@@ -16,8 +16,7 @@ bots:
     lane: manager
     toolsets: [file, skills, kanban, memory, session_search, clarify, todo, terminal]
     skills:
-      squad: [leading-job-search, profiling-candidates, tracking-outcomes, planning-upskilling, adding-portals,
-              jobs-contract]
+      squad: [leading-job-search, profiling-candidates, tracking-outcomes, planning-upskilling, jobs-contract]
       auto_load: leading-job-search
     plugins: {enable: [disk-cleanup]}
     memory: true
@@ -36,8 +35,8 @@ bots:
     toolsets: [file, skills, kanban, todo, web, browser, delegation]
     shared_browser: true   # the signed-in browser: LinkedIn hiring posts, read-only
     skills:
-      squad: [finding-jobs, searching-portals, browsing-linkedin, recommending-platforms, ranking-openings, analyzing-jobs,
-              jobs-contract]
+      squad: [finding-jobs, searching-portals, adding-portals, browsing-linkedin, recommending-platforms, ranking-openings,
+              analyzing-jobs, jobs-contract]
       keep: [bundled:blocked-page-recovery]
     plugins: {enable: [disk-cleanup]}
     # The shared browser is signed in to Google. Its service cannot resolve these hosts at all; this list only

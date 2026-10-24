@@ -318,6 +318,24 @@ def slugify(text: str, limit: int = 40) -> str:
     return flat[:limit].strip("-")
 
 
+KIT_FILES = ("cv_ats.pdf", "cv.docx", "letter_ats.pdf", "letter.docx", "cover_letter.md", "answers.md")
+
+
+def kit_sha256(application):
+    """sha256 over the sorted (name, bytes) of the kit files present in application/; None without cv_ats.pdf.
+    The manager writes it into consent.json; the submit gate recomputes it."""
+    import hashlib
+    application = Path(application)
+    if not (application / "cv_ats.pdf").is_file():
+        return None
+    digest = hashlib.sha256()
+    for name in sorted(n for n in KIT_FILES if (application / n).is_file()):
+        data = (application / name).read_bytes()
+        digest.update(f"{name}\n{len(data)}\n".encode("utf-8"))
+        digest.update(data)
+    return digest.hexdigest()
+
+
 _FAMILIES = None
 
 

@@ -16,10 +16,11 @@ with its own offline tests. The job: investigate the board, scaffold, prove it l
 
 ## Procedure
 
-1. Interview the user for: a name (lowercase, dashes, equal to the directory), the home URL, the market as ISO codes,
-   the posting language, and one realistic test query with a place.
+1. Read from the `Mode: PORTAL` card the manager filed: a name (lowercase, dashes, equal to the directory), the home
+   URL, the market as ISO codes, the posting language, and one realistic test query with a place. A missing answer:
+   `kanban_block(kind="needs_input")` naming it.
 2. Investigate with `references/investigation-checklist.md`, in order. Record each answer. At a stop condition, stop and
-   tell the user: a disallowed robots.txt path, terms that forbid automated access, or a login wall. The user decides;
+   block the card (`needs_input`) for the user: a disallowed robots.txt path, terms that forbid automated access, or a login wall. The user decides;
    a board that stops here is not scaffolded.
 3. Scaffold: copy `templates/portal-cli/` to `searching-portals/scripts/<name>/`, then:
    - rename the package and the service's environment variable, and set the base URL in one place;
@@ -36,7 +37,8 @@ with its own offline tests. The job: investigate the board, scaffold, prove it l
    `python3 "$P" health --portal <name> --detail` gives the verdict. `P` is
    `$HERMES_HOME/skills/squad-jobs/searching-portals/scripts/portals.py`. Set `enabled: true` only on `healthy`.
    Otherwise leave it disabled and say why.
-7. Report to the user: files created, live counts, the verdict, and the enabled state. Nothing else needs registering;
+7. Report on the card (`kanban_complete`), for the manager to relay: files created, live counts, the verdict, and the
+   enabled state. Nothing else needs registering;
    `portals.py` discovers the directory.
 
 ## Pitfalls
