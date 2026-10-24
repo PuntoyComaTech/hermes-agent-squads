@@ -213,3 +213,23 @@ def test_the_manager_asks_only_for_facts_applies_and_public_writes():
     writer = (SKILLS / "writing-applications" / "SKILL.md").read_text(encoding="utf-8")
     assert "Do not finalise a flagged bullet before the user answers" not in writer
     assert "never stops the card" in writer
+
+
+# --- digest_fields.py: what a digest is built from ------------------------------------------------------------------
+
+def test_digest_fields_reads_score_link_and_review_from_the_files_that_hold_them(tmp_path):
+    from test_jobs_documents import SKILLS
+    opening = tmp_path / "openings" / "JOB-20261020-acme-data-analyst"
+    (opening / "application").mkdir(parents=True)
+    (opening / "status.json").write_text(json.dumps({"status": "in_review", "history": [
+        {"date": "2026-10-20T09:00", "status": "analyzed", "note": "PURSUE 81 (band strong)"}]}), encoding="utf-8")
+    (opening / "analysis.json").write_text(json.dumps({
+        "company": {"name": "Acme"}, "gates": {"eligibility": "PASS", "language": "PASS", "location": "PASS",
+                                               "seniority": "PASS"},
+        "link_resolution": {"apply_url": "https://jobs.acme.example/apply/1"}}), encoding="utf-8")
+    (opening / "review-1.json").write_text(json.dumps({"round": 1, "verdict": "APPROVED"}), encoding="utf-8")
+    (opening / "application" / "cv_ats.pdf").write_bytes(b"%PDF")
+    out = subprocess.run([sys.executable, str(SKILLS / "leading-job-search" / "scripts" / "digest_fields.py"),
+                          str(tmp_path)], capture_output=True, text=True, check=True).stdout
+    assert "PURSUE 81" in out and "company: Acme" in out and "https://jobs.acme.example/apply/1" in out
+    assert "review-1.json(1: APPROVED)" in out and "cv_ats.pdf@" in out

@@ -42,6 +42,11 @@ declared, with "tell me if you do have it" so a real skill can enter `achievemen
 
 Show the final copy once, all fields in one message, and ask one question: "apply all, or name the fields to leave
 out". A correction the user gives instead is applied by the writer (CHANGE card) and the new copy goes straight to
-apply when it only carries that correction. Only the approved fields go into `<P>/profiles/approved.json`. Then file a jobs-writer card (`skills: [optimizing-profiles]`,
+apply when it only carries that correction. Only the approved fields go into `<P>/profiles/approved.json`; the card body says that file wins over any earlier
+diff, so a wording fix made after the review is not reverted.
+
+The platform is watched: the apply card asks for one field at a time with normal pauses, and when the platform caps
+changes per session the writer applies what fits and reports the rest. Never promise the user that automation is
+invisible. Positions, titles, dates, education visibility and settings are the user's to change. Then file a jobs-writer card (`skills: [optimizing-profiles]`,
 body `Mode: PROFILE-APPLY` and that path, key `jobs:profile:<project>:<YYYY-MM-DD>:apply`). Report the writer's verify
 result in one line per field: applied, or failed with the reason. Settings (Open to Work, custom URL) stay the user's.

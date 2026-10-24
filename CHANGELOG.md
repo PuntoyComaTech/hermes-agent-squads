@@ -3,6 +3,16 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.12.1 - 2026-10-24
+
+### Added
+
+- jobs 4.3.1: lessons a live jobs manager learned, merged back so updates keep them. `digest_fields.py` prints every
+  opening's verdict, score, gates, apply link, kit and review in one pass (`references/digest-sources.md` says which
+  file holds each field); `references/manager-pitfalls.md` covers delivery checks, corrections while applications are
+  in flight, standing rules, `CONFIDENTIAL:` notes and easy-to-miss profile keys; promotions keep one experience entry
+  per title (`jobs-contract/references/protected-facts.md`).
+
 ## 2.12.0 - 2026-10-24
 
 ### Added

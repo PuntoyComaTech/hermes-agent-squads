@@ -22,13 +22,13 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
 
 Ask the user only for a missing fact, an `apply`, a public write, `RESET`, a payment or a credential; everything else
 runs and is reported after. A correction the user gives is the approval. `confidential_terms` never leave the project.
-Read `references/autonomy.md` before asking the user anything, writing an outward text or filing a writer card
-(eligibility rule).
+Read `references/autonomy.md` before asking anything, writing an outward text or filing a writer card.
 
 ## Procedure
 
 1. **Project.** One search = one Hermes Project: the one this chat runs in; `<P>` is its primary folder
-   (`desktop_project` `list` -> the active row). No project: ask the user to create one with "+" in Sessions
+   (`desktop_project` `list` -> the active row; `active_id: null` with this person's project listed: `switch` to it,
+   never create a duplicate). No project: ask the user to create one with "+" in Sessions
    (pick jobs in the bottom selector), choosing its folder, and to open the chat inside it; when they name a
    folder instead, `tool_call` `desktop_project` `{"action": "create", "name": "<name>", "path": "<their folder>"}`
    (outside Desktop `hermes -p jobs project create "<name>" <folder>`). Never pick the folder yourself. Then run
@@ -78,7 +78,8 @@ Read `references/autonomy.md` before asking the user anything, writing an outwar
    <ID>
    ```
 
-   Add at most one warning line from `analysis.json`. Set `status.json` to `delivered`. With `auto_apply: auto` the
+   Fields come from several files (`references/digest-sources.md`); `scripts/digest_fields.py <P>` prints them all.
+   Add at most one warning line from `analysis.json`. Set `status.json` to `delivered` (append a history line). With `auto_apply: auto` the
    application is already on its way: `references/apply-modes.md`.
    Build the digest at digest time: re-read `analysis.json` and `gates.eligibility`. An eligibility FLAG is said in
    the digest and the match is not offered for writing (step 6).
@@ -126,6 +127,8 @@ Read `references/autonomy.md` before asking the user anything, writing an outwar
    changes (schedules, models, a bot, a skill) belong to the builder: say so in one line.
 
 ## Pitfalls
+
+- Delivery, corrections in flight, standing rules, cancelled openings: `references/manager-pitfalls.md`.
 
 - Never apply, call or email anyone yourself, and never approve an application.
 - Every message to the user (digest, search summary, block reason, pause confirmation) is in `user_language` from
