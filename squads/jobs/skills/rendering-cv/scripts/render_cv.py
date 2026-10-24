@@ -1090,6 +1090,24 @@ def check_numbers(label: str, text: str, cited: list, src: dict, defects: list, 
                                        f"{', '.join(cited)}: {text[:60]!r}"})
 
 
+def skill_held(name: str, src: dict) -> bool:
+    """A skills-line entry is held when the sources name it, or each of its parts ("SQL (PostgreSQL, Azure SQL)") is
+    held or a related member of a held tool's family (recorded as related_tool)."""
+    if jc.word_in(name, src["fact_text"]):
+        return True
+    parts = [p.strip() for p in re.split(r"[(),/]|\band\b|\by\b", str(name or "")) if p.strip()]
+    if not parts:
+        return False
+    for part in parts:
+        if jc.word_in(part, src["fact_text"]):
+            continue
+        held = jc.related_held(part, src["fact_text"])
+        if not held:
+            return False
+        src.setdefault("related", {})[part.lower()] = held
+    return True
+
+
 def check_tools(label: str, text: str, src: dict, defects: list) -> None:
     """A tool or technology named in a claim must appear in achievements.yaml or profile.md. Capitalised technology
     tokens outside the fixed list (CamelCase such as LangChain) are checked the same way."""
@@ -1099,6 +1117,10 @@ def check_tools(label: str, text: str, src: dict, defects: list) -> None:
             names.append(token.lower())
     for term in names:
         if jc.word_in(term, text) and not jc.word_in(term, src["fact_text"]):
+            held = jc.related_held(term, src["fact_text"])
+            if held:  # same family as a held tool (PostgreSQL next to SQL): named on purpose, said in the report
+                src.setdefault("related", {})[term] = held
+                continue
             defects.append({"code": "unsupported_tool",
                             "message": f"{label} names {term!r}, which achievements.yaml and profile.md do not hold: "
                                        f"{text[:60]!r}"})
@@ -1275,7 +1297,7 @@ def check_cv_facts(work: dict, headline: str, src, defects: list, warnings: list
                                        "skills list"})
     else:
         for skill in work["skills"]:
-            if not jc.word_in(skill["name"], src["fact_text"]):
+            if not skill_held(skill["name"], src):
                 defects.append({"code": "unknown_skill",
                                 "message": f"skill or tool {skill['name']!r} is in neither achievements.yaml nor "
                                            "profile.md"})
@@ -1658,6 +1680,8 @@ def run(args: argparse.Namespace, gate: bool = True) -> int:
     if docx_engine != "none":
         files.append(str(docx_path))
 
+    for term, held in sorted((sources or {}).get("related", {}).items()) if sources else []:
+        warnings.append(f"related_tool: {term!r} is named from the held {held!r} (same family, skill_families.json)")
     warnings = list(dict.fromkeys(warnings))
     coverage, missing = keyword_report(result["text"], analysis)
     keywords = [str(k) for k in ((analysis.get("requirements") or {}).get("keywords") or []) if str(k).strip()]

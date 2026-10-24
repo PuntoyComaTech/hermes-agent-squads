@@ -722,6 +722,20 @@ def test_a_must_have_without_verified_evidence_becomes_a_hard_gap(tmp_path):
     assert any("no verified evidence: Kubernetes" in w for w in out["warnings"])
 
 
+def test_a_tool_from_the_family_the_candidate_holds_is_no_gap(tmp_path):
+    """SQL on Azure/AWS in the achievements, PostgreSQL in the posting: covered, never 'not familiar'. A tool of
+    another family (Kubernetes) is still a learnable gap."""
+    ach = ACHIEVEMENTS.replace('tags: [automation, python]', 'tags: [automation, python, sql, azure]')
+    root = make_project(tmp_path, achievements=ach)
+    folder = make_opening(root)
+    doc = analysis_doc(requirements={**analysis_doc()["requirements"], "must_have": ["PostgreSQL", "Kubernetes"],
+                                     "priorities": []})
+    write_analysis(folder, doc)
+    run_json(SCORE, "finalize", folder, "--project", root)
+    gaps = json.loads((folder / "analysis.json").read_text(encoding="utf-8"))["fit"]["learnable_gaps"]
+    assert "PostgreSQL" not in gaps and "Kubernetes" in gaps
+
+
 def test_unverified_achievements_are_not_evidence(tmp_path):
     root = make_project(tmp_path)
     folder = make_opening(root)

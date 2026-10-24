@@ -24,7 +24,8 @@ Checks each claim (numbers, dates, titles, companies, tools, proficiency, langua
 entry. Nothing raised, nothing rounded up. A result sentence without an achievement citation is a finding.
 
 **Grounding (over all sources).** A claim is grounded when `achievements.yaml` OR `profile.md` supports it.
-A draft claim neither source supports is a `draft` finding and blocks. When the two sources contradict each other,
+A draft claim neither source supports is a `draft` finding and blocks. A tool named from a held member of its
+family (`related_tool` in `render_report.json`, `skill_families.json`) is grounded, never a finding. When the two sources contradict each other,
 or one records a fact the other does not, the finding is `profile_consistency`: a warning for the user, the draft
 stays as it is.
 

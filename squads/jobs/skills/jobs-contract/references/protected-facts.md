@@ -1,7 +1,8 @@
 # Protected facts and promotions
 
 Below the front matter, free notes hold the constraints no key carries. Names that must never leave the project go
-into `confidential_terms`, which the scripts enforce. A protected fact that is not a name is a note line starting
+into `confidential_terms`; names a CV sent to one employer may carry but a public profile may not (clients of the
+current employer, team size) go into `keep_off_public_profile`. The scripts enforce both. A protected fact that is not a name is a note line starting
 `CONFIDENTIAL:` with the questions it covers:
 
 ```markdown

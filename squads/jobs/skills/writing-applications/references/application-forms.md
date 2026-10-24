@@ -19,6 +19,12 @@ Every claim in a form answer is supported by a verified achievement in `achievem
 place for new claims, bigger scope or filler. The interviewer reads the form next to the CV, so an answer that disagrees
 with the CV is a defect.
 
+**Related tools play for the candidate.** "Have you used GitLab CLI?" when the candidate uses GitHub and `gh`
+daily is a yes: `Yes. I work daily with GitHub and its CLI (gh); GitLab and glab follow the same model.` Any tool in
+the same family as a held one (`skill_families.json`) is answered yes with the held tool named. Never "not
+familiar", never a refusal to answer. Only a tool with no held member in its family is answered honestly as new,
+with the closest experience and how fast the candidate picks tools up.
+
 ## Field types
 
 ### Self-introduction (100 to 200 words, one paragraph, no formatting)

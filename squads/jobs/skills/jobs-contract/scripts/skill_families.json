@@ -1,0 +1,22 @@
+{
+  "_comment": "Tools a candidate who holds one member picks up in days: same concept, different vendor or dialect. Read by jobs_common.related_held(). A posting term whose family member is in achievements.yaml or profile.md counts as covered (analysis), may be named in the CV and form answers (render_cv.py reports it as a `related_tool` warning, never a defect), and is answered 'yes, with <held member>' in a form. Add a family only when a member's skills transfer to the others in under a week of use; a different paradigm (React vs Angular, SQL vs NoSQL) is never one family.",
+  "schema": 1,
+  "families": [
+    {"id": "sql", "terms": ["sql", "postgresql", "postgres", "mysql", "mariadb", "sql server", "mssql", "t-sql", "azure sql", "oracle sql", "pl/sql", "sqlite", "amazon rds", "aurora", "cloud sql"]},
+    {"id": "document_db", "terms": ["mongodb", "dynamodb", "cosmos db", "firestore", "couchbase", "documentdb"]},
+    {"id": "git_hosting", "terms": ["git", "github", "gitlab", "bitbucket", "azure repos", "gh", "github cli", "glab", "gitlab cli"]},
+    {"id": "ci_cd", "terms": ["ci/cd", "github actions", "gitlab ci", "gitlab ci/cd", "azure devops", "azure pipelines", "jenkins", "circleci", "bitbucket pipelines"]},
+    {"id": "containers", "terms": ["docker", "podman", "docker compose", "containers"]},
+    {"id": "iac", "terms": ["terraform", "pulumi", "cloudformation", "bicep", "aws cdk", "opentofu"]},
+    {"id": "messaging", "terms": ["kafka", "rabbitmq", "amazon sqs", "sqs", "azure service bus", "google pub/sub", "nats"]},
+    {"id": "js_testing", "terms": ["jest", "vitest", "mocha", "jasmine"]},
+    {"id": "e2e_testing", "terms": ["playwright", "cypress", "selenium", "puppeteer"]},
+    {"id": "node_frameworks", "terms": ["express", "koa", "fastify", "nestjs", "hapi"]},
+    {"id": "python_web", "terms": ["fastapi", "flask", "django", "starlette"]},
+    {"id": "orm", "terms": ["prisma", "typeorm", "sequelize", "drizzle", "sqlalchemy"]},
+    {"id": "llm_frameworks", "terms": ["langchain", "langgraph", "llamaindex", "semantic kernel", "crewai", "autogen", "openai agents sdk"]},
+    {"id": "vector_db", "terms": ["vector databases", "pinecone", "pgvector", "weaviate", "qdrant", "chroma", "milvus", "azure ai search"]},
+    {"id": "serverless", "terms": ["aws lambda", "lambda", "azure functions", "cloud functions", "cloudflare workers"]},
+    {"id": "graphql", "terms": ["graphql", "apollo graphql", "apollo", "urql", "relay"]}
+  ]
+}

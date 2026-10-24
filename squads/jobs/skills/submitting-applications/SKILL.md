@@ -101,7 +101,8 @@ and, for an email, the subject and body. A value that is not recorded never appe
 
 - Never create an account, log in, solve a CAPTCHA, pay, or accept terms beyond the data-processing consent the user
   authorized (`authorize_consents: true`).
-- Never invent an answer: missing data is a question, and a screening question is never answered from a guess.
+- Never invent an answer: missing data is a question. A "have you used <tool>?" whose family the candidate holds
+  (`skill_families.json`) is yes, naming the held tool; never "not familiar".
 - Never submit a second opening under the same card, and never apply twice under standing consent.
 - Never turn a click that happened into NOT_POSSIBLE: the record decides that, not the bot's second thoughts.
 - Never auto-submit an `unverified` apply_url, even with the user's confirmation: the kit goes to the user.

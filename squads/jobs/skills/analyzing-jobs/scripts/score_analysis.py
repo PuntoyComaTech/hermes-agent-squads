@@ -995,11 +995,15 @@ def build(folder: Path, project: Path, today=None):
     if problems:
         return analysis, problems, warnings
 
+    held_text = json.dumps(achievements, ensure_ascii=False)
+
     def is_covered(must: str) -> bool:
         """Every part of a must-have needs verified evidence of its own. 'Python' covers 'Python data analysis'.
-        'Java' never covers 'JavaScript', 'React' never covers 'React Native', 'C' never covers 'C++'."""
+        'Java' never covers 'JavaScript', 'React' never covers 'React Native', 'C' never covers 'C++'. A part whose
+        tool family the candidate holds (PostgreSQL next to SQL, GitLab next to GitHub) is covered as related."""
         parts = _parts(must)
-        return bool(parts) and all(any(_covers(ev, part) for ev in covered) for part in parts)
+        return bool(parts) and all(any(_covers(ev, part) for ev in covered)
+                                   or jc.related_held(" ".join(part), held_text) for part in parts)
 
     hard_gaps = [str(item) for item in (fit.get("hard_gaps") or [])]
     hard_keys = {ss.fold(item) for item in hard_gaps}

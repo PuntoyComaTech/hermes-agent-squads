@@ -16,13 +16,14 @@ COPY.json:
    "skills": ["SQL", "Power BI"], "custom_url": "firstname-lastname"}
 
 Defects (exit 1): over_limit, too_long, uncited_claim, unknown_achievement, unverified_achievement, unsupported_skill,
-claims_a_gap, banned_phrase, private_data, confidential_term, skills_over_limit, bad_custom_url. Warnings never change
+claims_a_gap, banned_phrase, private_data, confidential_term, not_public, skills_over_limit, bad_custom_url. Warnings never change
 the exit code.
 
 too_long: a public profile is read by a person in seconds before any search engine ranks it. The About stays within
 CONCISE["about"] characters and each experience description within CONCISE["experience"]; the platform allows more,
-and a copy's own `limits` may only lower these. confidential_term: a profile.md `confidential_terms` entry (a client,
-a brand, an internal project) in any block.
+and a copy's own `limits` may only lower these. confidential_term: a profile.md `confidential_terms` entry (never in
+any text) in any block. not_public: a `keep_off_public_profile` entry (allowed in a CV sent to one employer, never on a
+public profile: clients of the current employer, team size) in any block.
 Exit 0 clean, 2 usage error.
 """
 
@@ -108,7 +109,7 @@ def load_project(project: Path) -> dict:
     avoid = style.get("avoid_phrases") if isinstance(style.get("avoid_phrases"), list) else []
     roles = meta.get("target_roles") if isinstance(meta.get("target_roles"), list) else []
     return {"ids": ids, "corpus": fold(" ".join(chunks)), "age_ok": candidate.get("include_age_in_cv") is True,
-            "confidential": jc.confidential_terms(meta),
+            "confidential": jc.confidential_terms(meta), "not_public": jc.public_profile_terms(meta),
             "avoid": [str(a) for a in avoid if str(a).strip()], "roles": [str(r) for r in roles if str(r).strip()]}
 
 
@@ -169,6 +170,9 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
                 bad("banned_phrase", where, f"matches {pattern!r}")
         for term in jc_module().confidential_hits(text, project.get("confidential") or []):
             bad("confidential_term", where, f"{term!r} is confidential (profile.md confidential_terms)")
+        for term in jc_module().confidential_hits(text, project.get("not_public") or []):
+            bad("not_public", where, f"{term!r} may go in a CV, never on a public profile (profile.md "
+                                     "keep_off_public_profile): name the sector and scope instead")
         for kind, rx in PRIVATE:
             if rx.search(text):
                 bad("private_data", where, f"holds {kind} data that a public profile should not carry unasked")

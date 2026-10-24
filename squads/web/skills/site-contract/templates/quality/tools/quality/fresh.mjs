@@ -44,7 +44,7 @@ function minimumAgeMs() {
   return hit ? Number(hit[1]) * MINUTE_MS : 0;
 }
 
-// pnpm writes YAML keys and values bare, in single quotes, or (pnpm 12+) in double quotes
+// pnpm 9 quotes a scoped name with single quotes, pnpm 12 with double quotes
 function unquote(text) {
   return text.trim().replace(/^'(.*)'$/, "$1").replace(/^"(.*)"$/, "$1");
 }

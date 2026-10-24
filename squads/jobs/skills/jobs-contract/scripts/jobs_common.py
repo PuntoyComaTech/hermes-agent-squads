@@ -318,6 +318,35 @@ def slugify(text: str, limit: int = 40) -> str:
     return flat[:limit].strip("-")
 
 
+_FAMILIES = None
+
+
+def skill_families() -> list:
+    """The tool families of skill_families.json: [{id, terms}] with lower-case terms; [] when the file is missing."""
+    global _FAMILIES
+    if _FAMILIES is None:
+        try:
+            raw = json.loads((Path(__file__).resolve().parent / "skill_families.json").read_text(encoding="utf-8"))
+            _FAMILIES = [{"id": f["id"], "terms": [str(t).lower() for t in f["terms"]]} for f in raw["families"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            _FAMILIES = []
+    return _FAMILIES
+
+
+def related_held(term, sources_text) -> str:
+    """The member of `term`'s tool family the sources name ('' when none): PostgreSQL -> 'sql' when the candidate's
+    files say SQL, GitLab CLI -> 'gh'. A term the sources hold itself returns ''; that is direct evidence."""
+    t = ascii_fold(str(term or "")).lower().strip()
+    if not t or word_in(t, sources_text):
+        return ""
+    for fam in skill_families():
+        if any(t == m or word_in(m, t) for m in fam["terms"]):
+            held = next((m for m in fam["terms"] if m != t and word_in(m, sources_text)), "")
+            if held:
+                return held
+    return ""
+
+
 CV_FILE = "cv_ats.pdf"  # the canonical render: the kit hash, the gates and the review read this one
 
 
@@ -455,6 +484,13 @@ def confidential_terms(meta) -> list:
     """profile.md `confidential_terms`: names and phrases (clients, brands, internal projects, a second job) that no
     outward text may carry: CV, letter, form answers, recruiter message, public profile copy."""
     raw = meta.get("confidential_terms") if isinstance(meta, dict) else None
+    return [str(t).strip() for t in raw if str(t).strip()] if isinstance(raw, list) else []
+
+
+def public_profile_terms(meta) -> list:
+    """profile.md `keep_off_public_profile`: names and phrases allowed in a CV, letter or form answer sent to one
+    employer, but never on a public profile (LinkedIn): clients of the current employer, team size."""
+    raw = meta.get("keep_off_public_profile") if isinstance(meta, dict) else None
     return [str(t).strip() for t in raw if str(t).strip()] if isinstance(raw, list) else []
 
 

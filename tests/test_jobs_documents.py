@@ -396,6 +396,42 @@ def test_the_upload_name_is_ascii_and_reads_as_name_and_surname(full, short, exp
     assert render.jc.cv_upload_name(full, short) == expected
 
 
+def test_a_related_tool_plays_for_the_candidate_and_an_unrelated_one_is_still_refused(tmp_path, no_engine):
+    """The owner works with SQL on Azure and AWS; a posting asks for PostgreSQL. Naming it next to SQL is the
+    adaptation the owner wants, not a fabrication; Kubernetes, with no held tool in its family, stays a defect."""
+    ach = ACHIEVEMENTS + "skills:\n  - {name: SQL}\n  - {name: Azure}\n"
+    content = cv_content()
+    content["skills"] = [{"name": "SQL (PostgreSQL, Azure SQL)", "level": "did"}]
+    src = tmp_path / "in"
+    out = tmp_path / "out"
+    argv = ["--content", str(write(src / "cv_content.json", json.dumps(content))), "--output", str(out),
+            "--profile", str(write(src / "profile.md", PROFILE)),
+            "--achievements", str(write(src / "achievements.yaml", ach)),
+            "--contact", str(write(src / "contact.yaml", CONTACT)), "--template", "classic", "--json"]
+    render.main(argv)
+    report = json.loads((out / "render_report.json").read_text())
+    named = [d["message"] for d in report["defects"] if d["code"] in ("unsupported_tool", "unknown_skill")]
+    assert not any("postgresql" in m.lower() for m in named), named
+    assert any(w.startswith("related_tool: 'postgresql'") for w in report["warnings"])
+    content["experience"][0]["bullets"][1]["text"] = "Built SQL views on Kubernetes for the finance team every month."
+    write(src / "cv_content.json", json.dumps(content))
+    render.main(argv)
+    after = json.loads((out / "render_report.json").read_text())
+    assert any("'kubernetes'" in d["message"] for d in after["defects"] if d["code"] == "unsupported_tool")
+
+
+
+
+@pytest.mark.parametrize("asked, held, expected", [
+    ("PostgreSQL", "SQL on Azure and AWS", "sql"),
+    ("GitLab CLI", "GitHub and gh every day", "github"),
+    ("Angular", "React and Next.js", ""),          # another paradigm is never one family
+    ("SQL", "SQL", ""),                            # held itself: direct evidence, not a relation
+])
+def test_tool_families(asked, held, expected):
+    assert render.jc.related_held(asked, held) == expected
+
+
 def test_a_failed_render_never_leaves_a_stale_pdf(tmp_path, no_engine):
     out = tmp_path / "out"
     out.mkdir()

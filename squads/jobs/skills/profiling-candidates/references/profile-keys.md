@@ -70,6 +70,7 @@ the level you can show. A posting asking for a level above yours is flagged for 
 | Key | Default | Note |
 |---|---|---|
 | writing_style | {tone: warm_direct, formality: medium, avoid_phrases: []} | used by writing-applications and tracking-outcomes drafts |
+| keep_off_public_profile | [] | names allowed in a CV, letter or form answer sent to one employer, never on a public profile: clients and brands of the current employer, team size ("7 to 10"). Refused only by the profile copy checker |
 | confidential_terms | [] | names that never leave the project: clients, brands and internal projects of the current employer, a second job. Whole words, case- and accent-insensitive; refused in the CV, letter, answers, recruiter message and public profile. Ask at onboarding when the user is employed |
 | follow_up_days | 10 | quiet days before a follow-up draft is offered |
 | stale_days | 60 | quiet days before a submitted row is listed as stale |

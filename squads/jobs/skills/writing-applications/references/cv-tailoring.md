@@ -74,7 +74,11 @@ The renderer blocks a `returning` CV without a `career_gap` line (defect `stage_
   `achievements`.
 - Use a posting's core term in a bullet only when it is true for that work. An exact term beats a synonym for ATS
   matching; a synonym that changes the meaning is not allowed.
-- Keywords come from `analysis.requirements.keywords` and `tools`. A keyword with no achievement behind it stays
+- Keywords come from `analysis.requirements.keywords` and `tools`. Play for the candidate: a posting tool from the
+  same family as one the candidate holds (`jobs-contract/scripts/skill_families.json`: PostgreSQL next to SQL on
+  Azure or AWS, GitLab next to GitHub, Vitest next to Jest) goes into the CV next to the held one, in the skills line
+  or the bullet where the held tool was used ("SQL (PostgreSQL, Azure SQL)"); never a new bullet, years or a number
+  of its own. `render_cv.py` reports it as `related_tool`. A keyword with no held tool in its family stays
   missing and is recorded as a gap. The renderer reports `keyword_coverage` and `missing_keywords`. A term repeated more
   than three times is a warning (stuffing).
 - Stretch flags: a bullet that opens with an ownership verb (led, managed, built, owned, launched and similar) and cites

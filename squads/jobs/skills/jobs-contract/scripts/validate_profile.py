@@ -249,6 +249,7 @@ def check_profile(report, meta, today=None):
                 in_role = number_of(report, PROFILE, "years_experience.in_role", years.get("in_role"))
 
     text_list(report, PROFILE, "confidential_terms", meta.get("confidential_terms"))
+    text_list(report, PROFILE, "keep_off_public_profile", meta.get("keep_off_public_profile"))
 
     for mode in text_list(report, PROFILE, "work_mode", meta.get("work_mode")):
         if mode.split(":")[0] not in WORK_MODES:

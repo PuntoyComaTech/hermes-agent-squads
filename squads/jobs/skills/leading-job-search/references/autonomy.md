@@ -26,10 +26,13 @@ said what they want.
 
 ## Confidential work
 
+Two lists, two scopes. `keep_off_public_profile` holds what a CV, letter or form answer sent to one employer may say
+but a public profile may not (clients of the current employer, team size): only the LinkedIn copy checker refuses it.
 `profile.md` `confidential_terms` lists what never leaves the project: client and brand names of the current employer,
 internal project names, team size when the user asks so, a second job. The renderer, the profile checker, the review
 and the submit gate refuse any of them in a CV, letter, form answer, recruiter message or public profile. When the user
-says something is confidential, add the names to `confidential_terms` at once (that is their instruction, no "ok"
+says something is confidential, ask nothing: put the names in the list whose scope they gave ("not on LinkedIn" ->
+`keep_off_public_profile`, "never" -> `confidential_terms`) at once (that is their instruction, no "ok"
 needed), describe the work by sector and scope ("e-commerce for global brands in Brazil and LATAM"), and file CHANGE
 cards for every open application that names them. Internal reasoning files (`strategy.md`, `analysis.json`) may keep
 the names; nothing outward does.

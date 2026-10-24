@@ -233,3 +233,45 @@ def test_digest_fields_reads_score_link_and_review_from_the_files_that_hold_them
                           str(tmp_path)], capture_output=True, text=True, check=True).stdout
     assert "PURSUE 81" in out and "company: Acme" in out and "https://jobs.acme.example/apply/1" in out
     assert "review-1.json(1: APPROVED)" in out and "cv_ats.pdf@" in out
+
+
+# --- clients and team size: fine in a CV, never on LinkedIn ---------------------------------------------------------
+
+PUBLIC_OFF = ["Northwind", "Contoso", "7 to 10"]
+SPLIT_PROFILE = DOC_PROFILE.replace("writing_style:", 'confidential_terms: ["segundo trabajo"]\n'
+                                    f"keep_off_public_profile: {json.dumps(PUBLIC_OFF)}\nwriting_style:")
+
+
+def test_a_cv_may_name_clients_and_team_size_kept_off_the_public_profile(tmp_path, no_engine):
+    content = leak_cv()
+    content["experience"][0]["bullets"][1]["text"] = ("Lead a squad of 7 to 10 engineers shipping SQL views the "
+                                                     "finance team uses to close the monthly ledger.")
+    _, report, _ = render_cv_case(tmp_path, content, profile=SPLIT_PROFILE)
+    assert "confidential_term" not in codes(report)
+    content["summary"]["text"] = "Data analyst open to a segundo trabajo, automating reports in Lima."
+    _, report, _ = render_cv_case(tmp_path / "b", content, profile=SPLIT_PROFILE)
+    assert "confidential_term" in codes(report)  # the never-list still holds in the CV
+
+
+def test_linkedin_refuses_what_the_cv_may_say(tmp_path):
+    copy = good_copy()
+    check_copy(tmp_path, copy)
+    profile = tmp_path / "ana" / "profile.md"
+    profile.write_text(profile.read_text().replace(
+        "---\n", f"---\nkeep_off_public_profile: {json.dumps(PUBLIC_OFF)}\n", 1))
+    copy["blocks"][1]["text"] += " I lead a squad of 7 to 10 engineers for Northwind."
+    code, report = check_copy(tmp_path, copy)
+    hits = [d for d in report["defects"] if d["defect"] == "not_public"]
+    assert code == 1 and {h["detail"].split("'")[1] for h in hits} == {"Northwind", "7 to 10"}
+    assert check_copy(tmp_path, good_copy())[0] == 0
+
+
+def test_the_submit_gate_lets_a_cv_kit_name_clients_kept_off_the_public_profile(tmp_path):
+    app = make_opening(tmp_path)
+    profile = tmp_path / "profile.md"
+    profile.write_text(profile.read_text().replace(
+        "---\n", f"---\nconfidential_terms: [\"segundo trabajo\"]\nkeep_off_public_profile: {json.dumps(PUBLIC_OFF)}\n", 1))
+    (app / "answers.md").write_text("Current work: the Northwind storefront, a squad of 7 to 10.\n", encoding="utf-8")
+    assert gate(app).returncode == 0, gate(app).stderr
+    (app / "answers.md").write_text("Current work: storefronts; open to a segundo trabajo.\n", encoding="utf-8")
+    assert gate(app).returncode == 1
