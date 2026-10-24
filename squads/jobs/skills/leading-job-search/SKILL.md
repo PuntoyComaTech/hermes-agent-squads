@@ -18,6 +18,13 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
   answer, then `kanban_unblock`.
 - Any change to `profile.md`, `achievements.yaml`, `contact.yaml` or `application-data.yaml`.
 
+## Autonomy and confidentiality
+
+Ask the user only for a missing fact, an `apply`, a public write, `RESET`, a payment or a credential; everything else
+runs and is reported after. A correction the user gives is the approval. `confidential_terms` never leave the project.
+Read `references/autonomy.md` before asking the user anything, writing an outward text or filing a writer card
+(eligibility rule).
+
 ## Procedure
 
 1. **Project.** One search = one Hermes Project: the one this chat runs in; `<P>` is its primary folder
@@ -100,7 +107,7 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
      SUBMITTED -> "Applied to <company>" plus the screenshot; NEEDS_DATA -> ask each question, relaunch with the
      answers, then offer to save them; NOT_POSSIBLE -> say why in one line with the link and the kit.
    - `change: <what>`: if it needs a fact that is not in `achievements.yaml`, ask for it first (a new achievement
-     enters only with the user's confirmation). Then a jobs-writer card (`skills: [writing-applications]`, body
+     enters only with the user's confirmation, which the fact itself is when the user typed it). Then a jobs-writer card (`skills: [writing-applications]`, body
      `CHANGE` plus the request), key `jobs:application:<project>:<ID>:write-c<N>`.
    - `no`: `status.json` -> `skipped`, with the reason when given. Do not ask for one.
    - "why": four lines from `analysis.json` (score, two strengths, two gaps).
@@ -110,24 +117,13 @@ Every kanban tool call passes `board: "jobs"`; card fields: jobs-contract step 4
    backed may end NOT_APPROVED, and then "apply" means a manual kit (`kit.md`) plus a tracker row, never a submit. "Prepare me for the
    interview with X" -> jobs-writer card with `skills: [preparing-interviews]`; deliver `interview.md` with the three
    key lines. "How is my search going?" -> run `tracker.py stats --project <P>` and count the `status.json` files:
-   found, delivered, applied, replies, pending; six lines in all. A single achievement or preference change -> show the
-   exact diff in the YAML and write it after "ok". A larger change -> `profiling-candidates`.
+   found, delivered, applied, replies, pending; six lines in all. A change the user states (a fact, a correction, a
+   preference) -> write it, validate, and show the diff after in one block. A larger change -> `profiling-candidates`.
 
 8. **Pause / resume.** Edit `search: active|paused` in `profile.md` and confirm in one line. Paused stops both
    scheduled gates of the project: the search cards (`jobs-search`) and the follow-up cards (`jobs-followups`). A link
    pasted in the same message is still filed. Resume needs no other step: the next slot files its card. Structural
    changes (schedules, models, a bot, a skill) belong to the builder: say so in one line.
-
-## Eligibility before a writer card
-
-A jobs-writer card for an opening is filed only when its eligibility gate is PASS, or the user accepted the risk.
-
-- PASS: file it.
-- FLAG: say the eligibility note from `analysis.json` in one line and ask: "Eligibility is unclear: <note>. Write
-  anyway, or skip?". File the card only after a yes, and its body then carries `Eligibility risk accepted by the user
-  (<date>)`. A FLAG is resolved when the user gives the fact (a permit, a residency) and `eligibility` in `profile.md`
-  is updated after their ok.
-- DISCARD: file nothing; say why in one line.
 
 ## Pitfalls
 
@@ -141,7 +137,8 @@ A jobs-writer card for an opening is filed only when its eligibility gate is PAS
 
 ## Verification
 
-- `profile.md` and `achievements.yaml` changed only after the user's "ok".
+- `profile.md` and `achievements.yaml` hold only what the user stated or confirmed; nothing is inferred.
+- No outward document of an open application names a `confidential_terms` entry.
 - Every card you file names the project, the opening id or the mode, the paths and the language.
 - The digest carries score, link, CV path and id, and no contact data. Its eligibility line matches the current
   `analysis.json`, not an earlier card.

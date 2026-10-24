@@ -78,8 +78,9 @@ The renderer blocks a `returning` CV without a `career_gap` line (defect `stage_
   missing and is recorded as a gap. The renderer reports `keyword_coverage` and `missing_keywords`. A term repeated more
   than three times is a warning (stuffing).
 - Stretch flags: a bullet that opens with an ownership verb (led, managed, built, owned, launched and similar) and cites
-  an achievement recorded as `participated` or `familiar` is flagged. Set `"stretch": "<reason>"` on the bullet and show
-  the user: "stretch because <reason>: keep, soften or drop". The user decides; the bullet stays as written until then.
+  an achievement recorded as `participated` or `familiar` is flagged. Reword it to the recorded proficiency before the
+  review ("participated in", "contributed to") and note it in the card; ask the user only when no truthful wording keeps
+  the bullet.
 
 ## Tenure check
 
@@ -104,8 +105,11 @@ two-part answer (see preparing-interviews).
 - `"keep": true` protects a bullet. Each job keeps at least one bullet. Ties go to the oldest job.
 - Every cut is listed in `cuts` with its score. A fact is never changed to save space; wording is the writer's job, done
   before rendering.
-- Budget discipline before rendering: summary 3 to 4 lines; skills 5 items; most recent role 4 to 5 bullets; previous
-  role 2 to 3; older roles 2; education 2 to 3 entries.
+- Budget discipline before rendering: summary 3 lines (at most 50 words); skills 5 items; most recent role 4 to 5
+  bullets; previous role 2 to 3; older roles 2; education 2 to 3 entries. The renderer refuses a summary over 50 words,
+  more than 5 bullets in the latest role or 3 in any other, and a letter body over 250 words (`too_long`).
+- A two-page budget is a ceiling, not a target: one dense page that a recruiter scans in ten seconds beats two pages
+  of detail. Fill the second page only with lines that match the posting.
 - A short last page means a line was cut too eagerly: restore the highest-relevance line that was removed. A CV that
   ends mid-page looks unfinished (`verify_layout.py` reports a thin last page).
 

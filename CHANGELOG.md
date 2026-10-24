@@ -3,6 +3,30 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.12.0 - 2026-10-24
+
+### Added
+
+- jobs 4.3.0: `profile.md` `confidential_terms` (clients, brands and internal projects of the current employer, a
+  second job). The renderer (`confidential_term`), the LinkedIn copy checker, the review aggregator (a `privacy`
+  correction no lens verdict can pass) and the submit gate all refuse an outward text that names one.
+- Readable length as defects, not hints: a CV summary over 50 words, more than 5 bullets in the latest role or 3 in any
+  other, a letter body over 250 words (`too_long`); a LinkedIn About over 1,500 characters or an experience description
+  over 600.
+
+### Changed
+
+- The jobs manager asks only for a missing fact, an `apply`, a public write, `RESET`, a payment or a credential. A
+  correction the user gives is the approval: it is written to the profile and every open document in the same turn
+  and reported after (`leading-job-search/references/autonomy.md`). Stated facts no longer wait for a second "ok";
+  stretch bullets are softened by the writer instead of stopping the card; LinkedIn is approved once, on the final copy.
+- LinkedIn About and experience guidance: who you are in the first lines, no career history, two to four one-line
+  bullets per role, sectors instead of client names.
+
+### Removed
+
+- The senior-stage warning asking for a number in the CV summary: it pushed team size into a public document.
+
 ## 2.11.0 - 2026-10-23
 
 ### Added

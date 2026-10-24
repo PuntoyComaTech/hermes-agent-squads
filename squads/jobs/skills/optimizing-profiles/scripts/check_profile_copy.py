@@ -15,8 +15,14 @@ COPY.json:
                "achievements": ["ACH-007"], "no_claim": false}],
    "skills": ["SQL", "Power BI"], "custom_url": "firstname-lastname"}
 
-Defects (exit 1): over_limit, uncited_claim, unknown_achievement, unverified_achievement, unsupported_skill,
-claims_a_gap, banned_phrase, private_data, skills_over_limit, bad_custom_url. Warnings never change the exit code.
+Defects (exit 1): over_limit, too_long, uncited_claim, unknown_achievement, unverified_achievement, unsupported_skill,
+claims_a_gap, banned_phrase, private_data, confidential_term, skills_over_limit, bad_custom_url. Warnings never change
+the exit code.
+
+too_long: a public profile is read by a person in seconds before any search engine ranks it. The About stays within
+CONCISE["about"] characters and each experience description within CONCISE["experience"]; the platform allows more,
+and a copy's own `limits` may only lower these. confidential_term: a profile.md `confidential_terms` entry (a client,
+a brand, an internal project) in any block.
 Exit 0 clean, 2 usage error.
 """
 
@@ -32,6 +38,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LINKEDIN_LIMITS = {"headline": 220, "about": 2600, "experience": 2000, "experience_title": 100, "recommendation": 3000,
                    "skill": 80, "skills_count": 100}
+# Readable-at-a-glance caps, below the platform limits: the first ~265 characters of the About show before "see more".
+CONCISE = {"about": 1500, "experience": 600}
 BANNED = ("passionate", "results-oriented", "results oriented", "results-driven", "results driven", "thought leader",
           "synergy", "go-getter", "rockstar", "rock star", "ninja", "guru", "dynamic professional",
           "proven track record", "apasionad", "orientad[oa] a resultados", "l[ií]der de opini[oó]n", "sinergia",
@@ -100,6 +108,7 @@ def load_project(project: Path) -> dict:
     avoid = style.get("avoid_phrases") if isinstance(style.get("avoid_phrases"), list) else []
     roles = meta.get("target_roles") if isinstance(meta.get("target_roles"), list) else []
     return {"ids": ids, "corpus": fold(" ".join(chunks)), "age_ok": candidate.get("include_age_in_cv") is True,
+            "confidential": jc.confidential_terms(meta),
             "avoid": [str(a) for a in avoid if str(a).strip()], "roles": [str(r) for r in roles if str(r).strip()]}
 
 
@@ -120,6 +129,17 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
         if not isinstance(block, dict) or not str(block.get("text") or "").strip() or not block.get("section"):
             raise UsageError(f"blocks[{i}] needs a `section` and a `text`")
         by_section[str(block["section"])].append(block)
+    for section, cap in CONCISE.items():
+        own = (copy.get("limits") or {}).get(section)
+        cap = min(cap, own) if isinstance(own, int) and own > 0 else cap
+        items = by_section.get(section) or []
+        if section == "about" and items:
+            sized = [(section, len("\n\n".join(b["text"].strip() for b in items)))]
+        else:
+            sized = [(b.get("label") or section, len(b["text"].strip())) for b in items]
+        for where, size in sized:
+            if size > cap:
+                bad("too_long", where, f"{size} characters; keep it under {cap} so a recruiter reads it in seconds")
     for section, items in by_section.items():
         cap = limits.get(section)
         if cap is None:
@@ -147,6 +167,8 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
         for pattern in BANNED + tuple(re.escape(fold(p)) for p in project["avoid"]):
             if re.search(pattern, fold(text)):
                 bad("banned_phrase", where, f"matches {pattern!r}")
+        for term in jc_module().confidential_hits(text, project.get("confidential") or []):
+            bad("confidential_term", where, f"{term!r} is confidential (profile.md confidential_terms)")
         for kind, rx in PRIVATE:
             if rx.search(text):
                 bad("private_data", where, f"holds {kind} data that a public profile should not carry unasked")

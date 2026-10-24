@@ -50,6 +50,9 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
    - NOT_APPROVED -> no card; the summary says so.
 7. `kanban_complete` with the verdict on one line.
 
+A file that names a `profile.md` `confidential_terms` entry comes back as a correction of lens `privacy`, added by the
+script itself: it blocks whatever the lens verdicts say, so the writer always gets it.
+
 ## Corrections
 
 - `replace` when the text is quotable: `old` is an exact span that occurs once in its file; `new` is the replacement.

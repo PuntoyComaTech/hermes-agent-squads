@@ -26,8 +26,9 @@ One opening per card. Documents are written in the posting's language. The card 
    deliverables listed in `profile.md`. Every body paragraph ends with its `<!-- achievements: ACH-... -->` comment.
    Motivation and closing paragraphs use `<!-- achievements: none -->`.
 5. Render the CV, then the letter, with `rendering-cv`. Read `render_report.json` (CV) and `render_report_letter.json`.
-6. Put every `stretch_flags` entry in the card as: "stretch because X: keep, soften or drop". Do not finalise a
-   flagged bullet before the user answers.
+6. A `stretch_flags` entry is softened by you to the recorded proficiency ("participated in", "contributed to") and
+   listed in the card in one line; it never stops the card. Ask the user only when no truthful wording keeps the
+   bullet useful.
 7. Set `status.json` to `in_review`. Create the reviewer's card: jobs-reviewer, `skills: [reviewing-applications]`,
    `parents: [<your card id>]`, `idempotency_key` `jobs:application:<project>:<ID>:review` (CORRECTION:
    `...:review-r2`; CHANGE round N: `...:review-c<N>`).
@@ -49,6 +50,11 @@ redo steps 5 to 7. A requested claim with no verified achievement is never writt
 - A company fact (product, project, priority) is written only when the dated company profile or the opening states it.
 - Tailoring and style rules are in `references/cv-tailoring.md` and `references/writing-style.md`. Follow them before
   rendering; do not rely on the renderer to catch them.
+- Two readers, one document: a person skims it in seconds, an ATS parses it. Short beats complete: summary at most
+  50 words, at most 5 bullets in the latest role and 3 in every other, one line per bullet, letter body at most 250
+  words. The keywords go in those lines, never in extra ones. The renderer refuses a longer text as `too_long`.
+- `profile.md` `confidential_terms` never appear in an outward file (CV, letter, answers, recruiter message): write the
+  sector and scope instead. The renderer refuses them as `confidential_term`.
 
 ## Verification
 
@@ -56,6 +62,7 @@ redo steps 5 to 7. A requested claim with no verified achievement is never writt
   `unverified_achievement` defect.
 - The render report has no defect; `pages_actual` meets the budget; `page_method` is `measured`, or the card says the
   page count is an estimate.
-- Every stretch flag is in the card for the user.
+- Every stretch flag is softened, and listed in the card.
+- The render report has no `too_long` or `confidential_term` defect.
 - `strategy.md` explains each keyword covered and each evidence piece chosen.
 - The reviewer's card exists with the right round key.

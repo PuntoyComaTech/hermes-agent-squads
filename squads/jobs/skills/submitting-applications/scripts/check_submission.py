@@ -21,6 +21,8 @@ reservation under the project's lock (scripts/apply_state.py), so two appliers a
 tenth place.
 
 Rules (contract: jobs-contract references/opening-files.md, submission.json):
+- --gate: a kit text (letter, answers, recruiter message, rendered CV or letter text) that names a profile.md
+  `confidential_terms` entry closes the gate.
 - id is a JOB-YYYYMMDD-<slug> of at most 50 characters and, when FILE sits in openings/<ID>/application/, equals the
   folder name.
 - result is SUBMITTED, NEEDS_DATA or NOT_POSSIBLE; method is one of the seven form classes.
@@ -417,6 +419,7 @@ class Checker:
                                  f"are submitted, and every other form class goes to a manual kit")
             return
         project = opening.parent.parent
+        self.check_confidential(project)
         # One applier at a time reads the caps and takes its place: the reservation written below is what a second
         # applier sees, so nine of ten leaves one place and not two.
         with AS.locked(project):
@@ -502,6 +505,18 @@ class Checker:
             self.error("screenshots", "SUBMITTED needs a confirmation screenshot named confirmation.<ext>")
         elif not any(self.present(s) for s in confirmations):
             self.error("screenshots", "the confirmation screenshot does not exist")
+
+    def check_confidential(self, project: Path) -> None:
+        """A kit text that names a profile.md `confidential_terms` entry never goes out: the gate stays closed."""
+        settings, _problem = self.settings()
+        terms = jc.confidential_terms(settings) if isinstance(settings, dict) else []
+        for name in ("cover_letter.md", "answers.md", "recruiter_message.md", "cv_ats.txt", "letter_ats.txt"):
+            path = self.base / name
+            hits = jc.confidential_hits(path.read_text(encoding="utf-8", errors="ignore"), terms) \
+                if terms and path.is_file() else []
+            if hits:
+                self.error("confidential", f"{name} names {', '.join(map(repr, hits))} (profile.md "
+                                           "confidential_terms): correct the kit before any submit")
 
     def check_authority(self, screenshot: bool, at_gate: bool) -> None:
         """The consent, the review approval and the profile settings that decide whether a submit may happen."""

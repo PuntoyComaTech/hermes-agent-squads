@@ -39,14 +39,17 @@ The proof is an achievement with its number, cited by id.
 
 ## About
 
-First person, short paragraphs, line breaks (most views are on mobile). Order: a hook that earns "see more" (who you
-help and with what), proof (two or three achievements with numbers), the tools and methods in plain sentences (the
-market's `in_profile` terms), and one line on what you want next. No "passionate", no "results-oriented".
+First person, short paragraphs, line breaks (most views are on mobile). At most 1,500 characters: the first ~265 show
+before "see more", and they must say who the user is and what they do. Order: who you are and for whom (the role and
+the domain), two or three proofs in one line each, the core stack in one line. No career history (the Experience
+section holds it), no closing pitch, no "passionate", no "results-oriented". Search reads keywords from the headline,
+titles and skills more than from a long About, so length buys nothing.
 
 ## Experience
 
-Each role: a scope sentence, then three to six bullets, each an action verb, the object and the result, cited by
-achievement id. The job title is the real title; the target role appears in bullets only where it is true. Link
+Each role: a scope sentence, then two to four one-line bullets, each an action verb, the object and the result, cited
+by achievement id, at most 600 characters in all. Name sectors and scope, never a client, brand or internal project of
+the current employer (`confidential_terms`); a client list ends in "among others". The job title is the real title; the target role appears in bullets only where it is true. Link
 `public_evidence` pieces as attachments or Featured items.
 
 ## Skills

@@ -248,6 +248,8 @@ def check_profile(report, meta, today=None):
             if need(report, PROFILE, years, "in_role", "years_experience"):
                 in_role = number_of(report, PROFILE, "years_experience.in_role", years.get("in_role"))
 
+    text_list(report, PROFILE, "confidential_terms", meta.get("confidential_terms"))
+
     for mode in text_list(report, PROFILE, "work_mode", meta.get("work_mode")):
         if mode.split(":")[0] not in WORK_MODES:
             report.add(PROFILE, "work_mode", f"unknown work mode {mode!r}; use one of {', '.join(WORK_MODES)}")

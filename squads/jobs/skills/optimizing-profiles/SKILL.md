@@ -53,6 +53,8 @@ It never changes a setting (Open to Work visibility, custom URL, photo, Featured
    platform supports.
 8. Run `python3 "$T/check_profile_copy.py" <P>/profiles/<platform>.json --project <P> --market <market file>
    --render <P>/profiles/<platform>.md`. Fix every defect by removing or softening the claim; never loosen the check.
+   `too_long` means a person cannot read it in seconds: cut, do not move text to another field. `confidential_term`
+   means a client, brand or internal project: name the sector and scope instead.
 9. **Diff** for the user: `python3 "$T/profile_diff.py" diff <P>/documents/linkedin/current.json
    <P>/profiles/<platform>.json --json > <P>/profiles/<platform>-diff.json`. A field it lists as `matched: false`
    does not exist on the profile and can never be applied: say so.

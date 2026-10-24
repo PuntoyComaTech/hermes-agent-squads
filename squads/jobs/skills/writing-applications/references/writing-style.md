@@ -37,7 +37,7 @@ actually meant was"? Sort every line into one of three zones.
 | Zone | Example | Action |
 |---|---|---|
 | OK | Lead with the most relevant experience; use a natural synonym for the target domain; stress one aspect of a broad role | Write it |
-| Flag | Merge academic and industry work into one claim that implies all industry; use the posting's exact term for adjacent work | Write it with a `stretch` reason; ask the user: "stretch because X: keep, soften or drop" |
+| Flag | Merge academic and industry work into one claim that implies all industry; use the posting's exact term for adjacent work | Soften it to what the record says and note the `stretch` reason in the card; ask only when no truthful wording is left |
 | Never | Claim experience, a domain, a tool or an ownership level (led, owned) that the record does not hold | Do not write it |
 
 When the match score is below 50, warn the user before drafting heavy reframing: the gap is too large to bridge with
@@ -64,7 +64,8 @@ method, the tools and the outcome they can expect. Use one or two short past exa
 
 - Headline (letter subject or CV headline): title or education plus one posting keyword, for example "Data analyst
   specialising in SQL and Power BI reporting". Never "Application for ...".
-- Bullets: strong verb, what, for whom, result. 12 to 22 words. One idea per bullet. Vary the opening verbs.
+- Bullets: strong verb, what, for whom, result. 12 to 22 words, one printed line where possible. One idea per bullet.
+  Vary the opening verbs. Name the technology and the result; leave the implementation detail for the interview.
 - A number appears only when an achievement records it, with its unit.
 
 ## Language and register

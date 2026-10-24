@@ -26,6 +26,9 @@ Rules, applied deterministically:
   folder). A URL that appears in --opening is refused.
 - --id must be an opening id (JOB-YYYYMMDD-<slug>).
 - Review text never carries contact data (an e-mail address or an international phone number is refused).
+- A profile.md `confidential_terms` entry (read from the project that owns --application-dir) in any outward file
+  (cv_content.json, cover_letter.md, answers.md, recruiter_message.md) is a blocking correction of lens `privacy`,
+  whatever the lens verdicts say.
 
 Exit codes: 0 aggregated, 1 rule violation (nothing written; rework the named lens), 2 unreadable or malformed input.
 """
@@ -69,7 +72,9 @@ def _load_jobs_common():
     return module
 
 
-valid_opening_id = _load_jobs_common().valid_opening_id
+_JC = _load_jobs_common()
+valid_opening_id = _JC.valid_opening_id
+OUTWARD_FILES = ("cv_content.json", "cover_letter.md", "answers.md", "recruiter_message.md")
 
 
 class InputError(Exception):
@@ -100,6 +105,7 @@ class Collector:
         self.opening_refs = opening_refs
         self.render = render  # application/render_report.json as a dict, or None when absent
         self.declared_gaps = []  # keywords the ats lens says no achievement backs
+        self.forced = 0  # blocking corrections found by the script itself (confidential terms), outside any lens
 
     def supported_claim(self, claim: dict) -> bool:
         """A kept company claim is evidenced by quoted page text or a captured page in the application folder."""
@@ -471,7 +477,7 @@ def default_summary(verdict: str, corrections: list) -> str:
     per_lens = {}
     for item in corrections:
         per_lens[item["lens"]] = per_lens.get(item["lens"], 0) + 1
-    detail = ", ".join(f"{lens} {per_lens[lens]}" for lens in LENSES if lens in per_lens)
+    detail = ", ".join(f"{lens} {per_lens[lens]}" for lens in (*LENSES, "privacy") if lens in per_lens)
     return f"{verdict}: {len(corrections)} correction(s) ({detail})."
 
 
@@ -486,10 +492,26 @@ def scan_contact(c: Collector, value, where: str) -> None:
         c.error(where, "contact data found in review text; quote around it instead")
 
 
-def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id):
+def confidential_checks(c: Collector, terms: list) -> None:
+    """Each outward file that names a confidential term is one blocking correction (lens `privacy`) that no lens
+    verdict can wave through: a leak never passes review because a child missed it."""
+    for name in OUTWARD_FILES:
+        text = (c.app_files or {}).get(name)
+        hits = _JC.confidential_hits(text, terms) if text else []
+        if hits:
+            c.forced += 1
+            c.corrections.append({"lens": "privacy", "type": "content", "location": name, "mode": "instruction",
+                                  "instructions": f"remove {', '.join(map(repr, hits))} from {name} (profile.md "
+                                                  "confidential_terms): describe the work by sector and scope, then "
+                                                  "re-render"})
+
+
+def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, confidential=()):
+    if confidential:
+        confidential_checks(c, list(confidential))
     for lens in LENSES:
         run_lens(c, lens, blocks[lens])
-    total = sum(c.blocking.values())
+    total = sum(c.blocking.values()) + c.forced
     if total == 0:
         verdict = "APPROVED"
     else:
@@ -629,7 +651,12 @@ def main(argv=None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     c = Collector(app_files, refs, render)
-    review = aggregate(blocks, args.round, c, args.summary, args.review_id)
+    profile = Path(args.application_dir).resolve().parents[2] / "profile.md" if args.application_dir else None
+    try:
+        terms = _JC.confidential_terms(_JC.read_front_matter(profile)) if profile and profile.is_file() else []
+    except Exception:  # noqa: BLE001 - an unreadable profile is validate_profile's finding, not the review's
+        terms = []
+    review = aggregate(blocks, args.round, c, args.summary, args.review_id, terms)
     if c.errors:
         for line in c.errors:
             print(f"rule: {line}", file=sys.stderr)

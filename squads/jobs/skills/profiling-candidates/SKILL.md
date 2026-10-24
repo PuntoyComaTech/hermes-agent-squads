@@ -1,13 +1,14 @@
 ---
 name: profiling-candidates
-description: "Builds the personal profile from the user's material. Use when the user sets up the search, adds documents, changes goals, asks for undeclared skills, or wants a reset. Writes nothing until the user agrees."
+description: "Builds the personal profile from the user's material. Use when the user sets up the search, adds documents, changes goals, asks for undeclared skills, or wants a reset. Writes only what the user stated or approved."
 ---
 
 # Profiling candidates
 
 Personalises the search to one person: who they are, what they can prove, where they can work, what they want and
 what they refuse. The manager writes `profile.md`, `achievements.yaml`, `contact.yaml` and `application-data.yaml`
-only after the user's "ok". Keys and defaults: `references/profile-keys.md`. Market rules: `references/market-conventions.md`.
+with what the user stated: a fact or correction the user typed is written at once; a text the manager drafted from
+documents (a reworded achievement, a merged role) is written after the user's "ok". Keys and defaults: `references/profile-keys.md`. Market rules: `references/market-conventions.md`.
 Career stage: `references/stage-playbook.md`.
 
 ## When to Use
@@ -58,8 +59,9 @@ Career stage: `references/stage-playbook.md`.
    risk in the same sentence: LinkedIn limits automated use and can restrict the account. Ask for techniques the user
    has used that the CV does not name; each becomes an achievement only in the user's words.
    Age: ask only when the user offers it; otherwise it stays null.
-6. **Show, then write.** Show the complete YAML of each file that changed. Contact data is shown in chat only, never in
-   a card, comment, search query or report. Write a file only after the user's "ok", and write only the text shown.
+6. **Write, then show.** A fact the user typed goes in as they said it; a text you drafted goes in after their "ok".
+   Show only the lines that changed (a diff), not whole files. Contact data is shown in chat only, never in a card,
+   comment, search query or report.
    `application-data.yaml` answers a form's sponsorship question for remote contracting from the user's country the
    same way the user does (ask it); `authorize_consents` is asked, never assumed.
    Write drafts only inside the project folder (`<P>/.drafts/`, deleted after the ok); a scratch copy is for validation only.
@@ -99,7 +101,8 @@ each addition enters with `source:` set and `verified: false`.
 - Never infer age, marital status, nationality, health or family. Only the user's own words go into a field.
 - A language level is the user's declared level, not a test result. Say so once when the level is recorded.
 - Never claim a skill, metric or title that the user has not confirmed. Achievements stay unverified until confirmed.
-- Never write a file before the "ok"; a refused change leaves the existing file as it was.
+- Never write your own drafted wording before the "ok"; the user's own facts and corrections need no second ok.
+  A refused change leaves the existing file as it was.
 - Market conventions are general guidance, not law. Present them as options the user chooses.
 - Never type a country code unquoted (`NO` reads as false), and never put a work mode in `deal_breakers`.
 - Never tell the user the files are saved while validate_profile.py reports a finding.
@@ -108,7 +111,8 @@ each addition enters with `source:` set and `verified: false`.
 
 ## Verification
 
-- Each written file equals the YAML the user approved; the chat names the files written and the changes in one line each.
+- Each written line is the user's own fact or a draft they approved; the chat names the files written and the changes
+  in one line each.
 - Each `verified: true` item has the user's confirmation in the same turn.
 - `candidate.stage`, `market.country`, one `eligibility` row per country applied in, and `languages` are present.
 - `scoring.weights` sums to 100 when the user changed it.

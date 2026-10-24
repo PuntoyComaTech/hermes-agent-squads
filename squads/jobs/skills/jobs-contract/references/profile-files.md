@@ -56,6 +56,7 @@ daily_easy_apply_cap: 5             # auto: LinkedIn Easy Apply submissions a da
 review_before_submit: false         # true: the user checks the screenshot before any submit (ask)
 linkedin_browse: true               # the scout may read LinkedIn posts and the applier may use Easy Apply
 confidential_search: false
+confidential_terms: []              # clients, brands, internal projects, a second job: never in an outward text
 ```
 
 ## profile.md: personalisation keys

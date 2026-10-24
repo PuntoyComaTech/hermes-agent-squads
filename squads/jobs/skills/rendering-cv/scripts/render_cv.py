@@ -48,7 +48,9 @@ DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"
 MAX_CUTS = 40
 CHARS_PER_LINE, LINES_PER_PAGE = 92, 56
 BULLET_WORDS = (12, 22)
-LETTER_WORDS_MAX = 300
+LETTER_WORDS_MAX = 250        # a recruiter reads a letter in under a minute
+SUMMARY_WORDS_MAX = 50        # three short lines: who, what, for whom
+ROLE_BULLETS_MAX = (5, 3)     # most recent role, every other role: a skim reader stops after that
 KEYWORD_REPEAT_MAX = 3
 STRONG_OWNERSHIP = {"led", "managed", "owned", "architected", "launched", "designed", "built", "created",
                     "drove", "directed", "established", "delivered"}
@@ -255,6 +257,7 @@ def profile_facts(profile: dict) -> dict:
     avoid = [str(x) for x in (style.get("avoid_phrases") or []) if str(x).strip()]
     return {
         "avoid": avoid,
+        "confidential": jc.confidential_terms(profile),
         "stage": stage,
         "age_line": age_line,
         "photo_requested": cand.get("photo_in_cv") is True,
@@ -1312,10 +1315,15 @@ def check_letter_facts(letter: dict, src, defects: list, warnings: list) -> None
         check_tools("letter paragraph", text, src, defects)
 
 
-def privacy_defects(pairs: list, defects: list) -> None:
-    """Age, date of birth, marital status, photo and nationality never appear in a CV or letter, in any market."""
+def privacy_defects(pairs: list, defects: list, confidential: list | None = None) -> None:
+    """Age, date of birth, marital status, photo and nationality never appear in a CV or letter, in any market, and
+    neither does a profile.md `confidential_terms` entry (a client, a brand, an internal project)."""
     for label, text in pairs:
         text = str(text or "")
+        for term in jc.confidential_hits(text, confidential or []):
+            defects.append({"code": "confidential_term",
+                            "message": f"{term!r} in {label} is confidential (profile.md confidential_terms): describe "
+                                       "it by sector and scope instead"})
         for kind, pattern in PRIVATE_PATTERNS:
             if text.strip() and pattern.search(text):
                 defects.append({"code": "private_data",
@@ -1388,6 +1396,15 @@ def check_cv(work: dict, ctx: dict, analysis: dict, ach_index, ach_langs, defect
             if reason:
                 stretch.append({"job": label, "text": text, "reason": reason,
                                 "question": f"stretch because {reason}: keep, soften or drop"})
+    summary_words = word_count(work["summary"] or "")
+    if summary_words > SUMMARY_WORDS_MAX:
+        defects.append({"code": "too_long", "message": f"summary has {summary_words} words, the limit is "
+                                                       f"{SUMMARY_WORDS_MAX}: who you are, what you do, for whom"})
+    for i, job in enumerate(work["experience"]):
+        cap = ROLE_BULLETS_MAX[0] if i == 0 else ROLE_BULLETS_MAX[1]
+        if len(job["bullets"]) > cap:
+            defects.append({"code": "too_long", "message": f"{len(job['bullets'])} bullets under {job['title']!r}, "
+                                                           f"the limit is {cap}: keep the ones that match the posting"})
     for text in [work["summary"]] + [p["text"] for p in work["projects"]]:
         if text and has_em_dash(text):
             defects.append({"code": "style_em_dash", "message": f"em dash in text: {text[:50]!r}"})
@@ -1404,8 +1421,6 @@ def check_cv(work: dict, ctx: dict, analysis: dict, ach_index, ach_langs, defect
                         "message": "returning stage: an honest career-gap line is required (career_gap)"})
     if stage == "career_change" and not work["transferable_skills"]:
         warnings.append("career_change stage: a transferable-skills summary is recommended (transferable_skills)")
-    if stage == "senior" and work["summary"] and not re.search(r"\d", work["summary"]):
-        warnings.append("senior stage: the summary should name scope with a number (team, budget, users)")
     if stage and stage not in STAGES:
         warnings.append(f"unknown candidate.stage {stage!r}: default section order used")
     for lang in work["languages"]:
@@ -1451,7 +1466,8 @@ def check_letter(letter: dict, ach_index, defects: list, warnings: list, avoid: 
         for hit in style_hits(para["text"], avoid):
             defects.append({"code": "style_cliche", "message": f"cliche or avoided phrase {hit!r}: {para['text'][:50]!r}"})
     if body_words > LETTER_WORDS_MAX:
-        warnings.append(f"letter body has {body_words} words; keep it under {LETTER_WORDS_MAX}")
+        defects.append({"code": "too_long",
+                        "message": f"letter body has {body_words} words, the limit is {LETTER_WORDS_MAX}"})
     if not letter["closing_lines"]:
         warnings.append("no closing line found (a closing phrase as the last block)")
 
@@ -1617,12 +1633,12 @@ def run(args: argparse.Namespace, gate: bool = True) -> int:
         stretch = check_cv(work, ctx, analysis, ach_index, ach_langs, defects, warnings)
         check_keywords(result["text"], terms, warnings)
         check_cv_facts(work, ctx["header"]["headline"], sources, defects, warnings)
-        privacy_defects(cv_pairs(work, ctx["header"]), defects)
+        privacy_defects(cv_pairs(work, ctx["header"]), defects, facts["confidential"])
     else:
         stretch = []
         check_letter(work, ach_index, defects, warnings, facts["avoid"])
         check_letter_facts(work, sources, defects, warnings)
-        privacy_defects(letter_pairs(work), defects)
+        privacy_defects(letter_pairs(work), defects, facts["confidential"])
 
     docx_engine = render_docx(result["doc"], docx_path, warnings)
     files = [str(html_path), str(txt_path)]

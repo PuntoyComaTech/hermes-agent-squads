@@ -422,6 +422,18 @@ def word_in(needle, haystack) -> bool:
     return re.search(r"(?<![a-z0-9])" + re.escape(n) + r"(?![a-z0-9])", h) is not None
 
 
+def confidential_terms(meta) -> list:
+    """profile.md `confidential_terms`: names and phrases (clients, brands, internal projects, a second job) that no
+    outward text may carry: CV, letter, form answers, recruiter message, public profile copy."""
+    raw = meta.get("confidential_terms") if isinstance(meta, dict) else None
+    return [str(t).strip() for t in raw if str(t).strip()] if isinstance(raw, list) else []
+
+
+def confidential_hits(text, terms) -> list:
+    """The confidential terms found in text as whole words (accent- and case-insensitive)."""
+    return [t for t in terms if word_in(t, text)]
+
+
 def _month_index(value, today_value):
     text = str(value or "").strip().lower()
     if text in ("", "current", "present", "now", "actual", "actualidad", "hoy"):

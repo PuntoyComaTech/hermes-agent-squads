@@ -78,6 +78,9 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
 - Contact details never appear in a card body, a comment, a search query or a web request. Age, photo and marital
   status never appear in a document unless `profile.md` allows it. With `confidential_search: true`, never search
   the user's name and never mention their current employer outside the documents.
+- `profile.md` `confidential_terms` (clients, brands and internal projects of the current employer, a second job)
+  never appear in an outward text: CV, letter, form answer, recruiter message, public profile, card body, search
+  query. The renderer, `check_profile_copy.py`, `aggregate_review.py` and the submit gate refuse them.
 - Only jobs-applier submits: with the user's apply for that opening, or under `auto_apply: auto` within the caps.
 
 ## Verification

@@ -40,7 +40,8 @@ declared, with "tell me if you do have it" so a real skill can enter `achievemen
 
 ## Applying the approved edits
 
-Show the writer's diff (`profile_diff.py` output: field, before, after) and ask which fields to apply. Only what the
-user approves goes into `<P>/profiles/approved.json`. Then file a jobs-writer card (`skills: [optimizing-profiles]`,
+Show the final copy once, all fields in one message, and ask one question: "apply all, or name the fields to leave
+out". A correction the user gives instead is applied by the writer (CHANGE card) and the new copy goes straight to
+apply when it only carries that correction. Only the approved fields go into `<P>/profiles/approved.json`. Then file a jobs-writer card (`skills: [optimizing-profiles]`,
 body `Mode: PROFILE-APPLY` and that path, key `jobs:profile:<project>:<YYYY-MM-DD>:apply`). Report the writer's verify
 result in one line per field: applied, or failed with the reason. Settings (Open to Work, custom URL) stay the user's.
