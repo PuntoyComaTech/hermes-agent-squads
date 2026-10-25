@@ -12,10 +12,12 @@ Usage:
 CAPTURE.json (what the three snippets return, merged):
   {"url": "https://www.linkedin.com/in/<slug>/", "name": "...", "headline": "...", "location": "...",
    "about": "...", "featured": [],
-   "experience": {"found": true, "groups": [{"company": "...", "all": ["...", "..."], "roles": [["title", "dates", "..."]]}]},
-   "education": {"found": true, "items": [["institution", "degree", "dates", "..."]]},
+   "experience": {"found": true, "groups": [{"company": "...", "all": ["...", "..."],
+                  "roles": [{"lines": ["title", "dates", "..."], "edit": "https://.../details/experience/edit/forms/1/"}]}]},
+   "education": {"found": true, "items": [{"lines": ["institution", "degree", "dates", "..."], "edit": "..."}]},
    "skills": {"count": 36, "items": ["SQL", "..."]},
    "profile_languages": ["Español", "English"], "language": "es"}
+A role or school may also be a bare list of lines; then it carries no `edit` and profile_form.py cannot open it.
 
 `profile_languages` is the profile's own "Profile language" card (primary first); `language` is the language whose text
 this capture holds (default: the primary). The page mixes languages field by field, so a secondary language is
@@ -151,13 +153,29 @@ def experience_rows(section) -> list[dict]:
                 company_location = line
                 break
         roles = group.get("roles") or []
+        if not roles and len(all_lines) > 2 and " · " in all_lines[1] and DATES.match(all_lines[2]):
+            # a company with one role renders as one item: title, "Company · Employment", dates, then the rest
+            company, _, employment = all_lines[1].partition(" · ")
+            company, employment = company.strip(), employment.strip()
+            roles = [{"lines": [all_lines[0], *all_lines[2:]], "edit": group.get("edit")}]
+            company_dates = company_location = ""
         for role_lines in roles:
-            row = role_from(as_list(role_lines))
+            row = role_from(as_list(lines_of(role_lines)))
             if not row["title"]:
                 continue
             rows.append({"company": company, "employment": employment, "company_dates": company_dates,
-                         "company_location": company_location, **row})
+                         "company_location": company_location, **row, "edit": edit_of(role_lines)})
     return rows
+
+
+def lines_of(item):
+    """A capture item is its list of lines, or {"lines": [...], "edit": "<the entry's edit-form URL>"}."""
+    return item.get("lines") if isinstance(item, dict) else item
+
+
+def edit_of(item) -> str:
+    """The entry's own edit form, kept so the apply step opens that form and no other."""
+    return one_line(item.get("edit")) if isinstance(item, dict) else ""
 
 
 def education_rows(section) -> list[dict]:
@@ -165,13 +183,13 @@ def education_rows(section) -> list[dict]:
     if not isinstance(section, dict):
         return rows
     for item in section.get("items") or []:
-        lines = as_list(item)
+        lines = as_list(lines_of(item))
         if not lines:
             continue
         rest = [x for x in lines[3:] if not SKILLS_LINE.match(x)]
         rows.append({"institution": lines[0], "degree": lines[1] if len(lines) > 1 else "",
                      "dates": lines[2] if len(lines) > 2 else "",
-                     "description": "\n".join(rest).strip()})
+                     "description": "\n".join(rest).strip(), "edit": edit_of(item)})
     return rows
 
 

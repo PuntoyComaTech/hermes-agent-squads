@@ -31,7 +31,7 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit
 
 HOSTS = {"www.linkedin.com", "linkedin.com"}
 LOCALE_HOST = re.compile(r"^[a-z]{2}\.linkedin\.com$")
@@ -40,9 +40,21 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,100}$", re.I)
 DETAILS = {"experience", "education", "skills", "certifications", "projects", "courses", "honors", "languages",
            "publications", "volunteering", "patents", "featured", "recommendations", "interests", "causes",
            "organizations", "test-scores"}
+# The only forms the writer edits: the sections approved rows can name. Every other section is read, never edited.
+EDITABLE_DETAILS = {"experience", "education", "skills"}
 # Words that may not appear anywhere under /edit/: the modal and the contact-info form carry the user's private data
 # (e-mail, phone, address) and are never needed to rewrite a headline, an About or a role description.
 REFUSED_TAIL = ("contact-info", "overlay")
+# Under /in/<own>/edit/ only these forms pass: the intro (headline), the About, a position and the section forms. The
+# photo, the banner, the public-profile URL settings, the Featured pill and the follow-up prompts LinkedIn opens after a
+# save (`forms/next-action/...`: share the new position, people you may know, a Premium upsell) are all refused, so a
+# redirect after Save can never lead the writer into a post, an invitation or a setting.
+EDIT_ALLOWED = re.compile(r"^(?:intro(?:/new)?|forms/(?:intro|summary)(?:/new)?"
+                          r"|forms/(?:position|education|skills?)/(?:new|[0-9]{1,20}))$", re.I)
+FORM_ID = re.compile(r"^(?:new|[0-9]{1,20})$")
+# The query keys LinkedIn puts on the own profile and its forms (the language tab, the entry point, the self marker).
+# Anything else (a redirect target, another profile's URN) is refused rather than passed to the page.
+QUERY_KEYS = {"language", "country", "profileformentrypoint", "isselfprofile"}
 # The one overlay that edits a profile field: the pinned top skills have no other editor (measured 2026-10-25).
 ALLOWED_OVERLAYS = {"top-skills-details"}
 
@@ -103,12 +115,31 @@ def refusal(reason: str, kind: str = "other") -> dict:
 
 
 def check(url: str, own: str) -> dict:
-    """Allow the own profile, its details pages and its edit forms; refuse anything else."""
-    _scheme, host, path, _query, problem = parse_url(url)
+    """Allow the own profile, its details pages and its edit forms; refuse anything else.
+
+    An allowed verdict carries `url`: the address rebuilt from the checked parts (https, the host, the resolved path,
+    the allowed query), which is what a caller navigates to, never the raw input.
+    """
+    try:
+        _scheme, host, path, query, problem = parse_url(url)
+    except UsageError as exc:
+        return refusal(str(exc), "url")
     if problem:
         return refusal(problem, "url")
     if not linkedin_host(host):
         return refusal(f"{host or 'no host'} is not linkedin.com", "host")
+    pairs = parse_qsl(query, keep_blank_values=True)
+    odd = sorted({k for k, _v in pairs if k.lower() not in QUERY_KEYS})
+    if odd:
+        return refusal(f"the query carries {', '.join(odd)}: only the language tab and LinkedIn's own markers pass",
+                       "url")
+    verdict = check_path(host, path, own)
+    if verdict.get("allow"):
+        verdict["url"] = f"https://{host}{path}" + (f"?{urlencode(pairs)}" if pairs else "")
+    return verdict
+
+
+def check_path(host: str, path: str, own: str) -> dict:
     segs = segments(path)
     if not segs:
         return refusal("the LinkedIn home feed is not a profile", "feed")
@@ -139,12 +170,26 @@ def check(url: str, own: str) -> dict:
         what = (tail[1] if len(tail) > 1 else "").lower()
         if what not in DETAILS:
             return refusal(f"/details/{what or ''}/ is not a section of the own profile", "other")
-        return {"allow": True, "kind": "own_details", "own": own, "path": path,
-                "reason": f"the own profile's {what} page"}
+        rest = [seg.lower() for seg in tail[2:]]
+        if not rest:
+            return {"allow": True, "kind": "own_details", "own": own, "path": path,
+                    "reason": f"the own profile's {what} page"}
+        if (what in EDITABLE_DETAILS and len(rest) == 3 and rest[:2] == ["edit", "forms"]
+                and FORM_ID.match(rest[2])):
+            return {"allow": True, "kind": "own_edit", "own": own, "path": path,
+                    "reason": f"the own profile's {what} form"}
+        return refusal(f"/details/{what}/{'/'.join(rest)}/ is not a form this skill edits", "not-editable")
+    if [seg.lower() for seg in tail] == ["skills", "edit", "forms", "new"]:
+        # the skills page's own "Add a skill" link (measured 2026-10-25); its follow-up prompt stays refused
+        return {"allow": True, "kind": "own_edit", "own": own, "path": path, "reason": "the own add-skill form"}
     if tail[0].lower() == "edit":
         rest = "/".join(tail[1:]).lower()
         if any(word in rest for word in REFUSED_TAIL):
             return refusal("contact info is private and is never needed to optimise a profile", "private")
+        if not EDIT_ALLOWED.match(rest):
+            return refusal(f"/edit/{rest}/ is not a profile field: photo, banner, URL settings, Featured and the "
+                           "follow-up prompts after a save (share, invitations, upsell) are never opened",
+                           "not-editable")
         return {"allow": True, "kind": "own_edit", "own": own, "path": path,
                 "reason": "an edit form on the own profile"}
     if tail[0].lower() == "overlay" and len(tail) == 2 and tail[1].lower() in ALLOWED_OVERLAYS:

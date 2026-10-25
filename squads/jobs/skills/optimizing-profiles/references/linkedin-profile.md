@@ -85,7 +85,8 @@ by skill finds the role that used it. Top skills are the 3 to 5 LinkedIn pins on
 
 Every school on the profile gets a description of at most 400 characters: what was studied in the market's words (a
 bootcamp is "full-stack web development", a course list names the subjects that still matter), cited by its EDU id.
-School, degree name and dates are the user's to change: a mismatch with `achievements.yaml` goes to the audit.
+A degree name or date that differs from `achievements.yaml` goes to the audit as a `structure` row; the school's own
+name is the entry and is never renamed.
 
 ## Languages
 

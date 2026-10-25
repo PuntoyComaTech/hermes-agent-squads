@@ -27,12 +27,16 @@ APPROVED.json is what the manager writes after the user's yes, one row per appro
 deletion). Kinds and their keys:
   experience_title   company, title, was?   (the entry carries `title`; `was` is the name it had)
   experience_dates   company, title, from, to   (to: "Present" matches present/actualidad)
-  experience_create  company, title, from, to
+  experience_create  company, title, from, to, employment?, location?
   experience_delete  company, title
-  education_title    institution, title (degree name), was?
-  education_dates    institution, from, to
-  education_delete   institution
-`from`/`to` are the date tokens LinkedIn shows ("Oct 2023"). Structure is one list for every language.
+  education_title    institution, title (the degree name, before the comma of LinkedIn's "Degree, Field" line), was?
+  education_dates    institution, from, to, degree?
+  education_create   institution, title?, field?, from, to
+  education_delete   institution, degree?
+`was`/`degree` name which degree when one school holds two. `from`/`to` are the date tokens LinkedIn shows ("Oct
+2023", "2021", "Present"; a position needs the month). They are compared as dates, start against start and end
+against end: "2023" does not match "Oct 2023", and from/to swapped do not match. A token that is not a date fails its
+row. Structure is one list for every language. A `skills` row may list `remove`: only those skills are removed.
 
 Field ids: `headline`, `about`, `skills`, `top_skills`, `experience:<company>:<title>`,
 `role_skills:<company>:<title>` (the skills shown under a role) and `education:<institution>` (its description).
@@ -113,6 +117,11 @@ def find_school(current: dict, institution: str) -> dict | None:
         if isinstance(row, dict) and norm(row.get("institution")).lower() == institution.lower():
             return row
     return None
+
+
+def schools(current: dict, institution: str) -> list[dict]:
+    return [row for row in current.get("education") or []
+            if isinstance(row, dict) and norm(row.get("institution")).lower() == institution.lower()]
 
 
 def find_role(current: dict, company: str, title: str) -> dict | None:
@@ -201,13 +210,69 @@ def value_of(current: dict, field: str):
     return None
 
 
-def date_in(have, token: str, what: str) -> bool:
-    """One date token ("Oct 2023", "Present") must show in the dates line the profile captured."""
-    text = norm(have).lower()
-    want = norm(token).lower()
-    if want in ("present", "current", "actualidad"):
-        return bool(re.search(r"present|actualidad|atual", text))
-    return want in text
+MONTHS = {"jan": 1, "ene": 1, "feb": 2, "fev": 2, "mar": 3, "apr": 4, "abr": 4, "may": 5, "mai": 5, "jun": 6,
+          "jul": 7, "aug": 8, "ago": 8, "sep": 9, "set": 9, "oct": 10, "out": 10, "nov": 11, "dec": 12, "dic": 12,
+          "dez": 12}
+MONTH_WORDS = [(full, i % 12 + 1) for i, full in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november",
+     "december", "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+     "noviembre", "diciembre", "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+     "setembro", "outubro", "novembro", "dezembro"])] + [("setiembre", 9)]
+PRESENT = re.compile(r"^(?:present|current|actualidad|presente|atual|hoy|today)$", re.I)
+KINDS = ("experience_title", "experience_dates", "experience_create", "experience_delete",
+         "education_title", "education_dates", "education_create", "education_delete")
+
+
+def date_token(text) -> tuple | None:
+    """'Oct 2023' -> (2023, 10); '2023' -> (2023, None); 'Present'/'Actualidad' -> ('present',); else None."""
+    text = norm(text).strip(" .").lower()
+    if PRESENT.match(text):
+        return ("present",)
+    match = re.fullmatch(r"(?:([a-zà-ÿ]{3,})\.?\s+(?:de\s+)?)?((?:19|20)\d\d)", text)
+    if not match:
+        return None
+    month = None
+    if match.group(1):
+        word = match.group(1)
+        # the word must be a month name or its abbreviation ("Sept", "ene"), not any word that starts like one
+        month = next((n for full, n in MONTH_WORDS if full.startswith(word)), None)
+        if month is None:
+            return None
+    return (int(match.group(2)), month)
+
+
+def date_range(line) -> tuple:
+    """The (from, to) tokens of a captured dates line: 'Jan 2020 - Oct 2023 · 3 yrs' -> ((2020, 1), (2023, 10))."""
+    head = norm(line).split("·")[0]
+    parts = [p for p in re.split(r"\s+[-–—]\s+|\s*[–—]\s*", head) if p.strip()]
+    start = date_token(parts[0]) if parts else None
+    end = date_token(parts[1]) if len(parts) > 1 else None
+    return start, end
+
+
+def same_date(want, have) -> bool:
+    """Exact: a month the row names must be the month on the page, and a year-only row matches a year-only page."""
+    want_tok = date_token(want)
+    if want_tok is None:
+        raise UsageError(f"{want!r} is not a date token: use 'Oct 2023', '2023' or 'Present'")
+    return have is not None and want_tok == have
+
+
+def degree_of(school: dict) -> str:
+    """The degree name of a captured school: the line before the comma of 'Degree, Field of study'."""
+    return norm(school.get("degree_name") or str(school.get("degree") or "").split(",")[0])
+
+
+def dates_problem(row: dict, entry: dict) -> str:
+    for key in ("from", "to"):
+        if row.get(key) and date_token(row[key]) is None:
+            return f"the row's `{key}` {row[key]!r} is not a date: use 'Oct 2023', '2023' or 'Present'"
+    start, end = date_range(entry.get("dates"))
+    if row.get("from") and not same_date(row["from"], start):
+        return f"the entry starts {norm(entry.get('dates')).split('·')[0].strip() or 'with no date'}, not {row['from']}"
+    if row.get("to") and not same_date(row["to"], end):
+        return f"the entry ends {norm(entry.get('dates')).split('·')[0].strip() or 'with no date'}, not {row['to']}"
+    return ""
 
 
 def check_structure(rows, current: dict) -> tuple[list, list]:
@@ -217,39 +282,45 @@ def check_structure(rows, current: dict) -> tuple[list, list]:
         if not isinstance(row, dict) or not str(row.get("kind") or "").strip():
             raise UsageError("every structure row needs a `kind`")
         kind = str(row["kind"]).strip()
+        if kind not in KINDS:
+            raise UsageError(f"unknown structure kind {kind!r}")
         company, title = norm(row.get("company")), norm(row.get("title"))
         school = norm(row.get("institution"))
         have, why = None, ""
         if kind in ("experience_title", "experience_dates", "experience_create"):
             have = find_role(current, company, title)
-            if have is not None:
-                want_from, want_to = row.get("from"), row.get("to")
-                if want_from and not date_in(have.get("dates"), str(want_from), "from"):
-                    why = f"the dates do not show {want_from}"
-                elif want_to and not date_in(have.get("dates"), str(want_to), "to"):
-                    why = f"the dates do not show {want_to}"
-                elif row.get("was") and find_role(current, company, norm(row.get("was"))) is not None:
-                    why = f"the entry still carries its old title {row.get('was')!r}"
-            else:
+            if have is None:
                 why = "the entry is not on the profile"
+            elif row.get("was") and find_role(current, company, norm(row.get("was"))) is not None:
+                why = f"the entry still carries its old title {row.get('was')!r}"
+            else:
+                why = dates_problem(row, have)
         elif kind == "experience_delete":
             have = find_role(current, company, title)
             why = "the entry is still on the profile" if have is not None else ""
-        elif kind in ("education_title", "education_dates"):
-            have = find_school(current, school)
-            if have is None:
+        elif kind in ("education_title", "education_dates", "education_create"):
+            # one school may hold two degrees: the row's degree (its new `title`, or `degree`) names which one
+            rows_at = schools(current, school)
+            which = title or norm(row.get("degree"))
+            have = next((r for r in rows_at if which and degree_of(r).lower() == which.lower()), None)
+            if have is None and not which and len(rows_at) == 1:
+                have = rows_at[0]
+            if not rows_at:
                 why = "the school is not on the profile"
-            elif row.get("from") and not date_in(have.get("dates"), str(row["from"]), "from"):
-                why = f"the dates do not show {row['from']}"
-            elif row.get("to") and not date_in(have.get("dates"), str(row["to"]), "to"):
-                why = f"the dates do not show {row['to']}"
-            elif row.get("was") and find_school(current, norm(row.get("was"))) is not None:
-                why = f"the entry still carries its old name {row.get('was')!r}"
-        elif kind == "education_delete":
-            have = find_school(current, school)
-            why = "the school is still on the profile" if have is not None else ""
+            elif have is None and title:
+                why = f"the degree reads {' / '.join(repr(degree_of(r)) for r in rows_at)}, not {title!r}"
+            elif have is None:
+                why = "the school holds more than one degree: the row names none, so none is proven"
+            elif kind == "education_title" and row.get("was") and any(
+                    degree_of(r).lower() == norm(row["was"]).lower() for r in rows_at):
+                why = f"the school still carries its old degree {row['was']!r}"
+            else:
+                why = dates_problem(row, have)
         else:
-            raise UsageError(f"unknown structure kind {kind!r}")
+            which = norm(row.get("degree"))
+            rows_at = schools(current, school)
+            have = next((r for r in rows_at if not which or degree_of(r).lower() == which.lower()), None)
+            why = "the school is still on the profile" if have is not None else ""
         label = f"{title or school}{' at ' + company if company else ''}"
         ok = (have is None) if kind.endswith("delete") else (why == "")
         results.append({"field": f"structure:{kind}:{label}", "ok": ok, "reason": why or None})

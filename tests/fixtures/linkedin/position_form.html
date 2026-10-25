@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- A LinkedIn position edit form as measured on 2026-10-25: placeholder-labelled inputs, month/year selects, a
+     current-role box that hides the end selects, a notify-network switch, a TipTap-style description, role skill
+     checkboxes with an "Add skill" picker, Delete with a generic confirmation dialog, and Save. Fictitious data.
+     The innerHTML writes below only render values the test itself puts in the URL hash: a local fixture, no input. -->
+<html><head><meta charset="utf-8"><title>Edit role</title></head><body>
+<main>
+<div id="form">
+  <h2>Edit role</h2>
+  <nav><a href="?">Spanish (Primary profile)</a><a href="?language=en&country=US">English</a></nav>
+  <label>Notify network <input type="checkbox" role="switch" id="notify"></label>
+  <label>Job title*<input type="text" id="title" placeholder="Role title"></label>
+  <label>Organization<input type="text" id="org" placeholder="Organization name"></label>
+  <label>Location<input type="text" id="loc" placeholder="City, region, or Remote"></label>
+  <select id="emp"><option value="">Select employment type</option><option value="12">Full-time</option>
+    <option value="3">Self-employed</option><option value="20">Freelance</option></select>
+  <div><input type="checkbox" id="cur"><label for="cur" id="curlabel">I am currently working in this role</label></div>
+  <div id="endcur" hidden><input type="checkbox" id="endnow"><label for="endnow" id="endlabel">End current position as of now - Lead</label></div>
+  <div id="inline"></div>
+  <div id="start"></div>
+  <div id="end"></div>
+  <div contenteditable="true" role="textbox" aria-label="Description, maximum 2,000 characters" id="desc"></div>
+  <div id="skills"></div>
+  <button id="addskill" type="button">Add skill</button>
+  <div id="picker" hidden><input type="text" id="skillq" placeholder="Skill (ex: Project Management)"><div id="opts"></div></div>
+  <button id="del" type="button">Delete</button>
+  <button id="save" type="button">Save</button>
+</div>
+</main>
+<script>
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function selects(host, prefix) {
+  const m = document.createElement('select'); m.id = prefix + 'm';
+  m.innerHTML = '<option value="">Month</option>' + MONTHS.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+  const y = document.createElement('select'); y.id = prefix + 'y';
+  y.innerHTML = '<option value="">Year</option>' + Array.from({length: 30}, (_, i) => 2026 - i).map(v => `<option value="${v}">${v}</option>`).join('');
+  host.append(m, y);
+}
+const state = JSON.parse(decodeURIComponent(location.hash.slice(1) || '%7B%7D'));
+window.__events = [];
+selects(document.getElementById('start'), 's');
+const setEnd = (on) => { const e = document.getElementById('end'); e.innerHTML = ''; if (on) selects(e, 'e'); };
+document.getElementById('title').value = state.title || '';
+document.getElementById('org').value = state.org || '';
+// measured: the empty editor holds one empty paragraph (its innerText reads "\n")
+document.getElementById('desc').innerHTML = (state.desc || '').split('\n').map(p => `<p>${p || '<br>'}</p>`).join('');
+if (state.sm) document.getElementById('sm').value = state.sm;
+if (state.sy) document.getElementById('sy').value = state.sy;
+const cur = document.getElementById('cur');
+cur.checked = !!state.current;
+setEnd(!cur.checked);
+if (!cur.checked && state.em) { document.getElementById('em').value = state.em; document.getElementById('ey').value = state.ey; }
+document.getElementById('endcur').hidden = !state.offer_end;
+// LinkedIn renders these labels in the account's interface language
+if (state.cur_label) document.getElementById('curlabel').textContent = state.cur_label;
+if (state.end_label) document.getElementById('endlabel').textContent = state.end_label;
+document.getElementById('endnow').checked = !!state.end_now;
+cur.addEventListener('change', () => setEnd(!cur.checked));
+for (const s of state.skills || []) addSkill(s.name, s.checked);
+function addSkill(name, checked) {
+  const d = document.createElement('div'); const id = 'sk' + Math.random().toString(36).slice(2);
+  d.innerHTML = `<input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><label for="${id}">${name}</label>`;
+  document.getElementById('skills').append(d);
+}
+document.getElementById('addskill').onclick = () => { document.getElementById('picker').hidden = false; };
+document.getElementById('skillq').addEventListener('input', (e) => {
+  const q = e.target.value.trim();
+  document.getElementById('opts').innerHTML = (state.catalog || []).filter(n => n.toLowerCase().startsWith(q.toLowerCase()))
+    .map(n => `<div role="button">${n}</div>`).join('');
+  for (const o of document.querySelectorAll('#opts [role=button]')) o.onclick = () => {
+    addSkill(o.innerText, true); document.getElementById('picker').hidden = true; };
+});
+document.getElementById('del').onclick = () => {
+  const d = document.createElement('div'); d.setAttribute('role', 'dialog');
+  d.innerHTML = 'Delete role<p>Are you sure you want to delete this role? This action can\'t be undone.</p>' +
+    '<button id="no">No thanks</button><button id="yes">Delete</button>';
+  document.body.append(d);
+  d.querySelector('#no').onclick = () => d.remove();
+  d.querySelector('#yes').onclick = () => { window.__deleted = true; d.remove(); document.getElementById('form').remove(); };
+};
+document.getElementById('save').onclick = () => {
+  // a rejected Save keeps the form open with an inline message that is not marked as an alert (measured on dates)
+  if (state.reject) { document.getElementById('inline').textContent = state.reject; return; }
+  const v = (id) => (document.getElementById(id) || {}).value || '';
+  window.__saved = {title: v('title'), org: v('org'), emp: v('emp'), sm: v('sm'), sy: v('sy'), em: v('em'), ey: v('ey'),
+    current: cur.checked, notify: document.getElementById('notify').checked,
+    end_now: document.getElementById('endnow').checked,
+    desc: document.getElementById('desc').innerText,
+    skills: [...document.querySelectorAll('#skills input')].filter(c => c.checked).map(c => c.nextElementSibling.innerText)};
+  document.getElementById('form').remove();
+  const a = document.createElement('div'); a.setAttribute('role', 'alert'); a.innerText = 'Save was successful.';
+  document.body.append(a);
+};
+</script>
+</body></html>

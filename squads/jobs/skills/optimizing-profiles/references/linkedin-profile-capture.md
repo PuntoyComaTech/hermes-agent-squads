@@ -1,9 +1,9 @@
 # Reading the own LinkedIn profile
 
-Selectors and snippets measured on a real signed-in profile (2026-10-22, headless Chromium 145). Everything here is
-read-only: no click that saves, no field typed into, no tab closed. LinkedIn ships hashed class names that change
-between builds, so every selector below uses a stable attribute (`componentkey`, `id`, `aria-label`, element order) or
-the page's own text.
+Selectors and snippets measured on a real signed-in profile (reads 2026-10-22, form writes 2026-10-25, headless
+Chromium). The capture snippets only read; every write is a `profile_form.py` step (Writing, below). LinkedIn ships
+hashed class names that change between builds, so every selector uses a stable attribute (`componentkey`, `id`,
+`aria-label`, placeholder, element order) or the page's own text.
 
 ## Contents
 
@@ -13,6 +13,7 @@ the page's own text.
 - The details pages: experience, education, skills
 - The edit forms and their language tabs
 - Profile languages and one capture per language
+- Writing: profile_form.py
 - Measured against unverified
 
 ## The browser in one tab
@@ -31,12 +32,12 @@ the top.
 ## The own-profile guard
 
 Run `own_profile.py check <url> --own <slug|me>` before every navigation; it exits 0 only for `/in/me/`, the recorded
-own `/in/<slug>/`, its `/details/<section>/` pages and its `/edit/` forms, and only for an `https` address on
-`www.linkedin.com` or a two-letter locale subdomain (`es.linkedin.com`). The path is percent-decoded and its dot
-segments resolved before the match, so `/in/<slug>/edit/../../../in/other/` is judged as `/in/other/`; a `contact-info`
-form or an `overlay` under `/edit/` is refused. `own_profile.py record <url> --project <P>` stores the slug `/in/me/`
-redirected to, and only accepts an https LinkedIn URL LinkedIn marked `isSelfProfile=true` or one that repeats the
-stored slug.
+own `/in/<slug>/`, its `/details/<section>/` pages, the experience, education and skills forms under them, and the
+intro, summary and position forms under `/edit/`, on `https` `www.linkedin.com` or a two-letter locale subdomain. The
+path is percent-decoded and its dot segments resolved first, so `/in/<slug>/edit/../../../in/other/` is judged as
+`/in/other/`. Contact info, overlays, the photo, banner and public-URL forms, Featured, and every `next-action` prompt
+LinkedIn opens after a Save are refused. `own_profile.py record <url> --project <P>` stores the slug `/in/me/`
+redirected to, and only accepts a URL LinkedIn marked `isSelfProfile=true` or one that repeats the stored slug.
 
 ## The profile card: name, headline, location, About
 
@@ -91,29 +92,33 @@ skills use no section container. Items are `[componentkey^="entity-collection-it
 over 6 roles, education 3 items, skills 10 items at load and all 36 after scrolling.
 
 ```python
-# /in/<slug>/details/experience/  -> groups of roles, one group per company
+# /in/<slug>/details/experience/  -> groups of roles, one group per company; each keeps its edit-form URL
 js("""(() => {
   const lines = (el) => (el.innerText || '').split('\\n').map(t => t.trim()).filter(Boolean);
+  const edit = (el) => ([...el.querySelectorAll('a')].map(a => a.href).find(h => /\\/edit\\/forms\\/\\d+/.test(h)) || '');
   const sec = document.querySelector('[componentkey$="ExperienceDetailsSection"]');
   if (!sec) return {found: false, groups: []};
   return {found: true, groups: [...sec.querySelectorAll('[componentkey^="entity-collection-item-"]')].map(g => ({
-    all: lines(g),
+    all: lines(g), edit: edit(g),
     company: ([...g.querySelectorAll('a[href*="/company/"]')].map(a => (a.innerText || '').trim())
               .find(Boolean) || '').split('\\n')[0],
-    roles: [...g.querySelectorAll('ul > li')].map(li => lines(li))}))};
+    roles: [...g.querySelectorAll('ul > li')].map(li => ({lines: lines(li), edit: edit(li)}))}))};
 })()""")
 ```
 
 Each role's lines are `title`, `dates` (`Jun 2026 - Present · 5 mos`), then one location line or a `Skills: …` line.
-The group's lines are the company, `Full-time · 1 yr 7 mos`, and a company location.
+The group's lines are the company, `Full-time · 1 yr 7 mos`, and a company location. A company with one role has no
+`ul > li`: its lines are `title`, `Company · Employment`, `dates`, and `parse_profile.py` reads it as one role.
 
 ```python
 # /in/<slug>/details/education/
 js("""(() => {
   const lines = (el) => (el.innerText || '').split('\\n').map(t => t.trim()).filter(Boolean);
+  const edit = (el) => ([...el.querySelectorAll('a')].map(a => a.href).find(h => /\\/edit\\/forms\\/\\d+/.test(h)) || '');
   const sec = document.querySelector('[componentkey$="EducationDetailsSection"]');
   if (!sec) return {found: false, items: []};
-  return {found: true, items: [...sec.querySelectorAll('[componentkey^="entity-collection-item-"]')].map(lines)};
+  return {found: true, items: [...sec.querySelectorAll('[componentkey^="entity-collection-item-"]')]
+    .map(i => ({lines: lines(i), edit: edit(i)}))};
 })()""")
 
 # /in/<slug>/details/skills/
@@ -124,8 +129,7 @@ js("""(() => {
 })()""")
 ```
 
-Per-skill edit links sit on the same page: `a[aria-label="Edit <skill> skill"]`, href
-`/in/<slug>/details/skills/edit/forms/<id>/`; the add link is `/in/<slug>/skills/edit/forms/new/`.
+Per-skill edit links: `a[aria-label="Edit <skill> skill"]` (`/details/skills/edit/forms/<id>/`); add: `.../forms/new/`.
 
 ## The edit forms and their language tabs
 
@@ -135,26 +139,25 @@ Per-skill edit links sit on the same page: `a[aria-label="Edit <skill> skill"]`,
 | About | `/in/<slug>/edit/forms/summary/new/` | `div[contenteditable="true"][role="textbox"]`, counter `1,353/2,600` beside it |
 | Experience | `/in/<slug>/details/experience/edit/forms/<id>/` | `div[contenteditable="true"][aria-label="Description, maximum 2,000 characters"]`, counter `0/2,000` |
 
-The position form (`/details/experience/edit/forms/<id>/`, and `/details/experience/edit/forms/new/` for "Add
-position", unverified) carries `Job title*`, `Employment type` (select), `Company`, `Location`, `Location type`
-(select), `Start month`/`Start year*`, `End month`/`End year*` (selects; a "Present" checkbox fills the end), the
-description and the role's skill checkboxes. The education form carries `School*`, `Degree`, `Field of study`, the
-four date selects, `Grade`, `Activities and societies` and `Description, maximum 1,000 characters`. Both hold a
-`Delete` button at the bottom. Measured 2026-10-25: the position dialog reads "Delete role / Are you sure you want to
-delete this role?" and names no entry, so the proof is the form it was opened from (its title and company fields); the
-skill dialog names the skill. Pinned top skills are edited only in `/in/<slug>/overlay/top-skills-details/` ("Show top
-skills"), the one overlay `own_profile.py` allows. A role skill is picked from LinkedIn's taxonomy: a name the picker
-does not offer ("Workers", "AI") cannot be added, so write role and profile skills with names the picker offers
-("Cloudflare", "Generative AI"), and drop one the picker lacks with a line in the report. Structure
-edits use these forms; `approved.json` `structure` rows name exactly which fields change.
+The position form (`/details/experience/edit/forms/<id>/` redirects to `/edit/forms/position/<id>`) shows, in the
+primary tab only, inputs by placeholder (`Role title`, `Organization name`, `City, region, or Remote`), the location
+type and employment type selects, the box `I am currently working in this role` (ticked hides the end selects), the
+month/year selects, the description and the role's skill checkboxes with `Add skill` (input `Skill (ex: Project
+Management)`, suggestions as `role="button"`). A secondary tab holds only the description, as a `textarea`. "Add
+position" (`/details/experience/edit/forms/new/`) opens with the current-role box ticked and a box `End current position
+as of now - <role>`. The education form holds `School*`, `Degree`, `Field of study`, the date selects and a
+`Description, maximum 1,000 characters` textarea. Each form has a `Notify network` switch (off) and `Delete`; the
+position dialog reads only "Are you sure you want to delete this role?" (no entry name: the form is the proof), the
+skill dialog names the skill. Pinned top skills live only in `/in/<slug>/overlay/top-skills-details/`, the one overlay
+the guard allows. A skill is picked from LinkedIn's taxonomy: a name the picker lacks ("Workers", "AI") cannot be
+added, so draft skills with names it offers ("Cloudflare", "Generative AI").
 
 Save is a `button` whose text is `Save`. A form opens in the primary language; `nav a` holds one link per language
 (`?language=en&country=US`) and clicking it swaps the field's text: the intro form gave 163 characters in Spanish and
 163 in English, the About form 1,379 in Spanish and 1,500 in English. So a field's text depends on the tab: read the
 tab before typing, and type only into the tab whose text equals the captured text.
 
-The About counter is the only counter the profile shows; the headline field shows none, so its 220-character limit is
-enforced by `check_profile_copy.py`, not read from the page.
+The headline shows no counter: its 220-character limit is enforced by `check_profile_copy.py`.
 
 ## Profile languages and one capture per language
 
@@ -168,25 +171,30 @@ while the role descriptions showed the Spanish one. So the page is the structure
 and the forms are the text: for each language, open each field's form in that tab and read its control (Headline,
 About, each role's Description, each school's Degree, Field of study and Description). Write the capture with
 `"language": "<code>"` and parse it into `current.<code>.json`. Reading a form is not editing it: close it with
-`Escape`, never with `Save`.
+`Escape`, never with `Save`. An empty secondary tab shows the primary text until it is written. The About card's
+last lines (`Top skills`, then the pins) are not About text: `parse_profile.py` moves them to `top_skills`.
 
-Measured on 2026-10-24: the education form holds `School*`, `Degree`, `Field of study`, start and end selects,
-`Grade`, `Activities and societies` and `Description, maximum 1,000 characters`; a role form lists its skills as
-checkboxes (checked = shown under that role). The About card's last lines, `Top skills` and `Python • N8N •
-LangChain`, are LinkedIn's pinned skills, not About text: `parse_profile.py` moves them to `top_skills`.
+## Writing: profile_form.py
+
+Inside `browser_exec`, load it from `$T` (`profile_form.py --help`), make `page = pf.Page(js, cdp, own=<slug>)` and
+run the whole plan with `pf.apply_all(page, steps, <state file>)`: it paces the saves and stops on a checkpoint. Each
+step navigates to the address the guard rebuilt, checks where it landed (guard again, and the form is there), proves
+the form shows the entry the row names, sets only the step's values, reads them back, and saves; a Save counts only
+when the form closes. It returns `applied`, `refused` (nothing typed or saved) or `failed`. Measured 2026-10-25:
+
+- A new position saved with the current-role box ticked became the current job, and LinkedIn replaced the headline
+  with "<title> at <company>". The step clears the box and sets the end selects before Save.
+- Typing after a Range selection appended to the old headline; the step selects with the editor's own selectAll and
+  types only after the whole old text is selected, then compares the field with the approved text before Save.
+- After Save LinkedIn lands on `/edit/forms/next-action/...` (share the position, people you may know, Premium); the
+  guard refuses those pages and the next step navigates away.
+- A Save is refused while `Notify network` is on or any box the step did not set is ticked, in any interface language.
+- A skill is added on `/details/skills/edit/forms/new/` and removed with `Delete skill` on its own form, one per Save.
+  Top skills (the pins, edited in the top-skills overlay) have no script step yet: the card lists them for the user.
 
 ## Measured against unverified
 
-Measured: the `/in/me/` redirect and its `isSelfProfile=true` marker; the four card suffixes and the three details
-sections; name, headline, location and About across a two-paragraph About with `… more`; 3 experience groups and 6
-roles with company, employment, dates, location and a `Skills: …` line; 3 education items; 36 skills after scrolling;
-the three edit forms, their controls, the `Save` button, the About counter and the language-tab URLs.
-
-Unverified:
-
-- A role description on the *displayed* page: no role on the measured profile has one, so `parse_profile.py` treats
-  the lines after the location and the `Skills: …` line as the description.
-- The experience edit form prefilled: `/details/experience/edit/forms/<id>/` opened with `Job title*` empty on the
-  measured profile, so the writer checks the prefill and stops instead of typing into a blank form.
-- A `Featured` card: absent on the measured profile. `parse_profile.py` keeps `featured` empty.
-- A public-profile URL edit, Open to Work visibility and any setting: never changed by this skill.
+Measured: the `/in/me/` redirect and its marker, the card suffixes, the three details sections (single-role groups
+included), 71 skills after scrolling, and the intro, summary, position, education and skill forms in both tabs with
+their Save, Delete, confirmation dialog and post-Save redirects. Unverified: a `Featured` card (absent: `featured`
+stays empty) and every account setting, which this skill never opens.

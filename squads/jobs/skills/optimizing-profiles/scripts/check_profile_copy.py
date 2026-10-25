@@ -2,8 +2,9 @@
 """Checks the copy jobs-writer drafted for a public profile (LinkedIn or any other platform) before the user sees it.
 
 The writer drafts `profiles/<platform>.json`; this tool refuses anything the user could not truthfully stand behind and
-renders the paste-ready Markdown only when the copy is clean. Nothing here logs in to a platform or edits a profile:
-the user pastes the text.
+renders the reviewable Markdown only when the copy is clean. Nothing here logs in to a platform or edits a profile:
+the approved fields are written later by profile_form.py, and the Markdown is also what a user pastes on a platform
+the writer does not edit.
 
 Usage:
   check_profile_copy.py COPY.json --project P [--current current.json] [--structure structure.json]
@@ -299,13 +300,13 @@ def apply_structure(rows: list, current: dict) -> dict:
         elif kind == "education_delete":
             schools.pop(key(row.get("institution")), None)
         elif kind in ("education_title", "education_create", "education_dates"):
-            if row.get("was"):
-                schools.pop(key(row.get("was")), None)
-            schools[key(row.get("institution"))] = {}
+            # the school is the entry's name and never changes here; `title` is its degree
+            name = key(row.get("institution"))
+            schools[name] = dict(schools.get(name) or {}, institution=str(row.get("institution") or ""))
         elif kind:
             raise UsageError(f"unknown structure kind {kind!r}")
     out["experience"] = [dict(r, company=c, title=t) for (c, t), r in roles.items()]
-    out["education"] = [dict(s, institution=s.get("institution") or "") for s in schools.values()]
+    out["education"] = [dict(s, institution=s.get("institution") or name) for name, s in schools.items()]
     return out
 
 
@@ -324,8 +325,8 @@ def coverage(copy: dict, current: dict) -> list:
                                       "description from the achievements of that company and period"})
     for k in sorted(drafted_roles - set(roles)):
         defects.append({"defect": "unknown_role", "where": f"{k[1]} at {k[0]}",
-                        "detail": "the profile holds no role with this company and title: write the block for the "
-                                  "role as LinkedIn names it (titles and dates stay the user's)"})
+                        "detail": "the profile holds no role with this company and title: name the role as LinkedIn "
+                                  "does, or add the structure row that renames or creates it (--structure)"})
     for k, row in schools.items():
         if k not in drafted_schools:
             defects.append({"defect": "education_not_covered", "where": row.get("institution"),
@@ -344,7 +345,8 @@ def coverage(copy: dict, current: dict) -> list:
 
 def render(copy: dict) -> str:
     out = [f"# {copy.get('platform', 'profile')} - paste-ready copy", "",
-           "Paste each block into the matching field yourself. Nothing here was sent to the platform.", ""]
+           "Paste each block into the matching field yourself, or approve it for the writer to apply. Nothing here "
+           "was sent to the platform.", ""]
     current = None
     for block in copy["blocks"]:
         if block["section"] != current:

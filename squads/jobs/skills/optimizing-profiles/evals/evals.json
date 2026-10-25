@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "A PROFILE card for LinkedIn. documents/linkedin holds the pasted current profile, a market file with in_profile flags exists, and achievements.yaml has verified items.",
-      "expected_output": "The writer audits each field, drafts profiles/linkedin.json with achievement ids on every block, check_profile_copy.py exits 0, profiles/linkedin.md and the audit file exist, and the card says nothing was sent to LinkedIn.",
+      "prompt": "A PROFILE-APPLY card whose approved file renames one position and creates a past freelance one; the Add position form opens with 'I am currently working in this role' ticked.",
+      "expected_output": "The writer runs profile_form.py plan and Page.run per step: the rename lands on the form whose title and company match, the new position is saved with its end date (the box cleared, the headline untouched), the texts follow after a re-capture, and profile_diff.py verify exits 0. No selector or Save is improvised.",
       "files": []
     },
     {
@@ -15,8 +15,8 @@
     },
     {
       "id": 3,
-      "prompt": "The user sends only a LinkedIn profile URL and asks for an optimised profile.",
-      "expected_output": "The writer blocks with needs_input asking the user to paste the profile text, because a link cannot be read here, and scores nothing.",
+      "prompt": "During an apply, the delete step's form shows a different title than the row names, and after a Save LinkedIn lands on a 'share your new position' prompt.",
+      "expected_output": "Page.run refuses the delete and nothing is deleted; own_profile.py refuses the share prompt, which is never answered; the card completes with verify's failures listed and no retry card.",
       "files": []
     }
   ]

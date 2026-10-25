@@ -3,6 +3,42 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.17.0 - 2026-10-25
+
+### Added
+
+- jobs 4.8.0: the writer fills LinkedIn's forms with a script, not with prose. `optimizing-profiles/scripts/
+  profile_form.py` plans the apply form by form (`plan --phase structure|text`) and its `Page` class performs each
+  step inside `browser_exec`: guard, open the form in its language tab, prove the form shows the entry the row names,
+  set only the approved values, read them back, Save. Encoded from the first live apply:
+  - "Add position" opens with "I am currently working in this role" ticked; saved like that the new role became the
+    current job and LinkedIn rewrote the headline to "<title> at <company>". The step clears the box and sets the end
+    date, and `plan` refuses a new position without `to`.
+  - Replacing a headline appended to it; the step selects the old text whole (never the page, on an empty editor)
+    and compares the field with the approved text before Save.
+  - No Save while "Notify network" is on or "End current position as of now" is ticked; a delete only on the form
+    whose title and company match the row.
+  - A rename and its new dates are one form and one Save; skills are added and removed one per form.
+  - `apply_all` runs a whole plan at a person's pace: 25-70 s between saves, a 3-6 min break every 6, words typed a few
+    at a time, at most 40 saves a day. Progress lives in a state file, so a run longer than one browser call resumes
+    without repeating a save, and a sign-in, checkpoint or restriction page stops everything at once. Nothing tries to
+    hide the automation (no fingerprint or user-agent tricks).
+  - Tests drive a real headless Chrome over `--remote-debugging-pipe` against a fixture of the measured form.
+
+### Fixed
+
+- `own_profile.py` allowed every `/edit/` page: the post-Save prompts (`next-action`: share the new position, people
+  you may know, Premium), the photo, banner, public-URL and Featured forms. Only the intro, About, position, education
+  and skill forms pass now (plus the top-skills overlay from 2.16.1).
+- `profile_diff.py verify` compared dates as substrings: swapped dates and "2023" against "Oct 2023" passed. Dates are
+  parsed and compared start to start, end to end. `education_title` now checks the degree, and `education_create` is
+  a kind verify knows.
+- `check_profile_copy.py --structure` removed a school whose degree was renamed, then reported it as not covered.
+- `parse_profile.py` dropped a company with a single role (LinkedIn renders it without a role list), so a position
+  the bot had just created never reached `current.json`. Captures now keep each entry's edit-form URL.
+- Step 8 of the skill now passes `--structure`; the five sentences that still said titles and dates were the user's,
+  that the user pastes the text, or that the form reference was read-only are gone; evals match the browser flow.
+
 ## 2.16.1 - 2026-10-25
 
 ### Fixed
