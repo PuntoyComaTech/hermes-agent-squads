@@ -148,8 +148,10 @@ position" (`/details/experience/edit/forms/new/`) opens with the current-role bo
 as of now - <role>`. The education form holds `School*`, `Degree`, `Field of study`, the date selects and a
 `Description, maximum 1,000 characters` textarea. Each form has a `Notify network` switch (off) and `Delete`; the
 position dialog reads only "Are you sure you want to delete this role?" (no entry name: the form is the proof), the
-skill dialog names the skill. Pinned top skills live only in `/in/<slug>/overlay/top-skills-details/`, the one overlay
-the guard allows. A skill is picked from LinkedIn's taxonomy: a name the picker lacks ("Workers", "AI") cannot be
+skill dialog names the skill. The pinned top skills are edited in the About form (`/edit/forms/summary/new/`,
+section "Show your top skills": one `button[aria-label="Remove <skill> from list"]` per pin, "Add skill" opens the
+`Skill (ex: Project Management)` typeahead with `[role=option]` items, 5 at most, kept in the order added); the
+top-skills overlay only displays them. A skill is picked from LinkedIn's taxonomy: a name the picker lacks ("Workers", "AI") cannot be
 added, so draft skills with names it offers ("Cloudflare", "Generative AI").
 
 Save is a `button` whose text is `Save`. A form opens in the primary language; `nav a` holds one link per language
@@ -189,12 +191,10 @@ when the form closes. It returns `applied`, `refused` (nothing typed or saved) o
 - After Save LinkedIn lands on `/edit/forms/next-action/...` (share the position, people you may know, Premium); the
   guard refuses those pages and the next step navigates away.
 - A Save is refused while `Notify network` is on or any box the step did not set is ticked, in any interface language.
-- A skill is added on `/details/skills/edit/forms/new/` and removed with `Delete skill` on its own form, one per Save.
-  Top skills (the pins, edited in the top-skills overlay) have no script step yet: the card lists them for the user.
+- A skill is added and removed one per Save; the pins are set last on the About form, its text unchanged.
 
 ## Measured against unverified
 
-Measured: the `/in/me/` redirect and its marker, the card suffixes, the three details sections (single-role groups
-included), 71 skills after scrolling, and the intro, summary, position, education and skill forms in both tabs with
-their Save, Delete, confirmation dialog and post-Save redirects. Unverified: a `Featured` card (absent: `featured`
+Measured: the `/in/me/` redirect, the card suffixes, the details sections, 71 skills after scrolling, and the intro,
+summary (with its top-skill pins), position, education and skill forms with their Save, Delete and redirects. Unverified: a `Featured` card (absent: `featured`
 stays empty) and every account setting, which this skill never opens.

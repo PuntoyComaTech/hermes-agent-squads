@@ -27,6 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPTS = REPO / "squads" / "jobs" / "skills" / "optimizing-profiles" / "scripts"
 FORM = SCRIPTS / "profile_form.py"
 FIXTURE = REPO / "tests" / "fixtures" / "linkedin" / "position_form.html"
+ABOUT_FIXTURE = REPO / "tests" / "fixtures" / "linkedin" / "about_form.html"
 CHROME = next((c for c in (shutil.which("chromium"), shutil.which("google-chrome"), shutil.which("chromium-browser"),
                            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome") if c and Path(c).is_file()),
               None)
@@ -173,8 +174,8 @@ class Browser:
             raise RuntimeError(res["exceptionDetails"])
         return res.get("result", {}).get("value")
 
-    def open(self, state: dict):
-        url = FIXTURE.as_uri() + "#" + urllib.parse.quote(json.dumps(state))
+    def open(self, state: dict, fixture: Path = FIXTURE):
+        url = fixture.as_uri() + "#" + urllib.parse.quote(json.dumps(state))
         self.call("Page.navigate", url="about:blank")
         self.call("Page.navigate", url=url)
         for _ in range(40):
@@ -702,3 +703,92 @@ def test_verify_fails_one_row_with_a_bad_date_instead_of_aborting(tmp_path):
     good = {"kind": "experience_title", "company": "Northwind", "title": "Analyst"}
     code, out = verify_rows(tmp_path, [row, good], ON_PAGE)
     assert code == 1 and len(out["failures"]) == 1 and "not a date" in out["failures"][0]["reason"]
+
+
+# --- top skills: the pins follow the approved skills list ------------------------------------------------------------
+
+PINNED = dict(CURRENT, skills=["SQL", "Excel", "Python", "Power BI", "Team leadership"],
+              top_skills=["Team leadership", "SQL", "Excel"])
+
+
+def pin_plan(after, skills=None, current=PINNED):
+    rows = [{"field": "top_skills", "language": "es", "after": after},
+            {"field": "top_skills", "language": "en", "after": after}]
+    if skills is not None:
+        rows.append({"field": "skills", "language": "es", "after": skills})
+    return [s for s in pf.plan({"fields": rows}, [current, dict(current, language="en")], "text")
+            if s.get("field") == "top_skills"]
+
+
+def test_the_pins_are_one_step_on_the_about_form_and_only_skills_the_list_keeps():
+    steps = pin_plan(["SQL", "Python", "Power BI"])
+    assert len(steps) == 1 and "result" not in steps[0]                           # one list for both languages
+    assert steps[0]["url"] == BASE + "edit/forms/summary/new/" and steps[0]["want"] == ["SQL", "Python", "Power BI"]
+    # a pin the approved skills list drops, or never had, would leave the pins out of step with the list
+    assert pin_plan(["SQL", "Excel"], skills=["SQL", "Python"])[0]["result"] == "refused"
+    assert pin_plan(["Looker"])[0]["result"] == "refused"
+    assert "result" not in pin_plan(["Looker", "SQL"], skills=["SQL", "Looker", "Python"])[0]
+    assert pin_plan(["SQL", "Python", "Excel", "Power BI", "Team leadership", "SQL"])[0]["result"] == "refused"
+    six = dict(PINNED, skills=PINNED["skills"] + ["Looker"])
+    assert pin_plan(["SQL", "Python", "Excel", "Power BI", "Team leadership", "Looker"], current=six)[0][
+        "result"] == "refused"                                                     # LinkedIn pins at most 5
+    # the pins go after every skills step, so a pin the same apply adds to the list already exists
+    steps = pf.plan({"fields": [{"field": "top_skills", "after": ["Looker"]},
+                                {"field": "skills", "after": ["SQL", "Excel", "Python", "Power BI", "Team leadership",
+                                                              "Looker"]}]}, [PINNED], "text")
+    assert [s["action"] for s in steps][-1] == "top_skills" and steps[0]["action"] == "skill_add"
+
+
+def about_page(browser, pins, catalog, about="Soy analista.\nTrabajo con datos.", **hooks):
+    browser.open({"pins": pins, "catalog": catalog, "about": about, **hooks}, ABOUT_FIXTURE)
+    return opened_page(browser)
+
+
+@needs_chrome
+def test_the_pins_are_replaced_in_the_approved_order_and_the_about_text_is_untouched(browser):
+    p = about_page(browser, ["Team leadership", "SQL", "Excel", "Docker", "Git"],
+                   ["SQL", "Python", "Power BI", "Excel", "Team leadership"])
+    step = pin_plan(["SQL", "Python", "Power BI"])[0]
+    out = p.run(step)
+    assert out["result"] == "applied", out
+    got = saved(browser)
+    assert got["pins"] == ["SQL", "Python", "Power BI"]                            # order kept, extras gone
+    assert pf.norm(got["about"]) == pf.norm("Soy analista.\nTrabajo con datos.")
+
+
+@needs_chrome
+def test_pins_already_in_place_are_kept_and_nothing_is_saved_when_they_match(browser):
+    p = about_page(browser, ["SQL", "Python", "Excel"], ["SQL", "Python", "Power BI", "Excel"])
+    out = p.run(pin_plan(["SQL", "Python", "Power BI"])[0])
+    assert out["result"] == "applied" and out["changed"] == ["-Excel", "+Power BI"], out
+    p = about_page(browser, ["SQL", "Python", "Power BI"], ["SQL"])
+    out = p.run(pin_plan(["SQL", "Python", "Power BI"])[0])
+    assert out["result"] == "applied" and "already" in out["note"] and saved(browser) is None
+
+
+@needs_chrome
+def test_a_pin_linkedin_does_not_offer_leaves_the_form_unsaved(browser):
+    p = about_page(browser, ["Team leadership"], ["SQL"])                          # "Python" is not in the taxonomy
+    out = p.run(pin_plan(["SQL", "Python"])[0])
+    assert out["result"] == "failed" and "Python" in out["reason"] and saved(browser) is None
+
+
+def test_verify_holds_the_pins_to_their_order(tmp_path):
+    a, c = tmp_path / "approved.json", tmp_path / "current.json"
+    a.write_text(json.dumps({"fields": [{"field": "top_skills", "after": ["SQL", "Python"]}]}))
+    for pins, code in ((["SQL", "Python"], 0), (["Python", "SQL"], 1)):
+        c.write_text(json.dumps(dict(PINNED, top_skills=pins)))
+        p = subprocess.run([sys.executable, "-B", str(DIFF), "verify", a, c, "--json"], capture_output=True,
+                           text=True, timeout=60)
+        assert p.returncode == code, (pins, p.stdout)
+
+
+@needs_chrome
+def test_pins_that_land_out_of_order_or_touch_the_about_text_are_never_saved(browser):
+    catalog = ["SQL", "Python", "Power BI"]
+    p = about_page(browser, [], catalog, sort=True)                                # LinkedIn re-sorted the pins
+    out = p.run(pin_plan(["SQL", "Python", "Power BI"])[0])
+    assert out["result"] == "failed" and "pins read" in out["reason"] and saved(browser) is None
+    p = about_page(browser, [], catalog, leak=True)                                # a click typed into the About
+    out = p.run(pin_plan(["SQL", "Python", "Power BI"])[0])
+    assert out["result"] == "failed" and "About text" in out["reason"] and saved(browser) is None

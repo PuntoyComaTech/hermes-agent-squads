@@ -25,7 +25,7 @@ CAPTCHA or restriction page: nothing more is opened. It never hides automation (
 `page.run(step)` performs one step alone; returns {"result": "applied" | "refused" | "failed", ...}.
 
 Phases: `structure` first (titles, dates, a new position or school, deletions), then re-capture the profile in every
-language, then `text` (headline, About, descriptions, role skills, skills). A text step for a role that only exists
+language, then `text` (headline, About, descriptions, role skills, skills, then the top-skill pins). A text step for a role that only exists
 after the structure phase cannot be planned from the old capture: that is why the phases are separate.
 
 `plan` exits 0 with the steps, 1 when a structure step is refused (an entry the capture lacks or holds twice, a date
@@ -52,6 +52,7 @@ MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "
                "november", "december"]
 SHARED = ("skills", "top_skills")
 MAX_REMOVALS = 10
+MAX_PINS = 5
 
 
 class UsageError(ValueError):
@@ -268,16 +269,15 @@ def text_steps(rows, captures: list[dict]) -> list[dict]:
     steps = []
     for row in rows:
         field, lang = row["field"], str(row.get("language") or "")[:2] or lang_primary
-        if field == "skills" and row.get("language") and lang != lang_primary:
-            continue  # skills are one list for every language: one step
+        if field in ("skills", "top_skills") and row.get("language") and lang != lang_primary:
+            continue  # skills and their pins are one list for every language: one step
         capture = primary if field in SHARED or field.startswith("role_skills:") else by_lang.get(lang)
         step = {"phase": "text", "field": field, "language": lang, "want": row.get("after")}
         if capture is None:
             steps.append({**step, "result": "refused", "reason": f"no capture in {lang}: re-read that tab first"})
             continue
         if field == "top_skills":
-            steps.append({**step, "result": "refused", "reason": "top skills have no script step: the user pins them "
-                                                                  "in 'Show top skills'"})
+            steps.append(top_skills_step(step, row, rows, capture, base, lang_primary))
             continue
         if field == "skills":
             have = [norm(s) for s in capture.get("skills") or []]
@@ -337,9 +337,38 @@ def text_steps(rows, captures: list[dict]) -> list[dict]:
         if entry_expect and lang == lang_primary:   # the secondary tab holds only the description: no names to read
             out["entry"] = entry_expect
         steps.append(out)
-    order = {"headline": 0, "about": 1, "description": 2, "education": 3, "role_skills": 4, "skills": 5}
+    order = {"headline": 0, "about": 1, "description": 2, "education": 3, "role_skills": 4, "skills": 5,
+             "top_skills": 6}
     return sorted(steps, key=lambda s: (order.get(s.get("control") or s.get("action") or "", 9),
                                         s["language"] != lang_primary))
+
+
+def top_skills_step(step: dict, row: dict, rows: list, capture: dict, base: str, primary: str) -> dict:
+    """The pins on the About card, in order. They live in the About form's "Show your top skills" section (measured
+    2026-10-25; the top-skills overlay only displays them). A pin must be a skill the profile lists after this apply,
+    so the pins always agree with the approved skills list: a pin the skills row removes, or one it never had, is
+    refused rather than pinned on its own."""
+    want = [norm(s) for s in row.get("after") or [] if norm(s)]
+    out = {**step, "field": "top_skills", "action": "top_skills", "control": "top_skills", "language": primary,
+           "url": base + "edit/forms/summary/new/", "want": want,
+           "have": [norm(s) for s in capture.get("top_skills") or []]}
+    approved_skills = next((r.get("after") for r in rows if r.get("field") == "skills"), None)
+    listed = {norm(s).lower() for s in (approved_skills if approved_skills is not None else capture.get("skills") or [])}
+    why = ""
+    if not want:
+        why = "no top skills approved: the pins are left as they are"
+    elif len(want) > MAX_PINS:
+        why = f"{len(want)} top skills: LinkedIn pins at most {MAX_PINS}"
+    elif len({w.lower() for w in want}) != len(want):
+        why = "a top skill is listed twice"
+    else:
+        missing = [w for w in want if w.lower() not in listed]
+        if missing:
+            why = (f"{', '.join(missing)} would be pinned but is not in the approved skills list: add it to `skills` "
+                   "so the pins and the list agree")
+    if why:
+        out.update(result="refused", reason=why)
+    return out
 
 
 def plan(approved: dict, captures: list[dict], phase: str) -> list[dict]:
@@ -413,6 +442,9 @@ MARK_JS = r"""
       for (let p = c.parentElement, k = 0; !t && p && k < 4; p = p.parentElement, k++) {
         const s = (p.innerText || '').trim(); if (s && s.length < 90) t = s; }
       return new RegExp(want.match, 'i').test(t || ''); });
+  } else if (want.kind === 'aria') {
+    el = [...(root.closest('[role="dialog"]') || root).querySelectorAll('button[aria-label], [role="button"][aria-label]')].find(b =>
+      (b.getAttribute('aria-label') || '').trim().toLowerCase() === want.match.toLowerCase());
   } else if (want.kind === 'text') {
     el = root.querySelector(want.match);
   } else if (want.kind === 'button') {
@@ -926,6 +958,71 @@ class Page:
         finally:
             self.allowed_ticks = before
 
+    def pins(self) -> list | None:
+        """The pinned top skills in the open About form, in order (each pin has a 'Remove <skill> from list' button);
+        None when the form shows no top-skills section."""
+        return self.js("""(() => { let root = %s; if (!root) return null;
+            root = root.closest('[role="dialog"]') || root;   // measured: the About form is a dialog
+            if (!/show your top skills|top skills|aptitudes principales/i.test(root.innerText || '')) return null;
+            return [...root.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
+              .map(b => /^remove (.+) from list$/i.exec((b.getAttribute('aria-label') || '').trim()))
+              .filter(Boolean).map(m => m[1].trim()); })()""" % FORM_JS)
+
+    def pick_option(self, skill: str) -> bool:
+        """Click the typeahead option named exactly `skill` (measured: `[role=option]`); nothing else is clicked."""
+        return bool(self.js("""(() => { const want = %s.toLowerCase();
+            const c = [...document.querySelectorAll('[role="option"]')]
+              .filter(x => (x.innerText || '').trim().split('\\n')[0].trim().toLowerCase() === want);
+            if (!c.length) return false; c[0].click(); return true; })()""" % json.dumps(skill)))
+
+    def top_skills(self, step: dict) -> dict:
+        """Set the About form's pins to `want`, in order, with one Save. The pins that already lead in the right order
+        stay; from the first one out of place, every pin is removed and the rest are added in order (LinkedIn keeps
+        the order they were added in). The About text is read before and after and must not change."""
+        want = [norm(s) for s in step.get("want") or []]
+        if not want or len(want) > MAX_PINS:
+            return {"result": "refused", "reason": f"the pins must be 1 to {MAX_PINS} skills"}
+        have = self.pins()
+        if have is None:
+            return {"result": "refused", "reason": "the form shows no top-skills section: it is not the About form"}
+        if [h.lower() for h in have] == [w.lower() for w in want]:
+            return {"result": "applied", "note": "the pins already read in the approved order"}
+        about = norm(self.read().get("textbox"))
+        keep = 0
+        while keep < min(len(have), len(want)) and have[keep].lower() == want[keep].lower():
+            keep += 1
+        changed = []
+        for name in have[keep:]:
+            if not self.mark(kind="aria", match=f"remove {name} from list"):
+                return {"result": "failed", "reason": f"no remove button for the pin {name!r}: nothing was saved",
+                        "changed": changed}
+            self.click_marked()
+            changed.append("-" + name)
+            self.wait(0.6)
+        for name in want[keep:]:
+            # measured: the typeahead input appears only after "Add skill"; a leftover one is reused
+            if self.mark(kind="button", match="^add skill$"):
+                self.click_marked()
+                self.wait()
+            if not self.mark(kind="input", match=r"^skill \(ex"):
+                return {"result": "failed", "reason": "no Add skill picker in the top-skills section: nothing was "
+                                                      "saved", "changed": changed}
+            self.set_value(name)
+            self.wait(1.5)
+            if not self.pick_option(name):
+                return {"result": "failed", "reason": f"LinkedIn offered no skill named {name!r}: nothing was saved",
+                        "changed": changed}
+            changed.append("+" + name)
+            self.wait(0.8)
+        now = self.pins() or []
+        if [n.lower() for n in now] != [w.lower() for w in want]:
+            return {"result": "failed", "reason": f"the pins read {now} after the clicks: nothing was saved",
+                    "changed": changed}
+        if norm(self.read().get("textbox")) != about:
+            return {"result": "failed", "reason": "the About text changed while pinning: nothing was saved",
+                    "changed": changed}
+        return self.finish(self.save(current_box=False), changed=changed)
+
     def pick(self, skill: str) -> bool:
         """Click LinkedIn's own suggestion named exactly `skill`; a name the picker does not offer is never typed in."""
         return bool(self.js("""(() => { const want = %s.toLowerCase();
@@ -1002,7 +1099,7 @@ class Page:
         action = str(step.get("action") or "")
         handler = {"text": self.text, "position": self.position, "education": self.education,
                    "delete": self.delete, "role_skills": self.role_skills, "skill_add": self.skill_add,
-                   "skill_remove": self.skill_remove}.get(action)
+                   "skill_remove": self.skill_remove, "top_skills": self.top_skills}.get(action)
         if handler is None:
             raise UsageError(f"unknown step action {action!r}")
         # the skills page is a list, not a form: skill_remove opens the skill's own form itself

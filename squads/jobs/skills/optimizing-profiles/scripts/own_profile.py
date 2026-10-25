@@ -55,8 +55,6 @@ FORM_ID = re.compile(r"^(?:new|[0-9]{1,20})$")
 # The query keys LinkedIn puts on the own profile and its forms (the language tab, the entry point, the self marker).
 # Anything else (a redirect target, another profile's URN) is refused rather than passed to the page.
 QUERY_KEYS = {"language", "country", "profileformentrypoint", "isselfprofile"}
-# The one overlay that edits a profile field: the pinned top skills have no other editor (measured 2026-10-25).
-ALLOWED_OVERLAYS = {"top-skills-details"}
 
 
 class UsageError(ValueError):
@@ -192,9 +190,6 @@ def check_path(host: str, path: str, own: str) -> dict:
                            "not-editable")
         return {"allow": True, "kind": "own_edit", "own": own, "path": path,
                 "reason": "an edit form on the own profile"}
-    if tail[0].lower() == "overlay" and len(tail) == 2 and tail[1].lower() in ALLOWED_OVERLAYS:
-        return {"allow": True, "kind": "own_overlay", "own": own, "path": path,
-                "reason": "the own profile's top skills editor"}
     if tail[0].lower() == "overlay":
         return refusal("overlays carry contact details or other people's data; the edit forms are enough", "private")
     return refusal(f"/in/{own}/{'/'.join(tail)}/ is not a page this skill reads", "other")

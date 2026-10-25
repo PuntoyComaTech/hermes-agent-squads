@@ -61,4 +61,5 @@ invisible. Structure edits (a title, the dates, a new position or school, a dele
 approved file: the audit's structure rows enter it at the user's yes, and the writer fills those forms with its script.
 Then file a jobs-writer card (`skills: [optimizing-profiles]`, body `Mode: PROFILE-APPLY` and that path, key
 `jobs:profile:<project>:<YYYY-MM-DD>:apply`). Report the writer's verify result in one line per field: applied, or
-failed with the reason. Photo, banner, custom URL, Featured, top-skill pins and Open to Work are the user's to set.
+failed with the reason. The top-skill pins follow the approved `skills` list. Photo, banner, custom URL, Featured
+and Open to Work are the user's to set.

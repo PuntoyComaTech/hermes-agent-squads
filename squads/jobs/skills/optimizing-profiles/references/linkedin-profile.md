@@ -79,7 +79,8 @@ three in this order: the target role's core skill, the strongest differentiator,
 user holds. Order the rest by how many market postings ask for them.
 
 Each role also shows up to five skills of its own (`role_skills`): the ones that role proves, so a recruiter filtering
-by skill finds the role that used it. Top skills are the 3 to 5 LinkedIn pins on the About card.
+by skill finds the role that used it. Top skills are the 3 to 5 LinkedIn pins on the About card, in order of
+importance; every pin is also in `skills`, so the pins never name a skill the list drops.
 
 ## Education
 

@@ -83,7 +83,8 @@ Every write goes through `profile_form.py`; never hand-write a selector, a click
    `unknown` one (the call ended mid-Save) is checked by the re-capture, never repeated.
 4. Re-capture every language: renamed and created entries now carry their titles and edit forms.
 5. **Text.** The same `plan` with `--phase text` and every capture, primary first, then `apply_all` with the same
-   state file. Top skills have no script step yet (`plan` marks them refused): list them for the user to pin.
+   state file. The top-skill pins come last, on the About form, in the approved order; `plan` refuses a pin the
+   approved `skills` list does not keep, so the pins and the list always agree.
 6. Re-capture, then `python3 "$T/profile_diff.py" verify <approved> <current.json> <current.en.json>`. Exit 0: every
    approved field and structure row landed. Exit 1: report each failed field; a field that failed once is not retried.
 7. `kanban_complete` with the verify result, the fields applied and the fields failed. Never file a retry card.

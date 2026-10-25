@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- LinkedIn's About form as measured on 2026-10-25 (/in/<slug>/edit/forms/summary/new/): the About editor, then the
+     "Skills — Show your top skills" section with one pin per skill (a "Remove <skill> from list" button), an
+     "Add skill" button that opens a "Skill (ex: Project Management)" typeahead with [role=option] items, a 5-pin
+     maximum, and Save. Pins keep the order they were added in. Fictitious data. The innerHTML writes below only render
+     values the test itself puts in the URL hash: a local fixture, no input. -->
+<html><head><meta charset="utf-8"><title>Edit about</title></head><body>
+<main>
+<div id="form">
+  <h2>Edit about</h2>
+  <nav><a href="?">Spanish (Primary profile)</a><a href="?language=en&country=US">English</a></nav>
+  <div contenteditable="true" role="textbox" aria-label="About" id="about"></div>
+  <h3>Skills</h3>
+  <p>Show your top skills — add up to 5 skills you want to be known for. They'll also appear in your Skills section.</p>
+  <div id="pins"></div>
+  <button id="addskill" type="button">Add skill</button>
+  <p id="max" hidden>You've reached the 5 skills maximum.</p>
+  <div id="picker"></div>
+  <button id="save" type="button">Save</button>
+</div>
+</main>
+<script>
+const state = JSON.parse(decodeURIComponent(location.hash.slice(1) || '%7B%7D'));
+const pins = [...(state.pins || [])];
+document.getElementById('about').innerHTML = (state.about || '').split('\n').map(p => `<p>${p || '<br>'}</p>`).join('');
+function render() {
+  const host = document.getElementById('pins');
+  host.innerHTML = '';
+  for (const name of pins) {
+    const row = document.createElement('div');
+    row.innerHTML = `<span>${name}</span><button type="button" aria-label="Remove ${name} from list">×</button>`;
+    row.querySelector('button').onclick = () => { pins.splice(pins.indexOf(name), 1); render(); };
+    host.append(row);
+  }
+  const full = pins.length >= 5;
+  document.getElementById('addskill').hidden = full;
+  document.getElementById('max').hidden = !full;
+}
+render();
+document.getElementById('addskill').onclick = () => {
+  const host = document.getElementById('picker');
+  if (host.querySelector('input')) return;
+  host.innerHTML = '<input type="text" id="skillq" placeholder="Skill (ex: Project Management)"><div id="opts" role="listbox"></div>';
+  host.querySelector('input').addEventListener('input', typed);
+};
+function typed(e) {
+  const q = e.target.value.trim().toLowerCase();
+  // LinkedIn's typeahead shows the skill and a second line of context; only taxonomy names are offered
+  document.getElementById('opts').innerHTML = (state.catalog || []).filter(n => n.toLowerCase().startsWith(q))
+    .map(n => `<div role="option">${n}<br><small>Skill</small></div>`).join('');
+  for (const o of document.querySelectorAll('#opts [role=option]')) o.onclick = () => {
+    if (pins.length < 5) pins.push(o.firstChild.textContent.trim());
+    // test hooks: a build that re-sorts the pins, or a click that lands in the About editor
+    if (state.sort) pins.sort();
+    if (state.leak) document.getElementById('about').append(document.createTextNode(' ' + pins[pins.length - 1]));
+    document.getElementById('picker').innerHTML = ''; render(); };
+}
+document.getElementById('save').onclick = () => {
+  window.__saved = {about: document.getElementById('about').innerText, pins: [...pins]};
+  document.getElementById('form').remove();
+  const a = document.createElement('div'); a.setAttribute('role', 'alert'); a.innerText = 'Save was successful.';
+  document.body.append(a);
+};
+</script>
+</body></html>

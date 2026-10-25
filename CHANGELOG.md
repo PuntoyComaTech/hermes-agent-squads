@@ -3,6 +3,17 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.17.1 - 2026-10-25
+
+### Added
+
+- jobs 4.8.1: the top-skill pins are applied by `profile_form.py` too, so they follow the approved skills. `plan`
+  emits one `top_skills` step after every skills step; `Page.top_skills` opens the About form (where LinkedIn keeps
+  the "Show your top skills" section, measured on a real apply: the top-skills overlay only displays them), keeps the
+  pins already in place, removes the rest, adds the missing ones from LinkedIn's typeahead in the approved order,
+  checks the pins and the unchanged About text, then saves once. A pin the approved `skills` list does not keep, more
+  than 5 pins or a duplicate are refused before any browser work.
+
 ## 2.17.0 - 2026-10-25
 
 ### Added
