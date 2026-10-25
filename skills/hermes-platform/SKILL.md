@@ -11,6 +11,8 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 - Before answering how profiles, kanban, cron, plugins, MCP or gateways behave.
 - When a squad design depends on a Hermes behavior (per-card models, Projects,
   delivery targets, delegation).
+- Before planning a Desktop plugin, a new pane or any UI that reads across
+  profiles: `references/desktop-plugins.md`.
 
 ## Procedure
 
@@ -48,6 +50,7 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
 | MCP servers | `references/mcp.md` |
 | Tool search and connectors | `references/tool-search-and-connectors.md` |
 | Plugins and the catalog | `references/plugins.md` |
+| Desktop plugins: surfaces, host doors, limits | `references/desktop-plugins.md` |
 | Approvals and security | `references/approvals-and-security.md` |
 | Hooks | `references/hooks.md` |
 | Projects | `references/projects.md` |
@@ -60,6 +63,8 @@ description: "Indexes verified Hermes Agent primitives. Use when designing or ch
   keys outside the schema (`agent.reasoning_effort`): read those with
   `hermes config show` or the profile's `config.yaml`.
 - UNVERIFIED notes are hypotheses, not behavior.
+- A Desktop plugin surface from memory: check `apps/desktop/src/sdk/index.ts`;
+  the SDK doc page omits side effects core runs.
 
 ## Verification
 

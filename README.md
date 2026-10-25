@@ -10,7 +10,8 @@ them in plain language; no coding needed.
 
 You install one bot, the **builder**. It asks which squads you want, suggests a model for each bot from the AI
 providers you already use, and installs only what you approve. Later it creates squads for your own goals, changes
-existing ones and keeps everything updated.
+existing ones and keeps everything updated. In the Desktop app, the optional **Squad Hub** plugin puts every bot,
+project and chat in one list.
 
 ## How the builder works
 
@@ -33,6 +34,33 @@ flowchart TD
 ```
 
 Nothing is created without your OK, and every squad is optional.
+
+## How a squad works
+
+```mermaid
+flowchart TD
+    Y(["You: a goal, in plain words"]):::you
+    Y --> M["Manager<br/>asks, plans, splits the work"]:::lead
+    M --> K["Kanban board<br/>one card per task"]:::bot
+    K --> W1["Worker<br/>one job each"]:::bot
+    K --> W2["Worker<br/>its own branch or folder"]:::bot
+    W1 --> R["Reviewer<br/>checks every result"]:::check
+    W2 --> R
+    R -->|"needs fixes"| K
+    R -->|"approved"| A{"You: publish, send<br/>or spend?"}:::ask
+    A -->|"yes"| D(["Done, and the manager<br/>tells you where"]):::done
+    A -->|"change"| M
+
+    classDef you fill:#ede9fe,stroke:#7c3aed,color:#1e1b4b
+    classDef lead fill:#fce7f3,stroke:#db2777,color:#831843
+    classDef bot fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef check fill:#ffedd5,stroke:#ea580c,color:#7c2d12
+    classDef ask fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+You only talk to the manager. Workers and the reviewer pass the work through the board; anything that publishes,
+sends, applies, deploys or spends waits for your yes.
 
 ## Install
 
@@ -62,6 +90,8 @@ builder chat                                                                    
    and choose its folder: any folder you like, new or an existing repo. Each project is one site, brand or job
    search; open chats inside it and the manager and its workers work in that folder.
 
+6. Optional, in the Desktop app: **Capabilities > Plugins**, turn on **Squad Hub** ([below](#squad-hub-desktop)).
+
 `builder chat` needs `~/.local/bin` on your `PATH`; `hermes -p builder chat` always works.
 
 ## Squads
@@ -75,6 +105,36 @@ builder chat                                                                    
 
 Every squad has one manager you talk to, workers that pass work through a Kanban board, and a reviewer. Publishing,
 sending, applying, deploying and spending always wait for your explicit yes.
+
+## Squad Hub (Desktop)
+
+An optional plugin for the Hermes Desktop app, shipped with the builder and off until you turn it on in
+**Capabilities > Plugins**. It replaces the Bots tab and the slow profile switch with one list.
+
+```mermaid
+flowchart TD
+    H(["Squad Hub: one list"]):::you
+    H --> B["Bot<br/>builder, managers, yours"]:::lead
+    B --> P["Project<br/>a site, a brand, a job search"]:::bot
+    P --> F["Folder<br/>main checkout or worktree"]:::bot
+    F --> C["Chat<br/>a tab, no window reload"]:::bot
+    C --> N{"Something needs you?"}:::ask
+    N -->|"working or unread"| S(["A dot on the row, a count<br/>below; ⌘⇧U jumps there"]):::done
+    N -->|"a preview was open"| V(["Reopen it in one click"]):::done
+
+    classDef you fill:#ede9fe,stroke:#7c3aed,color:#1e1b4b
+    classDef lead fill:#fce7f3,stroke:#db2777,color:#831843
+    classDef bot fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef ask fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+- Several bots and projects open side by side; squad workers stay out of sight.
+- Big projects stay quiet: the chats that need you show under the project, the rest fold away.
+- Optional, each a switch in its settings: floating side panels that slide in near the screen edge, a calm
+  Catppuccin-style theme, a layout with files over a small terminal, and `.env` files that open in your editor.
+
+Details: [`squads/_plugins/squad-hub`](squads/_plugins/squad-hub/README.md).
 
 ## FAQ
 
@@ -98,8 +158,9 @@ always wait for your explicit yes.
 
 **What do I need?** Hermes Agent 0.22 or newer (macOS, Linux or Windows) and one connected model provider.
 
-**Where are my projects?** In the Desktop app: Sessions, pick the squad's manager in the bottom selector. Each
-project lives in the folder you chose when you created it; squads never pick or move folders.
+**Where are my projects?** In the Desktop app: Sessions, pick the squad's manager in the bottom selector, or turn on
+the Squad Hub plugin and find them under each manager. Each project lives in the folder you chose when you created
+it; squads never pick or move folders.
 
 ## Updates
 

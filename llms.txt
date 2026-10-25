@@ -39,6 +39,7 @@ scripts/data/model-roles.yaml and local/installed.yaml.
 - [squads/web/README.md](squads/web/README.md): web development squad
 - [squads/marketing/README.md](squads/marketing/README.md): marketing squad
 - [squads/jobs/README.md](squads/jobs/README.md): job search squad
+- [squads/_plugins/squad-hub/README.md](squads/_plugins/squad-hub/README.md): Squad Hub, the optional Desktop plugin
 - [squads/_schema/squad.schema.json](squads/_schema/squad.schema.json): manifest schema
 
 ## Reference

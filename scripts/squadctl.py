@@ -63,6 +63,7 @@ PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
 # no-agent sweep on the squad manager closes what a crashed run left (every 3 hours).
 SHARED_BROWSER_URL = "http://127.0.0.1:9333"
 SHARED_BROWSER_PLUGIN = "shared-browser-tabs"
+SQUAD_HUB_PLUGIN = "squad-hub"
 SHARED_BROWSER_SWEEP = {"schedule": "0 */3 * * *", "script": "shared_browser_sweep.py", "agent": False}
 
 
@@ -1567,7 +1568,27 @@ class Applier:
                     ctx.hermes("plugins", "disable", pname, profile=name)
         acts += self.provider_plugin(name, bot)
         acts += self.shared_browser_plugin(name, bot)
+        acts += self.squad_hub_plugin(name)
         return acts
+
+    def squad_hub_plugin(self, name: str) -> list[str]:
+        """The builder (`--self`) carries the squad-hub package: Hermes Desktop copies its desktop half to the app-level
+        desktop-plugins folder and lists it in Capabilities > Plugins, where it stays off until the user turns it on.
+        No Python half runs, so nothing is enabled here and no squad bot gets a copy."""
+        if not self.self_mode:
+            return []
+        rel = Path("squads") / "_plugins" / SQUAD_HUB_PLUGIN
+        src = next((d / rel for d in (self.ctx.src, SRC) if (d / rel).is_dir()), SRC / rel)
+        files = {"plugin.yaml": src / "plugin.yaml", "__init__.py": src / "__init__.py", "desktop/plugin.js": src / "desktop" / "plugin.js"}
+        dest = self.ctx.home(name) / "plugins" / SQUAD_HUB_PLUGIN
+        fresh = {rel_path: _read(path) for rel_path, path in files.items()}
+        stale = [rel_path for rel_path, text in fresh.items() if text and _read(dest / rel_path) != text]
+        if not stale:
+            return []
+        if not self.dry:
+            for rel_path in stale:
+                write_text(dest / rel_path, fresh[rel_path])
+        return [f"plugin {'~' if dest.is_dir() else '+'} {SQUAD_HUB_PLUGIN} (desktop half, opt-in)"]
 
     def shared_browser_plugin(self, name: str, bot: dict) -> list[str]:
         """`shared_browser: true`: install the repo's shared-browser-tabs plugin into the bot's home and enable it;

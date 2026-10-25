@@ -52,5 +52,6 @@ The agent never installs squads or picks models for the user. Updates then run d
 | `squads/<key>/` | one squad: `squad.yaml`, `souls/`, `skills/`, `scripts/`, README |
 | `local/` (installed builder only, never shipped) | `installed.yaml`, overlays and local squads in `squads/<key>/`, backups, state |
 | `squads/_schema/squad.schema.json` | manifest schema |
+| `squads/_plugins/` | plugins squadctl installs: `shared-browser-tabs` (agent half), `squad-hub` (Desktop half, opt-in) |
 | `docs/decisions.md` | condensed decision log |
 | `tests/` | pytest against a temporary `HERMES_HOME` |

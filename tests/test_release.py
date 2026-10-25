@@ -220,6 +220,23 @@ def test_pytest_gate_names_the_venv_when_pytest_is_missing(monkeypatch):
     assert name == "pytest" and not ok and "--python .venv/bin/python" in detail
 
 
+def test_a_red_pytest_gate_names_the_failing_tests(monkeypatch):
+    out = (".....F..\n=========================== short test summary info ============================\n"
+           "FAILED tests/test_a.py::test_one - AssertionError: boom\n"
+           "FAILED tests/test_b.py::test_two[x] - KeyError: 'k'\n"
+           "2 failed, 2110 passed in 900.00s\n")
+    calls = []
+
+    def fake(argv, **k):
+        calls.append(argv)
+        return cp(out, code=1) if "pytest" in argv and "-c" not in argv else cp("")
+
+    monkeypatch.setattr(release, "run_cmd", fake)
+    name, ok, detail = release.gate_pytest("/venv/python")
+    assert not ok and "-rf" in calls[-1]
+    assert detail == "2 failed, 2110 passed in 900.00s: tests/test_a.py::test_one, tests/test_b.py::test_two[x]"
+
+
 def test_open_pr_pushes_a_branch_then_uses_real_gh_flags(monkeypatch):
     calls = []
     monkeypatch.setattr(release, "run_cmd", lambda cmd, **kw: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0, "url", ""))[1])

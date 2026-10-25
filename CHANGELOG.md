@@ -3,6 +3,46 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.18.0 - 2026-10-25
+
+### Added
+
+- squad-hub: an opt-in Hermes Desktop plugin (`squads/_plugins/squad-hub`) that replaces the bots tab and the profile
+  selector with one list, bot > project > folder > worktree > chat. A chat opens as a tab under its own bot, so several
+  bots and projects work side by side without the window reload of a profile switch; projects hold several folders,
+  each with its own worktrees; closed previews are remembered per chat and reopen in one click; a bot's scheduled jobs,
+  messaging, Kanban and capabilities open from its menu. The list loads in about 60 ms.
+- squad-hub look: a Lucide icon per bot (picked from what the bot does, overridable per bot), a local squad with no
+  manager shown as one group of its bots, and the **Squads** theme (Catppuccin-inspired, low contrast, Inter for the
+  interface), registered but never applied on its own.
+- squad-hub keeps big projects quiet: a project with several folders lists, right under its own row and whether it is
+  open or not, the chats that are working, unread or in view, each with the folder it lives in, so a pending chat is
+  one click away without opening its folder. Its folders start folded and a folded folder still wears the status dot
+  of what needs you inside. A folded bot, squad group or project keeps those chats listed under its row too, worktree
+  chats and chats outside a project included, so a pending chat never needs a bot, project or folder opened. Unread
+  covers Desktop's own finished-while-away marker, not only the backend flag.
+- squad-hub floating sides (opt-in): the left list and the right files/terminal column float over the chat, shown when
+  the pointer nears that screen edge and hidden when it leaves, pinned or released by the title-bar side buttons, ⌘B and
+  ⌘J (which would otherwise fold the zone inside the floating panel); the panel and its content slide and fade as one,
+  slower in than out, and hide about 0.1 s after the pointer leaves; a **Squads** layout (files over a short
+  terminal, no global Review: it follows each chat) in the layout editor.
+- squad-hub env files open in the system editor (double-click in the file tree, or "Env files…" on a folder): Desktop's
+  viewer blocks them by design and the plugin never reads them.
+- squad-hub: a status-bar count of chats working or unread across every bot, `⌘⇧U` for the next one, an empty-chat
+  header with the bot and the place it works, `@` completion of the project's folders and worktrees, a project's own
+  icon and colour (shared with Sessions), distinct project and folder glyphs, and "Open the browser" per project.
+- README: a diagram of how a squad works and a Squad Hub section; the plugin README credits its author and links.
+- squad-hub: every change to Desktop's own window is a switch in its settings (the `.env` double-click joins floating
+  sides, the hidden Bots tab and profile selector); the settings page ends with the author's credits and links; it
+  passes `hermes plugins validate`, desktop surface included.
+- hermes-platform: `references/desktop-plugins.md`, what a Desktop plugin can add, the host doors, the hard limits and
+  how to work around a missing surface.
+- `squadctl apply --self` ships the package into the builder profile; Desktop lists it in Capabilities > Plugins, off
+  until the user turns it on.
+- `release.py`: a red pytest gate names the failing tests instead of only counting them.
+- `tests/test_squad_hub_model.py`: the plugin's model (which bots show, chat-to-lane placement, search, preview memory,
+  icons, groups, what needs you) run under node on real payload shapes, plus the disk-plugin load contract.
+
 ## 2.17.1 - 2026-10-25
 
 ### Added

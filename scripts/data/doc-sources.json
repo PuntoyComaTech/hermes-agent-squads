@@ -95,6 +95,10 @@
     "toolsets.md": [
       "reference/toolsets-reference.md",
       "user-guide/features/tools.md"
+    ],
+    "desktop-plugins.md": [
+      "developer-guide/desktop-plugin-sdk.md",
+      "user-guide/desktop.md"
     ]
   }
 }

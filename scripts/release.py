@@ -109,9 +109,14 @@ def gate_pytest(py: str) -> tuple[str, bool, str]:
     if probe.returncode != 0:
         return ("pytest", False, f"{py} lacks pytest, pyyaml or jsonschema (the Hermes runtime under scripts/hpy "
                 "has none): pass --python .venv/bin/python")
-    p = run_cmd([py, "-m", "pytest", "-q", "-p", "no:cacheprovider"])
+    p = run_cmd([py, "-m", "pytest", "-q", "-rf", "-p", "no:cacheprovider"])
     tail = (p.stdout or p.stderr).strip().splitlines()
-    return "pytest", p.returncode == 0, tail[-1] if tail else f"exit {p.returncode}"
+    detail = tail[-1] if tail else f"exit {p.returncode}"
+    # name what failed: a red gate that only says "1 failed" cannot be told from a flaky run without a rerun
+    failed = [line.split(" - ")[0].removeprefix("FAILED ") for line in tail if line.startswith("FAILED ")]
+    if failed:
+        detail += ": " + ", ".join(failed[:5]) + (f" (+{len(failed) - 5} more)" if len(failed) > 5 else "")
+    return "pytest", p.returncode == 0, detail
 
 
 def gate_skill_lint(py: str) -> tuple[str, bool, str]:

@@ -88,3 +88,24 @@
 - **C-12** (2026-10-15) Provider credentials: a user-installed provider plugin (builder profile first, then the root home) is copied into each bot that uses it, because Hermes loads user provider plugins per `HERMES_HOME`. A provider whose registry entry declares no API-key env var (OAuth, external process) gets no credentials note; `<PROVIDER>_API_KEY` is guessed only for providers the registry does not know. `squadctl inventory` documents existing profiles read-only (never `.env`/`auth.json`) and writes only under `local/`.
 - **C-13** (2026-10-22) `shared_browser: true` on a bot: one signed-in headless Chromium per machine (`scripts/shared_browser.py`, a launchd service on 127.0.0.1:9333, Hermes's managed Chrome for Testing on `~/.hermes/browser-sessions/hermes`) reached through `browser.cdp_url`, with `browser.use_real_profile` off. A copy of the owner's browser profile fails whenever that browser is open (write lock on its login databases) and carries the owner's whole personal session; separate per-bot profiles cannot share one sign-in (Chromium locks a profile directory to one process) and copied cookies make Google end the session. The owner signs in in a plain visible window on the same directory (`shared_browser.py login`): Google refuses sign-in in a window with a debugging port. Hermes keeps a harness daemon and its tab per `browser_exec` session on a CDP override and never closes them, so the `shared-browser-tabs` plugin names one session per task, makes `new_tab` navigate in place, and at turn end stops that session's daemon and closes the tabs it held; a no-agent sweep on the squad manager every 3 hours closes what crashed runs left. The headless service cannot resolve the Google mail, files and account hosts (`--host-resolver-rules`), because Hermes checks a bot's `website_blocklist` only on URLs written literally in a `browser_exec` call (a redirect or a click passes); the login window has no such rule, so sign-in works.
 - **C-14** (2026-10-23) Every shipped bot with the `browser` toolset sets `shared_browser: true` (jobs, web, marketing), and squadctl no longer mirrors the owner's `browser.use_real_profile` onto any bot; an older mirror is turned off and its pin cleared on apply. The owner's own chats keep the setting. GitHub, Cloudflare and Vercel stay on their CLIs (`gh`, `cf`, `wrangler`, `vercel`), never in a browser. The sweep cron ships on every manager but runs once per machine: a lock and a 150-minute stamp make the other fires exit untouched.
+- **C-15** (2026-10-25) The squad-hub Desktop plugin. A Desktop plugin can add panes, status-bar items, palette commands
+  and settings, and can run RPCs, but it cannot filter the core profile rail or the Bots tab, so it hides both with CSS keyed
+  on the app's own `data-slot` / `data-tree-tab` hooks, behind two settings, and removes the rules when it is disabled.
+  Switching the window's profile is slow because the whole UI re-initialises for the new profile (the backend is already one
+  multiplexed process), so the plugin never switches it: a chat opens as a tab under its own profile (`session.create` with
+  the folder, then `openSession` with `intent: tab`). Chats come from one `/api/profiles/sessions?sources=desktop,tui,cli`
+  call and `projects.list` per bot, never `projects.tree` (1.5 s for a bot with many kanban runs); `git worktree list` runs
+  apart, per repo with a deadline, so a blocked folder cannot stall the list. Workers have no human chats, so "bots with
+  human chats plus default, builder and managers" is the generic rule. The plugin is one file because a disk plugin loads
+  uncompiled; it ships a UI string bundle in English and Spanish (a locale bundle, not repo prose). Bot faces are Lucide icons
+  embedded in the file (ISC, licence beside it) rather than petdex pets or generated characters: gallery pets are user
+  uploads with unclear rights and read alike at 20 px, while an icon says what the bot does. A squad with bots but no
+  manager is grouped by its Desktop section, so a local squad can exist before its manager does without a manifest.
+  Working/unread come from Desktop's live busy flags plus its own finished-while-away marker, because the backend
+  unread flag alone misses a chat that ends while another is in view; a project with many folders lists those chats under its
+  own row (open or closed) and keeps its folders folded, rather than expanding every folder.
+  Floating sides are the plugin moving Desktop's own outer layout columns out of the flow (CSS on its zone wrappers,
+  pane hosts lifted by zone id), because Desktop's hover-reveal overlay exists only below its narrow breakpoint and has
+  no setting; it is opt-in. Env files open with the OS handler (`ctx.os.openExternal`), never through the plugin or a
+  bypass of Desktop's sensitive-file block.
+

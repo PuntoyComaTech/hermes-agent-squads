@@ -1131,6 +1131,35 @@ def test_apply_self_installs_no_squad(env, capsys):
     assert st["installed"] == 1 and [s["squad"] for s in st["squads"]] == ["builder"]
 
 
+def test_apply_self_ships_the_squad_hub_desktop_plugin_and_enables_nothing(env, capsys):
+    """The builder carries the squad-hub package so Desktop can list it (opt-in); a squad's bots never get it."""
+    env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
+    env.seed_builder()
+    env.run("apply", "--self", capsys=capsys)
+    home = env.root / "profiles" / "builder"
+    pkg = REPO / "squads" / "_plugins" / "squad-hub"
+    for rel in ("plugin.yaml", "__init__.py", "desktop/plugin.js"):
+        assert (home / "plugins" / "squad-hub" / rel).read_text() == (pkg / rel).read_text(), rel
+    assert "squad-hub" not in (env.config("builder").get("plugins") or {}).get("enabled", []), "the user turns it on in Desktop"
+    assert not any(c["args"][:2] == ["plugins", "enable"] and "squad-hub" in c["args"] for c in env.calls())
+    _, again = env.run("apply", "--self", capsys=capsys)
+    assert again["summary"] == {"unchanged": 1}, "a second apply copies nothing"
+
+
+def test_apply_self_restores_an_edited_squad_hub_plugin_and_a_squad_apply_never_ships_it(env, capsys):
+    env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
+    env.seed_builder()
+    env.run("apply", "--self", capsys=capsys)
+    js = env.root / "profiles" / "builder" / "plugins" / "squad-hub" / "desktop" / "plugin.js"
+    js.write_text("// edited by hand\n")
+    _, out = env.run("apply", "--self", capsys=capsys)
+    assert out["summary"] == {"changed": 1}
+    assert js.read_text() == (REPO / "squads" / "_plugins" / "squad-hub" / "desktop" / "plugin.js").read_text()
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    assert not (env.root / "profiles" / "web" / "plugins" / "squad-hub").exists()
+
+
 def test_agent_cron_is_pinned_and_doctor_warns_on_an_unpinned_one(env, capsys):
     """Every agent cron squadctl writes carries --model/--provider (an unpinned job follows the main model at fire
     time); doctor flags a squad agent job that lost its pin, and the next apply restores it."""
