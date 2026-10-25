@@ -3,6 +3,27 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.16.0 - 2026-10-24
+
+### Added
+
+- jobs 4.7.0: the bot fills the whole form. `approved.json` `structure` rows carry the edits a user approves on a
+  position or education form — a title, the dates, a new position, a deletion — and PROFILE-APPLY applies them before
+  the texts, then re-reads the profile. Titles, dates, positions and education are profile entries, not settings;
+  account settings stay the user's.
+  - `profile_diff.py verify` checks `structure` rows against the profile as it ends up (date tokens LinkedIn shows,
+    "Present" for present/actualidad; a delete row must find nothing).
+  - `check_profile_copy.py --structure` checks a copy against the profile those edits produce, so a copy written for
+    the final titles passes before the edits land.
+  - The capture reference documents the position and education form fields and the delete dialog; the audit's
+    "manual edits" list becomes `structure` rows at the user's yes.
+
+### Fixed
+
+- `check_profile_copy.py` refused a role skill spelled in the user's own achievements ("WhatsApp", "Workers") because
+  the corpus skipped achievement text; the docstring always said tags and text count. Only `verified` achievements
+  feed the corpus now.
+
 ## 2.15.0 - 2026-10-24
 
 ### Added

@@ -6,7 +6,8 @@ renders the paste-ready Markdown only when the copy is clean. Nothing here logs 
 the user pastes the text.
 
 Usage:
-  check_profile_copy.py COPY.json --project P [--current current.json] [--market FILE] [--render OUT.md] [--json]
+  check_profile_copy.py COPY.json --project P [--current current.json] [--structure structure.json]
+                        [--market FILE] [--render OUT.md] [--json]
 
 COPY.json:
   {"platform": "linkedin", "language": "en",
@@ -17,6 +18,10 @@ COPY.json:
   An experience block names its role with `company` and `title` and may carry `role_skills` (at most 5, the skills
   LinkedIn shows under that role); an education block names its school with `institution` (an education block's
   `text` is its description; `achievements` cites the EDU id).
+
+--structure: the approved form edits (shape: `profile_diff.py --help`, `structure` rows) that change what the profile
+holds: a deleted entry needs no block, a created or renamed one is covered by the block that names it. Use it when
+checking a copy before those edits land, or after only some of them did.
 
 --current (LinkedIn): the profile as captured. Then every role and every school on the profile needs a block
 (role_not_covered, education_not_covered), a block for a role or school the profile does not hold is refused
@@ -113,6 +118,13 @@ def load_project(project: Path) -> dict:
         elif isinstance(node, str):
             chunks.append(node)
     walk(data)
+    # the corpus must hold the achievements' own words: their tags and text (documented below), but only the ones the
+    # user confirmed (verified). An unverified claim proves nothing, so its words stay out of the corpus.
+    for rec in data.get("achievements") or []:
+        if isinstance(rec, dict) and rec.get("verified") is True:
+            chunks.append(json.dumps({k: v for k, v in rec.items()
+                                     if k not in ("id", "experience", "verified", "source", "evidence")},
+                                    ensure_ascii=False))
     candidate = meta.get("candidate") if isinstance(meta.get("candidate"), dict) else {}
     style = meta.get("writing_style") if isinstance(meta.get("writing_style"), dict) else {}
     avoid = style.get("avoid_phrases") if isinstance(style.get("avoid_phrases"), list) else []
@@ -261,6 +273,37 @@ def key(text) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip().lower()
 
 
+def apply_structure(rows: list, current: dict) -> dict:
+    """The profile as the approved form edits leave it: entries deleted are gone, renamed carry the new name."""
+    out = dict(current)
+    roles = {(key(r.get("company")), key(r.get("title"))): r for r in current.get("experience") or []
+             if isinstance(r, dict)}
+    schools = {key(e.get("institution")): e for e in current.get("education") or [] if isinstance(e, dict)}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            raise UsageError("every structure row is an object")
+        kind = str(row.get("kind") or "")
+        if kind == "experience_delete":
+            roles.pop((key(row.get("company")), key(row.get("title"))), None)
+        elif kind == "experience_title":
+            if row.get("was"):
+                roles.pop((key(row.get("company")), key(row.get("was"))), None)
+            roles[(key(row.get("company")), key(row.get("title")))] = {}
+        elif kind in ("experience_create", "experience_dates"):
+            roles[(key(row.get("company")), key(row.get("title")))] = {}
+        elif kind == "education_delete":
+            schools.pop(key(row.get("institution")), None)
+        elif kind in ("education_title", "education_create", "education_dates"):
+            if row.get("was"):
+                schools.pop(key(row.get("was")), None)
+            schools[key(row.get("institution"))] = {}
+        elif kind:
+            raise UsageError(f"unknown structure kind {kind!r}")
+    out["experience"] = [dict(r, company=c, title=t) for (c, t), r in roles.items()]
+    out["education"] = [dict(s, institution=s.get("institution") or "") for s in schools.values()]
+    return out
+
+
 def coverage(copy: dict, current: dict) -> list:
     """Every role and school on the captured profile has a block, and no block names one it does not hold."""
     defects = []
@@ -324,6 +367,7 @@ def main(argv=None) -> int:
     p.add_argument("--project", required=True)
     p.add_argument("--market")
     p.add_argument("--current", help="documents/linkedin/current.json: check that every role and school is covered")
+    p.add_argument("--structure", help="approved form edits (see profile_diff.py): what the profile will hold")
     p.add_argument("--render")
     p.add_argument("--json", action="store_true")
     ns = p.parse_args(argv)
@@ -336,11 +380,23 @@ def main(argv=None) -> int:
         if not isinstance(copy, dict) or not Path(ns.project).is_dir():
             raise UsageError("COPY.json must be an object and --project an existing folder")
         defects, warnings = check(copy, load_project(Path(ns.project)), market)
+        structure_rows = None
+        if ns.structure:
+            try:
+                structure_rows = json.loads(Path(ns.structure).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise UsageError(f"cannot read --structure: {exc}") from exc
+            if isinstance(structure_rows, dict):
+                structure_rows = structure_rows.get("structure")
+            if not isinstance(structure_rows, list):
+                raise UsageError("--structure holds a list of rows")
         if ns.current:
             try:
                 current = json.loads(Path(ns.current).read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 raise UsageError(f"cannot read --current: {exc}") from exc
+            if structure_rows is not None:
+                current = apply_structure(structure_rows, current if isinstance(current, dict) else {})
             defects += coverage(copy, current if isinstance(current, dict) else {})
     except UsageError as exc:
         sys.stderr.write(json.dumps({"error": str(exc), "code": "BAD_INPUT"}) + "\n")

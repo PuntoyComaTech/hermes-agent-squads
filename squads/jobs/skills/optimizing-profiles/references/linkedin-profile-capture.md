@@ -135,6 +135,14 @@ Per-skill edit links sit on the same page: `a[aria-label="Edit <skill> skill"]`,
 | About | `/in/<slug>/edit/forms/summary/new/` | `div[contenteditable="true"][role="textbox"]`, counter `1,353/2,600` beside it |
 | Experience | `/in/<slug>/details/experience/edit/forms/<id>/` | `div[contenteditable="true"][aria-label="Description, maximum 2,000 characters"]`, counter `0/2,000` |
 
+The position form (`/details/experience/edit/forms/<id>/`, and `/details/experience/edit/forms/new/` for "Add
+position", unverified) carries `Job title*`, `Employment type` (select), `Company`, `Location`, `Location type`
+(select), `Start month`/`Start year*`, `End month`/`End year*` (selects; a "Present" checkbox fills the end), the
+description and the role's skill checkboxes. The education form carries `School*`, `Degree`, `Field of study`, the
+four date selects, `Grade`, `Activities and societies` and `Description, maximum 1,000 characters`. Both hold a
+`Delete` button at the bottom (unverified on 2026-10-24) whose dialog names the entry and asks to confirm. Structure
+edits use these forms; `approved.json` `structure` rows name exactly which fields change.
+
 Save is a `button` whose text is `Save`. A form opens in the primary language; `nav a` holds one link per language
 (`?language=en&country=US`) and clicking it swaps the field's text: the intro form gave 163 characters in Spanish and
 163 in English, the About form 1,379 in Spanish and 1,500 in English. So a field's text depends on the tab: read the

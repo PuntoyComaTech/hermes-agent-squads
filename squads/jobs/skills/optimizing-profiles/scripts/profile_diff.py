@@ -19,7 +19,20 @@ check_profile_copy.py: `blocks` with `section` and `text`, plus `skills`. An exp
 `company` and `title`, or with a `label` of the form "Title at Company".
 
 APPROVED.json is what the manager writes after the user's yes, one row per approved field:
-  {"fields": [{"field": "headline", "after": "..."}, {"field": "about", "after": "..."}]}
+  {"fields": [{"field": "headline", "language": "es", "after": "..."}],
+   "structure": [{"kind": "experience_title", "company": "Contoso", "title": "Frontend Developer",
+                  "was": "Frontend Junior Analyst"}]}
+
+`structure` rows hold the form edits a user approved (a position form is just a form: titles, dates, a new position, a
+deletion). Kinds and their keys:
+  experience_title   company, title, was?   (the entry carries `title`; `was` is the name it had)
+  experience_dates   company, title, from, to   (to: "Present" matches present/actualidad)
+  experience_create  company, title, from, to
+  experience_delete  company, title
+  education_title    institution, title (degree name), was?
+  education_dates    institution, from, to
+  education_delete   institution
+`from`/`to` are the date tokens LinkedIn shows ("Oct 2023"). Structure is one list for every language.
 
 Field ids: `headline`, `about`, `skills`, `top_skills`, `experience:<company>:<title>`,
 `role_skills:<company>:<title>` (the skills shown under a role) and `education:<institution>` (its description).
@@ -188,12 +201,70 @@ def value_of(current: dict, field: str):
     return None
 
 
+def date_in(have, token: str, what: str) -> bool:
+    """One date token ("Oct 2023", "Present") must show in the dates line the profile captured."""
+    text = norm(have).lower()
+    want = norm(token).lower()
+    if want in ("present", "current", "actualidad"):
+        return bool(re.search(r"present|actualidad|atual", text))
+    return want in text
+
+
+def check_structure(rows, current: dict) -> tuple[list, list]:
+    """The approved form edits against the profile as captured after the edits: final state, not the diff."""
+    results, failures = [], []
+    for row in rows or []:
+        if not isinstance(row, dict) or not str(row.get("kind") or "").strip():
+            raise UsageError("every structure row needs a `kind`")
+        kind = str(row["kind"]).strip()
+        company, title = norm(row.get("company")), norm(row.get("title"))
+        school = norm(row.get("institution"))
+        have, why = None, ""
+        if kind in ("experience_title", "experience_dates", "experience_create"):
+            have = find_role(current, company, title)
+            if have is not None:
+                want_from, want_to = row.get("from"), row.get("to")
+                if want_from and not date_in(have.get("dates"), str(want_from), "from"):
+                    why = f"the dates do not show {want_from}"
+                elif want_to and not date_in(have.get("dates"), str(want_to), "to"):
+                    why = f"the dates do not show {want_to}"
+                elif row.get("was") and find_role(current, company, norm(row.get("was"))) is not None:
+                    why = f"the entry still carries its old title {row.get('was')!r}"
+            else:
+                why = "the entry is not on the profile"
+        elif kind == "experience_delete":
+            have = find_role(current, company, title)
+            why = "the entry is still on the profile" if have is not None else ""
+        elif kind in ("education_title", "education_dates"):
+            have = find_school(current, school)
+            if have is None:
+                why = "the school is not on the profile"
+            elif row.get("from") and not date_in(have.get("dates"), str(row["from"]), "from"):
+                why = f"the dates do not show {row['from']}"
+            elif row.get("to") and not date_in(have.get("dates"), str(row["to"]), "to"):
+                why = f"the dates do not show {row['to']}"
+            elif row.get("was") and find_school(current, norm(row.get("was"))) is not None:
+                why = f"the entry still carries its old name {row.get('was')!r}"
+        elif kind == "education_delete":
+            have = find_school(current, school)
+            why = "the school is still on the profile" if have is not None else ""
+        else:
+            raise UsageError(f"unknown structure kind {kind!r}")
+        label = f"{title or school}{' at ' + company if company else ''}"
+        ok = (have is None) if kind.endswith("delete") else (why == "")
+        results.append({"field": f"structure:{kind}:{label}", "ok": ok, "reason": why or None})
+        if not ok:
+            failures.append({"field": f"structure:{kind}:{label}", "reason": why})
+    return results, failures
+
+
 def verify(approved: dict, current: dict | list) -> dict:
     captures = current if isinstance(current, list) else [current]
     by_language = {str(c.get("language") or "").lower()[:2]: c for c in captures}
-    rows = approved.get("fields")
-    if not isinstance(rows, list) or not rows:
-        raise UsageError("APPROVED.json needs a non-empty `fields` list")
+    rows = approved.get("fields") or []
+    structure = approved.get("structure") or []
+    if not isinstance(rows, list) or (not rows and not structure):
+        raise UsageError("APPROVED.json needs a `fields` list or `structure` rows")
     results, failures = [], []
     for row in rows:
         if not isinstance(row, dict) or not str(row.get("field") or "").strip():
@@ -224,8 +295,13 @@ def verify(approved: dict, current: dict | list) -> dict:
             failures.append({"field": field, "language": lang, "reason": "field not on the profile" if have is None
                              else "the profile text differs", "expected": norm(want)[:120],
                              "found": norm(have)[:120]})
+    if structure:
+        s_results, s_failures = check_structure(structure, captures[0])
+        results += s_results
+        failures += s_failures
+    total = len(rows) + len(structure)
     return {"ok": not failures, "fields": results, "failures": failures,
-            "counts": {"approved": len(rows), "verified": len(rows) - len(failures)}}
+            "counts": {"approved": total, "verified": total - len(failures)}}
 
 
 def main(argv=None) -> int:

@@ -57,6 +57,8 @@ diff, so a wording fix made after the review is not reverted.
 
 The platform is watched: the apply card asks for one field at a time with normal pauses, and when the platform caps
 changes per session the writer applies what fits and reports the rest. Never promise the user that automation is
-invisible. Positions, titles, dates, education visibility and settings are the user's to change. Then file a jobs-writer card (`skills: [optimizing-profiles]`,
+invisible. Structure edits (a title, the dates, a new position, a deletion) are applied from `structure` rows in the
+approved file when the user approves them: the audit's "manual edits" list becomes such rows at the user's yes, and
+the bot fills the form. Account settings (Open to Work, custom URL, photo) stay the user's to change. Then file a jobs-writer card (`skills: [optimizing-profiles]`,
 body `Mode: PROFILE-APPLY` and that path, key `jobs:profile:<project>:<YYYY-MM-DD>:apply`). Report the writer's verify
 result in one line per field: applied, or failed with the reason. Settings (Open to Work, custom URL) stay the user's.
