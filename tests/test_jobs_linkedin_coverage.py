@@ -123,8 +123,8 @@ def test_role_skills_and_top_skills_are_held_to_what_the_user_has_and_what_linke
     copy["top_skills"] = ["SQL", "Excel", "Python", "Power BI", "Excel", "Looker"]
     code, report = check(tmp_path, copy)
     codes = sorted(d["defect"] for d in report["defects"])
-    assert code == 1 and codes == ["skills_over_limit", "skills_over_limit", "top_skill_not_listed",
-                                   "unsupported_skill"], codes
+    assert code == 1 and codes == ["role_skill_not_listed", "skills_over_limit", "skills_over_limit",
+                                   "top_skill_not_listed", "unsupported_skill"], codes
 
 
 def capture(**extra):

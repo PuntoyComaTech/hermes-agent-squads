@@ -151,11 +151,22 @@ def test_a_copy_written_for_the_form_after_the_edits_passes_only_with_the_struct
 
 def test_a_role_skill_spelled_in_a_verified_claim_passes_and_one_that_is_not_verified_does_not(tmp_path):
     # the freelance position's own words ("WhatsApp assistant on Railway") prove its role skills; an unverified
-    # claim proves nothing, so "Oracle" stays refused.
+    # claim ("Oracle migration") proves nothing, so that skill stays refused.
     copy = draft_for(FINAL)
+    copy["skills"] += ["WhatsApp", "Railway", "Oracle"]
     freelance = next(b for b in copy["blocks"] if b.get("company") == "Independent")
     freelance["role_skills"] = ["WhatsApp", "Railway"]
-    assert check(tmp_path, copy, STRUCTURE)[0] == 0
-    freelance["role_skills"] = ["Oracle"]
     code, report = check(tmp_path, copy, STRUCTURE)
-    assert code == 1 and [d["defect"] for d in report["defects"]] == ["unsupported_skill"]
+    assert code == 1 and [(d["defect"], d["where"]) for d in report["defects"]] == [("unsupported_skill", "Oracle")]
+    copy["skills"].remove("Oracle")
+    assert check(tmp_path, copy, STRUCTURE)[0] == 0
+
+
+def test_a_role_skill_missing_from_the_profile_list_is_caught_before_linkedin_widens_the_list(tmp_path):
+    # the real apply: a role skill not in `skills` was added by LinkedIn to the profile list, so `skills` never matched
+    copy = draft_for(FINAL)
+    next(b for b in copy["blocks"] if b.get("company") == "Independent")["role_skills"] = ["WhatsApp"]
+    code, report = check(tmp_path, copy, STRUCTURE)
+    assert code == 1 and [d["defect"] for d in report["defects"]] == ["role_skill_not_listed"]
+    copy["skills"].append("WhatsApp")
+    assert check(tmp_path, copy, STRUCTURE)[0] == 0

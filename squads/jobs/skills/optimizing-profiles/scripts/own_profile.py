@@ -43,6 +43,8 @@ DETAILS = {"experience", "education", "skills", "certifications", "projects", "c
 # Words that may not appear anywhere under /edit/: the modal and the contact-info form carry the user's private data
 # (e-mail, phone, address) and are never needed to rewrite a headline, an About or a role description.
 REFUSED_TAIL = ("contact-info", "overlay")
+# The one overlay that edits a profile field: the pinned top skills have no other editor (measured 2026-10-25).
+ALLOWED_OVERLAYS = {"top-skills-details"}
 
 
 class UsageError(ValueError):
@@ -145,6 +147,9 @@ def check(url: str, own: str) -> dict:
             return refusal("contact info is private and is never needed to optimise a profile", "private")
         return {"allow": True, "kind": "own_edit", "own": own, "path": path,
                 "reason": "an edit form on the own profile"}
+    if tail[0].lower() == "overlay" and len(tail) == 2 and tail[1].lower() in ALLOWED_OVERLAYS:
+        return {"allow": True, "kind": "own_overlay", "own": own, "path": path,
+                "reason": "the own profile's top skills editor"}
     if tail[0].lower() == "overlay":
         return refusal("overlays carry contact details or other people's data; the edit forms are enough", "private")
     return refusal(f"/in/{own}/{'/'.join(tail)}/ is not a page this skill reads", "other")

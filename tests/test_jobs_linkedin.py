@@ -626,6 +626,8 @@ def own(url, own_slug="ana-example"):
 @pytest.mark.parametrize("url", [
     "https://www.linkedin.com/in/ana-example/edit/contact-info/",                     # contact info is private
     "https://www.linkedin.com/in/ana-example/edit/overlay/contact-info/",
+    "https://www.linkedin.com/in/ana-example/overlay/contact-info/",                  # every other overlay stays shut
+    "https://www.linkedin.com/in/bob/overlay/top-skills-details/",                    # someone else's top skills
     "https://www.linkedin.com/in/ana-example/edit/forms/contact-info/",
     "https://www.linkedin.com/in/ana-example/edit/../../../in/bob/",                  # dot segments resolve to Bob
     "https://www.linkedin.com/in/ana-example/edit/%2e%2e/%2e%2e/bob/",                # the same, percent-encoded
@@ -647,6 +649,7 @@ def test_the_profile_guard_refuses_contact_info_dot_segment_escapes_and_plain_ht
     "https://www.linkedin.com/in/ana-example/details/skills/",
     "https://www.linkedin.com/in/ana-example/edit/forms/intro/new/",
     "https://es.linkedin.com/in/ana-example/details/experience/",                     # the locale subdomain redirect
+    "https://www.linkedin.com/in/ana-example/overlay/top-skills-details/",            # the only top-skills editor
 ])
 def test_the_own_profile_its_details_and_its_edit_forms_still_pass(url):
     code, data = own(url)

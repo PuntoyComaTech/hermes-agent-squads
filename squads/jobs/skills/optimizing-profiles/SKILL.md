@@ -79,7 +79,7 @@ It never changes a setting (Open to Work visibility, custom URL, photo, Featured
    form is just a form: the bot edits every part of it the user approved, including the selects.
 2. Re-read the profile first (step 4) into `current.json`: the user may have edited it since the draft.
 3. **Structure first** (the `structure` rows, one form at a time): rename a title, set the date selects, create a
-   position ("Add position"), delete an entry from its form's `Delete` (confirm only after the dialog names it).
+   position ("Add position"), delete an entry with its own form's `Delete` (the form's title and company are the proof).
    Change only the fields the row names, then re-read (step 4): from here on, the rows' titles are on the page.
 4. One text field at a time, in the form that owns it and the language tab its row names: headline (intro form),
    About (summary form), an experience description and its skills, an education description, top skills. Before

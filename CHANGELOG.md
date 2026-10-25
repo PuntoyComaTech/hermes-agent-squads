@@ -3,6 +3,19 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.16.1 - 2026-10-25
+
+### Fixed
+
+- jobs 4.7.1, from the first real apply of form edits (32 of 36 rows landed):
+  - A position's delete dialog says only "Delete role" and names no entry, so the rule "confirm only when the dialog
+    names it" held every delete. The proof is now the entry's own form (its title and company).
+  - Pinned top skills are edited only in the own `overlay/top-skills-details/`, which the profile guard refused with
+    every other overlay. That one overlay is allowed; contact info and other overlays stay refused.
+  - A role skill missing from the profile's `skills` list (LinkedIn adds it there) made `skills` fail verify after a
+    clean apply. `check_profile_copy.py` reports it before the apply as `role_skill_not_listed`.
+  - Skill names come from LinkedIn's picker: a name it does not offer ("Workers", "AI") is replaced by one it does.
+
 ## 2.16.0 - 2026-10-24
 
 ### Added

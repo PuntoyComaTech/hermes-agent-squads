@@ -29,6 +29,7 @@ checking a copy before those edits land, or after only some of them did.
 
 Defects (exit 1): over_limit, too_long, uncited_claim, unknown_achievement, unverified_achievement, unsupported_skill,
 claims_a_gap, banned_phrase, private_data, confidential_term, not_public, skills_over_limit, top_skill_not_listed,
+role_skill_not_listed,
 bad_custom_url, and with --current: role_not_covered, unknown_role, education_not_covered, unknown_education,
 wrong_language. Warnings never change
 the exit code.
@@ -242,7 +243,11 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
             raise UsageError(f"blocks[{i}].role_skills is a list of text")
         if len(own) > limits.get("role_skills", 10 ** 6):
             bad("skills_over_limit", where, f"{len(own)} role skills, LinkedIn shows at most {limits['role_skills']}")
+        listed = {s.strip().lower() for s in copy.get("skills") or [] if isinstance(s, str)}
         for skill in own:
+            if listed and skill.strip().lower() not in listed:
+                bad("role_skill_not_listed", f"{where}: {skill}", "LinkedIn adds a role skill to the profile's skills "
+                                                                  "list: put it in `skills` too, or drop it here")
             if not has_term(skill, project["corpus"]):
                 bad("unsupported_skill", f"{where}: {skill}", "is not in key_skills, achievements.yaml skills, tags or text")
     top = copy.get("top_skills")

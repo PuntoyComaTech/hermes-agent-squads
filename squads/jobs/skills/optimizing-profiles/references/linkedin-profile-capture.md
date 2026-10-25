@@ -140,7 +140,12 @@ position", unverified) carries `Job title*`, `Employment type` (select), `Compan
 (select), `Start month`/`Start year*`, `End month`/`End year*` (selects; a "Present" checkbox fills the end), the
 description and the role's skill checkboxes. The education form carries `School*`, `Degree`, `Field of study`, the
 four date selects, `Grade`, `Activities and societies` and `Description, maximum 1,000 characters`. Both hold a
-`Delete` button at the bottom (unverified on 2026-10-24) whose dialog names the entry and asks to confirm. Structure
+`Delete` button at the bottom. Measured 2026-10-25: the position dialog reads "Delete role / Are you sure you want to
+delete this role?" and names no entry, so the proof is the form it was opened from (its title and company fields); the
+skill dialog names the skill. Pinned top skills are edited only in `/in/<slug>/overlay/top-skills-details/` ("Show top
+skills"), the one overlay `own_profile.py` allows. A role skill is picked from LinkedIn's taxonomy: a name the picker
+does not offer ("Workers", "AI") cannot be added, so write role and profile skills with names the picker offers
+("Cloudflare", "Generative AI"), and drop one the picker lacks with a line in the report. Structure
 edits use these forms; `approved.json` `structure` rows name exactly which fields change.
 
 Save is a `button` whose text is `Save`. A form opens in the primary language; `nav a` holds one link per language
