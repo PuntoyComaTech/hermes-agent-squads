@@ -103,43 +103,74 @@ def git(repo: Path, *a: str) -> str:
 
 @pytest.fixture()
 def worker(plug, tmp_path, monkeypatch):
-    repo = tmp_path / "site"
-    repo.mkdir()
+    """The web layout: the card's workspace is the site folder, the git repo is `<site>/repo` (site.yaml repo.path)."""
+    site = tmp_path / "site"
+    repo = site / "repo"
+    repo.mkdir(parents=True)
+    (site / "site.yaml").write_text("slug: acme\nrepo: {path: repo}\n")
     git(repo, "init", "-q")
+    git(repo, "config", "user.email", "bot@example.invalid")
+    git(repo, "config", "user.name", "bot")
+    (repo / "README.md").write_text("x\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "base")
     monkeypatch.setenv("HERMES_KANBAN_TASK", "t_0000aaaa")
-    monkeypatch.setenv("HERMES_KANBAN_WORKSPACE", str(repo))
+    monkeypatch.setenv("HERMES_KANBAN_WORKSPACE", str(site))
     clock = {"now": 1000.0}
     monkeypatch.setattr(plug.time, "monotonic", lambda: clock["now"])
-    plug._state.update(since=1000.0, nudged=0.0, checked=0.0)
+    plug._state.update(nudged=0.0, checked=0.0)
+    plug._written.clear()
     return plug, repo, clock
 
 
-def test_a_worker_with_unsaved_files_for_30_minutes_is_told_to_save(worker):
+def write(plug, path: Path, text: str = "export const x = 1;\n") -> None:
+    path.write_text(text)
+    plug.on_transform_tool_result("write_file", {"path": str(path)}, '{"bytes_written": 1}')
+
+
+def test_a_file_the_worker_wrote_unsaved_for_30_minutes_gets_a_save_reminder(worker):
     plug, repo, clock = worker
-    (repo / "hero.ts").write_text("export const hero = 1;\n")
+    write(plug, repo / "hero.ts")
     clock["now"] += 29 * 60
     assert plug.on_transform_tool_result("read_file", {}, "content") is None, "too early"
     clock["now"] += 2 * 60
     out = plug.on_transform_tool_result("read_file", {}, "content")
-    assert out.startswith("content") and "save_progress.py" in out and "31 min" in out
+    assert out.startswith("content") and "save_progress.py" in out and "31 min" in out and "hero.ts" in out
     clock["now"] += 5 * 60
     assert plug.on_transform_tool_result("read_file", {}, "content") is None, "once per 10 minutes at most"
 
 
-def test_a_save_restarts_the_clock_and_a_clean_tree_is_never_nagged(worker):
+def test_a_committed_file_stops_its_clock(worker):
     plug, repo, clock = worker
-    clock["now"] += 40 * 60
-    assert plug.on_transform_tool_result("read_file", {}, "content") is None, "nothing unsaved"
-    (repo / "hero.ts").write_text("x\n")
-    plug.on_transform_tool_result("terminal", {"command": "python3 save_progress.py --repo . --id x --what hero"}, "{}")
+    write(plug, repo / "hero.ts")
     clock["now"] += 20 * 60
-    assert plug.on_transform_tool_result("read_file", {}, "content") is None, "saved 20 min ago"
+    git(repo, "add", "hero.ts")
+    git(repo, "commit", "-qm", "wip: hero")
+    clock["now"] += 20 * 60
+    assert plug.on_transform_tool_result("read_file", {}, "content") is None, "saved: nothing to remind"
+    assert plug._written == {}, "the saved file leaves the list"
 
 
-def test_a_manager_chat_is_never_nagged(plug, monkeypatch):
-    monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    plug._state.update(since=0.0, nudged=0.0, checked=0.0)
+def test_another_builders_unsaved_files_never_nag_this_worker(worker):
+    plug, repo, clock = worker
+    (repo / "atmosphere.ts").write_text("half\n")  # another card, mid-edit, in the shared tree
+    clock["now"] += 45 * 60
     assert plug.on_transform_tool_result("read_file", {}, "content") is None
+
+
+def test_a_manager_chat_is_never_nagged(plug, monkeypatch, tmp_path):
+    monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
+    plug._written.clear()
+    plug._state.update(nudged=0.0, checked=0.0)
+    assert plug.on_transform_tool_result("write_file", {"path": str(tmp_path / "x")}, "ok") is None
+    assert plug._written == {}
+
+
+def test_the_board_comes_from_any_form_of_the_command(plug):
+    assert plug._board_of("hermes kanban --board web create x", "") == "web"
+    assert plug._board_of("hermes kanban --board=web create x", "") == "web"
+    assert plug._board_of("HERMES_KANBAN_BOARD=jobs hermes kanban create x", "") == "jobs"
+    assert plug.filed_cards("hermes kanban --board=web create x", "Created t_1a2b3c4d  (ready)") == ["t_1a2b3c4d"]
 
 
 def test_the_plugin_loads_under_hermes_and_registers_its_hooks(plug):

@@ -138,7 +138,9 @@ def merge_back(h: Path, state: Path, edits: dict[str, bytes]) -> dict:
             if theirs is not None:
                 out["shipped"][f] = theirs
                 out.setdefault("upstream", {})[f] = theirs
-            if result is not None:
+            if result is None:
+                path.unlink(missing_ok=True)  # deleted here on purpose: it stays deleted
+            else:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(result)
             continue

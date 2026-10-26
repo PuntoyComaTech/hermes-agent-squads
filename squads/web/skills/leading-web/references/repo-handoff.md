@@ -9,7 +9,7 @@ The goal: after this, a brand-new session with no history can read one file and 
 1. **Name the base first**, in one line, before any tool: the folder and the branch the newest direction lives on. Everything below happens on that branch only.
 2. **Inventory the leftovers before deleting anything.** In one batch:
    - `git branch`, `git worktree list`, `git log --oneline -12`, `git status -sb`;
-   - stale tool dirs and one-off scripts for the discarded direction (`tools/`, `scripts/`, `.agents/`, `.claude/`);
+   - stale tool dirs and one-off scripts for the discarded direction: `scripts/`, `tools/`, `.agents/`, `.claude/`;
    - the brief, `AGENTS.md`, and any session-start hook output that mentions the discarded direction: `grep -rn -i '<name>' docs AGENTS.md`;
    - `du -sh` the runtime/evidence dirs, so the report can say what was freed.
 3. **Collect the evidence that is still worth having, before deleting.** For a reference site, that is screenshots per chapter, the source bundle, and its audio, kept for study and never shipped. Save it under one runtime dir the repo does not commit (`<repo>/.hermes-live/evidence/<topic>/`, excluded like the rest of `.hermes-live/`), and list those paths in the handoff prompt. A direction being killed does not kill what was learned from it.

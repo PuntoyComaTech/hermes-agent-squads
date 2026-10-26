@@ -29,21 +29,24 @@ ID_RE = re.compile(r"\A[a-z0-9][a-z0-9-]*-\d{8}-(?:build|change|bug|domain|rollb
 TAIL = 1500
 
 
-LOCK_WAIT_S = 300  # parallel builders share one index: a save waits this long for another save's index.lock
+LOCK_WAIT_S = 90  # one budget for the whole save, under the terminal tool's 180 s foreground timeout
 
 
-def git(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=600,
-                          stdin=subprocess.DEVNULL)
+def git(repo: Path, *args: str, timeout: float = 150) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=timeout,
+                              stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(args, 124, "", f"git {args[0]} timed out after {int(timeout)} s")
 
 
 def locked(proc: subprocess.CompletedProcess) -> bool:
     return proc.returncode != 0 and "index.lock" in (proc.stdout + proc.stderr)
 
 
-def git_waiting(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    """`git` that retries while another save holds the index lock (it runs the hook under that lock)."""
-    deadline = time.monotonic() + LOCK_WAIT_S
+def git_waiting(repo: Path, deadline: float, *args: str) -> subprocess.CompletedProcess:
+    """`git` that retries while another save holds the index lock (it runs the hook under that lock), until the
+    save's shared deadline; a lock still held then is reported, never deleted (it may be a live save)."""
     while True:
         proc = git(repo, *args)
         if not locked(proc) or time.monotonic() > deadline:
@@ -56,12 +59,13 @@ def save(repo: Path, work_id: str, what: str, site: Path | None, paths: list[str
     if branch != f"web/{work_id}":
         return {"saved": False, "ok": False,
                 "error": f"on branch {branch!r}: progress commits go only to web/{work_id} (never main)"}
-    added = git_waiting(repo, "add", "-A", "--", *paths)
+    deadline = time.monotonic() + LOCK_WAIT_S
+    added = git_waiting(repo, deadline, "add", "-A", "--", *paths)
     if added.returncode:
         return {"saved": False, "ok": False, "error": "git add failed", "tail": (added.stdout + added.stderr)[-TAIL:]}
     if not git(repo, "diff", "--cached", "--name-only", "HEAD", "--", *paths).stdout.strip():
         return {"saved": False, "ok": True, "detail": "nothing changed since the last save"}
-    done = git_waiting(repo, "commit", "-q", "--only", "-m", f"wip({work_id}): {what}", "--", *paths)
+    done = git_waiting(repo, deadline, "commit", "-q", "--only", "-m", f"wip({work_id}): {what}", "--", *paths)
     if done.returncode:
         return {"saved": False, "ok": False, "error": "the pre-commit hook or git refused the commit; fix and rerun",
                 "tail": (done.stdout + done.stderr)[-TAIL:]}

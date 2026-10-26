@@ -307,7 +307,7 @@ def test_skills_copied_with_sha_marker_and_soul(web):
 
 
 def test_plugins_mcp_cron_board_installed(web):
-    assert web.config("web-frontend")["plugins"]["enabled"] == ["disk-cleanup", "security-guidance"]
+    assert web.config("web-frontend")["plugins"]["enabled"] == ["disk-cleanup", "security-guidance", "squad-kanban"]
     assert "context7" in web.config("web-frontend")["mcp_servers"]
     assert "chrome-devtools" in web.config("web-qa")["mcp_servers"]
     (job,) = web.jobs("web")
@@ -364,7 +364,7 @@ def test_provider_plugin_is_copied_into_the_bot_profile(env, capsys):
     assert (dest / "__init__.py").read_text() == "registered = True\n"
     # merged with the plugins.enable items of the spec, never replacing them
     assert env.config("web-frontend")["plugins"]["enabled"] == [
-        "disk-cleanup", "model-providers/prov-frontend", "security-guidance"]
+        "disk-cleanup", "model-providers/prov-frontend", "security-guidance", "squad-kanban"]
     # every bot gets every provider the user connected: a model switch or a card pin can pick it in any bot
     assert "model-providers/prov-frontend" in env.config("web-qa")["plugins"]["enabled"]
     _, out = env.run("apply", "web", "--bots", "web-frontend", capsys=capsys)
@@ -1984,6 +1984,27 @@ def test_shared_browser_second_apply_is_a_no_op_and_dropping_the_flag_undoes_it(
     assert not (env.config("web-qa").get("browser") or {}).get("cdp_url")
     assert "shared-browser-tabs" not in env.config("web-qa")["plugins"]["enabled"]
     assert [j for j in env.jobs("web") if j["name"] == "web-browser-sweep"] == []
+
+
+def test_every_squad_bot_runs_squad_kanban_and_the_builder_never_does(env, capsys):
+    """CLI-filed cards must notify the manager's chat and workers must be told to save: the plugin is on every bot."""
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    src = REPO / "squads" / "_plugins" / "squad-kanban"
+    for bot in ("web", "web-frontend", "web-qa"):
+        dest = env.root / "profiles" / bot / "plugins" / "squad-kanban"
+        assert (dest / "__init__.py").read_text() == (src / "__init__.py").read_text()
+        assert "squad-kanban" in env.config(bot)["plugins"]["enabled"]
+    tampered = env.root / "profiles" / "web-qa" / "plugins" / "squad-kanban" / "__init__.py"
+    tampered.write_text("broken = True\n")
+    _, plan = env.run("plan", "web", capsys=capsys)
+    assert tampered.read_text() == "broken = True\n", "plan writes nothing"
+    qa = next(b for b in plan["bots"] if b["bot"] == "web-qa")
+    assert "plugin ~ squad-kanban" in qa["actions"]
+    env.run("apply", "web", capsys=capsys)
+    assert tampered.read_text() == (src / "__init__.py").read_text()
+    _, again = env.run("plan", "web", capsys=capsys)
+    assert all("squad-kanban" not in " ".join(b.get("actions") or []) for b in again["bots"])
 
 
 def test_shared_browser_without_the_browser_toolset_is_refused(env, capsys):

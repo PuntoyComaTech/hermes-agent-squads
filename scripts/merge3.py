@@ -56,13 +56,13 @@ def merge_bytes(base: bytes | None, ours: bytes | None, theirs: bytes | None,
         return ours, True
     if ours == base:
         return theirs, True
-    fallback = ours if prefer == "ours" and ours is not None else theirs
+    fallback = ours if prefer == "ours" else theirs  # prefer ours: a file the bot deleted stays deleted
     if base is None or ours is None or theirs is None:
         return fallback, False  # added or deleted on one side and changed on the other
     try:
         text, clean = merge(base.decode("utf-8"), ours.decode("utf-8"), theirs.decode("utf-8"), prefer)
     except UnicodeDecodeError:
-        return fallback, False
+        return fallback, False  # binary on both sides: ours under prefer="ours", else theirs
     return text.encode("utf-8"), clean
 
 

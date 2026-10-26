@@ -4,10 +4,13 @@
   `squadctl chain`) is subscribed to the chat that filed it, the way the `kanban_create` tool already does. Without
   this a CLI-filed card finishes and the chat never hears of it. The subscription is Hermes's own
   (`tools.kanban_tools._maybe_auto_subscribe`), so `kanban.auto_subscribe_on_create: false` still turns it off.
-- Workers (`HERMES_KANBAN_TASK` set), transform_tool_result on every tool: when the card's git workspace has had
-  unsaved changes for SAVE_AFTER_S since the worker started or last saved, one line is appended to the tool result
-  telling it to save the finished piece now. At most once per NUDGE_EVERY_S. A worker runs one long turn, so a
-  per-turn hook would fire once; a tool result is where the worker actually looks.
+- Workers (`HERMES_KANBAN_TASK` set), transform_tool_result on every tool: the plugin remembers each file this
+  worker wrote (`write_file`, `patch`) and when it first wrote it. When one of those files is still uncommitted in its
+  own git repo after SAVE_AFTER_S, one line is appended to the tool result telling the worker to save the finished
+  piece now; at most once per NUDGE_EVERY_S. Only the worker's own files count (another builder's work in the shared
+  tree never nags it, a reviewer that writes nothing is never nagged), the repo is found from each file (a site whose
+  repo is `<site>/repo` works), and a file leaves the list the moment a commit holds it. A worker runs one long
+  turn, so a per-turn hook would fire once; a tool result is where the worker actually looks.
 
 Fail-open everywhere: any error leaves the tool result as it was.
 """
@@ -30,11 +33,12 @@ CHECK_EVERY_S = 60
 _TASK = r"t_[0-9a-f]{4,32}"
 _CREATED = re.compile(rf"(?:^|\n)\s*(?:Created|card)\s+({_TASK})\b")
 _JSON_ID = re.compile(rf'"(?:id|task_id)"\s*:\s*"({_TASK})"')
-_FILES = re.compile(r"(?:kanban\s+(?:--board\s+\S+\s+)?create|kanban_chain\.py|squadctl(?:\.py)?\s+chain)\b")
-_SAVES = re.compile(r"save_progress\.py|git\s+(?:-C\s+\S+\s+)?commit\b")
+_FILES = re.compile(r"(?:kanban\s+(?:--board[\s=]+\S+\s+)?create|kanban_chain\.py|squadctl(?:\.py)?\s+chain)\b")
+_WRITERS = {"write_file": ("path",), "patch": ("path",)}
 
 _lock = threading.Lock()
-_state = {"since": time.monotonic(), "nudged": 0.0, "checked": 0.0}
+_state = {"nudged": 0.0, "checked": 0.0}
+_written: dict[str, float] = {}  # absolute path this worker wrote -> when it first wrote it since the last commit
 
 
 def _worker() -> bool:
@@ -46,9 +50,13 @@ def _board_of(command: str, result: str) -> str | None:
         words = shlex.split(command)
     except ValueError:
         words = command.split()
-    for i, w in enumerate(words[:-1]):
-        if w == "--board":
+    for i, w in enumerate(words):
+        if w == "--board" and i + 1 < len(words):
             return words[i + 1]
+        if w.startswith("--board="):
+            return w.split("=", 1)[1]
+        if w.startswith("HERMES_KANBAN_BOARD="):
+            return w.split("=", 1)[1]
     m = re.search(r'"board"\s*:\s*"([a-z0-9][a-z0-9_-]*)"', result)
     return m.group(1) if m else None
 
@@ -78,7 +86,9 @@ def subscribe(task_ids: list[str], board: str | None) -> list[str]:
     done = []
     with _board(board) as (kb, conn):
         for tid in task_ids:
-            if kb.get_task(conn, tid) is not None and _maybe_auto_subscribe(conn, tid):
+            if kb.get_task(conn, tid) is None:
+                logger.info("squad-kanban: %s is not on board %s; chat not subscribed", tid, board or "(current)")
+            elif _maybe_auto_subscribe(conn, tid):
                 done.append(tid)
     return done
 
@@ -97,32 +107,54 @@ def on_post_tool_call(tool_name="", args=None, result=None, **_):
     return None
 
 
-def _git(workspace: str, *args: str) -> str:
-    proc = subprocess.run(["git", "-C", workspace, *args], capture_output=True, text=True, timeout=20,
+def _git(cwd: str, *args: str) -> str:
+    proc = subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True, timeout=20,
                           stdin=subprocess.DEVNULL)
     return proc.stdout if proc.returncode == 0 else ""
 
 
-def unsaved(workspace: str) -> int:
-    """Changed or new files in the workspace's git tree (0 when it is not a repo)."""
-    return len([line for line in _git(workspace, "status", "--porcelain").splitlines() if line.strip()])
+def uncommitted(path: str) -> bool:
+    """True when `path` sits in a git repo and differs from that repo's HEAD (new, changed or staged)."""
+    folder = os.path.dirname(path) or "."
+    while not os.path.isdir(folder) and folder != os.path.dirname(folder):
+        folder = os.path.dirname(folder)
+    return bool(_git(folder, "status", "--porcelain", "--", path).strip())
 
 
-def nudge(now: float, workspace: str) -> str | None:
-    """The reminder line, or None. Clock: worker start or its last save; then at most once per NUDGE_EVERY_S."""
+def remember(tool_name: str, args: dict | None, now: float) -> None:
+    """Record the files a write tool touched, keeping the time of the first write since the last commit."""
+    for key in _WRITERS.get(tool_name, ()):
+        value = (args or {}).get(key)
+        if isinstance(value, str) and value.strip():
+            path = os.path.abspath(os.path.expanduser(value))
+            with _lock:
+                _written.setdefault(path, now)
+
+
+def nudge(now: float) -> str | None:
+    """The reminder line, or None: one of this worker's files uncommitted for SAVE_AFTER_S; once per NUDGE_EVERY_S."""
     with _lock:
-        if now - _state["since"] < SAVE_AFTER_S or now - _state["nudged"] < NUDGE_EVERY_S:
+        if now - _state["nudged"] < NUDGE_EVERY_S or now - _state["checked"] < CHECK_EVERY_S:
             return None
-        if now - _state["checked"] < CHECK_EVERY_S:
+        due = [p for p, t in _written.items() if now - t >= SAVE_AFTER_S]
+        if not due:
             return None
         _state["checked"] = now
-    count = unsaved(workspace)
-    if not count:
+    pending = []
+    for path in due:
+        if uncommitted(path):
+            pending.append(path)
+        else:
+            with _lock:
+                _written.pop(path, None)  # a commit holds it now: its clock stops
+    if not pending:
         return None
     with _lock:
         _state["nudged"] = now
-    minutes = int((now - _state["since"]) // 60)
-    return (f"\n\n[squad-kanban] {minutes} min since your last save and {count} changed file(s) in the workspace. "
+        oldest = min(_written[p] for p in pending if p in _written)
+    minutes = int((now - oldest) // 60)
+    names = ", ".join(os.path.basename(p) for p in pending[:3]) + (" ..." if len(pending) > 3 else "")
+    return (f"\n\n[squad-kanban] {len(pending)} file(s) you wrote are still unsaved after {minutes} min ({names}). "
             "Save the piece you finished now with the save step your skill names (web: save_progress.py), "
             "then continue: unsaved work is invisible to the user and lost if this run stops.")
 
@@ -132,12 +164,8 @@ def on_transform_tool_result(tool_name="", args=None, result=None, **_):
         return None
     try:
         now = time.monotonic()
-        if tool_name == "terminal" and _SAVES.search(str((args or {}).get("command") or "")):
-            with _lock:
-                _state["since"] = now
-            return None
-        workspace = os.environ.get("HERMES_KANBAN_WORKSPACE") or os.getcwd()
-        line = nudge(now, workspace)
+        remember(tool_name, args, now)
+        line = nudge(now)
         return result + line if line else None
     except Exception:  # noqa: BLE001 - fail open
         logger.debug("squad-kanban: nudge skipped", exc_info=True)

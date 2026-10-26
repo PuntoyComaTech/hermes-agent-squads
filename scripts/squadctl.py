@@ -661,6 +661,26 @@ def live_bots(ctx: Ctx, spec: dict) -> list[str]:
     return [b for b, s in spec["bots"].items() if not s.get("optional") or ctx.home(b).is_dir()]
 
 
+def write_skill_tree(dest: Path, files: dict[str, bytes], src: Path) -> None:
+    """Replace `dest` with `files` in one rename: a crash mid-write leaves the old skill, never half of one. Each
+    file keeps the mode of its source (a script stays executable), else of the copy it replaces."""
+    tmp = dest.with_name(f".{dest.name}.merge")
+    shutil.rmtree(tmp, ignore_errors=True)
+    for rel, data in files.items():
+        out = tmp / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(data)
+        for origin in (src / rel, dest / rel):
+            if origin.is_file():
+                out.chmod(origin.stat().st_mode & 0o777)
+                break
+    old = dest.with_name(f".{dest.name}.old")
+    shutil.rmtree(old, ignore_errors=True)
+    dest.rename(old)
+    tmp.rename(dest)
+    shutil.rmtree(old, ignore_errors=True)
+
+
 def asset(ctx: Ctx, key: str, *parts: str) -> Path | None:
     return next((d.joinpath(*parts) for d in squad_dirs(ctx, key) if d.joinpath(*parts).exists()), None)
 
@@ -1490,12 +1510,17 @@ class Applier:
                 # What the bot learned is never taken away: a stretch both sides changed keeps the bot's lines, every
                 # other change from both sides lands, and the upstream version of each clashing file waits beside the
                 # backup for the builder to fold in. The new source becomes the merge base, so the next apply keeps
-                # the bot's copy instead of reporting the same conflict again. No merge base: the bot's files win.
+                # the bot's copy instead of reporting the same conflict again. No merge base (a bot installed before
+                # merge bases existed): a file written after the install marker is the bot's edit and wins, every
+                # other file takes the new version, so untouched files never freeze at the old release.
                 ours, theirs = merge3.read_tree(dest), merge3.read_tree(src)
                 if base.is_dir():
                     files, conflicts = merge3.merge_trees(base, dest, src, prefer="ours")
                 else:
-                    files, conflicts = {**theirs, **ours}, sorted(r for r in ours if r in theirs and ours[r] != theirs[r])
+                    stamp = (dest / SHA_MARK).stat().st_mtime
+                    touched = {r for r in ours if (dest / r).stat().st_mtime > stamp + 1 or r not in theirs}
+                    files = {**theirs, **{r: ours[r] for r in touched}}
+                    conflicts = sorted(r for r in touched if r in theirs and ours[r] != theirs[r])
                 if conflicts or not base.is_dir():
                     keep = ctx.local / "backups" / f"skill-edits-{time.strftime('%Y%m%d-%H%M%S')}" / name / skill
                     clash = conflicts
@@ -1513,10 +1538,7 @@ class Applier:
                 else:
                     acts.append(f"skill ~ {skill} (update merged with your edits)")
                 if not dry:  # the merged tree, where the bot's copy wins every clash, is the installed skill
-                    shutil.rmtree(dest)
-                    for rel, data in files.items():
-                        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-                        (dest / rel).write_bytes(data)
+                    write_skill_tree(dest, files, src)
                     write_text(dest / SHA_MARK, sha + "\n")
                     shutil.rmtree(base, ignore_errors=True)
                     shutil.copytree(src, base, ignore=shutil.ignore_patterns(SHA_MARK, "__pycache__"))

@@ -500,6 +500,35 @@ def test_upgrade_merges_a_bot_edit_into_an_updated_squad_skill(installed, capsys
     assert again["applied"] == {} and dest.read_text() == text
 
 
+def test_a_file_the_bot_deleted_stays_deleted_when_upstream_edits_it(installed, capsys):
+    skill = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites"
+    ref = next(p for p in sorted((skill / "references").glob("*.md")))
+    rel = ref.relative_to(skill)
+    src = installed.src / "squads" / "web" / "skills" / "reviewing-sites" / rel
+    ref.unlink()
+    src.write_text(src.read_text() + "UPSTREAM LINE\n")
+    upgrade(installed, capsys)
+    assert not ref.exists(), "the bot removed it on purpose"
+
+
+def test_without_a_merge_base_only_the_files_the_bot_touched_keep_its_copy(installed, capsys):
+    """Bots installed before merge bases existed: an untouched file must still update, never freeze."""
+    import os
+    import shutil as sh
+    skill = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites"
+    src = installed.src / "squads" / "web" / "skills" / "reviewing-sites"
+    sh.rmtree(installed.local / "state" / "skill-base" / "web-qa" / "reviewing-sites")
+    ref_rel = next(p for p in sorted((skill / "references").glob("*.md"))).relative_to(skill)
+    stamp = (skill / ".squad-sha").stat().st_mtime
+    os.utime(skill / ref_rel, (stamp, stamp))
+    (skill / "SKILL.md").write_text((skill / "SKILL.md").read_text() + "LEARNED\n")
+    os.utime(skill / "SKILL.md", (stamp + 60, stamp + 60))
+    (src / ref_rel).write_text((src / ref_rel).read_text() + "UPSTREAM REF\n")
+    upgrade(installed, capsys)
+    assert (skill / "SKILL.md").read_text().endswith("LEARNED\n")
+    assert (skill / ref_rel).read_text().endswith("UPSTREAM REF\n"), "an untouched file takes the new version"
+
+
 def test_upgrade_reports_a_conflicting_bot_edit_and_keeps_a_copy(installed, capsys):
     dest = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites" / "SKILL.md"
     src = installed.src / "squads" / "web" / "skills" / "reviewing-sites" / "SKILL.md"
