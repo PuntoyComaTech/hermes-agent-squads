@@ -808,7 +808,8 @@ def test_a_skill_in_the_add_skill_dialog_is_picked_from_linkedins_list_and_saved
     browser.open({"kind": "skill"}, fixture=DIALOG)
     out = page(browser).skill_add({"skill": "PostgreSQL"})
     assert out["result"] == "applied", out
-    assert saved(browser) == {"value": "PostgreSQL", "picked": "PostgreSQL", "level": None}
+    # LinkedIn ticks "Follow this skill" on the pick; following was never approved, so it is unticked before Save
+    assert saved(browser) == {"value": "PostgreSQL", "picked": "PostgreSQL", "level": None, "follow": False}
 
 
 @needs_chrome
@@ -912,3 +913,14 @@ def test_the_languages_section_is_parsed_into_the_capture(tmp_path):
     langs = json.loads(out.read_text())["languages"]
     assert [(x["language"], x["proficiency"]) for x in langs] == [("Spanish", "Native or bilingual proficiency"),
                                                                    ("English", "Professional working proficiency")]
+
+
+def test_a_school_the_profile_already_holds_is_not_created_again():
+    # v5.1 re-run: the plan offered to create a school that the first run had already saved
+    row = {"kind": "education_create", "institution": "Sample Language Center", "title": "Advanced English Program",
+           "to": "2025"}
+    have = dict(CURRENT, education=CURRENT["education"] + [
+        {"institution": "Sample Language Center", "degree": "Advanced English Program", "dates": "2025"}])
+    step = pf.plan({"structure": [row]}, [have], "structure")[0]
+    assert step["result"] == "refused" and "already" in step["reason"]
+    assert "result" not in pf.plan({"structure": [row]}, [CURRENT], "structure")[0]
