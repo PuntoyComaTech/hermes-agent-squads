@@ -26,7 +26,8 @@ flowchart TD
 - **Projects with several folders, each with its own worktrees.** "+" on a project, folder or worktree starts a chat
   right there; "New worktree" makes a checkout under `.worktrees/` with its own branch.
 - **Previews you can bring back.** Every preview a chat opens is remembered; the status-bar chip lists them and a
-  click reopens one, no prompt to the bot.
+  click reopens one, no prompt to the bot. Coming back to a chat that was showing a preview puts it back on its own
+  when the Desktop lost it on the way (switching between bots can); a preview you closed before leaving stays closed.
 - **A bot's own pages in one click.** Scheduled jobs, messaging, Kanban and capabilities (capabilities open in a
   dialog pinned to that bot).
 - **Quiet big projects.** A project with several folders lists the chats that are working, unread or open right under

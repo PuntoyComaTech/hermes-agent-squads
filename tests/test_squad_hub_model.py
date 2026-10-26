@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview sessionTime boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
+           "shortAge slugify rememberPreview previewToRestore sessionTime boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
 
 
 def _model_source() -> str:
@@ -448,6 +448,23 @@ def test_previews_are_capped_per_chat_and_the_oldest_chats_are_evicted(model):
     for i in range(6):
         m = model("rememberPreview", m, f"c{i}", {"url": "/x.html", "at": i}, 5, 3)
     assert sorted(m) == ["c3", "c4", "c5"], "the least recently used chats go first"
+
+
+def test_returning_to_a_chat_puts_back_the_preview_it_was_showing(model):
+    remembered = [{"url": "http://localhost:4321", "label": "site", "at": 2}, {"url": "/old.html", "at": 1}]
+    assert model("previewToRestore", remembered, True, False)["url"] == "http://localhost:4321"
+
+
+def test_a_preview_the_user_closed_before_leaving_stays_closed(model):
+    remembered = [{"url": "http://localhost:4321", "at": 2}]
+    assert model("previewToRestore", remembered, False, False) is None
+
+
+def test_nothing_is_reopened_when_the_preview_came_back_or_none_is_remembered(model):
+    remembered = [{"url": "http://localhost:4321", "at": 2}]
+    assert model("previewToRestore", remembered, True, True) is None
+    assert model("previewToRestore", [], True, False) is None
+    assert model("previewToRestore", None, True, False) is None
 
 
 def test_a_preview_without_a_chat_or_an_url_is_not_remembered(model):

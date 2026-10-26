@@ -3,6 +3,26 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.20.0 - 2026-10-25
+
+### Added
+
+- `scripts/test_changed.py` runs only the tests a change since `origin/main` can break, in parallel (`-n auto` with
+  pytest-xdist): a script selects the tests that load it and those of every script that imports or runs it, a squad
+  file the tests of that squad, a test file itself and the tests importing it, plus the cheap repo-wide checks. A
+  shared harness file (`tests/conftest.py`, `tests/fakes/`, `scripts/squadctl.py` and its modules, the schema, the
+  base SOUL) or a path no test reaches runs the whole suite. `--list` shows the selection, `--full` runs everything.
+- `release.py` gates pytest on that selection, in parallel; `--full` runs the whole suite. The whole suite in parallel
+  takes about 6 minutes on 8 cores (20 serially). CI runs the whole suite with `-n auto`.
+
+### Fixed
+
+- squad-hub 1.2.0: coming back to a chat that was showing a preview puts it back on its own when the Desktop lost it
+  (switching to another bot's chat drops the page of the one left behind), without a turn of the bot. A preview closed
+  before leaving stays closed.
+- web 3.7.3: the manager no longer reopens the live view on its own every time the user returns to the chat; that
+  turn was the slow, reloading reopen. It opens the tab when the base exists, on request, or when the tab is gone.
+
 ## 2.19.0 - 2026-10-25
 
 ### Added

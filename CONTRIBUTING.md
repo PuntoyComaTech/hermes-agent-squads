@@ -6,8 +6,10 @@ Read `AGENTS.md` first; its Rules apply here, to people and to AI agents.
 
 - **Manifests follow the schema** (`squads/_schema/squad.schema.json`); cross-field rules (one manager, chain assignees
   exist, lanes exist, worker names prefixed by the squad key) are enforced by `squadctl` and `tests/`.
-- **Tests and lint must stay green**: `.venv/bin/python -m pytest` (a venv with `pytest`, `PyYAML`, `jsonschema`)
-  and `scripts/hpy skill_lint.py skills squads`.
+- **Tests and lint must stay green**: `.venv/bin/python scripts/test_changed.py` while iterating (only the tests the
+  change since `origin/main` can break, in parallel; `--list` shows the selection, `--full` runs everything) and
+  `scripts/hpy skill_lint.py skills squads`. The venv holds `pytest`, `pytest-xdist`, `PyYAML`, `jsonschema`;
+  `release.py` gates on the same selection, and CI runs the whole suite on every push.
 - **Keep the tree clean before a local install**: `hermes profile install <path>` copies everything inside the
   distribution-owned paths (`skills/`, `scripts/`, `squads/`), `__pycache__` included; run
   `git clean -nXd skills scripts squads` to preview, then `git clean -fXd skills scripts squads`.

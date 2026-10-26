@@ -55,16 +55,19 @@ prints `true`:
 3. Commit with the repository's own identity, read from the history
    (`git log -1 --format='%an <%ae>'`), not the machine's default git identity.
    Once per clone, create the test venv:
-   `python3 -m venv .venv && env -u PYTHONPATH .venv/bin/pip install pytest pyyaml jsonschema`
+   `python3 -m venv .venv && env -u PYTHONPATH .venv/bin/pip install pytest pytest-xdist pyyaml jsonschema`
    (a Hermes shell exports `PYTHONPATH`, which hides the venv's own packages).
 4. Right before this step, fetch again and merge `origin/main` if it moved;
-   resolve the conflicts and rerun the full suite on the merged tree. A green
-   run on the old base proves nothing, and a push to `main` is rejected as
-   non-fast-forward. In `local/hermes-agent-squads`, run
+   resolve the conflicts and rerun the tests on the merged tree
+   (`.venv/bin/python scripts/test_changed.py`; a merge that touched a shared
+   harness file runs the whole suite on its own). A green run on the old base
+   proves nothing, and a push to `main` is rejected as non-fast-forward. In
+   `local/hermes-agent-squads`, run
    `scripts/hpy release.py --dry-run --python .venv/bin/python`, then the same
    without `--dry-run`. All gates green: it pushes to main. A red gate: it opens
-   a PR (`release.py --help`). The gates run the full pytest suite (7 to 20
-   minutes, longer under machine load): check `uptime` and free disk first,
+   a PR (`release.py --help`). The pytest gate runs, in parallel, the tests the
+   change since `origin/main` can break (`--full` for the whole suite, about 6
+   minutes on 8 cores, 20 serially): check `uptime` and free disk first,
    since each test home can take about 600 MB. Start the release with
    `terminal(background=true, notify=true)` and poll with `process_manage`; do
    not block on it. A red gate leaves a PR on `release/<version>`, and a rerun

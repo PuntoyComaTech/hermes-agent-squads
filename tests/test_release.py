@@ -29,7 +29,8 @@ def git(main="version: 1.0.0\n", status="", ls_remote=0):
 
 
 def green(monkeypatch):
-    monkeypatch.setattr(release, "gate_pytest", lambda py: ("pytest", True, "338 passed"))
+    monkeypatch.setattr(release, "gate_pytest", lambda py, selection=None: ("pytest", True, "338 passed"))
+    monkeypatch.setattr(release, "test_selection", lambda remote, full: {"full": True, "reason": "--full", "tests": []})
     monkeypatch.setattr(release, "gate_skill_lint", lambda py: ("skill_lint", True, "ok"))
     monkeypatch.setattr(release, "gate_schema", lambda py=None: ("schema", True, "ok"))
     monkeypatch.setattr(release, "gate_plan", lambda py: ("plan", True, "ok"))
@@ -149,7 +150,7 @@ def test_green_checks_push_to_main(monkeypatch, capsys):
 def test_red_checks_open_a_pr_and_never_push(monkeypatch, capsys):
     monkeypatch.setattr(release, "run_cmd", git())
     green(monkeypatch)
-    monkeypatch.setattr(release, "gate_pytest", lambda py: ("pytest", False, "1 failed"))
+    monkeypatch.setattr(release, "gate_pytest", lambda py, selection=None: ("pytest", False, "1 failed"))
     pushed, pr = [], []
     monkeypatch.setattr(release, "push_to_main", lambda remote: (pushed.append(remote), (True, ""))[1])
     monkeypatch.setattr(release, "open_pr", lambda remote, checks: (pr.append(checks), (True, ""))[1])
@@ -234,7 +235,56 @@ def test_a_red_pytest_gate_names_the_failing_tests(monkeypatch):
     monkeypatch.setattr(release, "run_cmd", fake)
     name, ok, detail = release.gate_pytest("/venv/python")
     assert not ok and "-rf" in calls[-1]
-    assert detail == "2 failed, 2110 passed in 900.00s: tests/test_a.py::test_one, tests/test_b.py::test_two[x]"
+    assert detail.startswith("2 failed, 2110 passed in 900.00s: tests/test_a.py::test_one, tests/test_b.py::test_two[x]")
+
+
+def pytest_calls(monkeypatch, xdist=True):
+    calls = []
+
+    def fake(argv, **k):
+        calls.append(argv)
+        if argv[-1] == "import xdist":
+            return cp("", code=0 if xdist else 1)
+        return cp("3 passed in 1.00s\n")
+
+    monkeypatch.setattr(release, "run_cmd", fake)
+    return calls
+
+
+def test_pytest_gate_runs_only_the_selected_files_in_parallel(monkeypatch):
+    calls = pytest_calls(monkeypatch)
+    sel = {"full": False, "reason": "2 changed path(s)", "tests": ["test_release.py", "test_docs.py"]}
+    name, ok, detail = release.gate_pytest("/venv/python", sel)
+    run = calls[-1]
+    assert ok and run[-4:] == ["-n", "auto", "tests/test_release.py", "tests/test_docs.py"]
+    assert "2 test files: 2 changed path(s)" in detail
+
+
+def test_pytest_gate_full_selection_names_no_file_and_runs_serially_without_xdist(monkeypatch):
+    calls = pytest_calls(monkeypatch, xdist=False)
+    name, ok, detail = release.gate_pytest("/venv/python", {"full": True, "reason": "--full", "tests": []})
+    run = calls[-1]
+    assert ok and "-n" not in run and not [a for a in run if a.startswith("tests/")]
+    assert "whole suite" in detail and "pip install pytest-xdist" in detail
+
+
+def test_pytest_gate_with_nothing_selected_runs_no_pytest(monkeypatch):
+    calls = pytest_calls(monkeypatch)
+    name, ok, detail = release.gate_pytest("/venv/python", {"full": False, "reason": "no change", "tests": []})
+    assert ok and "no test to run" in detail
+    assert not [c for c in calls if "pytest" in c and "-c" not in c]
+
+
+def test_full_flag_reaches_the_test_selection(monkeypatch):
+    monkeypatch.setattr(release, "run_cmd", git())
+    green(monkeypatch)
+    no_release(monkeypatch)
+    seen = []
+    monkeypatch.setattr(release, "test_selection", lambda remote, full: (seen.append(full), {"full": full,
+                        "reason": "x", "tests": ["test_docs.py"]})[1])
+    release.main(["--only", "pytest"])
+    release.main(["--only", "pytest", "--full"])
+    assert seen == [False, True]
 
 
 def test_open_pr_pushes_a_branch_then_uses_real_gh_flags(monkeypatch):

@@ -49,11 +49,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install test dependencies
-        run: python -m pip install pytest jsonschema pyyaml
-      - name: Run pytest against a temp HERMES_HOME
+        run: python -m pip install pytest pytest-xdist jsonschema pyyaml
+      - name: Run the whole suite against a temp HERMES_HOME
         run: |
           export HERMES_HOME="$(mktemp -d)"
-          python -m pytest tests -q
+          python -m pytest tests -q -n auto
 
   shellcheck:
     runs-on: ubuntu-latest

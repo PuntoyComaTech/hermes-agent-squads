@@ -278,6 +278,12 @@ function rememberPreview(map, storedId, entry, perChat = 8, maxChats = 200) {
   }
   return next
 }
+/** The preview to put back when a chat comes on screen: its newest remembered one, only when the chat showed a
+ *  preview when the user left it and shows none now. A preview the user closed before leaving stays closed. */
+function previewToRestore(remembered, leftShowing, showingNow) {
+  if (!leftShowing || showingNow) return null
+  return (remembered || []).find(p => p?.url) || null
+}
 /** A Lucide icon for a bot or a squad group, read from what it does: an explicit choice wins, then the squad
  *  key, then words in its name. A group (a squad without a manager) of shops reads as a storefront. */
 const ICON_BY_KEY = { default: 'sparkles', builder: 'hammer', jobs: 'briefcase-business', marketing: 'megaphone', web: 'globe' }
@@ -1367,6 +1373,31 @@ function reopenPreview(entry) {
   } finally {
     reopening--
   }
+}
+
+/** True while a preview is on screen: Desktop's `preview-tile:<tab>` pane, by its tab or by its visible host (a lone
+ *  pane may hide its strip; a parked, hidden session's page keeps its host but `inert`). */
+const previewOnScreen = () =>
+  Boolean(document.querySelector('[data-tree-tab^="preview-tile:"], [data-pane-host^="preview-tile:"]:not([inert])'))
+// Whether each chat showed a preview when the user left it; memory only (a relaunch restores tabs on its own).
+const leftShowingPreview = new Map()
+const RESTORE_DELAY_MS = 700
+let restoreTimer = null
+/** On a chat switch: note whether the chat being left shows a preview (the DOM still holds its tabs when the focus
+ *  atom fires), then, once Desktop has put the next chat's own tabs back, reopen its remembered preview when it had
+ *  one on screen and none came back (another bot's tab can be lost on the way). No turn of the bot is spent. */
+function onChatSwitch(next, prev) {
+  if (prev) {
+    leftShowingPreview.set(prev, previewOnScreen())
+    if (leftShowingPreview.size > 300) leftShowingPreview.delete(leftShowingPreview.keys().next().value)
+  }
+  clearTimeout(restoreTimer)
+  if (!next) return
+  restoreTimer = setTimeout(() => {
+    if (host.state.focusedStoredSessionId.get() !== next) return
+    const entry = previewToRestore(previewsAtom.get()[next], leftShowingPreview.get(next), previewOnScreen())
+    if (entry) reopenPreview(entry)
+  }, RESTORE_DELAY_MS)
 }
 
 // ───────────────────────────── UI pieces ─────────────────────────────
@@ -3120,6 +3151,13 @@ export default {
     }
     // opening a chat marks it read in the backend: pick that up so its dot goes quiet here too
     ctx.onDispose(host.state.focusedStoredSessionId.listen(() => setTimeout(refreshSoon, 1200)))
+    let shownChat = host.state.focusedStoredSessionId.get()
+    ctx.onDispose(host.state.focusedStoredSessionId.listen(next => {
+      if (next === shownChat) return
+      onChatSwitch(next, shownChat)
+      shownChat = next
+    }))
+    ctx.onDispose(() => clearTimeout(restoreTimer))
     syncLive()
     ctx.onEvent('preview.open', e => {
       if (reopening) return

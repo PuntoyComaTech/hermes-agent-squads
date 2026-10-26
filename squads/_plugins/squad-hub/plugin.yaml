@@ -1,5 +1,5 @@
 name: squad-hub
-version: 1.1.0
+version: 1.2.0
 description: "Hermes Agent Squads Hub: one Desktop list of bots, projects, worktrees and chats, a squad timeline, a bell for what waits on you, and managers that ask with buttons."
 author: PuntoyComaTech
 requires_hermes: ">=0.22.2"

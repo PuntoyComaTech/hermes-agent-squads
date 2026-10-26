@@ -3,7 +3,9 @@
 
 Checks: a clean working tree (the gates test what HEAD pushes), a `distribution.yaml` version bump over
 `<remote>/main` (fetched first; no main on the remote = first release) and a `## <version>` CHANGELOG.md entry.
-Gates: `pytest`, `skill_lint.py skills squads`, the squad schema (builder.yaml and every squads/<key>/squad.yaml
+Gates: `pytest` (in parallel with pytest-xdist; only the tests `scripts/test_changed.py` ties to the change since
+`<remote>/main`, the whole suite with `--full` or when the change touches a shared harness file or a path no test
+reaches), `skill_lint.py skills squads`, the squad schema (builder.yaml and every squads/<key>/squad.yaml
 against squads/_schema/squad.schema.json) and `squadctl plan` for every squad plus `--self` on a temporary
 HERMES_HOME. pytest, skill_lint and the schema run under --python, which needs pytest, pyyaml and
 jsonschema: under scripts/hpy the default is the Hermes runtime, which has none of them, so pass
@@ -104,18 +106,36 @@ def meta_checks(new: str | None, old: str | None, changelog: str, remote: str,
     return out
 
 
-def gate_pytest(py: str) -> tuple[str, bool, str]:
+def test_selection(remote: str, full: bool) -> dict:
+    """What the pytest gate runs: `test_changed.py`'s selection against <remote>/main, or the whole suite."""
+    sys.path.insert(0, str(SRC / "scripts"))
+    import test_changed
+    return test_changed.plan(None, remote, full)
+
+
+def gate_pytest(py: str, selection: dict | None = None) -> tuple[str, bool, str]:
+    """pytest in parallel (`-n auto`) when pytest-xdist is installed; `selection` (test_changed.py's plan) scopes it
+    to the changed tests, None runs the whole suite."""
     probe = run_cmd([py, "-c", "import pytest, yaml, jsonschema"])
     if probe.returncode != 0:
         return ("pytest", False, f"{py} lacks pytest, pyyaml or jsonschema (the Hermes runtime under scripts/hpy "
                 "has none): pass --python .venv/bin/python")
-    p = run_cmd([py, "-m", "pytest", "-q", "-rf", "-p", "no:cacheprovider"])
+    selection = selection or {"full": True, "reason": "whole suite", "tests": []}
+    if not selection["full"] and not selection["tests"]:
+        return "pytest", True, f"{selection['reason']}: no test to run"
+    xdist = run_cmd([py, "-c", "import xdist"]).returncode == 0
+    files = [] if selection["full"] else [f"tests/{t}" for t in selection["tests"]]
+    p = run_cmd([py, "-m", "pytest", "-q", "-rf", "-p", "no:cacheprovider", *(["-n", "auto"] if xdist else []), *files])
     tail = (p.stdout or p.stderr).strip().splitlines()
     detail = tail[-1] if tail else f"exit {p.returncode}"
     # name what failed: a red gate that only says "1 failed" cannot be told from a flaky run without a rerun
     failed = [line.split(" - ")[0].removeprefix("FAILED ") for line in tail if line.startswith("FAILED ")]
     if failed:
         detail += ": " + ", ".join(failed[:5]) + (f" (+{len(failed) - 5} more)" if len(failed) > 5 else "")
+    scope = "whole suite" if selection["full"] else f"{len(files)} test files"
+    detail += f" [{scope}: {selection['reason']}]"
+    if not xdist:
+        detail += " (serial: pip install pytest-xdist)"
     return "pytest", p.returncode == 0, detail
 
 
@@ -223,6 +243,8 @@ def main(argv: list[str] | None = None) -> int:
                     "pytest, skill_lint and schema gates (default: .venv/bin/python, else the one running "
                     "this script; under scripts/hpy that is the Hermes runtime, which lacks pytest)")
     ap.add_argument("--remote", default="origin", help="git remote holding main (default: origin)")
+    ap.add_argument("--full", action="store_true", help="the pytest gate runs the whole suite instead of the tests "
+                    "the change since <remote>/main can break (scripts/test_changed.py)")
     ap.add_argument("--only", action="append", metavar="GATE", choices=["pytest", "skill_lint", "schema", "plan", "private"],
                     help="run only this gate (repeatable; implies --dry-run); the tree, bump and changelog "
                          "checks always run")
@@ -235,7 +257,8 @@ def main(argv: list[str] | None = None) -> int:
     new = dist_version((SRC / "distribution.yaml").read_text())
     checks = [clean_check(), *meta_checks(new, old, (SRC / "CHANGELOG.md").read_text(), a.remote, error)]
     py = pick_python(a.python)
-    for name, fn in (("pytest", lambda: gate_pytest(py)), ("skill_lint", lambda: gate_skill_lint(py)),
+    for name, fn in (("pytest", lambda: gate_pytest(py, test_selection(a.remote, a.full))),
+                     ("skill_lint", lambda: gate_skill_lint(py)),
                      ("schema", lambda: gate_schema(py)), ("plan", lambda: gate_plan(py)), ("private", lambda: gate_private(py))):
         if a.only and name not in a.only:
             continue
