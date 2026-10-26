@@ -31,7 +31,7 @@ import salary_lookup as sl  # noqa: E402
 import posting_guard as pg  # noqa: E402
 import seen_state as ss  # noqa: E402
 
-GATE_NAMES = ("eligibility", "language", "location", "seniority")
+GATE_NAMES = jc.GATE_NAMES
 REQUIRED_LISTS = ("must_have", "nice_to_have", "responsibilities", "tools", "keywords", "disqualifiers", "priorities")
 DIMENSIONS = ("technical", "experience", "behavioral", "career")
 DEFAULT_POLICY = {"flag_gap_steps": 1, "discard_gap_steps": 2}

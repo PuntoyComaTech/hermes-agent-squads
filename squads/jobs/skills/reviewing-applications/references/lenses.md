@@ -187,14 +187,14 @@ Each block correction is one of:
 
 Enforced by `scripts/aggregate_review.py`. The lenses never run it; the parent does.
 
-1. A lens verdict matches its blocks. PASS with a block is an error; FIX (FAIL for truthfulness) with no block is an
-   error.
+1. A lens verdict matches its blocks: PASS with a block, or FIX (FAIL for truthfulness) without one, is an error.
 2. A block is: a draft finding, a dropped company claim, a supported missing keyword, a hard defect, a recruiter
-   blocker, a market violation, a stretch with `answerable_from_sources: false`, a writing finding, or a language
-   mismatch.
+   blocker, a market violation, an unanswerable stretch, a writing finding, or a language mismatch.
 3. No block in any lens: APPROVED, status `ready`.
 4. Any block: round 1 gives FIX (status `in_review`); round 2 or later gives NOT_APPROVED (status `not_approved`).
    Truthfulness FAIL is never APPROVED. With `--apply` (always, in this squad) only hard blocks count: writing
    findings, recruiter blockers and supported keywords are fixed by the reviewer in place (`applied`, `polish`).
-5. `summary_for_user`: 1 to 5 lines in the user's language, no internal field names.
-6. Contact data anywhere in the review is an error and nothing is written.
+5. Internal text (outside answers.md [FIELD] blocks, strategy.md, kit.md) never blocks; a required form question
+   without its [FIELD] always does; APPROVED needs an employer link (`aggregate_review.py --help`).
+6. `summary_for_user`: 1 to 5 lines in the user's language, no internal field names.
+7. Contact data anywhere in the review is an error and nothing is written.

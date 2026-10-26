@@ -100,7 +100,7 @@ the bot with no web and no browser; it reads and drafts, and never sends. `jobs-
 
 | Job | When | Does |
 | --- | --- | --- |
-| `jobs-search` | hourly gate; a search at each of the project's `search_times` on weekdays (default 12:00, its `timezone`), reading only postings since the previous check | One search card per active project; nothing until the project and `profile.md` exist |
+| `jobs-search` | hourly gate; a search at each of the project's `search_times` on weekdays (default 12:00, its `timezone`), reading only postings since the previous check | One line a day per project: the search filed (each slot), "no search today" on weekends, or "search paused"; quiet between slots |
 | `jobs-followups` | weekdays 09:00 | One inbox card (for `jobs-inbox`) when an application went quiet past `follow_up_days`; silent otherwise |
 | `jobs-watch` | every 30 min | Tells you when a card waits on you or stalls |
 | `jobs-browser-sweep` | every 3 h | Closes tabs a crashed run left on the shared browser; skips when another squad's sweep just ran |

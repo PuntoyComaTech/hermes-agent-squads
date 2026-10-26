@@ -25,7 +25,9 @@ Rules (contract: jobs-contract references/opening-files.md, submission.json):
   `confidential_terms` entry closes the gate.
 - id is a JOB-YYYYMMDD-<slug> of at most 50 characters and, when FILE sits in openings/<ID>/application/, equals the
   folder name.
-- result is SUBMITTED, NEEDS_DATA or NOT_POSSIBLE; method is one of the seven form classes.
+- result is SUBMITTED, NEEDS_DATA or NOT_POSSIBLE; method is one of the seven form classes. An employer ATS name from
+  official_hosts.json (ashby, greenhouse, lever, workable, ...) is accepted for no_login_form: those boards apply without
+  an account. The gate then also requires the apply_url to sit on that same ATS, so a mislabelled form never passes.
 - filled_fields lists {field, source} only: every filled field has a source (contact.yaml, application-data.yaml,
   answers.md, cv or consult:<card id>). A value key is refused: the file never carries field values.
 - SUBMITTED: method no_login_form (or linkedin_easy_apply under auto_apply: auto); at least one filled field; no
@@ -85,7 +87,6 @@ SKILLS = Path(__file__).resolve().parents[2]
 LINK_CHECK = SKILLS / "jobs-contract" / "scripts" / "link_check.py"
 JOBS_COMMON = SKILLS / "jobs-contract" / "scripts" / "jobs_common.py"
 SEEN_STATE = SKILLS / "jobs-contract" / "scripts" / "seen_state.py"
-SCORE_ANALYSIS = SKILLS / "analyzing-jobs" / "scripts" / "score_analysis.py"
 APPLY_STATE = Path(__file__).resolve().parent / "apply_state.py"
 
 RESULTS = ("SUBMITTED", "NEEDS_DATA", "NOT_POSSIBLE")
@@ -131,6 +132,25 @@ CONTACT_PATTERNS = (
 )
 
 
+def ats_ids() -> tuple:
+    """The employer ATS ids link_check.py knows (official_hosts.json `ats`): each names a no-login form."""
+    module = load_module("jobs_link_check_ids", LINK_CHECK)
+    try:
+        return tuple(entry["id"] for entry in module.load_data()["ats"])
+    except Exception:  # noqa: BLE001 - an unreadable host list is reported by check_apply_url
+        return ()
+
+
+def form_class(method: str):
+    """(form class, ATS id): an ATS name stands for no_login_form on that ATS; a form class stands for itself."""
+    name = (method or "").strip().lower()
+    if name in METHODS:
+        return name, ""
+    if name in ats_ids():
+        return "no_login_form", name
+    return method, ""
+
+
 def load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None, path
@@ -149,8 +169,8 @@ def helper(name: str, path: Path):
 
 
 def gate_names() -> tuple:
-    """The gates score_analysis.decide() reads (analyzing-jobs GATE_NAMES): the gate and the decision share one list."""
-    return helper("score_analysis", SCORE_ANALYSIS).GATE_NAMES
+    """The gates score_analysis.decide() reads: jobs_common.GATE_NAMES, the one list the decision and this gate share."""
+    return jc.GATE_NAMES
 
 
 def check_number(value, label: str) -> float:
@@ -313,6 +333,7 @@ class Checker:
         self.post_submit = False
         self.apply_url = ""
         self.method = ""
+        self.ats = ""  # the ATS id --method named, when it named one: the apply_url must sit on it
         self.today = date.today()
         self.gate_open_now = False  # True only on the pre-click --gate: the Easy Apply gap never refuses a record
         self._settings = None
@@ -384,12 +405,13 @@ class Checker:
                 self.error(key, "missing")
         if self.errors:
             return
-        self.method = data["method"] if isinstance(data["method"], str) else ""
+        self.method, self.ats = form_class(data["method"] if isinstance(data["method"], str) else "")
+        data = {**data, "method": self.method}
         self.check_id(data["id"])
         if data["result"] not in RESULTS:
             self.error("result", f"must be one of {', '.join(RESULTS)}")
         if data["method"] not in METHODS:
-            self.error("method", f"must be one of {', '.join(METHODS)}")
+            self.error("method", f"must be one of {', '.join(METHODS)}, or an employer ATS name ({', '.join(ats_ids())})")
         if not isinstance(data["reason"], str):
             self.error("reason", "must be a string (empty allowed for SUBMITTED)")
         fields = self.check_fields(data["filled_fields"])
@@ -424,8 +446,10 @@ class Checker:
         if not self.method:
             # The record does not exist yet before the first click: the applier names the form class with --method.
             self.method = (read_object(self.path) or {}).get("method") or "no_login_form"
+        self.method, self.ats = form_class(self.method)
         if self.method not in METHODS:
-            self.error("method", f"must be one of {', '.join(METHODS)}")
+            self.error("method", f"must be one of {', '.join(METHODS)}, or an employer ATS name "
+                                 f"({', '.join(ats_ids())}): an ATS board form is no_login_form")
             return
         if self.method not in SUBMITTABLE:
             self.error("method", f"{self.method} is never a submit click: only no_login_form or linkedin_easy_apply "
@@ -756,6 +780,9 @@ class Checker:
             self.error("apply_url", "the apply link is a job board or portal, not the employer: kit only")
         elif verdict not in ("verified", "official_ats"):
             self.error("apply_url", f"the apply link verdict '{verdict}' is not an employer ATS: kit only")
+        elif self.ats and result.get("ats") != self.ats:
+            self.error("method", f"--method {self.ats} names an ATS the apply link is not on "
+                                 f"({result.get('ats') or result.get('host')}): open the form on apply_url")
 
     def check_not_possible(self, data) -> None:
         if not isinstance(data["reason"], str) or not data["reason"].strip():
@@ -797,7 +824,8 @@ def parse_args(argv=None):
     p.add_argument("--json", action="store_true", help="print {ok, result, errors} as JSON on stdout")
     p.add_argument("--apply-url", default="", help="the apply link (default: apply_url in ../opening.md)")
     p.add_argument("--method", default="", help="the form class the gate decides for, when submission.json does not "
-                                               "exist yet (for example linkedin_easy_apply)")
+                                               "exist yet: linkedin_easy_apply, no_login_form, or the employer ATS "
+                                               "the form is on (ashby, greenhouse, lever, ...: a no_login_form)")
     p.add_argument("--today", default="", help="YYYY-MM-DD in place of the local date (the daily caps count it)")
     return p.parse_args(argv)
 

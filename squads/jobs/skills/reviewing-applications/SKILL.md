@@ -43,16 +43,22 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
    out each `polish` instruction yourself, in the documents, without new facts. When `cv_content.json` or
    `cover_letter.md` changed, re-render with rendering-cv step 1 (and step 2 for the letter); a render defect makes it
    a FIX for the writer. The script writes nothing when a rule fails.
-   When the truthfulness lens located the employer's own posting of this role on an ATS (a `source_url` with an
-   excerpt that names the role) and `apply_url` in `opening.md` is another link (a LinkedIn or portal page), set it:
-   `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/apply_link.py" <P>/openings/<ID> <posting url>
-   --by jobs-reviewer --source "review-<N>"` (drop any `?action=apply` or tracking query). Exit 1 means the link is
-   not an employer ATS: leave `apply_url` as it is and say so in the summary.
+   **The reviewed posting is the apply link.** When the truthfulness lens checked the role on the employer's own
+   requisition (an ATS posting, in the user's country when the role is posted for several cities) and `apply_url` in
+   `opening.md` is any other link (LinkedIn, an aggregator, another city's requisition), add `--posting-url <that
+   requisition>` (no `?action=apply`, no tracking query) to both runs: with `--out` it becomes `apply_url` (through
+   `apply_link.py`) and the review records it, so the digest and the applier read the link you verified. An APPROVED
+   verdict is refused while `apply_url` is an aggregator, a job board or an unknown host and no `--posting-url` is
+   given. A correction inside internal text (a NOTE TO SELF, a heading, anything in `answers.md` outside [FIELD]
+   blocks, `strategy.md`, `kit.md`) is applied in place and never decides the verdict: no employer reads it.
+   `application/form_questions.json` (written by the writer) is read too: a required free-text question without its
+   own [FIELD] in `answers.md` is a hard correction, so the kit is complete before it reaches the applier.
 5. `status.json`: append one history line (never rewrite earlier ones). The review's `status` field gives the value:
    `ready` on APPROVED, `not_approved` on NOT_APPROVED, `in_review` on FIX.
 6. Hand off with `kanban_create`, `parents: [<your card id>]`, `workspace_kind: dir`, `workspace_path: <P>`:
-   - APPROVED -> jobs (manager), `skills: [leading-job-search]`, key `jobs:application:<project>:<ID>:digest`
-     (CHANGE round: `digest-c<N>`). Body: id, verdict, review path, application folder.
+   - APPROVED -> jobs (manager), `skills: [leading-job-search]`, key from
+     `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/card_key.py" application <project slug> <ID> digest`
+     (CHANGE round: stage `digest-c<N>`). A key never carries the project path. Body: id, verdict, review path, application folder.
    - FIX (round 1 only) -> jobs-writer, `skills: [writing-applications]`, key `...:write-r2`. Body: the `corrections`
      list in order (lens, type, location, mode, and the old/new pair or the instructions), copied verbatim, plus the
      `dropped_claims` list so the writer knows which company claims were removed and why.

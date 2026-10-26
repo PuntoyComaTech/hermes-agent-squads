@@ -291,6 +291,10 @@ def write_json(path, data) -> None:
     atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n")
 
 
+# The analysis gates score_analysis.decide() reads and the submit gate re-checks: one list in the contract every bot
+# holds, so the applier never needs the scout's analyzing-jobs skill to know them.
+GATE_NAMES = ("eligibility", "language", "location", "seniority")
+
 # Every opening status, in pipeline order. status.py, tracker.py and the skills read this one list.
 STATUSES = (
     "found", "discarded", "analyzed", "in_preparation", "in_review", "not_approved", "ready", "delivered",

@@ -22,16 +22,21 @@ One opening per card. Documents are written in the posting's language. The card 
 3. Write `application/cv_content.json` (shape in `skills/rendering-cv/references/content-schema.md`). Each bullet is
    a strong verb, what, for whom and the result, 12 to 22 words, and it cites its achievement ids. Mark a bullet
    `"keep": true` when the letter depends on it.
-4. Write `cover_letter.md` (`references/cover-letter.md`) and `answers.md` (`references/application-forms.md`) for the
-   deliverables listed in `profile.md`. Every body paragraph ends with its `<!-- achievements: ACH-... -->` comment.
+4. Read the real form first: `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/form_questions.py"
+   "<apply_url>" --out <P>/openings/<ID>/application/form_questions.json` (Greenhouse, Ashby and Lever public APIs;
+   exit 1 on any other host: list the form's questions from the page into the same file by hand). Every required
+   free-text question gets its own section in `answers.md`, its heading quoting the question, and a [FIELD]; the review
+   refuses a kit that leaves one out. Then write `cover_letter.md` (`references/cover-letter.md`) and `answers.md`
+   (`references/application-forms.md`) for the deliverables listed in `profile.md`. Every body paragraph ends with its `<!-- achievements: ACH-... -->` comment.
    Motivation and closing paragraphs use `<!-- achievements: none -->`.
 5. Render the CV, then the letter, with `rendering-cv`. Read `render_report.json` (CV) and `render_report_letter.json`.
 6. A `stretch_flags` entry is softened by you to the recorded proficiency ("participated in", "contributed to") and
    listed in the card in one line; it never stops the card. Ask the user only when no truthful wording keeps the
    bullet useful.
 7. Set `status.json` to `in_review`. Create the reviewer's card: jobs-reviewer, `skills: [reviewing-applications]`,
-   `parents: [<your card id>]`, `idempotency_key` `jobs:application:<project>:<ID>:review` (CORRECTION:
-   `...:review-r2`; CHANGE round N: `...:review-c<N>`).
+   `parents: [<your card id>]`, `idempotency_key` printed by
+   `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/card_key.py" application <project slug> <ID> review`
+   (CORRECTION: stage `review-r2`; CHANGE round N: `review-c<N>`).
 
 **CORRECTION and CHANGE.** Apply exactly what the reviewer or the user asked, note each change in `strategy.md`, then
 redo steps 5 to 7. A requested claim with no verified achievement is never written:

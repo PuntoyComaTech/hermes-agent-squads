@@ -557,6 +557,22 @@ def check_application(report, data, countries, required):
     text_of(report, APPLICATION, "voluntary_questions", data.get("voluntary_questions"))
     flag_of(report, APPLICATION, "willing_to_relocate", data.get("willing_to_relocate"))
     flag_of(report, APPLICATION, "authorize_consents", data.get("authorize_consents"))
+    answers = data.get("salary_answer")
+    for answer in (answers if isinstance(answers, list) else [] if answers is None else [answers]):
+        if not isinstance(answer, dict) or isinstance(answer.get("amount"), bool) or \
+                not isinstance(answer.get("amount"), (int, float)) or answer.get("amount") <= 0 or \
+                not COUNTRY.match(str(answer.get("currency") or "")[:2]) or len(str(answer.get("currency"))) != 3:
+            report.add(APPLICATION, "salary_answer", "must be {amount: <number>, currency: <ISO code>, period: "
+                                                     "month|year|hour|week|day}: the value a form takes")
+        elif str(answer.get("period") or "month").lower() not in ("month", "year", "hour", "week", "day"):
+            report.add(APPLICATION, "salary_answer.period", "must be month, year, hour, week or day")
+    for key in ("salary_answer_rule", "notice_period_rule"):
+        if key in data:
+            report.add(APPLICATION, key, "a prose rule cannot be typed into a form: store salary_answer {amount, "
+                                         "currency, period} or notice_period_days instead")
+    days = data.get("notice_period_days")
+    if days is not None and (isinstance(days, bool) or not isinstance(days, int) or days < 0):
+        report.add(APPLICATION, "notice_period_days", "must be a whole number of days, 0 or more")
     for i, row in enumerate(list_of(report, APPLICATION, "saved_answers", data.get("saved_answers"))):
         if not isinstance(row, dict) or "question" not in row or "answer" not in row:
             report.add(APPLICATION, f"saved_answers[{i}]", "must be a mapping with question and answer")

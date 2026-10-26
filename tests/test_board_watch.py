@@ -112,3 +112,25 @@ def test_unreadable_board_exits_1(tmp_path):
     env = setup(tmp_path, [])
     (tmp_path / "hermes.json").write_text("{}")
     assert run(env).returncode == 1
+
+
+def test_a_card_the_block_loop_moved_to_triage_is_reported_at_once_with_its_reason(tmp_path):
+    """t_4c7af699: blocked twice for the same cause, moved to triage, where unblock and promote refuse it."""
+    now = int(time.time())
+    cards = [{"id": "t5", "status": "triage", "assignee": "jobs-applier", "title": "Submit Acme"},
+             {"id": "t6", "status": "triage", "assignee": "jobs-scout", "title": "rough idea"}]
+    events = {"t5": [{"kind": "block_loop_detected", "created_at": now,
+                      "payload": {"kind": "needs_input", "reason": "the submit gate crashes", "recurrences": 2}}]}
+    out = run(setup(tmp_path, cards, events=events)).stdout
+    assert "Submit Acme (jobs-applier · t5) blocked twice for the same reason and went to triage" in out, out
+    assert "the submit gate crashes" in out and "t6" not in out
+
+
+def test_a_worker_that_crashed_until_the_dispatcher_gave_up_says_so(tmp_path):
+    """t_22b361ae: four crashes at startup, then the card sat blocked ~20 h reading as a question for the owner."""
+    old = int(time.time()) - 30 * 3600
+    cards = [{"id": "t7", "status": "blocked", "assignee": "jobs-writer", "title": "LinkedIn apply"}]
+    events = {"t7": [{"kind": "gave_up", "created_at": old, "payload": {
+        "failures": 2, "error": "pid 4 exited with code 1 InterruptedError: [Errno 4] Interrupted system call"}}]}
+    out = run(setup(tmp_path, cards, events=events)).stdout
+    assert "the worker crashed 2 times and the dispatcher gave up" in out and "Interrupted system call" in out, out

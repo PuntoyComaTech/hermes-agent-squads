@@ -16,9 +16,11 @@ slot (the previous weekday's last slot for the first check of a day; Monday reac
 The card is filed with `hermes -p <manager> kanban --board <board> create` and the key
 `jobs:search:<project>:<YYYY-MM-DD-HH>`, where HH is the slot hour, not the hour the run started.
 
-stdout is what the cron delivers. A filed card, a paused search, a missing project and a missing `profile.md` print
-nothing and exit 0 (`squadctl doctor` reports the setup gaps). A hermes failure, a broken `profile.md` or an unknown
-search value prints the error and exits 1.
+stdout is what the cron delivers, so the owner can always tell a quiet day from a broken one. The hourly runs between
+slots print nothing. Each day's decision prints one line, in the profile's user_language, at the first run of that
+day's first slot hour: the search card filed (once per slot, a catch-up rerun of the same slot stays quiet), "no search
+today" on a weekend, "search paused". A project whose folder or `profile.md` is missing prints its setup line once a
+day at the same hour; a manager with no project at all prints nothing (`squadctl doctor` reports it). A hermes failure, a broken `profile.md` or an unknown search value prints the error at every run and exits 1.
 """
 from __future__ import annotations
 
@@ -64,6 +66,10 @@ MESSAGES = {
         "no_front": "profile.md: no front matter between --- lines. The search did not run.",
         "times": "profile.md: search_times must list 1 to 4 distinct local times like \"12:00\", got {value!r}. "
                  "The search did not run.",
+        "filed": "Search {slot} filed for {project}: postings since {since}.",
+        "weekend": "No search today ({day}): searches run Monday to Friday. Next: {next}.",
+        "paused": "Search paused for {project} (profile.md search: paused). Nothing runs until you resume it.",
+        "setup": "jobs-search: {message}",
     },
     "es": {
         "search_value": "profile.md: search debe ser active o paused, no {value!r}. La búsqueda no se ejecutó.",
@@ -73,8 +79,20 @@ MESSAGES = {
         "no_front": "profile.md: falta el front matter entre líneas ---. La búsqueda no se ejecutó.",
         "times": "profile.md: search_times debe listar de 1 a 4 horas locales distintas como \"12:00\", no {value!r}. "
                  "La búsqueda no se ejecutó.",
+        "filed": "Búsqueda {slot} lanzada para {project}: ofertas desde {since}.",
+        "weekend": "Hoy no hay búsqueda ({day}): las búsquedas corren de lunes a viernes. Próxima: {next}.",
+        "paused": "Búsqueda en pausa para {project} (profile.md search: paused). No corre hasta que la reanudes.",
+        "setup": "jobs-search: {message}",
     },
 }
+
+
+DAY_NAMES = {"es": ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"),
+             "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")}
+
+
+def day_name(when: datetime, lang: str) -> str:
+    return DAY_NAMES.get(lang, DAY_NAMES["en"])[when.weekday()]
 
 
 class RunError(Exception):
@@ -409,18 +427,84 @@ def file_card(bin_name: str, manager: str, args: argparse.Namespace, slug: str, 
     return result
 
 
+def daily_hour(now: datetime, slots) -> bool:
+    """True on the run that reports the day: the first slot's hour (its first minutes, before the next hourly run)."""
+    hour, minute = min(slots)
+    start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return start <= now < start + timedelta(hours=1)
+
+
+def next_weekday_slot(now: datetime, slots) -> datetime:
+    day = now
+    for _ in range(8):
+        day += timedelta(days=1)
+        if day.weekday() in WEEKDAYS:
+            hour, minute = min(slots)
+            return day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return now
+
+
+def state_path(manager: str) -> Path:
+    return profile_home(manager) / "local" / "state" / "jobs_search.json"
+
+
+def load_state(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_state(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def notice_of(result: dict, lang: str, seen: dict) -> str:
+    """The one line the cron delivers for this project's run, or '' when it was already said. `seen` (the state file
+    entry of the project) holds the last slot and the last day reported, so a catch-up rerun stays quiet."""
+    words = MESSAGES.get(lang, MESSAGES["en"])
+    reason = result.get("reason")
+    if result.get("filed"):
+        if seen.get("slot") == result["slot"]:
+            return ""
+        seen["slot"] = result["slot"]
+        return words["filed"].format(slot=result["slot"], project=result["project"], since=result["since"])
+    if not result.get("report") or seen.get("day") == result.get("today"):
+        return ""
+    seen["day"] = result.get("today")
+    if reason == "weekend":
+        return words["weekend"].format(day=result["day"], next=result["next"])
+    if reason == "paused":
+        return words["paused"].format(project=result["project"])
+    if reason in ("no profile.md", "no folder"):
+        return words["setup"].format(message=result.get("message") or f"project {result['project']}: {reason}")
+    return ""
+
+
 def run_project(args: argparse.Namespace, slug: str, override, now_text: str | None) -> dict:
     folder = project_folder(args.hermes_bin, args.manager, slug)
     settings = profile_settings(Path(folder) / "profile.md")
-    base = {"project": slug}
-    if settings["state"] == "missing":
-        return {**base, "filed": False, "reason": "no profile.md"}
-    if settings["state"] == "paused":
-        return {**base, "filed": False, "reason": "paused"}
     now = clock(settings["zone"], now_text)
+    base = {"project": slug, "language": settings["language"], "today": now.strftime("%Y-%m-%d")}
     slots = override or settings["slots"] or SLOTS  # --slots, else the profile's search_times, else midday
+    report = daily_hour(now, slots)
+    if settings["state"] == "missing":
+        return {**base, "filed": False, "reason": "no profile.md", "report": report,
+                "message": f"project {slug}: no profile.md in {folder}: the search cannot run"}
+    if settings["state"] == "paused":
+        return {**base, "filed": False, "reason": "paused", "report": report and now.weekday() in WEEKDAYS}
     slot = slot_at(now, slots)
     if slot is None:
+        if now.weekday() not in WEEKDAYS:
+            nxt = next_weekday_slot(now, slots)
+            lang = settings["language"]
+            return {**base, "filed": False, "reason": "weekend", "report": report,
+                    "day": f"{day_name(now, lang)} {now.strftime('%Y-%m-%d')}",
+                    "next": f"{day_name(nxt, lang)} {nxt.strftime('%H:%M')}"}
         return {**base, "filed": False, "reason": "outside schedule hours", "now": now.strftime("%Y-%m-%d %H:%M")}
     card = file_card(args.hermes_bin, args.manager, args, slug, folder, now, slot,
                      review_lane_model(args, args.manager), settings["language"], slots)
@@ -475,13 +559,24 @@ def main(argv: list[str] | None = None) -> int:
         try:
             results.append(run_project(args, slug, slots, args.now))
         except SetupGap as exc:
-            results.append({"project": slug, "filed": False, "reason": "no folder", "message": str(exc)})
+            now = clock(None, args.now)
+            results.append({"project": slug, "filed": False, "reason": "no folder", "message": str(exc),
+                            "report": daily_hour(now, slots or SLOTS), "today": now.strftime("%Y-%m-%d")})
         except RunError as exc:
             failed = True
             print(f"jobs-search: {exc}")
             results.append({"project": slug, "filed": False, "reason": "error", "message": str(exc)})
     if args.json:
         print(json.dumps({"results": results}, indent=2, ensure_ascii=False))
+    elif not args.dry_run:
+        path = state_path(args.manager)
+        state = load_state(path)
+        for result in results:
+            seen = state.setdefault(str(result.get("project") or ""), {})
+            line = notice_of(result, result.get("language") or "en", seen)
+            if line:
+                print(line)
+        save_state(path, state)
     return 1 if failed else 0
 
 

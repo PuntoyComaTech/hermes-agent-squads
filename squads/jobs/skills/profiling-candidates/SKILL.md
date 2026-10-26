@@ -71,7 +71,9 @@ Career stage: `references/stage-playbook.md`.
    Show only the lines that changed (a diff), not whole files. Contact data is shown in chat only, never in a card,
    comment, search query or report.
    `application-data.yaml` answers a form's sponsorship question for remote contracting from the user's country the
-   same way the user does (ask it); `authorize_consents` is asked, never assumed.
+   same way the user does (ask it); `authorize_consents` is asked, never assumed. Two answers are asked once, as
+   values the applier types: `salary_answer` {amount, currency, period} (the salary for a posting with no range) and
+   `notice_period_days` (days from offer to start). Never store them as a prose rule: a sentence cannot be typed.
    Write drafts only inside the project folder (`<P>/.drafts/`, deleted after the ok); a scratch copy is for validation only.
    Add to `key_skills` only skills the user or the documents state. A language level the user declares stays
    `verified: false` until a test or work shows it. Set `verified: true` on an achievement only when the user

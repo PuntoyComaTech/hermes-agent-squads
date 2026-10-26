@@ -54,6 +54,7 @@ import sys
 from pathlib import Path
 
 EXPERIENCE = "experience:"
+HIDDEN = object()  # a role whose page line hid skills behind "+N skills": only its form's ticked boxes can judge it
 
 
 class UsageError(ValueError):
@@ -201,6 +202,8 @@ def value_of(current: dict, field: str):
     if field.startswith("role_skills:"):
         company, _, title = field[len("role_skills:"):].rpartition(":")
         row = find_role(current, norm(company), norm(title))
+        if row is not None and row.get("skills_hidden"):
+            return HIDDEN
         return None if row is None else [norm(s) for s in row.get("skills") or []]
     if field.startswith(EXPERIENCE):
         body = field[len(EXPERIENCE):]
@@ -354,6 +357,13 @@ def verify(approved: dict, current: dict | list) -> dict:
                              f"profile in that language tab", "expected": norm(str(want))[:120], "found": ""})
             continue
         have = value_of(capture, field)
+        if have is HIDDEN:
+            results.append({"field": field, "language": lang, "ok": False, "expected_chars": len(norm(want)),
+                            "found_chars": None})
+            failures.append({"field": field, "language": lang, "reason": "the page shows only part of this role's "
+                             "skills (+N skills): capture the role's form boxes as `skills` and parse again",
+                             "expected": norm(want)[:120], "found": ""})
+            continue
         if field == "top_skills":
             ok = have is not None and [norm(x).lower() for x in want or []] == [norm(x).lower() for x in have]
         elif isinstance(want, list) or isinstance(have, list):

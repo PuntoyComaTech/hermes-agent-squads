@@ -21,8 +21,8 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    python3 "$S/check_submission.py" <P>/openings/<ID>/application/submission.json --gate --method <method>
    ```
 
-   `--method` names the form class: `linkedin_easy_apply` for Easy Apply, `no_login_form` otherwise; every other class
-   is a kit, never a click. `gate: open` lets the submit proceed: it writes `application/gate.json`
+   `--method` names the form class: `linkedin_easy_apply`, `no_login_form`, or the ATS the form is on (`ashby`,
+   `greenhouse`, `lever`, ...: a `no_login_form` that must match `apply_url`); any other class is a kit, never a click. `gate: open` lets the submit proceed: it writes `application/gate.json`
    (the proof step 6 reads) and under `auto` reserves the day's place (4 h at most); gate and record share
    `openings/.apply.lock`. Any other line closes it:
    - `easy_apply_gap`: an Easy Apply went out under a minute ago. Wait the seconds named, run the gate again.
@@ -45,8 +45,9 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    field to one source: `contact.yaml`, `application-data.yaml` (the only source for work authorization, salary,
    availability, consents and saved answers), `answers.md`, the CV, or `consult:<card id>` from a support card to
    jobs-writer: every free-text question the record answers (strength, ownership, priorities, first 90 days) goes on one
-   such card, never to the user. A fact only the user has becomes a `pending_questions` entry (question text and the
-   form's options), `result: NEEDS_DATA`, then `kanban_block(kind="needs_input", reason="<the questions>")`.
+   such card, never to the user. Salary and notice come from `jobs-contract/scripts/form_answer.py salary|notice
+   --project <P>` (`--help`); only its exit 1 makes them a question. A fact only the user has becomes a
+   `pending_questions` entry (text, options), `result: NEEDS_DATA`, `kanban_block(kind="needs_input", reason=<them>)`.
    **Easy Apply** runs on the shared signed-in browser: `references/easy-apply.md`. Its steps are mapped one field at a
    time and it stops at the first field without a source. A form that asks for payment, a paid test, or data that is
    not in `contact.yaml` or `application-data.yaml` is never submitted: NEEDS_DATA or NOT_POSSIBLE, never a guess.
@@ -113,8 +114,7 @@ and, for an email, the subject and body. A value that is not recorded never appe
 
 ## Verification
 
-- The gate printed `gate: open` before the first click; SUBMITTED implies `confirmation.png`, the tracker row `applied`
-  and `status.json` ending `applied`; every filled field names a source.
-- NOT_POSSIBLE implies `kit.md` holds every answer and the `apply_url`, with status `manual_application`; a card closed
-  on `daily_cap` names the count and the cap and leaves its opening `ready`, with no kit.
+- `gate: open` before the first click; SUBMITTED implies `confirmation.png`, tracker and `status.json` `applied`, and
+  a source per field. NOT_POSSIBLE: `kit.md` holds every answer and the `apply_url`, status `manual_application`; a
+  `daily_cap` close names the count and the cap and leaves the opening `ready`, with no kit.
 - No reservation is left behind: `apply_state.py --status <P>` lists none for the opening.

@@ -958,6 +958,15 @@ class Page:
         finally:
             self.allowed_ticks = before
 
+    def ticked_skills(self) -> list:
+        """The skills ticked in the open position form, in order: the role's full list, where the page shows two and
+        `+N skills`. Switches and the current-role box are not skills. Feed {"<Company>:<Title>": this} to
+        parse_profile.py --role-skills."""
+        current = {"i am currently working in this role", "actualmente trabajo en este cargo",
+                   "actualmente ocupo este cargo"}
+        return [norm(b["label"]) for b in self.read().get("boxes") or []
+                if b.get("checked") and b.get("label") and not b.get("sw") and norm(b["label"]).lower() not in current]
+
     def pins(self) -> list | None:
         """The pinned top skills in the open About form, in order (each pin has a 'Remove <skill> from list' button);
         None when the form shows no top-skills section."""

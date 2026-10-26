@@ -37,6 +37,20 @@ Rules, applied deterministically:
   (cv_content.json, cover_letter.md, answers.md, recruiter_message.md) is a blocking correction of lens `privacy`,
   whatever the lens verdicts say.
 
+- Internal text is never pasted into a form or read by the employer: a NOTE TO SELF, a heading or any text of
+  answers.md outside its [FIELD]...[/FIELD] blocks, and strategy.md or kit.md. A correction whose `old` sits only in
+  internal text never decides the verdict, whatever its lens: a `replace` is written in place like a soft one (listed
+  under `applied` with `internal: true`), an `instruction` located in a note goes to `polish`.
+- --posting-url URL: the employer's own requisition the truthfulness lens verified (its company claims were checked
+  on it). With --out it becomes apply_url in opening.md (jobs-contract apply_link.py: employer ATS only) and is
+  recorded as `apply_url` in the review, so the digest card and the applier read the reviewed link. An APPROVED
+  verdict is a rule violation while opening.md apply_url is an aggregator, a job board or an unknown host and no
+  --posting-url is given (an employer ATS posting or a LinkedIn job page passes).
+- application/form_questions.json (jobs-contract form_questions.py, read from the ATS's public API): every required
+  free-text question there must have its own [FIELD] in answers.md, under a heading that quotes the question. A
+  missing one is a hard correction (lens `ats`, location answers.md): an application that cannot be submitted is
+  never APPROVED.
+
 Exit codes: 0 aggregated, 1 rule violation (nothing written; rework the named lens), 2 unreadable or malformed input.
 """
 from __future__ import annotations
@@ -68,7 +82,11 @@ CONTACT_PATTERNS = (
     re.compile(r"\+\d{1,3}[ -]?\d[\d -]{6,}\d"),
 )
 URL_RE = re.compile(r"https?://[^\s)\]>\"'<]+")
-JOBS_COMMON = Path(__file__).resolve().parents[2] / "jobs-contract" / "scripts" / "jobs_common.py"
+CONTRACT = Path(__file__).resolve().parents[2] / "jobs-contract" / "scripts"
+JOBS_COMMON = CONTRACT / "jobs_common.py"
+INTERNAL_FILES = ("strategy.md", "kit.md")  # the writer's own notes: never pasted, never sent
+FIELD_BLOCK = re.compile(r"\[FIELD\](.*?)\[/FIELD\]", re.S)
+NOTE_LOCATION = re.compile(r"note to self|\bnote\b|heading|header|internal", re.I)
 
 
 def _load_jobs_common():
@@ -80,6 +98,37 @@ def _load_jobs_common():
 
 
 _JC = _load_jobs_common()
+
+
+def _contract(name: str):
+    spec = importlib.util.spec_from_file_location(f"jobs_{name}_for_review", CONTRACT / f"{name}.py")
+    assert spec is not None and spec.loader is not None, name
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(CONTRACT))
+    spec.loader.exec_module(module)
+    return module
+
+
+def outward_spans(text: str) -> list:
+    """The parts of answers.md that are pasted into the form: the [FIELD] blocks. A file without them is all
+    outward (an older kit), so nothing is treated as a note by mistake."""
+    blocks = FIELD_BLOCK.findall(text or "")
+    return blocks if blocks else [text or ""]
+
+
+def internal_span(app_files, raw: dict) -> bool:
+    """True when the correction's `old` sits only in text no employer reads: strategy.md or kit.md, or answers.md
+    outside every [FIELD] block. Judged from the file, never from the lens's own location label."""
+    if not isinstance(raw, dict) or app_files is None:
+        return False
+    name, old = raw.get("file"), raw.get("old")
+    if not isinstance(name, str) or not isinstance(old, str) or not old or name not in app_files:
+        return False
+    if name in INTERNAL_FILES:
+        return True
+    if name != "answers.md":
+        return False
+    return old in app_files[name] and not any(old in block for block in outward_spans(app_files[name]))
 valid_opening_id = _JC.valid_opening_id
 OUTWARD_FILES = ("cv_content.json", "cover_letter.md", "answers.md", "recruiter_message.md")
 
@@ -116,6 +165,7 @@ class Collector:
         self.render = render  # application/render_report.json as a dict, or None when absent
         self.declared_gaps = []  # keywords the ats lens says no achievement backs
         self.forced = 0  # blocking corrections found by the script itself (confidential terms), outside any lens
+        self.internal = 0  # corrections in internal text, applied in place instead of blocking
 
     def supported_claim(self, claim: dict) -> bool:
         """A kept company claim is evidenced by quoted page text or a captured page in the application folder."""
@@ -144,6 +194,15 @@ class Collector:
 
     def blocking_item(self, lens, where, raw, location, hard=True):
         self.blocking[lens] += 1
+        if hard and self.apply and isinstance(raw, dict):
+            mode = raw.get("mode")
+            if mode == "replace" and internal_span(self.app_files, raw):
+                hard = False  # a note the employer never reads: fixed in place, never another round
+                self.internal += 1
+            elif mode == "instruction" and NOTE_LOCATION.search(str(location or "")) and \
+                    "[FIELD]" not in str(location or ""):
+                hard = False
+                self.internal += 1
         if not location or not str(location).strip():
             self.error(where, "a blocking item needs a location")
         correction = self.check_correction(raw, where, location)
@@ -153,6 +212,12 @@ class Collector:
                 self.corrections.append({"lens": lens, **correction})
         elif correction is not None:
             self.soft.append({"lens": lens, **correction})
+
+    def soft_internal(self):
+        """Mark the soft corrections that came from internal text, so the review says why they did not block."""
+        for item in self.soft:
+            if item.get("mode") == "replace" and internal_span(self.app_files, item):
+                item["internal"] = True
 
     def check_correction(self, raw, where, location):
         if not isinstance(raw, dict):
@@ -523,16 +588,70 @@ def confidential_checks(c: Collector, terms: list) -> None:
                                                   "re-render"})
 
 
-def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, confidential=()):
+def norm_question(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", _JC.ascii_fold(str(text or "")).lower()).strip()
+
+
+def form_question_checks(c: Collector, questions) -> None:
+    """Each required free-text question of the real form needs its own [FIELD] in answers.md: the heading above the
+    field quotes the question (its first 60 characters, case and punctuation aside)."""
+    answers = (c.app_files or {}).get("answers.md") or ""
+    headed = []
+    for match in re.finditer(r"^#{1,4}\s*(.+)$", answers, re.M):
+        rest = answers[match.end():]
+        nxt = re.search(r"^#{1,4}\s", rest, re.M)
+        if "[FIELD]" in (rest[:nxt.start()] if nxt else rest):
+            headed.append(norm_question(match.group(1)))
+    missing = []
+    for item in questions:
+        label = str(item.get("label") or "").strip()
+        if not item.get("required") or item.get("kind") != "text" or not label:
+            continue
+        key = norm_question(label)[:60]
+        if not any(key and key in h for h in headed):
+            missing.append(label)
+    if missing:
+        c.forced += 1
+        c.corrections.append({"lens": "ats", "type": "content", "location": "answers.md", "mode": "instruction",
+                              "instructions": "the form requires these free-text answers and answers.md has no "
+                                              "[FIELD] for them; add one section per question, its heading quoting "
+                                              "the question, answered from verified achievements: "
+                                              + " | ".join(missing)})
+
+
+def posting_checks(c: Collector, opening_url: str, posting_url: str, verdict_ok: bool) -> None:
+    """An approved application must point at the employer: the reviewed posting, or an apply_url that already is."""
+    if posting_url:
+        reason = c.apply_link.refusal(posting_url)
+        if reason:
+            c.error("posting_url", f"{posting_url}: {reason}")
+        return
+    if not verdict_ok or not c.apply_link or not opening_url:
+        return  # no link at all is the submit gate's refusal, not the review's
+    lc = c.apply_link.lc
+    result = lc.classify(opening_url, lc.load_data(lc.DATA_FILE))
+    linkedin_job = result.get("kind") == "portal" and result.get("ats") == "linkedin"
+    if not ((result.get("kind") == "ats" and result.get("verdict") in ("verified", "official_ats")) or linkedin_job):
+        c.error("posting_url", f"opening.md apply_url {opening_url or '(none)'} is not the employer's posting "
+                               f"(link_check: {result.get('verdict')}, {result.get('kind')}): pass --posting-url with "
+                               "the employer requisition the truthfulness lens verified")
+
+
+def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, confidential=(), questions=(),
+              opening_url="", posting_url=""):
     if confidential:
         confidential_checks(c, list(confidential))
+    if questions:
+        form_question_checks(c, list(questions))
     for lens in LENSES:
         run_lens(c, lens, blocks[lens])
+    c.soft_internal()
     total = c.hard + c.forced
     if total == 0:
         verdict = "APPROVED"
     else:
         verdict = "FIX" if round_no == 1 else "NOT_APPROVED"
+    posting_checks(c, opening_url, posting_url, verdict == "APPROVED")
     if summary is None:
         summary = default_summary(verdict, c.corrections)
     lines = [line for line in summary.splitlines() if line.strip()]
@@ -551,6 +670,8 @@ def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, con
         "warnings": c.warnings,
         "summary_for_user": summary,
     }
+    if posting_url or opening_url:
+        review["apply_url"] = posting_url or opening_url
     scan_contact(c, review, "review")
     return review
 
@@ -636,11 +757,26 @@ def _read_report(path: Path) -> dict:
 
 
 def read_opening_refs(path) -> set:
+    """Every URL the opening carries, except an apply_url a reviewer or the scout set through apply_link.py after
+    intake (its status.json line names it): that posting was located and verified by the squad, not given by the
+    opening, so a later round may still cite it."""
     try:
         text = Path(path).read_text(encoding="utf-8", errors="ignore")
     except OSError as exc:
         raise InputError(f"cannot read the opening: {exc.strerror}") from None
-    return {url_key(m.group(0)) for m in URL_RE.finditer(text)} - {""}
+    refs = {url_key(m.group(0)) for m in URL_RE.finditer(text)} - {""}
+    meta, body = _JC.split_front_matter(text)
+    apply_url = str(meta.get("apply_url") or "").strip()
+    try:
+        history = json.loads((Path(path).parent / "status.json").read_text(encoding="utf-8")).get("history") or []
+    except (OSError, ValueError, AttributeError):
+        history = []
+    located = any(isinstance(h, dict) and str(h.get("note") or "").startswith(f"apply_url -> employer posting "
+                                                                              f"{apply_url}") for h in history)
+    in_opening = apply_url and (apply_url in body or apply_url == str(meta.get("url") or "").strip())
+    if apply_url and located and not in_opening:
+        refs.discard(url_key(apply_url))
+    return refs
 
 
 def write_json(path, data) -> None:
@@ -672,6 +808,8 @@ def parse_args(argv=None):
     p.add_argument("--summary", help="summary_for_user: 1 to 5 lines, in the user's language")
     p.add_argument("--out", help="write review-N.json here, only when every rule passes")
     p.add_argument("--json", action="store_true", help="print the review (or {ok: false, errors}) as JSON")
+    p.add_argument("--posting-url", default="", help="the employer requisition the truthfulness lens verified: "
+                                                    "written to opening.md as apply_url with --out")
     p.add_argument("--apply", action="store_true",
                    help="fix wording and positioning in place: soft replace corrections are written into the "
                         "application (with --out), soft instructions are listed under polish; only hard items decide")
@@ -693,12 +831,25 @@ def main(argv=None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     c = Collector(app_files, refs, render, apply=args.apply)
+    c.apply_link = _contract("apply_link")
+    opening_url = ""
+    if args.opening and Path(args.opening).is_file():
+        opening_url = str(_JC.read_front_matter(Path(args.opening)).get("apply_url") or "").strip()
+    questions = []
+    form_file = Path(args.application_dir) / "form_questions.json"
+    if form_file.is_file():
+        try:
+            questions = json.loads(form_file.read_text(encoding="utf-8")).get("questions") or []
+        except (OSError, ValueError, AttributeError):
+            print("error: form_questions.json is not valid JSON: run form_questions.py again", file=sys.stderr)
+            return 2
     profile = Path(args.application_dir).resolve().parents[2] / "profile.md" if args.application_dir else None
     try:
         terms = _JC.confidential_terms(_JC.read_front_matter(profile)) if profile and profile.is_file() else []
     except Exception:  # noqa: BLE001 - an unreadable profile is validate_profile's finding, not the review's
         terms = []
-    review = aggregate(blocks, args.round, c, args.summary, args.review_id, terms)
+    review = aggregate(blocks, args.round, c, args.summary, args.review_id, terms, questions, opening_url,
+                       args.posting_url.strip())
     if c.errors:
         for line in c.errors:
             print(f"rule: {line}", file=sys.stderr)
@@ -708,6 +859,9 @@ def main(argv=None) -> int:
     if args.out:
         if args.apply:
             apply_soft(Path(args.application_dir), review)
+        if args.posting_url.strip() and args.opening:
+            c.apply_link.set_apply_url(Path(args.opening).parent, args.posting_url.strip(), "jobs-reviewer",
+                                       f"{Path(args.out).stem} verified posting")
         write_json(args.out, review)
     if args.json:
         print(json.dumps(review, indent=2, ensure_ascii=False))

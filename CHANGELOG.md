@@ -3,6 +3,38 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.21.0 - 2026-10-26
+
+### Fixed
+
+- jobs 4.10.0, from the 2026-10-25 end-to-end round:
+  - The submit gate reads the analysis gate list from jobs-contract (`jobs_common.GATE_NAMES`), so the applier needs
+    no skill of the scout's; `analyzing-jobs` is off the applier again.
+  - `check_submission.py --method` takes the employer ATS name (`ashby`, `greenhouse`, `lever`, ...): it counts as
+    `no_login_form` and must be the ATS the apply link is on.
+  - The reviewed posting is the apply link: `aggregate_review.py --posting-url` writes the requisition the
+    truthfulness lens verified into `apply_url` (through `apply_link.py`) and into the review; APPROVED is refused
+    while `apply_url` is an aggregator, a job board or an unknown host. `digest_fields.py` hands the applier the
+    review's link, then `apply_url`, never a URL from the opening body (another city's requisition went out).
+  - A correction inside text no employer reads (a NOTE TO SELF, headings, anything in `answers.md` outside its
+    [FIELD] blocks, `strategy.md`, `kit.md`) is applied in place and never makes a round NOT_APPROVED.
+  - `form_questions.py` reads a form's questions from the Greenhouse, Ashby and Lever public job-board APIs before the
+    writer drafts; the review refuses a kit that leaves a required free-text question without its [FIELD].
+  - `form_answer.py` types salary (posted range midpoint, never below the floor, converted to the form's period) and
+    notice period (shortest option of at least the stored days) from `application-data.yaml` `salary_answer` and
+    `notice_period_days`; `validate_profile.py` flags prose rules that cannot be typed.
+  - `card_key.py` prints a card's idempotency key from the project slug (a path becomes the slug); the writer and
+    reviewer run it instead of building the key.
+  - `jobs-search` says each day what it decided: the search filed, "no search today" on weekends, "search paused";
+    a catch-up rerun of the same slot stays quiet.
+  - LinkedIn capture: a one-role company's skills line without its `Skills:` label (`Railway, Cloudflare and +1
+    skill`) is read as skills; `parse_profile.py --role-skills` takes each role form's ticked boxes
+    (`profile_form.Page.ticked_skills()`), and `profile_diff.py verify` reports a role whose page line hides skills as
+    unreadable instead of "field not on the profile".
+- `board_watch.py` reports a card the block-loop detector moved to `triage` at once, with its last block reason
+  (unblock and promote refuse triage and the auto-decomposer rewrites it), and a card whose worker crashed until the
+  dispatcher gave up shows the crash instead of reading as a question.
+
 ## 2.20.2 - 2026-10-26
 
 ### Fixed

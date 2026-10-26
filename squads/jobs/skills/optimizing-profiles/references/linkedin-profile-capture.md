@@ -106,9 +106,10 @@ js("""(() => {
 })()""")
 ```
 
-Each role's lines are `title`, `dates` (`Jun 2026 - Present · 5 mos`), then one location line or a `Skills: …` line.
-The group's lines are the company, `Full-time · 1 yr 7 mos`, and a company location. A company with one role has no
-`ul > li`: its lines are `title`, `Company · Employment`, `dates`, and `parse_profile.py` reads it as one role.
+A role's lines: `title`, `dates`, then a location or a skills line; a group's: company, `Full-time · 1 yr 7 mos`, a
+location. A one-role company has no `ul > li` (`title`, `Company · Employment`, `dates`): `parse_profile.py` reads
+it as one role, so pass the groups unchanged. The skills line (`Skills: A, B, +3 skills`, or `A, B and +1 skill`)
+hides all but two: pass each position form's `page.ticked_skills()` as `parse_profile.py --role-skills`.
 
 ```python
 # /in/<slug>/details/education/
@@ -128,7 +129,6 @@ js("""(() => {
   return {found: items.length > 0, count: items.length, items: items.map(a => a[0] || '')};
 })()""")
 ```
-
 Per-skill edit links: `a[aria-label="Edit <skill> skill"]` (`/details/skills/edit/forms/<id>/`); add: `.../forms/new/`.
 
 ## The edit forms and their language tabs
