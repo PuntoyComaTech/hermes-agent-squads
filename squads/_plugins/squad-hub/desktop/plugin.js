@@ -241,6 +241,56 @@ function upgradePrefs(stored, defaults) {
   return p
 }
 
+/** The bots of one squad, the manager first: those stamped with the same squad name, or (a fleet with no stamp) filed
+ *  in a Desktop section named like the manager ("Acme shop manager" -> section "Acme shop"). Empty when the bot
+ *  stands alone, so a lone bot gets no picker. */
+function squadMembers(profiles, name) {
+  const me = (profiles || []).find(p => p.name === name)
+  if (!me) return []
+  const own = p => String(p.ui_meta?.['hermes-bots']?.squadName || p.ui_meta?.['hermes-squads']?.name || '').trim().toLowerCase()
+  const sec = p => sectionOf(p).toLowerCase()
+  const key = own(me) || (botRole(me) === 'manager' ? botTitle(me).replace(/\s+manager$/i, '').toLowerCase() : sec(me))
+  if (!key || key === 'managers') return []
+  const rows = profiles.filter(p => p.name === name || own(p) === key || (!own(p) && sec(p) === key))
+  rows.sort((a, b) => Number(b.name === name) - Number(a.name === name) || (botRole(a) === 'manager' ? 0 : 1) - (botRole(b) === 'manager' ? 0 : 1) || a.name.localeCompare(b.name))
+  return rows.length > 1 ? rows.map(p => ({ name: p.name, title: botTitle(p), role: botRole(p) })) : []
+}
+
+/** What a project can shed, for the Clean up dialog. Chats: idle ones (not working, unread, in view or pinned) older
+ *  than `days`, plus the idle chats of a worktree that goes. Worktrees: linked checkouts with nothing to lose (no
+ *  uncommitted files, nothing unpushed, no chat that needs you), ticked when their pull request is merged or closed,
+ *  offered unticked when they have none; an open or draft PR, a dirty or unknown checkout is never listed.
+ *  `statuses` maps a lane key to laneStatus(). Nothing is deleted: chats are archived, a removed worktree keeps its
+ *  branch. */
+function cleanupPlan(project, statuses, attention, now, days = 7) {
+  const worktrees = []
+  const goes = new Set()
+  for (const f of project.folders) {
+    for (const lane of f.lanes) {
+      if (lane.main || isKanbanWorktree(lane.path)) continue
+      const st = (statuses || {})[lane.key]
+      if (!st || st.changed > 0 || st.ahead > 0) continue
+      if (lane.sessions.some(x => chatState(x, attention))) continue
+      const pr = st.pr?.state || ''
+      if (pr === 'open' || pr === 'draft') continue
+      worktrees.push({ key: lane.key, path: lane.path, folderPath: f.path, label: lane.label, branch: lane.branch, folder: f.label, reason: pr || 'nopr', pre: pr === 'merged' || pr === 'closed' })
+      goes.add(lane.key)
+    }
+  }
+  const chats = []
+  for (const f of project.folders) {
+    for (const lane of f.lanes) {
+      for (const x of lane.sessions) {
+        if (chatState(x, attention) || x.pinned) continue
+        const old = now - sessionTime(x) > days * 86400
+        if (old || goes.has(lane.key)) chats.push({ session: x, folder: f.label, lane: lane.main ? '' : lane.label, pre: old || (goes.has(lane.key) && worktrees.find(w => w.key === lane.key)?.pre === true) })
+      }
+    }
+  }
+  chats.sort((a, b) => sessionTime(a.session) - sessionTime(b.session))
+  return { worktrees, chats }
+}
+
 /** The chats a closed project lists right under its own row: what is working, unread or in view, each a shortcut
  *  that skips opening the project. An open project lists none: every chat shows once, inside its own folder. */
 const projectDigest = (project, attention, open = true) => (open ? [] : activeIn(project.folders, attention))
@@ -661,6 +711,7 @@ const rpc = (method, params) => host.request(method, params)
 
 const MESSAGES = {
   en: {
+    cleanMenu: 'Clean up…', cleanTitle: 'Clean up {0}', cleanHelp: 'Pick what to tidy. Nothing is deleted: chats are archived and a removed worktree keeps its branch.', cleanNothing: 'Nothing to clean: every chat is recent or needs you, and every worktree is in use.', cleanWorktrees: 'Worktrees with nothing to lose', cleanChats: 'Idle chats', cleanWhy_merged: 'PR merged', cleanWhy_closed: 'PR closed', cleanWhy_nopr: 'no PR, check it first', cleanMore: '{0} more are not shown', cleanKeeps: 'Kept: chats working, unread, in view or pinned; worktrees with changes, unpushed commits or an open PR.', cleanGo: 'Clean up ({0})', cleaning: 'Cleaning…', cleanDone: '{0} cleaned up.', cleanFailed: '{0} could not be.', squadBots: 'Squad bots', 
     openProject: 'Open the project', back: 'Back to the list', foldersN: '{0} folders', olderChats: 'Older chats', bellChats: 'Chats asking you', bellClearGroup: 'Clear', 
     search: 'Search chats, projects, worktrees', refresh: 'Refresh', loading: 'Loading…', loadFailed: 'Could not load',
     newChatWith: 'New chat with {0}', newChatIn: 'New chat in {0}', newChatHere: 'New chat here', chats: 'Chats',
@@ -687,6 +738,7 @@ const MESSAGES = {
     cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side', cmdPinRight: 'Squads: pin or hide the right side', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', introHint: 'Works in the place below. Ask away.', alsoPending: 'Also waiting here', floatSides: 'Floating sides', floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar pin them.', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.', openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.', envOpenFailed: 'Could not open it. Is an app set to open this file type?', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', themeActive: 'In use', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', cmdTimeline: 'Squads: open the timeline', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', tlSkipped: '{0} older cards are not drawn; pick a shorter window.', out_spawn_failed: 'did not start', out_stale: 'went stale', out_review_requested: 'sent to review', out_changes_requested: 'changes requested', out_scheduled: 'scheduled', iss_stranded_in_ready: 'Ready but nobody picks it up', iss_triage_aux_unavailable: 'Triage could not run', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', tlHint: 'Hover a bar for details; click it for the card.', tlStill: 'still', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', timeline: 'Timeline', timelineTitle: 'Squads timeline', timelineEmpty: 'No board with work yet', timelineEmptyHint: 'A squad’s board appears here once its manager files cards.', timelineQuiet: 'Nothing ran in this window.', tlLegend: 'Solid: a bot working · faint: a card waiting · red: a run that failed. Hover a bar for details.', tlWaited: 'waited {0}', issuesTitle: 'What went wrong', issuesNone: 'Nothing to look at in this window.', iss_repeated_failures: 'Repeated failures', iss_repeated_crashes: 'Repeated crashes', iss_stuck_in_blocked: 'Stuck blocked', iss_block_unblock_cycling: 'Blocked again and again', iss_hallucinated_cards: 'Invented cards', iss_prose_phantom_refs: 'Refers to cards that do not exist', iss_review_dependency_deadlock: 'Review deadlock', iss_running_with_open_parents: 'Ran before its parents finished', iss_run_failed: 'A run failed', iss_slow_start: 'Waited long to start', iss_waiting_on_you: 'Waiting on you', out_completed: 'done', out_crashed: 'crashed', out_timed_out: 'timed out', out_blocked: 'blocked', out_reclaimed: 'reclaimed', out_rate_limited: 'rate limited', out_gave_up: 'gave up', out_running: 'running', col_blocked: 'blocked', col_review: 'review', col_running: 'running', col_todo: 'to do', col_done: 'done', col_ready: 'ready', col_triage: 'triage', col_scheduled: 'scheduled', col_archived: 'archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Opens the timeline.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', bellCard: '{0} board · {1} needs an answer', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardTimeline: 'Timeline', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
   },
   es: {
+    cleanMenu: 'Limpiar…', cleanTitle: 'Limpiar {0}', cleanHelp: 'Elige qué ordenar. No se borra nada: los chats se archivan y un worktree quitado conserva su rama.', cleanNothing: 'Nada que limpiar: todos los chats son recientes o te necesitan y todos los worktrees están en uso.', cleanWorktrees: 'Worktrees sin nada que perder', cleanChats: 'Chats inactivos', cleanWhy_merged: 'PR fusionado', cleanWhy_closed: 'PR cerrado', cleanWhy_nopr: 'sin PR, revísalo antes', cleanMore: 'Hay {0} más que no se muestran', cleanKeeps: 'Se conservan: chats trabajando, sin leer, a la vista o fijados; worktrees con cambios, commits sin subir o un PR abierto.', cleanGo: 'Limpiar ({0})', cleaning: 'Limpiando…', cleanDone: '{0} limpiados.', cleanFailed: '{0} no se pudieron.', squadBots: 'Bots del squad', 
     openProject: 'Abrir el proyecto', back: 'Volver a la lista', foldersN: '{0} carpetas', olderChats: 'Chats anteriores', bellChats: 'Chats que te preguntan', bellClearGroup: 'Limpiar', 
     search: 'Buscar chats, proyectos, worktrees', refresh: 'Actualizar', loading: 'Cargando…', loadFailed: 'No se pudo cargar',
     newChatWith: 'Nuevo chat con {0}', newChatIn: 'Nuevo chat en {0}', newChatHere: 'Nuevo chat aquí', chats: 'Chats',
@@ -1710,6 +1762,7 @@ function ProjectBlock({ bot, project, activeId, ctl, query, focused = false }) {
             { label: t('openBrowser'), run: () => ctxRef?.runAction?.('view.showBrowser') },
             !multi && primary ? { label: t('envFiles'), run: () => ctl.envFiles(primary) } : null,
             'sep',
+            { label: t('cleanMenu'), run: () => ctl.cleanup(bot, project) },
             { label: t('appearance'), run: () => ctl.appearance(bot, project) },
             { label: t('renameProject'), run: () => ctl.renameProject(bot, project) },
             { label: t('removeProject'), run: () => ctl.removeProject(bot, project) }
@@ -2062,13 +2115,87 @@ function ConfirmBox({ state, close }) {
 
 function CapsDialog({ state, close }) {
   const t = useT()
+  const { data: snap } = useQuery(snapshotQuery())
+  const [target, setTarget] = useState('')
+  useEffect(() => setTarget(state?.bot?.name || ''), [state?.bot?.name])
+  const members = useMemo(() => (state && snap ? squadMembers(snap.profiles, state.bot.name) : []), [snap, state?.bot?.name])
   if (!state) return null
+  const shown = target || state.bot.name
+  const title = members.find(m => m.name === shown)?.title || state.bot.title
   return jsx(Dialog, {
     open: true,
     onOpenChange: o => !o && close(),
     children: jsxs(DialogContent, {
       className: 'sqh-caps',
-      children: [jsx(DialogHeader, { children: jsx(DialogTitle, { children: t('botCaps', state.bot.title) }) }), jsx(CapabilitiesView, { embedded: true, fixedProfile: state.bot.name })]
+      children: [
+        jsx(DialogHeader, { children: jsx(DialogTitle, { children: t('botCaps', title) }) }),
+        members.length
+          ? h('div', { className: 'sqh-squadpick' }, h('span', { className: 'sqh-hint' }, t('squadBots')), h('div', { className: 'sqh-tl-boards' }, members.map(m => h('button', { key: m.name, type: 'button', 'data-on': m.name === shown ? 'true' : 'false', onClick: () => setTarget(m.name) }, m.title))))
+          : null,
+        jsx(CapabilitiesView, { key: shown, embedded: true, fixedProfile: shown })
+      ]
+    })
+  })
+}
+
+/** Clean up a project: archive its idle chats and remove the worktrees with nothing to lose, each ticked by what is
+ *  safe and all listed before anything happens. Nothing is deleted: chats are archived, a branch is kept. */
+function CleanDialog({ state, close }) {
+  const t = useT()
+  const [picked, setPicked] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const q = useQuery({
+    queryKey: ['squad-hub', 'cleanup', state?.bot?.name, state?.project?.id],
+    enabled: Boolean(state),
+    gcTime: 0,
+    retry: false,
+    queryFn: async () => {
+      const out = {}
+      for (const f of state.project.folders) if (f.repo && git()) Object.assign(out, await loadLaneStatus(f.path, f.lanes))
+      return out
+    }
+  })
+  const plan = useMemo(() => (state && q.data ? cleanupPlan(state.project, q.data, attentionNow(), Date.now() / 1000) : null), [state, q.data])
+  useEffect(() => {
+    if (plan) setPicked(new Set([...plan.worktrees.filter(w => w.pre).map(w => 'wt:' + w.key), ...plan.chats.filter(c => c.pre).map(c => 'chat:' + c.session.id)]))
+  }, [plan])
+  if (!state) return null
+  const toggle = key => setPicked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+  const count = picked?.size || 0
+  const run = async () => {
+    setBusy(true)
+    let done = 0
+    let failed = 0
+    for (const c of plan.chats) {
+      if (!picked.has('chat:' + c.session.id)) continue
+      try { await patchSession(state.bot, c.session.id, { archived: true }); done++ } catch { failed++ }
+    }
+    for (const w of plan.worktrees) {
+      if (!picked.has('wt:' + w.key)) continue
+      try { await git().worktreeRemove(w.folderPath, w.path); done++ } catch { failed++ }
+    }
+    setBusy(false)
+    await refresh()
+    host.notify({ kind: failed ? 'warning' : 'success', message: fmt(lang().cleanDone, done) + (failed ? ' ' + fmt(lang().cleanFailed, failed) : '') })
+    close()
+  }
+  const row = (key, main, sub, age) => h('label', { key, className: 'sqh-cleanrow' }, h('input', { type: 'checkbox', checked: picked?.has(key) || false, onChange: () => toggle(key) }), h('span', { className: 'sqh-cleanmain' }, h('span', { className: 'sqh-belltitle' }, main), sub ? h('span', { className: 'sqh-hint' }, sub) : null), age ? h('span', { className: 'sqh-bellage' }, age) : null)
+  const empty = plan && !plan.chats.length && !plan.worktrees.length
+  return jsx(Dialog, {
+    open: true,
+    onOpenChange: o => !o && close(),
+    children: jsxs(DialogContent, {
+      className: 'sqh-clean',
+      children: [
+        jsxs(DialogHeader, { children: [jsx(DialogTitle, { children: t('cleanTitle', state.project.name) }), jsx(DialogDescription, { children: t('cleanHelp') })] }),
+        !plan ? h('div', { className: 'sqh-hint' }, t('loading')) : null,
+        empty ? h('div', { className: 'sqh-hint' }, t('cleanNothing')) : null,
+        plan && plan.worktrees.length ? h('div', { className: 'sqh-cleansec' }, h('div', { className: 'sqh-cd-sub' }, t('cleanWorktrees')), plan.worktrees.map(w => row('wt:' + w.key, w.label, [w.folder, w.branch, t('cleanWhy_' + w.reason)].filter(Boolean).join(' · ')))) : null,
+        plan && plan.chats.length ? h('div', { className: 'sqh-cleansec' }, h('div', { className: 'sqh-cd-sub' }, t('cleanChats')), plan.chats.slice(0, 80).map(c => row('chat:' + c.session.id, c.session.title || c.session.preview || 'Chat', [c.folder, c.lane].filter(Boolean).join(' · '), shortAge(sessionTime(c.session))))) : null,
+        plan && plan.chats.length > 80 ? h('div', { className: 'sqh-hint' }, t('cleanMore', plan.chats.length - 80)) : null,
+        h('div', { className: 'sqh-hint' }, t('cleanKeeps')),
+        jsxs(DialogFooter, { children: [jsx(Button, { variant: 'ghost', onClick: close, children: t('cancel') }), jsx(Button, { disabled: busy || !count, onClick: run, children: busy ? t('cleaning') : t('cleanGo', count) })] })
+      ]
     })
   })
 }
@@ -2096,6 +2223,7 @@ function Hub() {
       newProject: bot => setDialog({ kind: 'project', bot }),
       newWorktree: (bot, folder) => setDialog({ kind: 'worktree', bot, folder }),
       capabilities: bot => setDialog({ kind: 'caps', bot }),
+      cleanup: (bot, project) => setDialog({ kind: 'clean', bot, project }),
       appearance: (bot, project) => setDialog({ kind: 'look', bot, project }),
       envFiles: folder => setDialog({ kind: 'env', folder }),
       addFolder: async (bot, project) => {
@@ -2163,7 +2291,7 @@ function Hub() {
         'div',
         { className: 'sqh-focushead' },
         h('button', { type: 'button', className: 'sqh-back', onClick: () => focusAtom.set(null), title: t('back') }, jsx(Codicon, { name: 'arrow-left', size: '0.8125rem' }), h('span', {}, focusTree.bot.title)),
-        h('div', { className: 'sqh-focustitle' }, jsx(IconTile, { icon: iconFor(focusTree.bot, prefsIcons), size: 16 }), jsx(ProjectMark, { project: focusProject, bot: focusTree.bot }), h('span', { className: 'sqh-label' }, focusProject.name), h('span', { className: 'sqh-count' }, t('foldersN', focusProject.folders.length)))
+        h('div', { className: 'sqh-focustitle' }, jsx(IconTile, { icon: iconFor(focusTree.bot, prefsIcons), size: 16 }), jsx(ProjectMark, { project: focusProject, bot: focusTree.bot }), h('span', { className: 'sqh-label' }, focusProject.name), h('span', { className: 'sqh-count' }, t('foldersN', focusProject.folders.length)), jsx(IconBtn, { icon: 'clear-all', label: t('cleanMenu'), onClick: () => ctl.cleanup(focusTree.bot, focusProject) }))
       ),
       h('div', { className: 'sqh-scroll' }, h(ProjectBlock, { bot: focusTree.bot, project: focusProject, activeId, ctl, query, focused: true })),
       jsx(ProjectDialog, { state: dialog?.kind === 'project' ? dialog : null, close: () => setDialog(null) }),
@@ -2171,6 +2299,7 @@ function Hub() {
       jsx(TextDialog, { state: dialog?.kind === 'text' ? dialog : null, close: () => setDialog(null) }),
       jsx(ConfirmBox, { state: dialog?.kind === 'confirm' ? dialog : null, close: () => setDialog(null) }),
       jsx(LookDialog, { state: dialog?.kind === 'look' ? dialog : null, close: () => setDialog(null) }),
+      jsx(CleanDialog, { state: dialog?.kind === 'clean' ? dialog : null, close: () => setDialog(null) }),
       jsx(EnvDialog, { state: dialog?.kind === 'env' ? dialog : null, close: () => setDialog(null) })
     )
   }
@@ -2199,6 +2328,7 @@ function Hub() {
     jsx(TextDialog, { state: dialog?.kind === 'text' ? dialog : null, close: () => setDialog(null) }),
     jsx(ConfirmBox, { state: dialog?.kind === 'confirm' ? dialog : null, close: () => setDialog(null) }),
     jsx(CapsDialog, { state: dialog?.kind === 'caps' ? dialog : null, close: () => setDialog(null) }),
+    jsx(CleanDialog, { state: dialog?.kind === 'clean' ? dialog : null, close: () => setDialog(null) }),
     jsx(LookDialog, { state: dialog?.kind === 'look' ? dialog : null, close: () => setDialog(null) }),
     jsx(EnvDialog, { state: dialog?.kind === 'env' ? dialog : null, close: () => setDialog(null) })
   )
@@ -3168,6 +3298,12 @@ html[data-sqh-float] [data-sqh-side][data-sqh-open]{transform:none;opacity:1}
 .sqh-bellgroup{display:flex;align-items:center;gap:6px;padding:8px 8px 2px;font-size:11px;font-weight:600;color:var(--foreground)}
 .sqh-bellgroup-n{font-weight:400;color:var(--muted-foreground)}
 .sqh-bellgroup .sqh-bellclear{margin-left:auto}
+.sqh-clean{max-width:560px;max-height:min(720px,86vh);overflow:auto}
+.sqh-cleansec{display:grid;gap:2px}
+.sqh-cleanrow{display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:7px;cursor:pointer}
+.sqh-cleanrow:hover{background:color-mix(in srgb,var(--foreground) 5%,transparent)}
+.sqh-cleanmain{display:grid;min-width:0;flex:1}
+.sqh-squadpick{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .sqh-cd{max-width:560px}
 .sqh-cd-meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12px}
 .sqh-cd-help{font-size:12px;color:var(--muted-foreground)}
