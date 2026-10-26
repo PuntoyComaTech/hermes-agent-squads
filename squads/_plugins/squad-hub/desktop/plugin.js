@@ -241,10 +241,13 @@ function upgradePrefs(stored, defaults) {
   return p
 }
 
-/** The chats a project with several folders lists right under its own row, open or closed: what is working,
- *  unread or in view, each a shortcut that skips opening its folder. A single-folder project shows whole instead. */
-const projectDigest = (project, attention, open = true) =>
-  project.folders.length > 1 || !open ? activeIn(project.folders, attention) : []
+/** The chats a closed project lists right under its own row: what is working, unread or in view, each a shortcut
+ *  that skips opening the project. An open project lists none: every chat shows once, inside its own folder. */
+const projectDigest = (project, attention, open = true) => (open ? [] : activeIn(project.folders, attention))
+
+/** A folder of an open project starts unfolded when a chat in it needs you, so that chat shows where it lives;
+ *  quiet folders start folded. The user's own open/closed choice always wins. */
+const folderOpensByDefault = (folder, attention) => needsYou(activeIn(folder, attention)).length > 0
 
 /** A folded bot's shortcut list: what needs you in every project and in its loose chats, loudest first, so a pending
  *  chat (or one in a worktree) is one click away without opening the bot, the project or the folder. */
@@ -1622,7 +1625,7 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
   const key = `folder:${bot.name}:${project.id}:${folder.path}`
   const collapsed = useValue(collapsedAtom)
   const active = needsYou(activeIn(folder, attention))
-  const wide = false
+  const wide = folderOpensByDefault(folder, attention)
   const open = query.trim() ? true : isOpen(collapsed, key, wide)
   const chats = folder.lanes.reduce((n, l) => n + l.sessions.length, 0)
   const { data: laneStats } = useQuery({

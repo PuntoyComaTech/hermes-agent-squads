@@ -39,9 +39,10 @@ Screenshots use invented projects and boards.
   when the Desktop lost it on the way (switching between bots can); a preview you closed before leaving stays closed.
 - **A bot's own pages in one click.** Scheduled jobs, messaging, Kanban and capabilities (capabilities open in a
   dialog pinned to that bot).
-- **Quiet big projects.** A project with several folders lists the chats that are working, unread or open right under
-  its own row, each with the folder (and worktree) it lives in: one click opens the chat, no folder to unfold. Open
-  the project to see its folders, folded, each wearing the dot of what needs you inside; a project with more than three
+- **Quiet big projects.** A closed project lists the chats that are working, unread or open right under its own row,
+  each with the folder (and worktree) it lives in: one click opens the chat, no folder to unfold. Open the project and
+  that list goes away: each chat shows once, in its own folder, and the folders holding a chat that needs you start
+  unfolded while the quiet ones stay folded; a project with more than three
   folders opens in the list's own view instead, with a back button. Single-folder projects open whole. A bot without
   projects lists what needs you and its three newest chats; the rest fold under "Older chats". Fold a whole bot or squad and its pending chats stay listed under it, each tagged with the worktree, folder
   or project it lives in (the full path on hover). Your own open/closed choice always wins.

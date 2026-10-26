@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.24.1 - 2026-10-26
+
+### Fixed
+
+- squad-hub 1.3.1: opening a project no longer keeps its shortcut list on top of the folders, which showed every
+  pending chat twice. Shortcuts show only while the project is closed; once open, each chat sits in its own folder,
+  and the folders holding a chat that needs you start unfolded.
+
 ## 2.24.0 - 2026-10-26
 
 ### Changed

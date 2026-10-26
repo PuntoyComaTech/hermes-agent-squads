@@ -20,7 +20,7 @@ PLUGIN = REPO / "squads" / "_plugins" / "squad-hub" / "desktop" / "plugin.js"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
-EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
+EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
            "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
 
 
@@ -204,13 +204,13 @@ def test_a_project_with_many_folders_opens_as_a_digest_and_a_small_one_opens_who
     assert model("projectOpensWide", small) is True
 
 
-def test_the_project_row_lists_the_pending_chats_of_every_folder_so_no_folder_needs_opening(model):
-    """The shortcut list under a many-folder project: what works, what is unread, and the chat in view, wherever
-    they live; quiet chats stay inside their folded folders."""
+def test_the_closed_project_row_lists_the_pending_chats_of_every_folder_so_no_folder_needs_opening(model):
+    """The shortcut list under a closed many-folder project: what works, what is unread, and the chat in view,
+    wherever they live; quiet chats stay inside their folded folders."""
     chats = [chat("a", "/w/seculus", unread=True, last=500.0), chat("b", "/w/timex", last=900.0),
              chat("c", "/w/nordic", last=100.0), chat("d", "/w/shared", last=50.0)]
     project = many_folders_tree(model, chats)
-    digest = model("projectDigest", project, {"live": ["c"], "focused": "d"})
+    digest = model("projectDigest", project, {"live": ["c"], "focused": "d"}, False)
     assert [(x["session"]["id"], x["state"], Path(x["folder"]["path"]).name) for x in digest] == [
         ("c", "working", "nordic"), ("a", "unread", "seculus"), ("d", "current", "shared")]
     assert [x["session"]["id"] for x in model("needsYou", digest)] == ["c", "a"], "a folded folder signals only what needs you"
@@ -923,3 +923,20 @@ def test_prefs_saved_by_an_older_version_get_the_new_defaults_once(model):
     again = model("upgradePrefs", chosen, defaults)
     assert again["floatSides"] is False and again["hiddenNav"] == [], "a choice made after the upgrade is kept"
     assert model("upgradePrefs", None, defaults)["floatSides"] is True
+
+
+def test_an_open_project_shows_each_chat_once_in_its_own_folder(model):
+    """Opening a project drops the shortcut list: a pending chat would show twice, once as a shortcut above the
+    folders and once inside its folder. Instead the folder holding it starts unfolded; quiet folders stay folded."""
+    chats = [chat("a", "/w/seculus", unread=True, last=500.0), chat("b", "/w/timex", last=900.0),
+             chat("c", "/w/nordic", last=100.0)]
+    project = many_folders_tree(model, chats)
+    attention = {"live": ["c"], "focused": None}
+    assert model("projectDigest", project, attention, True) == []
+    assert [x["session"]["id"] for x in model("projectDigest", project, attention, False)] == ["c", "a"]
+    opens = {Path(f["path"]).name: model("folderOpensByDefault", f, attention) for f in project["folders"]}
+    assert opens["seculus"] is True and opens["nordic"] is True, "a folder with a chat that needs you unfolds"
+    assert opens["timex"] is False, "a quiet folder stays folded"
+    focused_only = {"live": [], "focused": "b"}
+    timex = next(f for f in project["folders"] if f["path"].endswith("timex"))
+    assert model("folderOpensByDefault", timex, focused_only) is False, "the chat merely in view does not unfold it"
