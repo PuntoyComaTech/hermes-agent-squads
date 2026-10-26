@@ -44,12 +44,14 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    `requires_account`, `email`, `linkedin`, `captcha` or `other`. Anything but the first two goes to step 6. Map each
    field to one source: `contact.yaml`, `application-data.yaml` (the only source for work authorization, salary,
    availability, consents and saved answers), `answers.md`, the CV, or `consult:<card id>` from a support card to
-   jobs-writer. A fact only the user has becomes a `pending_questions` entry (question text and the form's options),
-   `result: NEEDS_DATA`, then `kanban_block(kind="needs_input", reason="<the questions>")`.
+   jobs-writer: every free-text question the record answers (strength, ownership, priorities, first 90 days) goes on one
+   such card, never to the user. A fact only the user has becomes a `pending_questions` entry (question text and the
+   form's options), `result: NEEDS_DATA`, then `kanban_block(kind="needs_input", reason="<the questions>")`.
    **Easy Apply** runs on the shared signed-in browser: `references/easy-apply.md`. Its steps are mapped one field at a
    time and it stops at the first field without a source. A form that asks for payment, a paid test, or data that is
    not in `contact.yaml` or `application-data.yaml` is never submitted: NEEDS_DATA or NOT_POSSIBLE, never a guess.
-5. **Fill and submit.** Upload `CV_<Name>_<Surname>.pdf` (render_cv's copy of `cv_ats.pdf`), unless the card says otherwise. Save `before.png` before submitting. When
+5. **Fill and submit.** Upload the file `jobs-contract/scripts/upload_copy.py <P>/openings/<ID>/application` prints,
+   never one you named, unless the card says otherwise. Save `before.png` before submitting. When
    `review_before_submit` is true or `auto_apply` is `ask`, run the gate again with `--before-submit`: it needs the
    user's `screenshot_approval` (see Consent), else block with the screenshot path as the reason. Easy Apply stops on
    its own final review step and compares it with the sources before Submit. Otherwise submit once and save the
@@ -101,15 +103,13 @@ and, for an email, the subject and body. A value that is not recorded never appe
 
 - Never create an account, log in, solve a CAPTCHA, pay, or accept terms beyond the data-processing consent the user
   authorized (`authorize_consents: true`).
-- Never invent an answer: missing data is a question. A "have you used <tool>?" whose family the candidate holds
-  (`skill_families.json`) is yes, naming the held tool; never "not familiar".
+- Never invent an answer: missing data is a question. A "used <tool>?" whose family the candidate holds is yes.
 - Never submit a second opening under the same card, and never apply twice under standing consent.
 - Never turn a click that happened into NOT_POSSIBLE: the record decides that, not the bot's second thoughts.
 - Never auto-submit an `unverified` apply_url, even with the user's confirmation: the kit goes to the user.
 - Never drive the shared browser past a sign-in wall, a checkpoint, a CAPTCHA or a restriction notice, and never type
   a credential: that stops LinkedIn work for the day (references/easy-apply.md).
-- Screenshots and `submission.json` may hold personal data; they stay in `application/`. No contact data in a card
-  body, a comment or a status note.
+- Screenshots and `submission.json` stay in `application/`; no contact data in a card, a comment or a status note.
 
 ## Verification
 

@@ -3,12 +3,30 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.20.2 - 2026-10-26
+
+### Fixed
+
+- jobs 4.9.2: the applier holds `analyzing-jobs`. Its submit gate loads `score_analysis.py` from that skill, which only
+  the scout had, so every gate crashed and no auto-apply went out. The ownership test now also follows sibling-skill
+  paths inside scripts (`SKILLS / "<skill>"`), not only the run paths written in SKILL.md.
+- jobs 4.9.2: `jobs-contract/scripts/apply_link.py` sets `apply_url` in `opening.md` to the employer's own ATS posting
+  (portal, job-board and look-alike links refused). The reviewer runs it when its truthfulness lens locates the
+  posting after intake, the scout when the analysis finds it: a posting the reviewer found never reached `apply_url`,
+  and the applier stopped on the LinkedIn listing.
+- jobs 4.9.2: `jobs-contract/scripts/upload_copy.py` prints the `CV_<Name>_<Surname>.pdf` to upload and writes it from
+  `cv_ats.pdf` when an older kit lacks it or it is stale; the applier no longer names the file by hand (one kit went
+  out under a different name than the others).
+- jobs 4.9.2: a required free-text form question the record can answer (strength, ownership, priorities, first 90
+  days) goes to the writer as one support card and is entered as `consult:<card>`, never blocked as a user question.
+
 ## 2.20.1 - 2026-10-26
 
 ### Fixed
 
 - squad-hub 1.1.1: the empty chat names the squad ("Web") instead of the bot title ("Web manager"); the pane's bot
   lost `ui_meta` on the way to the chat. README screenshots with invented data.
+
 ## 2.20.0 - 2026-10-25
 
 ### Fixed
