@@ -281,6 +281,15 @@ def test_delegation_lane_and_passthrough(web):
     assert web.config("web-qa")["terminal"]["env_passthrough"] == []
 
 
+def test_delegation_max_children_sets_the_one_shot_budget(env, capsys):
+    """A kanban worker runs as `chat -q`, where Hermes caps delegate_task children at
+    delegation.oneshot_max_children (default 2) for the whole run: the jobs reviewer needs five lenses plus re-runs."""
+    env.squad("web", mutate=lambda s: s["bots"]["web-backend"]["delegation"].update(max_children=12))
+    env.run("apply", "web", capsys=capsys)
+    assert env.config("web-backend")["delegation"]["oneshot_max_children"] == 12
+    assert "oneshot_max_children" not in env.config("web-qa")["delegation"]  # no key: Hermes's default stays
+
+
 def test_ui_meta_hidden_section_and_revision(web):
     """All bots are visible (V-12); the manager is filed under Managers, workers under the squad section."""
     manager = yaml.safe_load((web.root / "profiles" / "web" / "profile.yaml").read_text())

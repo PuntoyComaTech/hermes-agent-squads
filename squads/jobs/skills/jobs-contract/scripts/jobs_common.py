@@ -643,6 +643,173 @@ def cefr_index(level) -> int | None:
     return CEFR.index(token) if token in CEFR else None
 
 
+# A form's language-level option -> the lowest CEFR level the label asserts. The ILR/LinkedIn scale reads one step
+# above its literal words: "Professional Working Proficiency" is ILR 3, about C1, so it overstates a B2 (the reviewer
+# ruled this on a real application). Order matters: the first pattern that matches decides.
+LEVEL_LABELS = (
+    (re.compile(r"\b(native|bilingual|nativo|nativa|lengua materna|mother tongue)\b", re.I), "C2"),
+    (re.compile(r"\bfull professional\b", re.I), "C2"),
+    (re.compile(r"\bprofessional working\b", re.I), "C1"),
+    (re.compile(r"\blimited working\b", re.I), "B1"),
+    (re.compile(r"\belementary\b", re.I), "A1"),
+    (re.compile(r"\b(fluent|fluido|fluida|fluency)\b", re.I), "C1"),
+    (re.compile(r"\b(upper[- ]intermediate|intermedio[- ]alto|intermedio avanzado)\b", re.I), "B2"),
+    (re.compile(r"\b(advanced|avanzado|proficient)\b", re.I), "C1"),
+    (re.compile(r"\b(intermediate|intermedio|conversational|conversacional)\b", re.I), "B1"),
+    (re.compile(r"\b(basic|beginner|basico|básico|principiante)\b", re.I), "A1"),
+)
+ILR_LABELS = LEVEL_LABELS[:5]  # the "... proficiency" scale: unambiguous wherever it appears in a sentence
+CEFR_TOKEN = re.compile(r"\b([ABC][12])\b")
+
+
+def label_level(label) -> str | None:
+    """The CEFR level a language option claims ("B2", "Upper-intermediate", "Professional Working Proficiency");
+    None when the label states no level."""
+    text = str(label or "")
+    found = CEFR_TOKEN.findall(text.upper())
+    if found:
+        return max(found, key=CEFR.index)
+    for pattern, level in LEVEL_LABELS:
+        if pattern.search(text):
+            return level
+    return None
+
+
+def language_option(options, declared) -> dict:
+    """The option to pick for a declared CEFR level: the highest option whose claim is not above it. Returns
+    {"answer", "level", "why"}; answer is None when every option claims more (or none states a level)."""
+    have = cefr_index(declared)
+    if have is None:
+        return {"answer": None, "level": None, "why": f"declared level {declared!r} is not a CEFR level"}
+    best = None
+    for option in options or []:
+        level = label_level(option)
+        idx = cefr_index(level)
+        if idx is None or idx > have:
+            continue
+        if best is None or idx > best[0]:
+            best = (idx, option, level)
+    if best is None:
+        return {"answer": None, "level": None, "why": f"every option claims more than {declared} or states no level"}
+    return {"answer": best[1], "level": best[2], "why": f"the highest option not above the declared {declared}"}
+
+
+HEADING = re.compile(r"^\s*#{1,6}\s+(.*)$")
+
+
+def language_named(text) -> str:
+    """The ISO code of the first language named in text ("English level" -> en), else ""."""
+    for token in re.findall(r"[A-Za-zÀ-ÿ]+", str(text or "")):
+        code = LANGUAGE_ALIASES.get(token.lower()) or LANGUAGE_ALIASES.get(ascii_fold(token.lower()))
+        if code and len(token) > 2:
+            return code
+    return ""
+
+
+def language_label_overclaims(text, levels: dict) -> list:
+    """Lines that pick an ILR/LinkedIn label above the declared level of the language they are about.
+
+    levels: {iso code: CEFR}. The language is the one the line names, else the nearest heading above it, else the
+    previous non-empty line ("English level:" then the option on the next line). Returns [{line, label, language,
+    declared, claims}]."""
+    hits, heading, previous = [], "", ""
+    for line in str(text or "").splitlines():
+        match = HEADING.match(line)
+        if match:
+            heading, previous = match.group(1), ""
+            continue
+        for pattern, level in ILR_LABELS:
+            found = pattern.search(line)
+            if not found:
+                continue
+            lang = language_named(line) or language_named(heading) or language_named(previous)
+            declared = levels.get(lang)
+            if declared and (cefr_index(level) or 0) > (cefr_index(declared) or 0):
+                hits.append({"line": line.strip(), "label": found.group(0), "language": lang, "declared": declared,
+                             "claims": level})
+            break
+        if line.strip():
+            previous = line
+    return hits
+
+
+def declared_levels(achievements) -> dict:
+    """{iso code: CEFR} from achievements.yaml languages."""
+    out = {}
+    for row in (achievements or {}).get("languages") or []:
+        if isinstance(row, dict) and row.get("language") and cefr_index(row.get("level")) is not None:
+            out[normalize_language(row["language"])] = str(row["level"]).upper()
+    return out
+
+
+def ilr_overclaims(text, declared) -> list:
+    """ILR/LinkedIn scale labels in text that claim more than the declared CEFR level ("Professional Working
+    Proficiency" for a B2)."""
+    have = cefr_index(declared)
+    if have is None:
+        return []
+    hits = []
+    for pattern, level in ILR_LABELS:
+        for match in pattern.finditer(str(text or "")):
+            if (cefr_index(level) or 0) > have:
+                hits.append(match.group(0))
+    return hits
+
+
+# A sentence that says how the user works TODAY ("working remotely from Colombia", "want to keep working remotely").
+# It is a fact about the current job, so only achievements.yaml experiences[].work_mode can back it; profile.md
+# work_mode is the search preference (what the user wants), never what the current job is.
+REMOTE_NOW = re.compile(
+    r"\b(?:(?:keep|continue|still|currently|now)\s+(?:working|to work|work)\s+remotely"
+    r"|working\s+remotely(?!\s+(?:is|would|again)\b)"
+    r"|work(?:s)?\s+remotely\s+(?:from|for|since|at|with|today)"
+    r"|remote[- ]based"
+    r"|(?:sigo|seguir|continuar|actualmente)\s+trabajando\s+(?:de\s+forma\s+)?remot"
+    r"|trabajando\s+(?:de\s+forma\s+)?remot(?:o|amente)"
+    r"|trabajo\s+remot(?:o|amente)\s+desde)", re.I)
+WISH_BEFORE = re.compile(r"\b(?:want|wish|prefer|interested in|looking for|seeking|open to|would like|hope|aim|"
+                         r"quiero|busco|prefiero|me interesa)\b[^.;:!?]{0,30}$", re.I)
+CONTINUING = re.compile(r"\b(?:keep|continue|still|seguir|continuar|sigo)\b", re.I)
+
+
+def remote_now_claims(text) -> list:
+    """Spans that state the user works remotely now. "I want to work remotely" is a wish and passes; "I want to keep
+    working remotely" says he does today and is a claim."""
+    out = []
+    for match in REMOTE_NOW.finditer(str(text or "")):
+        before = str(text)[max(0, match.start() - 40):match.start()]
+        if WISH_BEFORE.search(before) and not CONTINUING.search(match.group(0)):
+            continue
+        out.append(match.group(0))
+    return out
+
+
+def current_work_modes(achievements) -> set:
+    """work_mode of the current experiences in achievements.yaml (remote | hybrid | onsite)."""
+    modes = set()
+    for exp in (achievements or {}).get("experiences") or []:
+        if isinstance(exp, dict) and str(exp.get("to") or "").strip().lower() in ("current", "present", ""):
+            mode = str(exp.get("work_mode") or "").strip().lower()
+            if mode:
+                modes.add(mode)
+    return modes
+
+
+SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def sentences(text) -> list:
+    return [s.strip() for s in SENTENCE_SPLIT.split(str(text or "")) if s.strip()]
+
+
+def same_claim_hits(text, terms) -> list:
+    """Sentences of text that hold every term as whole words: the instances of one recurring claim."""
+    words = [t for t in (str(x).strip() for x in terms or []) if t]
+    if not words:
+        return []
+    return [s for s in sentences(text) if all(word_in(w, s) for w in words)]
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Print a YAML file or a Markdown front matter block as JSON.")
     parser.add_argument("file", help="a .yaml/.yml/.json file or a Markdown file with front matter")

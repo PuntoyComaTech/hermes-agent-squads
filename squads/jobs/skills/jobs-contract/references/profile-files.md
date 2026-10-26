@@ -4,10 +4,8 @@ Written by the manager (skill profiling-candidates), in the project folder `<P>`
 
 ## Contents
 
-- profile.md: search keys, personalisation keys and consent
-- Years of experience
-- achievements.yaml, contact.yaml and application-data.yaml
-- Check the files: validate_profile.py
+profile.md (search keys, personalisation, consent); years of experience; achievements.yaml, contact.yaml and
+application-data.yaml; checking the files with validate_profile.py.
 
 ## profile.md: search keys
 
@@ -124,11 +122,12 @@ total; with `role`, "N years as <role>" compares with matching titles (validate_
 
 ## achievements.yaml
 
-The only source of claims (jobs-contract -> Pitfalls). Store text in every language the user applies in; the user confirms each.
+The only source of claims (jobs-contract -> Pitfalls), in every language the user applies in, each confirmed.
+`work_mode` (remote, hybrid, onsite) on an experience is the only source for "working remotely" (not profile.md).
 
 ```yaml
 experiences:
-  - {id: EXP-001, title: "Data analyst", company: "Example Co", from: 2022-03, to: current}
+  - {id: EXP-001, title: "Data analyst", company: "Example Co", from: 2022-03, to: current, work_mode: remote}
 achievements:
   - id: ACH-007
     experience: EXP-001

@@ -44,6 +44,7 @@ WORK_MODES = ("remote_global", "remote_region", "remote_country", "hybrid", "ons
 ELIGIBILITY = ("citizen", "resident", "permit", "needs_sponsorship")
 PROFICIENCY = ("led", "did", "participated", "familiar")
 CEFR = ("A1", "A2", "B1", "B2", "C1", "C2")
+WORK_MODES_DONE = ("remote", "hybrid", "onsite")  # achievements.yaml experiences[].work_mode
 WEIGHTS = ("technical", "experience", "behavioral", "career")
 MODE_WORDS = {
     "hybrid": ("hybrid", "hibrido", "hybride"),
@@ -416,6 +417,10 @@ def check_experiences(report, data):
         title = text_of(report, ACHIEVEMENTS, f"{where}.title", exp.get("title")) \
             if need(report, ACHIEVEMENTS, exp, "title", where) else None
         text_of(report, ACHIEVEMENTS, f"{where}.company", exp.get("company"))
+        if exp.get("work_mode") is not None:
+            # How this job is (was) done; the only source for "working remotely" in a CV. profile.md work_mode is
+            # the search preference.
+            one_of(report, ACHIEVEMENTS, f"{where}.work_mode", exp.get("work_mode"), WORK_MODES_DONE)
         start, end = when_of(exp.get("from")), when_of(exp.get("to"))
         if not isinstance(start, date):
             report.add(ACHIEVEMENTS, f"{where}.from", "must be a date: YYYY-MM or YYYY-MM-DD")

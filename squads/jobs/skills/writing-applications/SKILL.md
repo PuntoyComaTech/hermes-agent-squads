@@ -39,13 +39,23 @@ One opening per card. Documents are written in the posting's language. The card 
    (CORRECTION: stage `review-r2`; CHANGE round N: `review-c<N>`).
 
 **CORRECTION and CHANGE.** Apply exactly what the reviewer or the user asked, note each change in `strategy.md`, then
-redo steps 5 to 7. A requested claim with no verified achievement is never written:
-`kanban_block(kind="needs_input", reason="<missing achievement>")`.
+fix every other instance of the same wrong claim: for each correction run
+`python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/claim_sweep.py" <P>/openings/<ID>/application --terms
+<its claim_terms, or the 2 to 4 words the claim ties together>` and rewrite each sentence it lists (CV, letter,
+recruiter message, answers and their notes) the same way, until it lists only true sentences. A correction names one
+instance; the review counts every round you leave another one. Then redo steps 5 to 7. A requested claim with no
+verified achievement is never written: `kanban_block(kind="needs_input", reason="<missing achievement>")`.
 
 ## Pitfalls
 
 - Never claim a number, title, scope or proficiency that `achievements.yaml` does not hold. `participated` stays
   `participated`; "led" is written only when the record says led.
+- `profile.md` holds what the user wants (work mode, goals, availability), never facts about the current job.
+  "Working remotely from <country>" needs `work_mode: remote` on the current experience in `achievements.yaml`;
+  without it write "based in <country>" (the renderer refuses the rest as `work_mode_unbacked`).
+- A language level is the declared CEFR level ("English: B2"). Never an ILR/LinkedIn label above it: "Professional
+  Working Proficiency" reads as C1. A dropdown option is the one `jobs-contract/scripts/form_answer.py language`
+  prints; name that exact option in the answers.md note.
 - Never edit `analysis.json`, `opening.md` or the history in `status.json`.
 - Contact data appears only in the rendered header, never in the text of a bullet or a letter.
 - Never print age, photo, marital status, date of birth or nationality. Age appears only when the profile sets

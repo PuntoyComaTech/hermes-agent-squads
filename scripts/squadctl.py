@@ -1196,6 +1196,11 @@ class Applier:
         plan += [["delegation.provider", dm["provider"] if dm else "", False],
                  ["delegation.model", dm["model"] if dm else "", False],
                  ["delegation.reasoning_effort", (dm or {}).get("reasoning") or "", False]]
+        budget = (bot.get("delegation") or {}).get("max_children")
+        if deleg and budget:
+            # A kanban worker is a `chat -q` one-shot: Hermes caps its delegate_task children at
+            # delegation.oneshot_max_children (default 2) for the whole run, re-runs included.
+            plan.append(["delegation.oneshot_max_children", int(budget), False])
         plan += self.fallback_plan()
         plan += [["platform_toolsets.cli", sorted(toolsets), False],  # hermes tools enable stores sorted(union)
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],

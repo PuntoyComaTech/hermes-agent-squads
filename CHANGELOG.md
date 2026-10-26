@@ -3,6 +3,31 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.22.0 - 2026-10-26
+
+### Fixed
+
+- jobs 4.11.0, from the second 2026-10-26 end-to-end round:
+  - One review round names every instance of a wrong claim: truthfulness draft findings and unanswerable stretches
+    carry `claim_terms`, and `aggregate_review.py` lists every sentence of the CV, letter, recruiter message and
+    answers that makes the same claim, adding one hard correction for the instances no correction rewrites. The
+    writer runs the new `jobs-contract/scripts/claim_sweep.py` on each correction before handing back.
+  - A code a form mails after Submit (Greenhouse's 8 characters) goes to jobs-inbox: the new
+    `submitting-applications/scripts/code_wait.py` files the `Mode: CODE` card and waits with the form open;
+    `extract_code.py` reads letter-and-digit codes; `check_submission.py` refuses a NOT_POSSIBLE that names an
+    e-mailed code without `code_request {card, outcome}`.
+  - Language dropdowns come from `form_answer.py language` (the highest option not above the declared CEFR level:
+    "Limited Working Proficiency" for a B2); the review blocks an ILR label above the declared level in any outward
+    file, answers.md notes included.
+  - The reviewer passes each lens child the schema `aggregate_review.py --schema <lens>` prints
+    (`references/lens-schemas.json`), so Hermes corrects a malformed block inside the child; a lens that still
+    breaks the contract blocks as `transient`, not as a question. A missing `claim_terms` is a warning, never a stop.
+  - "Working remotely" needs `work_mode: remote` on the current experience in achievements.yaml (new optional key,
+    validated): the renderer refuses it as `work_mode_unbacked` and the review blocks it; profile.md `work_mode` is
+    the search preference. `extract_code.py` digit codes are whole tokens (never the tail of `ABC12345`).
+- squadctl: a bot's `delegation.max_children` sets `delegation.oneshot_max_children`, the delegate_task budget of a
+  kanban run (Hermes's one-shot default is 2); the jobs reviewer gets 12 (five lenses plus re-runs).
+
 ## 2.21.0 - 2026-10-26
 
 ### Fixed

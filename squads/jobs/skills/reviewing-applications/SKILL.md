@@ -18,10 +18,14 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
 1. Read the card and `openings/<ID>/`: `application/` (every file, including `render_report.json` and
    `cv_content.json`), `analysis.json`, `opening.md`, `status.json`, `achievements.yaml`, `profile.md` (its front
    matter `market` and `reviewer_role`) and any earlier `review-N.json`.
-2. Start five `delegate_task` children in parallel, one per lens. Each gets its section of `references/lenses.md` as
-   the goal, the files that lens names as context, and the lens block shape as its `output_schema`. Children never
-   read the card and never write files. Only the truthfulness child searches the web, and only for company claims;
-   the other children are told not to search.
+2. Start five `delegate_task` children in parallel, one per lens, in one call. Each gets its section of
+   `references/lenses.md` as the goal, the files that lens names as context, and as its `output_schema` the exact
+   JSON that `python3 "$HERMES_HOME/skills/squad-jobs/reviewing-applications/scripts/aggregate_review.py" --schema
+   <lens>` prints, never a shorter one written by hand: Hermes checks the child's answer against it and gives the
+   child one correction turn, so a block with wrong field names (`claim`/`issue` for `text`/`problem`) is fixed before
+   it reaches you. Children never read the card and never write files. Only the truthfulness child searches the web,
+   and only for company claims; the other children are told not to search. The run may spawn up to
+   `delegation.oneshot_max_children` children in total (12 in this squad): five lenses plus re-runs.
 3. Save each block as `<lens>.json` (truthfulness, ats, recruiter, hiring_manager, writing) in a scratch folder inside
    your card's workspace, not in the project folder. Only `review-<N>.json` and `status.json` go into `openings/<ID>/`.
 4. Aggregate. First run without `--out` to read the verdict:
@@ -34,8 +38,18 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
 
    `<L>` is the scratch folder from step 3. `--application-dir` is required: the script reads
    `application/render_report.json`, and a missing report is a rule violation. Exit 1 prints `rule:` lines naming a lens:
-   re-run that one child once with the rule quoted. Still exit 1 -> `kanban_block(kind="needs_input", reason="review round <N> cannot be aggregated: <rule>")`.
-   Exit 2 -> a lens block is not valid JSON or lacks a lens: re-run that child.
+   re-run that one child once with the rule quoted and the same `--schema` output. Still exit 1, or no child left to
+   spawn: `kanban_block(kind="transient", reason="review round <N> cannot be aggregated: <rule>")`: a lens that broke
+   the contract is a retry, never a question for the user. Exit 2 -> a lens block is not valid JSON or lacks a lens:
+   re-run that child.
+   **One round names every instance.** Each wrong claim (a truthfulness draft finding, an unanswerable stretch)
+   carries `claim_terms`, the 1 to 4 words it ties together (`["Python", "FastAPI", "AI"]`). The script lists every
+   sentence in the CV, letter, recruiter message and answers that makes the same claim (`instances`) and adds one hard
+   correction for each instance no correction of yours rewrites. Before the `--out` run, read that list and add a
+   `replace` correction for each outward instance, so the writer gets them all in this round, never one per round.
+   The script also blocks, whatever the lenses say, a sentence saying the user works remotely now when no current
+   experience in `achievements.yaml` records `work_mode: remote`, and an ILR/LinkedIn language label above the
+   declared CEFR level ("Professional Working Proficiency" for a B2, notes included).
 
    Always add `--apply`: wording, spelling and positioning are yours to fix, never a reason for another round. With
    the verdict known, run it again with `--summary "<1 to 5 lines in the user's language>"` and
@@ -88,6 +102,8 @@ script itself: it blocks whatever the lens verdicts say, so the writer always ge
 - A render with a hard defect or measured keyword coverage below 0.8 is a blocking ats item: the ats lens says FIX
   with a correction; a PASS beside it is refused.
 - Never patch a lens block by hand to make the script pass. Re-run the lens.
+- An earlier review that approved a sentence is not evidence for it: each round grounds every claim again. A fact
+  the user's search preferences state (profile.md `work_mode`, `career_goals`) is never a fact about the current job.
 - No e-mail address or phone number in any block or summary; the script refuses them.
 
 ## Verification

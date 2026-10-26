@@ -34,7 +34,9 @@ Rules (contract: jobs-contract references/opening-files.md, submission.json):
   pending_questions; a screenshot named like confirmation.* that exists; every screenshot listed exists; the authority
   rules below; the apply_url is not `unverified` (link_check.py).
 - NEEDS_DATA: at least one pending question with its text (options optional).
-- NOT_POSSIBLE: a reason, and application/kit.md exists beside the file (manual_kit names it when given).
+- NOT_POSSIBLE: a reason, and application/kit.md exists beside the file (manual_kit names it when given). A reason
+  that names a code the form mailed to the applicant also needs code_request {card, outcome}: jobs-inbox was asked
+  (code_wait.py) and answered no_code, unavailable or timeout. An e-mailed code is never a CAPTCHA.
 - No e-mail address or international phone number in any text of the file or of consent.json.
 
 Authority for SUBMITTED:
@@ -98,6 +100,11 @@ AUTO_APPLY = ("never", "ask", "try", "auto")
 APPLY_CONSENT = {"try": "per_opening", "ask": "per_opening", "auto": "standing"}
 CONSUMED = ("try", "auto")  # the modes that submit without the user in the loop
 CONSULT = re.compile(r"^consult:[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
+# A reason that says the form mailed a code ("8-character code e-mailed", "security code sent to the applicant's
+# e-mail", "verification code"): jobs-inbox reads it, so a kit needs the code_request that asked for it.
+EMAILED_CODE = re.compile(r"\b(?:security|verification|confirmation|one[- ]time|access)\s+code\b"
+                          r"|\bcode\b[^.]{0,60}\be-?mail|\be-?mail\w*\b[^.]{0,60}\bcode\b|\bOTP\b", re.I)
+CODE_OUTCOMES = ("code", "no_code", "unavailable", "timeout")
 ID_RE = re.compile(r"^JOB-\d{8}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # A LinkedIn Easy Apply run happens on the job page itself: https://<locale.>linkedin.com/jobs/view/<id>[/][?query]
@@ -787,6 +794,17 @@ class Checker:
     def check_not_possible(self, data) -> None:
         if not isinstance(data["reason"], str) or not data["reason"].strip():
             self.error("reason", "NOT_POSSIBLE needs the reason")
+        elif EMAILED_CODE.search(data["reason"]):
+            # A code mailed to the applicant is in the user's mailbox, which jobs-inbox reads: it is asked for
+            # (code_wait.py), and only its answer can end the submit in a kit.
+            request = data.get("code_request")
+            if not (isinstance(request, dict) and isinstance(request.get("outcome"), str)
+                    and request["outcome"] in CODE_OUTCOMES and request["outcome"] != "code"):
+                self.error("code_request", "the form mailed a code: ask jobs-inbox with code_wait.py and record "
+                                           "code_request {card, outcome} (no_code, unavailable or timeout) before a "
+                                           "NOT_POSSIBLE; outcome code means type it and submit")
+            elif request["outcome"] != "unavailable" and not str(request.get("card") or "").strip():
+                self.error("code_request", "code_request.card names the jobs-inbox card that was asked")
         kit = data.get("manual_kit", "application/kit.md")
         if not isinstance(kit, str) or not kit.endswith("kit.md"):
             self.error("manual_kit", "must name application/kit.md")

@@ -33,7 +33,7 @@ deletion). Kinds and their keys:
   education_dates    institution, from, to, degree?
   education_create   institution, title?, field?, from, to
   education_delete   institution, degree?
-  language_create    language, proficiency?   (proficiency is LinkedIn's label: "Professional working proficiency")
+  language_create    language, proficiency?   (proficiency is LinkedIn's label: "Limited working proficiency" for a B2)
 `was`/`degree` name which degree when one school holds two. `from`/`to` are the date tokens LinkedIn shows ("Oct
 2023", "2021", "Present"; a position needs the month). They are compared as dates, start against start and end
 against end: "2023" does not match "Oct 2023", and from/to swapped do not match. A school saved with one year shows

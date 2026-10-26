@@ -1,8 +1,8 @@
 # Review lenses
 
-Five independent children, five lens blocks. Each child gets only the files its lens names, a clean context and the
-block shape below as its output schema. A child never reads the kanban card, never writes files and never sees
-another lens. The parent saves each block as `<lens>.json` and runs `scripts/aggregate_review.py` (SKILL.md step 3).
+Five independent children, five lens blocks. Each child gets only the files its lens names, a clean context and, as
+`output_schema`, what `aggregate_review.py --schema <lens>` prints (the shapes below are examples). A child never
+reads the kanban card, never writes files and never sees another lens. The parent saves each block as `<lens>.json` and runs `scripts/aggregate_review.py` (SKILL.md step 3).
 
 ## Contents
 
@@ -45,6 +45,7 @@ source). A claim with no verifiable page is `dropped`: a correction removes or g
     "location": "cover_letter.md, paragraph 2",
     "text": "quoted span",
     "problem": "one line",
+    "claim_terms": ["Python", "FastAPI", "AI"],
     "conflicting_sources": ["achievements.yaml", "profile.md"],
     "correction": {"type": "content", "mode": "replace", "file": "cover_letter.md", "old": "...", "new": "..."}
   }],
@@ -62,7 +63,10 @@ source). A claim with no verifiable page is `dropped`: a correction removes or g
 ```
 
 `conflicting_sources` is required for `profile_consistency` (no correction); `correction` for `draft` findings and
-`dropped` claims, either of which makes the verdict FAIL.
+`dropped` claims, either of which makes the verdict FAIL. A `draft` finding names `claim_terms` (1 to 4 words the
+claim ties together): search every file for the same claim, one finding per instance, this round. "Working remotely"
+is grounded only by `work_mode: remote` on the current experience (profile.md `work_mode` is the search preference);
+"Professional Working Proficiency" reads as C1, above a B2. Both are `draft` findings, whatever earlier rounds said.
 
 ## ats
 
@@ -142,12 +146,14 @@ the documents do not state (which vector store) is an `interview_questions` entr
   "interview_questions": ["How did you handle a failed holiday run of the report?"],
   "stretches": [{"location": "cover_letter.md, paragraph 2", "claim": "led the migration",
                  "backtrack_question": "What did you own in the migration?", "answerable_from_sources": false,
+                 "claim_terms": ["led", "migration"],
                  "correction": {"type": "content", "mode": "replace", "file": "cover_letter.md",
                                 "old": "led the migration", "new": "took part in the migration"}}]
 }
 ```
 
-`answerable_from_sources: true` does not block. Concerns and interview questions are plain strings.
+`answerable_from_sources: true` does not block; `false` also names `claim_terms`. Concerns and interview questions are
+plain strings.
 
 ## writing: language check
 
@@ -175,26 +181,20 @@ language that differs from the opening's blocks. A declared level that differs f
 
 ## Correction objects
 
-Each block correction is one of:
-
-- `{"type": "content | format | strategy", "mode": "replace", "file": "<file in application/>", "old": "<exact text, occurs once>", "new": "<replacement>"}`
-- `{"type": "content | format | strategy", "mode": "instruction", "instructions": "<executable steps>"}`
-
-`type`: content (facts, claims, the wording of results), format (layout, length, headings, pages, photo), strategy
-(positioning, which achievement leads). `new` may be empty only to delete `old`.
+Each block correction is `{type, mode: "replace", file, old (exact, occurs once), new}` (`new` empty deletes) or
+`{type, mode: "instruction", instructions}`. `type`: content (facts, claims, results), format (layout, length,
+pages, photo), strategy (positioning, which achievement leads).
 
 ## Aggregation rules
 
-Enforced by `scripts/aggregate_review.py`. The lenses never run it; the parent does.
-
+Enforced by `scripts/aggregate_review.py` (the parent runs it, never a lens).
 1. A lens verdict matches its blocks: PASS with a block, or FIX (FAIL for truthfulness) without one, is an error.
 2. A block is: a draft finding, a dropped company claim, a supported missing keyword, a hard defect, a recruiter
    blocker, a market violation, an unanswerable stretch, a writing finding, or a language mismatch.
-3. No block in any lens: APPROVED, status `ready`.
-4. Any block: round 1 gives FIX (status `in_review`); round 2 or later gives NOT_APPROVED (status `not_approved`).
+3. No block in any lens: APPROVED, status `ready`. Any block: round 1 gives FIX (status `in_review`); round 2 or later gives NOT_APPROVED (status `not_approved`).
    Truthfulness FAIL is never APPROVED. With `--apply` (always, in this squad) only hard blocks count: writing
    findings, recruiter blockers and supported keywords are fixed by the reviewer in place (`applied`, `polish`).
-5. Internal text (outside answers.md [FIELD] blocks, strategy.md, kit.md) never blocks; a required form question
+4. Internal text (outside answers.md [FIELD] blocks, strategy.md, kit.md) never blocks; a required form question
    without its [FIELD] always does; APPROVED needs an employer link (`aggregate_review.py --help`).
-6. `summary_for_user`: 1 to 5 lines in the user's language, no internal field names.
-7. Contact data anywhere in the review is an error and nothing is written.
+5. `summary_for_user`: 1 to 5 lines in the user's language, no internal field names; contact data anywhere in the
+   review is an error and nothing is written.

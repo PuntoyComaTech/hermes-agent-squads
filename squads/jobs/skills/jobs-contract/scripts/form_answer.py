@@ -4,6 +4,8 @@
   form_answer.py salary --project P [--range "MIN-MAX CUR"] [--period month|year|hour|week|day]
                         [--currency CUR] [--json]
   form_answer.py notice --project P [--options "Immediately|10 days|20 days|1 month"] [--json]
+  form_answer.py language --project P --language English --options "Native or Bilingual Proficiency|...|Elementary"
+                          [--json]
 
 application-data.yaml holds the user's answers once (profiling-candidates asks for them at onboarding):
 
@@ -18,6 +20,10 @@ answer does not use and no floor covers is refused: the applier blocks with that
 notice: --options lists the form's choices as shown. The answer is the shortest option of at least
 `notice_period_days` (an "Immediately" option counts as 0 days); when none is that long, the longest offered. Without
 --options it prints the days as text ("7 days").
+language: the declared CEFR level of --language in achievements.yaml `languages` decides. The answer is the highest
+option whose label does not claim more (jobs_common.label_level): on the ILR/LinkedIn scale "Professional Working
+Proficiency" reads as C1, so a B2 gets "Limited Working Proficiency"; a CEFR or "Upper-intermediate" option is a B2.
+The applier never picks a language level by judgment, and a saved answers.md note never overrides this.
 
 Exit 0 an answer, 1 the stored data cannot answer (the reason names the key to add), 2 usage error.
 """
@@ -145,9 +151,27 @@ def notice(data: dict, options: list) -> dict:
     return {"answer": pick[1], "days": pick[0], "why": why}
 
 
+def language(project: Path, name: str, options: list) -> dict:
+    path = project / "achievements.yaml"
+    if not path.is_file():
+        raise NoAnswer(f"{path} is missing: the declared language levels live there")
+    data = jc.load_yaml(path.read_text(encoding="utf-8")) or {}
+    code = jc.normalize_language(name)
+    declared = jc.declared_levels(data if isinstance(data, dict) else {}).get(code)
+    if not declared:
+        raise NoAnswer(f"achievements.yaml declares no CEFR level for {name!r}: the user's level is a question")
+    if not options:
+        return {"answer": declared, "level": declared, "declared": declared, "why": "the declared CEFR level"}
+    pick = jc.language_option(options, declared)
+    if pick["answer"] is None:
+        raise NoAnswer(f"{pick['why']} (declared {declared}): options {options}")
+    return {**pick, "declared": declared}
+
+
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description="The salary or notice-period answer, from application-data.yaml.")
-    p.add_argument("field", choices=("salary", "notice"))
+    p = argparse.ArgumentParser(description="The salary, notice-period or language-level answer, from the project.")
+    p.add_argument("field", choices=("salary", "notice", "language"))
+    p.add_argument("--language", default="", help="language: the language the form asks about (English, inglés, en)")
     p.add_argument("--project", required=True, help="the project folder that holds application-data.yaml")
     p.add_argument("--range", default="", help="salary: the posting's own range, e.g. '3000-4000 USD'")
     p.add_argument("--period", default="month", help="salary: the period the form asks (year, month, week, day, hour)")
@@ -156,11 +180,15 @@ def main(argv=None) -> int:
     p.add_argument("--json", action="store_true", help="print JSON")
     args = p.parse_args(argv)
     try:
-        data = load(Path(args.project).expanduser())
-        if args.field == "salary":
-            out = salary(data, period_of(args.period), args.currency, args.range)
+        options = [o.strip() for o in args.options.split("|") if o.strip()]
+        if args.field == "language":  # achievements.yaml only: application-data.yaml holds no language levels
+            if not args.language:
+                raise ValueError("language needs --language")
+            out = language(Path(args.project).expanduser(), args.language, options)
+        elif args.field == "salary":
+            out = salary(load(Path(args.project).expanduser()), period_of(args.period), args.currency, args.range)
         else:
-            out = notice(data, [o.strip() for o in args.options.split("|") if o.strip()])
+            out = notice(load(Path(args.project).expanduser()), options)
     except NoAnswer as exc:
         print(f"form_answer: {exc}", file=sys.stderr)
         return 1

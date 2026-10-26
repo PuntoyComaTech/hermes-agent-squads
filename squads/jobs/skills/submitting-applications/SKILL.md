@@ -21,10 +21,9 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    python3 "$S/check_submission.py" <P>/openings/<ID>/application/submission.json --gate --method <method>
    ```
 
-   `--method` names the form class: `linkedin_easy_apply`, `no_login_form`, or the ATS the form is on (`ashby`,
-   `greenhouse`, `lever`, ...: a `no_login_form` that must match `apply_url`); any other class is a kit, never a click. `gate: open` lets the submit proceed: it writes `application/gate.json`
-   (the proof step 6 reads) and under `auto` reserves the day's place (4 h at most); gate and record share
-   `openings/.apply.lock`. Any other line closes it:
+   `--method`: `linkedin_easy_apply`, `no_login_form`, or the form's ATS (`ashby`, `greenhouse`, ...: must match
+   `apply_url`); any other class is a kit. `gate: open` writes `application/gate.json` (step 6 reads it) and under
+   `auto` reserves the day's place (4 h at most). Any other line closes it:
    - `easy_apply_gap`: an Easy Apply went out under a minute ago. Wait the seconds named, run the gate again.
    - `daily_cap`: the day's cap is reached. Submit nothing and write no kit: `kanban_complete` with one line ("<n>
      applications today, the cap: this one goes tomorrow") and leave the status at `ready` so the next run applies it.
@@ -45,8 +44,9 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    field to one source: `contact.yaml`, `application-data.yaml` (the only source for work authorization, salary,
    availability, consents and saved answers), `answers.md`, the CV, or `consult:<card id>` from a support card to
    jobs-writer: every free-text question the record answers (strength, ownership, priorities, first 90 days) goes on one
-   such card, never to the user. Salary and notice come from `jobs-contract/scripts/form_answer.py salary|notice
-   --project <P>` (`--help`); only its exit 1 makes them a question. A fact only the user has becomes a
+   such card, never to the user. Salary, notice and language-level dropdowns come from `jobs-contract/scripts/
+   form_answer.py salary|notice|language --project <P>` (`--help`), never your judgment ("Professional Working
+   Proficiency" is C1, above a B2); only its exit 1 makes them a question. A fact only the user has becomes a
    `pending_questions` entry (text, options), `result: NEEDS_DATA`, `kanban_block(kind="needs_input", reason=<them>)`.
    **Easy Apply** runs on the shared signed-in browser: `references/easy-apply.md`. Its steps are mapped one field at a
    time and it stops at the first field without a source. A form that asks for payment, a paid test, or data that is
@@ -56,7 +56,8 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    `review_before_submit` is true or `auto_apply` is `ask`, run the gate again with `--before-submit`: it needs the
    user's `screenshot_approval` (see Consent), else block with the screenshot path as the reason. Easy Apply stops on
    its own final review step and compares it with the sources before Submit. Otherwise submit once and save the
-   confirmation page as `confirmation.png`. One honest attempt; then NOT_POSSIBLE. Never retry in a loop.
+   confirmation page as `confirmation.png`. One honest attempt; then NOT_POSSIBLE. Never retry in a loop. A code
+   mailed after Submit is not a CAPTCHA: get it from jobs-inbox, form open (`references/emailed-codes.md`).
 6. **Record.** Write `application/submission.json` (contract: jobs-contract references/opening-files.md): fields and
    sources only, never values. A **SUBMITTED** card runs the record alone, and never `check_submission.py` first: the
    record re-checks the file itself with `--post-submit`, so a submit that happened is never turned into NOT_POSSIBLE
@@ -97,15 +98,14 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
 
 ## Manual kit
 
-For NOT_POSSIBLE and KIT cards, `application/kit.md` holds every answer ready to copy, the `apply_url`, the form class
-and, for an email, the subject and body. A value that is not recorded never appears in it.
+`application/kit.md` (NOT_POSSIBLE, KIT): every answer to copy, `apply_url`, form class, an email's subject and body.
 
 ## Pitfalls
 
 - Never create an account, log in, solve a CAPTCHA, pay, or accept terms beyond the data-processing consent the user
   authorized (`authorize_consents: true`).
 - Never invent an answer: missing data is a question. A "used <tool>?" whose family the candidate holds is yes.
-- Never submit a second opening under the same card, and never apply twice under standing consent.
+- Never submit a second opening under the same card, and never apply twice under standing consent (step 2).
 - Never turn a click that happened into NOT_POSSIBLE: the record decides that, not the bot's second thoughts.
 - Never auto-submit an `unverified` apply_url, even with the user's confirmation: the kit goes to the user.
 - Never drive the shared browser past a sign-in wall, a checkpoint, a CAPTCHA or a restriction notice, and never type

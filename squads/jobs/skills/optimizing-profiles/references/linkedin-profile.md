@@ -97,7 +97,8 @@ the same facts in both, written natively rather than word for word.
 
 The Languages section (spoken languages, not profile tabs) is filled from `achievements.yaml` `languages` with a
 `language_create` structure row and LinkedIn's own proficiency labels: native C2 is "Native or bilingual proficiency",
-B2 is "Professional working proficiency" (never a higher label than the certified level). The section has no
+B2 and B1 are "Limited working proficiency" (on the ILR scale "Professional working proficiency" is level 3, about C1:
+never a higher label than the certified level; `jobs-contract/scripts/form_answer.py language` gives the label). The section has no
 description field; the certificate itself goes in Education.
 
 ## Other fields and settings

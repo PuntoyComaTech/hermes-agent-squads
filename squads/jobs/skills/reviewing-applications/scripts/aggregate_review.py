@@ -5,6 +5,8 @@ Usage:
   aggregate_review.py --lenses truthfulness.json ats.json recruiter.json hiring_manager.json writing.json \
       --round N [--id JOB-...] [--application-dir application] [--opening opening.md] \
       [--summary TEXT] [--out review-N.json] [--json]
+  aggregate_review.py --schema LENS      print the lens block's JSON Schema: the child's delegate_task output_schema
+                                         (Hermes validates the answer and gives the child one correction turn)
 
 Each lens file holds one lens block (shapes in references/lenses.md). The lens is the block's "lens" key, else the
 file name (truthfulness.json, ats.json, recruiter.json, hiring_manager.json, writing.json). One file per lens.
@@ -50,6 +52,17 @@ Rules, applied deterministically:
   free-text question there must have its own [FIELD] in answers.md, under a heading that quotes the question. A
   missing one is a hard correction (lens `ats`, location answers.md): an application that cannot be submitted is
   never APPROVED.
+- Every instance at once: a truthfulness draft finding and an unanswerable hiring_manager stretch name the claim's
+  `claim_terms` (1 to 4 words the wrong claim ties together, e.g. ["Python", "FastAPI", "AI"]). The script lists every
+  sentence of every outward file that holds all of them (jobs-contract claim_sweep.py) under the correction's
+  `instances`, and adds one hard correction naming each instance no correction of this review rewrites: the writer
+  fixes the whole recurring claim in one round instead of one instance per round.
+- Facts the script checks itself, whatever the lens verdicts (a hard correction of lens `truthfulness`, like a
+  confidential term): a sentence saying the user works remotely now ("working remotely from", "keep working
+  remotely") while no current experience in achievements.yaml records `work_mode: remote` (profile.md work_mode is the
+  search preference, never the current job); and an ILR/LinkedIn language label above the declared CEFR level of its
+  language ("Professional Working Proficiency" reads as C1 for a B2), in any outward file, answers.md notes included,
+  because the applier follows them.
 
 Exit codes: 0 aggregated, 1 rule violation (nothing written; rework the named lens), 2 unreadable or malformed input.
 """
@@ -98,6 +111,7 @@ def _load_jobs_common():
 
 
 _JC = _load_jobs_common()
+CLAIM_TERMS_MAX = 4
 
 
 def _contract(name: str):
@@ -130,6 +144,11 @@ def internal_span(app_files, raw: dict) -> bool:
         return False
     return old in app_files[name] and not any(old in block for block in outward_spans(app_files[name]))
 valid_opening_id = _JC.valid_opening_id
+_SWEEP_SPEC = importlib.util.spec_from_file_location("jobs_claim_sweep_for_review", CONTRACT / "claim_sweep.py")
+assert _SWEEP_SPEC is not None and _SWEEP_SPEC.loader is not None
+_SWEEP = importlib.util.module_from_spec(_SWEEP_SPEC)
+sys.path.insert(0, str(CONTRACT))
+_SWEEP_SPEC.loader.exec_module(_SWEEP)
 OUTWARD_FILES = ("cv_content.json", "cover_letter.md", "answers.md", "recruiter_message.md")
 
 
@@ -166,6 +185,19 @@ class Collector:
         self.declared_gaps = []  # keywords the ats lens says no achievement backs
         self.forced = 0  # blocking corrections found by the script itself (confidential terms), outside any lens
         self.internal = 0  # corrections in internal text, applied in place instead of blocking
+        self.claims = []  # (lens, location, claim_terms) of every wrong claim: swept across all outward files
+
+    def claim_terms(self, lens, item, where, location) -> None:
+        """A wrong claim names the words it ties together, so every other sentence making it is found too."""
+        terms = item.get("claim_terms")
+        if not (isinstance(terms, list) and 1 <= len(terms) <= CLAIM_TERMS_MAX
+                and all(isinstance(t, str) and t.strip() for t in terms)):
+            # The lens schema requires it (the child gets a correction turn); a block without it still aggregates,
+            # so a missing field never stops a review again, and the review says the claim was not swept.
+            self.warnings.append(f"{where} ({location}): no claim_terms, so other sentences making the same claim "
+                                 f"were not searched; run claim_sweep.py with its words before the hand-off")
+            return
+        self.claims.append((lens, location, [t.strip() for t in terms]))
 
     def supported_claim(self, claim: dict) -> bool:
         """A kept company claim is evidenced by quoted page text or a captured page in the application folder."""
@@ -291,6 +323,7 @@ def lens_truthfulness(c: Collector, block: dict) -> None:
             c.error(w, f"check must be one of {', '.join(CHECKS)}")
         kind = item.get("kind")
         if kind == "draft":
+            c.claim_terms("truthfulness", item, w, loc)
             c.blocking_item("truthfulness", w, item.get("correction"), loc)
         elif kind == "profile_consistency":
             conflict = item.get("conflicting_sources")
@@ -495,6 +528,7 @@ def lens_hiring_manager(c: Collector, block: dict) -> None:
         if not isinstance(answerable, bool):
             c.error(w, "answerable_from_sources must be true or false")
         elif answerable is False:
+            c.claim_terms("hiring_manager", item, w, loc)
             c.blocking_item("hiring_manager", w, item.get("correction"), loc)
 
 
@@ -588,6 +622,86 @@ def confidential_checks(c: Collector, terms: list) -> None:
                                                   "re-render"})
 
 
+NEGATED = re.compile(r"\b(?:never|not|don't|do not|avoid|instead of|nunca|evita|evitar)\b", re.I)
+
+
+def outward_text(name: str, text: str, notes: bool = False) -> str:
+    """The text of an outward file an employer reads: every value of cv_content.json, answers.md [FIELD] blocks
+    (with notes=True the whole answers.md: the applier follows its notes), the rest as written."""
+    if name == "cv_content.json":
+        try:
+            return "\n".join(_SWEEP.json_texts(json.loads(text)))
+        except ValueError:
+            return text
+    if name == "answers.md" and not notes:
+        return "\n".join(outward_spans(text))
+    return text
+
+
+def claim_sweep_checks(c: Collector) -> None:
+    """Each wrong claim, everywhere: list every sentence that makes it, and add one hard correction for the outward
+    instances no correction of this review rewrites. Notes no employer reads go to warnings (the reviewer fixes them in
+    place). Run after every lens, so every correction of the round is known."""
+    for lens, location, terms in c.claims:
+        rows = _SWEEP.instances(c.app_files or {}, terms)
+        covered = [s for s in c.corrections + c.soft if s.get("mode") == "replace"]
+        open_rows = []
+        for row in rows:
+            hit = any(s.get("file") == row["file"] and (s["old"] in row["sentence"] or row["sentence"] in s["old"])
+                      for s in covered)
+            if not hit:
+                open_rows.append(row)
+        for item in c.corrections:
+            if item.get("lens") == lens and item.get("location") == location:
+                item["instances"] = rows
+        outward = [r for r in open_rows if r["outward"]]
+        for row in (r for r in open_rows if not r["outward"]):
+            c.warnings.append(f"same claim in a note ({row['file']}): {row['sentence'][:160]}")
+        if outward:
+            c.forced += 1
+            c.corrections.append({
+                "lens": lens, "type": "content", "location": ", ".join(sorted({r["file"] for r in outward})),
+                "mode": "instruction", "claim_terms": terms, "instances": outward,
+                "instructions": f"the claim corrected at {location} ({' + '.join(terms)}) is made again in these "
+                                "sentences: rewrite each one the same way, then run jobs-contract claim_sweep.py "
+                                "with these terms until only true sentences remain: "
+                                + " | ".join(f"{r['file']}: {r['sentence'][:200]}" for r in outward)})
+
+
+def record_checks(c: Collector, achievements: dict | None) -> None:
+    """Facts the script checks itself from achievements.yaml, whatever the lens verdicts."""
+    if achievements is None or not c.app_files:
+        return
+    rendered = {str((d or {}).get("document") or "cv") for d in (c.render or {}).get("defects") or []
+                if isinstance(d, dict) and d.get("code") == "work_mode_unbacked"}
+    if "remote" not in _JC.current_work_modes(achievements):
+        for name in OUTWARD_FILES:
+            if name == "cv_content.json" and "cv" in rendered or name == "cover_letter.md" and "letter" in rendered:
+                continue  # the render report already blocks it, with its own correction
+            hits = _JC.remote_now_claims(outward_text(name, c.app_files.get(name) or ""))
+            if hits:
+                c.forced += 1
+                c.corrections.append({
+                    "lens": "truthfulness", "type": "content", "location": name, "mode": "instruction",
+                    "instructions": f"{name} says the user works remotely now ({', '.join(map(repr, hits))}), and no "
+                                    "current experience in achievements.yaml records work_mode: remote (profile.md "
+                                    "work_mode is the search preference). Write where the user is based (\"based in "
+                                    "<country>\") or the wish (\"want to work remotely\"); the manager records "
+                                    "work_mode on the current experience when the user confirms it"})
+    levels = _JC.declared_levels(achievements)
+    for name in OUTWARD_FILES:
+        text = outward_text(name, c.app_files.get(name) or "", notes=True)
+        hits = [h for h in _JC.language_label_overclaims(text, levels) if not NEGATED.search(h["line"])]
+        if hits:
+            c.forced += 1
+            c.corrections.append({
+                "lens": "truthfulness", "type": "content", "location": name, "mode": "instruction",
+                "instructions": "; ".join(
+                    f"{h['label']!r} reads as {h['claims']} and the record declares {h['language']} {h['declared']}: "
+                    f"replace it with the declared level, and for a dropdown name the option jobs-contract "
+                    f"form_answer.py language prints" for h in hits) + f" ({name})"})
+
+
 def norm_question(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", _JC.ascii_fold(str(text or "")).lower()).strip()
 
@@ -638,13 +752,15 @@ def posting_checks(c: Collector, opening_url: str, posting_url: str, verdict_ok:
 
 
 def aggregate(blocks: dict, round_no: int, c: Collector, summary, review_id, confidential=(), questions=(),
-              opening_url="", posting_url=""):
+              opening_url="", posting_url="", achievements=None):
     if confidential:
         confidential_checks(c, list(confidential))
     if questions:
         form_question_checks(c, list(questions))
+    record_checks(c, achievements)
     for lens in LENSES:
         run_lens(c, lens, blocks[lens])
+    claim_sweep_checks(c)
     c.soft_internal()
     total = c.hard + c.forced
     if total == 0:
@@ -816,7 +932,24 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
+SCHEMAS = Path(__file__).resolve().parents[1] / "references" / "lens-schemas.json"
+
+
+def lens_schema(lens: str) -> dict:
+    """The self-contained JSON Schema of one lens block: the delegate_task output_schema of that child."""
+    data = json.loads(SCHEMAS.read_text(encoding="utf-8"))
+    return {**data[lens], "$defs": data["$defs"]}
+
+
 def main(argv=None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv[:1] == ["--schema"]:
+        if len(argv) != 2 or argv[1] not in LENSES:
+            print(f"usage: aggregate_review.py --schema {{{','.join(LENSES)}}}", file=sys.stderr)
+            return 2
+        print(json.dumps(lens_schema(argv[1]), ensure_ascii=False))
+        return 0
     args = parse_args(argv)
     try:
         if args.round < 1:
@@ -848,8 +981,16 @@ def main(argv=None) -> int:
         terms = _JC.confidential_terms(_JC.read_front_matter(profile)) if profile and profile.is_file() else []
     except Exception:  # noqa: BLE001 - an unreadable profile is validate_profile's finding, not the review's
         terms = []
+    achievements = None
+    ach_file = profile.parent / "achievements.yaml" if profile else None
+    if ach_file and ach_file.is_file():
+        try:
+            loaded = _JC.load_yaml(ach_file.read_text(encoding="utf-8"))
+            achievements = loaded if isinstance(loaded, dict) else None
+        except Exception:  # noqa: BLE001 - an unreadable record is validate_profile's finding
+            achievements = None
     review = aggregate(blocks, args.round, c, args.summary, args.review_id, terms, questions, opening_url,
-                       args.posting_url.strip())
+                       args.posting_url.strip(), achievements)
     if c.errors:
         for line in c.errors:
             print(f"rule: {line}", file=sys.stderr)

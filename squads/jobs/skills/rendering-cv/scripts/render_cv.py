@@ -1370,6 +1370,20 @@ def cv_pairs(work: dict, header: dict) -> list:
     return pairs
 
 
+def work_mode_defects(pairs: list, ach_data, defects: list) -> None:
+    """"working remotely from <country>" says how the current job is done: only a current experience in
+    achievements.yaml with work_mode: remote backs it. profile.md work_mode is the search preference (what the user
+    wants), so a first draft built from it passed four reviews before one caught it."""
+    if ach_data is None or "remote" in jc.current_work_modes(ach_data):
+        return
+    for where, text in pairs:
+        for hit in jc.remote_now_claims(text):
+            defects.append({"code": "work_mode_unbacked",
+                            "message": f"{where} says {hit!r}, and no current experience in achievements.yaml "
+                                       "records work_mode: remote (profile.md work_mode is the search preference): "
+                                       "write where the user is based (\"based in <country>\")"})
+
+
 def letter_pairs(letter: dict) -> list:
     pairs = [("salutation", letter["salutation"])] + [("closing", x) for x in letter["closing_lines"]]
     pairs += [("letter paragraph", para["text"]) for para in letter["paragraphs"]]
@@ -1663,11 +1677,13 @@ def run(args: argparse.Namespace, gate: bool = True) -> int:
         check_keywords(result["text"], terms, warnings)
         check_cv_facts(work, ctx["header"]["headline"], sources, defects, warnings)
         privacy_defects(cv_pairs(work, ctx["header"]), defects, facts["confidential"])
+        work_mode_defects(cv_pairs(work, ctx["header"]), ach_data, defects)
     else:
         stretch = []
         check_letter(work, ach_index, defects, warnings, facts["avoid"])
         check_letter_facts(work, sources, defects, warnings)
         privacy_defects(letter_pairs(work), defects, facts["confidential"])
+        work_mode_defects(letter_pairs(work), ach_data, defects)
 
     docx_engine = render_docx(result["doc"], docx_path, warnings)
     files = [str(html_path), str(txt_path)]
