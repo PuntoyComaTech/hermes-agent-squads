@@ -56,8 +56,8 @@ Work in `<P>/openings/<ID>/`. `<P>` is the project folder named on your card. Se
    language, `<role> - <company>: <eligibility note>. Do you qualify?`. Under the other modes
    `kanban_block(kind="needs_input", reason=...)` in the card's user language, three lines: `<score>/100
    <decision>: <role> at <company>`, the deciding reason, and `Reply "force" to prepare it anyway` (WATCH only).
-   Separately, when the employer's own posting was found, its apply link replaces `apply_url` in `opening.md` (the
-   intake link stays in `url`): the applier submits only there.
+   Separately, when the employer's own posting was found, set it as the apply link (the intake link stays in `url`;
+   the applier submits only on `apply_url`): `python3 "$S/apply_link.py" <dir> <posting url> --by jobs-scout`.
 8. **Record** the stage: `python3 "$S/status.py" append <dir> analyzed --by jobs-scout --note "<decision> <score>"`.
    Then `kanban_complete` with one line: decision, score, and the rule that decided it.
 

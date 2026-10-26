@@ -43,6 +43,11 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
    out each `polish` instruction yourself, in the documents, without new facts. When `cv_content.json` or
    `cover_letter.md` changed, re-render with rendering-cv step 1 (and step 2 for the letter); a render defect makes it
    a FIX for the writer. The script writes nothing when a rule fails.
+   When the truthfulness lens located the employer's own posting of this role on an ATS (a `source_url` with an
+   excerpt that names the role) and `apply_url` in `opening.md` is another link (a LinkedIn or portal page), set it:
+   `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/apply_link.py" <P>/openings/<ID> <posting url>
+   --by jobs-reviewer --source "review-<N>"` (drop any `?action=apply` or tracking query). Exit 1 means the link is
+   not an employer ATS: leave `apply_url` as it is and say so in the summary.
 5. `status.json`: append one history line (never rewrite earlier ones). The review's `status` field gives the value:
    `ready` on APPROVED, `not_approved` on NOT_APPROVED, `in_review` on FIX.
 6. Hand off with `kanban_create`, `parents: [<your card id>]`, `workspace_kind: dir`, `workspace_path: <P>`:
