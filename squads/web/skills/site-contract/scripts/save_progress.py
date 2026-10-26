@@ -4,7 +4,9 @@
 A builder runs it after every finished piece (a component, a page, a route, a passing test), not only at the end of
 the card. It stages only the paths the builder names with --paths (its own files: other bots may have work in progress
 in the same tree), plus already-tracked changes under them, lets the pre-commit hook format and lint what changed (Biome), and
-commits as `wip(<ID>): <what>`. It refuses `main`, refuses a branch that is not `web/<ID>`, never pushes, and writes
+commits as `wip(<ID>): <what>`. The commit is `git commit --only -- <paths>`: git builds it from a temporary index, so
+files another bot left staged in the shared index never block the save, never ride along, and the hook sees only this
+piece. A second save running at the same moment waits for git's `index.lock` instead of failing. It refuses `main`, refuses a branch that is not `web/<ID>`, never pushes, and writes
 one line to `<site>/milestones/<ID>.progress.log` (time, commit, what) that the manager reads for status.
 
 A hook failure is not skipped: the commit is not made, the hook's output tail is printed, and the builder fixes it
@@ -19,6 +21,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -26,9 +29,26 @@ ID_RE = re.compile(r"\A[a-z0-9][a-z0-9-]*-\d{8}-(?:build|change|bug|domain|rollb
 TAIL = 1500
 
 
+LOCK_WAIT_S = 300  # parallel builders share one index: a save waits this long for another save's index.lock
+
+
 def git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=600,
                           stdin=subprocess.DEVNULL)
+
+
+def locked(proc: subprocess.CompletedProcess) -> bool:
+    return proc.returncode != 0 and "index.lock" in (proc.stdout + proc.stderr)
+
+
+def git_waiting(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    """`git` that retries while another save holds the index lock (it runs the hook under that lock)."""
+    deadline = time.monotonic() + LOCK_WAIT_S
+    while True:
+        proc = git(repo, *args)
+        if not locked(proc) or time.monotonic() > deadline:
+            return proc
+        time.sleep(0.5)
 
 
 def save(repo: Path, work_id: str, what: str, site: Path | None, paths: list[str]) -> dict:
@@ -36,15 +56,12 @@ def save(repo: Path, work_id: str, what: str, site: Path | None, paths: list[str
     if branch != f"web/{work_id}":
         return {"saved": False, "ok": False,
                 "error": f"on branch {branch!r}: progress commits go only to web/{work_id} (never main)"}
-    foreign = [p for p in git(repo, "diff", "--cached", "--name-only").stdout.split()
-               if not any(p == q or p.startswith(q.rstrip("/") + "/") for q in paths)]
-    if foreign:
-        return {"saved": False, "ok": False, "error": "the index already holds files outside --paths (another bot's "
-                "work?); leave them alone and ask the manager", "files": foreign}
-    git(repo, "add", "-A", "--", *paths)
-    if not git(repo, "diff", "--cached", "--name-only").stdout.strip():
+    added = git_waiting(repo, "add", "-A", "--", *paths)
+    if added.returncode:
+        return {"saved": False, "ok": False, "error": "git add failed", "tail": (added.stdout + added.stderr)[-TAIL:]}
+    if not git(repo, "diff", "--cached", "--name-only", "HEAD", "--", *paths).stdout.strip():
         return {"saved": False, "ok": True, "detail": "nothing changed since the last save"}
-    done = git(repo, "commit", "-q", "-m", f"wip({work_id}): {what}", "--", *paths)
+    done = git_waiting(repo, "commit", "-q", "--only", "-m", f"wip({work_id}): {what}", "--", *paths)
     if done.returncode:
         return {"saved": False, "ok": False, "error": "the pre-commit hook or git refused the commit; fix and rerun",
                 "tail": (done.stdout + done.stderr)[-TAIL:]}

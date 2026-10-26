@@ -38,7 +38,7 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
    | The user says | Route |
    |---|---|
    | set up, change goals, "my profile" | run `profiling-candidates` in this chat |
-   | "find skills I have not declared", "expand my profile" | run `profiling-candidates` in Mode: EXPAND (`references/expansion.md`) |
+   | "find skills I have not declared", "expand my profile" | run `profiling-candidates` in Mode: EXPAND (its own `references/expansion.md`) |
    | "reset my data", "start over", "clear my documents" | run `profiling-candidates` in Mode: RESET; the reset runs only after the user types RESET |
    | "I applied", "they called", "rejected", "I have an interview", "offer", "no reply" | run `tracking-outcomes` |
    | "any replies?", "what did <company> say?", "check my inbox" | the inbox card (step 3) |
@@ -50,6 +50,7 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
    | "rank my openings", a backlog of saved openings | file a jobs-scout card `skills: [ranking-openings]`, key `jobs:rank:<project>:<YYYY-MM-DD>` |
    | a pasted link, "how is my search going?", "prepare me for" | step 6 |
    | a reply to a digest | step 5 |
+   | "I just changed something in the squad", "review this adjustment" | `references/reviewing-squad-changes.md`: verdict per claim, failures named, no edits to another bot's files |
    | pause, resume | step 7 |
 
 3. **Inbox card.** The manager never reads mail. File a jobs-inbox card (optional bot; when it is missing say the
@@ -128,8 +129,7 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
 
 ## Pitfalls
 
-- Delivery, corrections in flight, standing rules, cancelled openings: `references/manager-pitfalls.md`.
-
+- Delivery, corrections, standing rules, non-converging reviews: `references/manager-pitfalls.md`.
 - Never apply, call or email anyone yourself, and never approve an application.
 - Every message to the user is in `user_language` from `profile.md`; documents follow the posting's language. A file
   goes as a `MEDIA:<absolute path>` line (an upload); a bare path is unreadable on a phone. One opening per message.

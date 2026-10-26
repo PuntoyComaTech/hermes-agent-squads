@@ -1,0 +1,7 @@
+name: squad-kanban
+version: 1.0.0
+description: "Squads on Hermes's own Kanban: a CLI-filed card notifies the chat that filed it, and a worker with unsaved changes for 30 min is reminded to save. No agent action required."
+author: PuntoyComaTech
+provides_hooks:
+  - post_tool_call
+  - transform_tool_result

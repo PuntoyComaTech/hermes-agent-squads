@@ -342,6 +342,75 @@ def test_a_save_commits_only_the_builders_own_files(site):
     assert "?? api.ts" in git(repo, "status", "--porcelain")
 
 
+def test_files_another_bot_staged_never_block_a_save_nor_ride_along(site):
+    """Parallel cards share one index: one bot's staged-but-uncommitted files used to refuse every other bot's save,
+    so a finished card sat blocked for an hour. The save must commit its own piece and leave the other bot's staging."""
+    _, repo = site
+    git(repo, "switch", "-q", "-c", f"web/{WORK_ID}")
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    seen = repo.parent / "hook-saw.txt"
+    hook.write_text(f"#!/bin/sh\ngit diff --cached --name-only >> '{seen}'\n")
+    hook.chmod(0o755)
+    (repo / "atmosphere.ts").write_text("export const half = 1;\n")
+    git(repo, "add", "atmosphere.ts")  # the atmosphere bot, mid-piece
+    (repo / "sound.ts").write_text("export const sound = 1;\n")
+    done = run("save_progress.py", "--repo", str(repo), "--id", WORK_ID, "--what", "sound", "--paths", "sound.ts")
+    assert done.returncode == 0, done.stdout
+    assert git(repo, "show", "--name-only", "--format=", "HEAD").split() == ["sound.ts"]
+    assert seen.read_text().split() == ["sound.ts"], "the hook must lint only this piece"
+    assert "A  atmosphere.ts" in git(repo, "status", "--porcelain"), "the other bot's staging stays as it was"
+
+
+def test_two_builders_saving_at_the_same_moment_both_land(site):
+    """The pre-commit hook holds index.lock while it runs (Biome takes seconds); the second save waits, never fails."""
+    _, repo = site
+    git(repo, "switch", "-q", "-c", f"web/{WORK_ID}")
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nsleep 2\n")
+    hook.chmod(0o755)
+    (repo / "neurons.ts").write_text("export const n = 1;\n")
+    (repo / "ground.ts").write_text("export const g = 1;\n")
+    cmd = [sys.executable, "-I", str(SCRIPTS / "save_progress.py"), "--repo", str(repo), "--id", WORK_ID]
+    procs = [subprocess.Popen([*cmd, "--what", w, "--paths", f"{w}.ts"], stdout=subprocess.PIPE, text=True)
+             for w in ("neurons", "ground")]
+    outs = [json.loads(p.communicate(timeout=120)[0]) for p in procs]
+    assert all(o["saved"] for o in outs), outs
+    log = git(repo, "log", "--format=%s", f"main..web/{WORK_ID}").splitlines()
+    assert sorted(log) == [f"wip({WORK_ID}): ground", f"wip({WORK_ID}): neurons"]
+    assert git(repo, "status", "--porcelain").strip() == ""
+
+
+# ---------------------------------------------------------------- live renders
+
+PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                    "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")
+
+
+def test_the_renders_board_shows_every_modellers_newest_render_and_refreshes_itself(site):
+    site_dir, _ = site
+    out = tmp = site_dir / "render.png"
+    tmp.write_bytes(PNG)
+    first = run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID)
+    assert first.returncode == 0 and json.loads(first.stdout)["images"] == 0
+    page = Path(json.loads(first.stdout)["path"])
+    assert page == site_dir / "milestones" / WORK_ID / "live" / "index.html" and "No renders yet" in page.read_text()
+    run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID, "--add", str(out), "--name", "hero-neuron")
+    (page.parent / "ground.png").write_bytes(PNG)  # a modeller writing straight into live/
+    done = json.loads(run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID).stdout)
+    text = page.read_text()
+    assert done["images"] == 2 and 'data-src="hero-neuron.png"' in text and 'data-src="ground.png"' in text
+    assert "setInterval" in text, "an overwritten render must show without a new run"
+    assert not list(page.parent.glob(".*.tmp")), "writes are atomic: no half file for the tab to load"
+
+
+def test_the_renders_board_refuses_a_path_as_a_name(site):
+    site_dir, _ = site
+    (site_dir / "r.png").write_bytes(PNG)
+    bad = run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID, "--add", str(site_dir / "r.png"),
+              "--name", "../../escape")
+    assert bad.returncode == 2 and not (site_dir.parent / "escape.png").exists()
+
+
 # ---------------------------------------------------------------- logins
 
 def test_a_cf_that_says_logged_out_with_exit_0_is_not_a_login(tmp_path):

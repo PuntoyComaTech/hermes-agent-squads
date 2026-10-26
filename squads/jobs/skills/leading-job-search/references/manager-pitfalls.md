@@ -10,6 +10,7 @@ while applications are in flight, and before writing a rule the user states.
 - Standing rules and confidential notes
 - Profile facts that are easy to get wrong
 - Reading worker results
+- Review rounds that do not converge
 
 ## Delivery
 
@@ -35,6 +36,11 @@ while applications are in flight, and before writing a rule the user states.
 - A review that ends `NOT_APPROVED` becomes a CHANGE card without waiting for the user: quote each `corrections[]`
   entry verbatim (`location`, `old`, `new`) and say "change nothing else". A paraphrase reopens settled wording and
   costs a round.
+- "Change nothing else" scopes the wording, not the layout gates: when the writer blocks because applying the
+  corrections pushed the CV summary, a bullet list or the letter over the length rules, the standing style rule wins.
+  Comment the literal yes (keep every fact and citation, re-render, file the review card) and unblock. Shortening an
+  already approved application is the same yes plus a note that the version the applier sends is the approved one
+  until the shortened one passes.
 - Resuming into an empty pipeline (first start, or after days paused) files the "search now" card and the profile
   chain at once instead of waiting for the next slot; say which cards were filed.
 
@@ -65,6 +71,27 @@ while applications are in flight, and before writing a rule the user states.
 
 ## Reading worker results
 
+- A squad change the user made is reviewed by running its failing cases against the builder's source and each bot's
+  installed copy; the fix list goes to the builder (`reviewing-squad-changes.md`).
 - A completion notification carries a truncated summary: present from the file the card names
   (`<P>/reports/*.json`, `review-N.json`), never by finishing the notification's sentence.
 - Memory holds search preferences only; role history, client lists and wording live in `achievements.yaml`.
+
+## Review rounds that do not converge
+
+- The reviewer applies a second-round rule: from round 2 on, any correction — even one typo in a note that is never
+  pasted into a form — ends `NOT_APPROVED`. An opening can reach its seventh round with the CV, letter, ATS coverage
+  and company claims all passing. Do not read that as a document defect, and do not rewrite the documents hoping the
+  next round comes back clean.
+- Read `review-N.json` before answering: `corrections[]` whose `location` is a note, heading or note-to-self, with
+  `lens: writing`, is the signature of a nit round. Give the user two lines — what was fixed and that everything the
+  employer sees already passes — then file the change card.
+- In the change-card body, add one line telling the writer to sweep the whole application once for the same class of
+  defect (British vs US spelling, a tense, a stale note) instead of only the quoted span. Each round only reads what
+  its card points at, so a nit fixed in one line comes back from another line next round.
+- The round rule is structural: it lives in the reviewer's skill and changing it is the builder's work, never something
+  to work around by editing another bot's card. Offer the user the builder request once; if they say yes, state the
+  change in one line — minor corrections and internal notes get applied and the application approved in the same
+  round — and keep the pipeline moving meanwhile.
+- Keep the user's decision unblocked: an application in the loop is still `pending`, its delivered digest stays valid,
+  and the apply link is already good. Say that in one line instead of re-offering the same digest.
