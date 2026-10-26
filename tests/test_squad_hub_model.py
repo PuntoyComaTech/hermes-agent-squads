@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewToRestore sessionTime boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
+           "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
 
 
 def _model_source() -> str:
@@ -77,8 +77,8 @@ SQUADS_HOME = [
 # ---- which bots show ----------------------------------------------------------------------------------------
 
 def test_workers_never_show_and_the_talkable_bots_come_first(model):
-    bots = model("visibleBots", SQUADS_HOME, {"side-project": 9}, {})
-    assert [b["name"] for b in bots] == ["default", "builder", "jobs", "marketing", "web", "side-project"]
+    bots = model("visibleBots", SQUADS_HOME, {"scratch": 9}, {})
+    assert [b["name"] for b in bots] == ["default", "builder", "jobs", "marketing", "web", "scratch"]
     assert [b["role"] for b in bots] == ["default", "builder", "manager", "manager", "manager", "other"]
     assert bots[-1]["other"] is True and not any(b["other"] for b in bots[:-1])
 
@@ -108,10 +108,21 @@ def test_squad_identity_beats_the_section_stamp(model):
 
 def test_a_squad_without_a_manager_groups_its_bots_under_its_section(model):
     """A local squad that has bots but no manager yet (its own Desktop section) shows as one group."""
-    bots = model("visibleBots", SQUADS_HOME + [profile("shopbot", section="Storefronts")], {"side-project": 2, "shopbot": 1}, {})
+    home = SQUADS_HOME + [profile("shopbot", section="Storefronts"), profile("shop-ads", section="Storefronts")]
+    bots = model("visibleBots", home, {"shopbot": 1, "shop-ads": 3}, {})
     by = {b["name"]: b for b in bots}
-    assert by["side-project"]["group"] == "Personal" and by["shopbot"]["group"] == "Storefronts"
+    assert by["shopbot"]["group"] == "Storefronts" and by["shop-ads"]["group"] == "Storefronts"
     assert by["web"]["group"] == "" and by["default"]["group"] == ""
+
+
+def test_a_section_holding_one_bot_puts_that_bot_on_the_first_level(model):
+    """A hand-made bot filed alone under its company's section (Acme > acmebot) is no squad: it shows beside the
+    managers, not as a group with one member, nor under Other bots."""
+    home = SQUADS_HOME + [profile("acmebot", section="Acme")]
+    bots = model("visibleBots", home, {"acmebot": 4, "side-project": 1}, {})
+    by = {b["name"]: b for b in bots}
+    assert by["acmebot"]["group"] == "" and by["acmebot"]["other"] is False
+    assert by["side-project"]["group"] == "" and by["side-project"]["other"] is False
 
 
 def test_a_worker_of_a_squad_that_has_a_manager_is_not_a_group(model):
@@ -866,3 +877,49 @@ def test_the_empty_chat_names_the_squad_from_the_bot_the_pane_builds(model):
     bots = {b["name"]: b for b in model("visibleBots", profiles, {}, {})}
     assert model("introName", bots["web"]) == "Web"
     assert model("introName", bots["builder"]) == "Builder"
+
+
+# ---- quieter list: big projects, old chats, the bell, prefs from older versions --------------------------------
+
+def _project(n):
+    return {"id": "p", "name": "Shop", "folders": [{"path": f"/w/f{i}", "lanes": []} for i in range(n)]}
+
+
+def test_a_project_past_three_folders_opens_in_its_own_view(model):
+    assert model("projectOpensInFocus", _project(4)) is True
+    assert model("projectOpensInFocus", _project(3)) is False, "three folders still unfold in the list"
+    assert model("projectOpensInFocus", _project(1)) is False
+
+
+def test_a_bot_lists_what_needs_you_and_its_three_newest_chats_the_rest_fold(model):
+    loose = [chat(f"c{i}", "/x", last=1000.0 + i) for i in range(10)]
+    attention = {"live": ["c1"], "unread": ["c0"], "focused": None}
+    split = model("looseSplit", loose, attention)
+    assert [s["id"] for s in split["shown"]] == ["c9", "c8", "c7", "c1", "c0"], "newest three, then what needs you"
+    assert [s["id"] for s in split["rest"]] == ["c6", "c5", "c4", "c3", "c2"]
+    assert model("looseSplit", loose[:2], {})["rest"] == [], "a short list shows whole"
+
+
+def test_the_bell_groups_cards_by_board_newest_board_first(model):
+    items = [
+        {"key": "chat:a", "type": "chat", "at": 50},
+        {"key": "card:omni:1", "type": "card", "board": "omni", "at": 100},
+        {"key": "card:jobs:1", "type": "card", "board": "jobs", "at": 300},
+        {"key": "card:omni:2", "type": "card", "board": "omni", "at": 200},
+    ]
+    groups = model("bellGroups", items)
+    assert [g["key"] for g in groups] == ["chats", "board:jobs", "board:omni"]
+    assert [x["key"] for x in groups[2]["items"]] == ["card:omni:2", "card:omni:1"]
+    assert model("bellGroups", []) == []
+
+
+def test_prefs_saved_by_an_older_version_get_the_new_defaults_once(model):
+    defaults = {"floatSides": True, "squadsTheme": True, "hiddenNav": ["kanban:nav"], "prefsVersion": 2}
+    old = {"floatSides": False, "hiddenNav": ["cron"], "hidden": ["web"]}
+    up = model("upgradePrefs", old, defaults)
+    assert up["floatSides"] is True and up["squadsTheme"] is True
+    assert set(up["hiddenNav"]) == {"cron", "kanban:nav"} and up["hidden"] == ["web"]
+    chosen = {**up, "floatSides": False, "hiddenNav": []}
+    again = model("upgradePrefs", chosen, defaults)
+    assert again["floatSides"] is False and again["hiddenNav"] == [], "a choice made after the upgrade is kept"
+    assert model("upgradePrefs", None, defaults)["floatSides"] is True

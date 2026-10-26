@@ -3,6 +3,31 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.24.0 - 2026-10-26
+
+### Changed
+
+- squad-hub 1.3.0, a quieter list:
+  - Floating sides are on by default. Saved settings from older versions switch to it once; turning it off afterwards
+    sticks.
+  - The Squads theme is applied on every bot (Desktop keeps one theme per bot) and comes back after a bot switch; a
+    switch in the plugin settings turns that off.
+  - A project with more than three folders no longer unfolds in the list: its row opens the project in the list's own
+    view, with a back button.
+  - A bot without projects lists what needs you plus its three newest chats; the rest fold under "Older chats".
+  - A Desktop section holding a single bot (a hand-made bot filed under its company's name) shows that bot on the
+    first level, beside the managers, instead of as a one-member group.
+  - The bell groups cards by board, newest board first, with a clear button per board.
+  - The Kanban sidebar row is hidden by default (squads read their boards in the list, the bell and the timeline).
+
+### Fixed
+
+- `squadctl apply` removes an unstamped, outdated copy of squad-hub's desktop half from `desktop-plugins/`: Desktop took
+  it for a hand install and never refreshed it, so the window kept running an old version. Desktop copies the current
+  half on its next start.
+- jobs 4.11.1: the manager archives a card that a new card replaces, instead of commenting "superseded" on it; the
+  blocked old card kept asking the user in the bell and on the manager's row.
+
 ## 2.23.0 - 2026-10-26
 
 ### Added

@@ -41,6 +41,10 @@ while applications are in flight, and before writing a rule the user states.
   Comment the literal yes (keep every fact and citation, re-render, file the review card) and unblock. Shortening an
   already approved application is the same yes plus a note that the version the applier sends is the approved one
   until the shortened one passes.
+- A card a new card replaces (a new submit card after a CHANGE round, a review card a later round superseded) is
+  archived in the same turn the new one is filed: `hermes kanban --board jobs archive <old-id>` (there is no archive
+  tool). A comment saying "superseded" leaves it blocked, and a blocked card keeps counting in the user's bell
+  and on the manager's row as a question that no longer exists.
 - Resuming into an empty pipeline (first start, or after days paused) files the "search now" card and the profile
   chain at once instead of waiting for the next slot; say which cards were filed.
 

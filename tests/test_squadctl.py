@@ -1185,6 +1185,29 @@ def test_squad_hub_apply_restores_an_edit_and_a_second_apply_changes_nothing(env
     assert not [c for c in env.calls()[n:] if c["args"][:2] == ["plugins", "enable"]]
 
 
+def test_a_stale_unstamped_desktop_copy_of_squad_hub_is_removed_so_desktop_recopies_it(env, capsys):
+    """Desktop never refreshes a desktop-plugins folder with no `.hermes-package.json` whose plugin.js differs from the
+    package (it reads as a hand install), so the window ran an old squad-hub forever. apply removes our own stale
+    copy; a stamped copy, a current one and somebody else's plugin of the same name are left alone."""
+    env.squad("web")
+    app = env.root / "desktop-plugins" / "squad-hub"
+    app.mkdir(parents=True)
+    (app / "plugin.js").write_text("// Hermes Agent Squads Hub (key `squad-hub`) old build\n")
+    env.run("apply", "web", capsys=capsys)
+    assert not app.exists(), "the stale copy is gone, Desktop copies the current half on restart"
+
+    current = (REPO / "squads" / "_plugins" / "squad-hub" / "desktop" / "plugin.js").read_text()
+    for label, files in (("current copy", {"plugin.js": current}),
+                         ("stamped copy", {"plugin.js": "// Hermes Agent Squads Hub old\n", ".hermes-package.json": "{}"}),
+                         ("someone else's plugin", {"plugin.js": "// another plugin named squad-hub\n"})):
+        app.mkdir(parents=True)
+        for name, text in files.items():
+            (app / name).write_text(text)
+        env.run("apply", "web", capsys=capsys)
+        assert (app / "plugin.js").read_text() == files["plugin.js"], label
+        shutil.rmtree(app)
+
+
 def test_a_manager_that_opts_out_of_squad_hub_stays_off(env, capsys):
     """A manager that lists squad-hub under plugins.disable keeps it off on every apply, never flipping back on."""
     env.squad("web")

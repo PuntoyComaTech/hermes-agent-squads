@@ -30,8 +30,8 @@ Screenshots use invented projects and boards.
 
 - **One list, no profile switch.** A chat opens as a tab under its own bot, so several bots and projects stay open
   side by side. Opening one never reloads the window.
-- **Only the bots you talk to.** Default, the builder and squad managers; squad workers never show, and a bot outside
-  those shows under "Other bots" only while it has chats. Hide or pin any of them in Settings > Plugins > Hermes Agent Squads Hub.
+- **Only the bots you talk to.** Default, the builder and squad managers; squad workers never show. A bot filed alone
+  in its own Desktop section stands beside the managers; any other bot shows under "Other bots" only while it has chats. Hide or pin any of them in Settings > Plugins > Hermes Agent Squads Hub.
 - **Projects with several folders, each with its own worktrees.** "+" on a project, folder or worktree starts a chat
   right there; "New worktree" makes a checkout under `.worktrees/` with its own branch.
 - **Previews you can bring back.** Every preview a chat opens is remembered; the status-bar chip lists them and a
@@ -41,11 +41,12 @@ Screenshots use invented projects and boards.
   dialog pinned to that bot).
 - **Quiet big projects.** A project with several folders lists the chats that are working, unread or open right under
   its own row, each with the folder (and worktree) it lives in: one click opens the chat, no folder to unfold. Open
-  the project to see its folders, folded, each wearing the dot of what needs you inside. Single-folder projects open
-  whole. Fold a whole bot or squad and its pending chats stay listed under it, each tagged with the worktree, folder
+  the project to see its folders, folded, each wearing the dot of what needs you inside; a project with more than three
+  folders opens in the list's own view instead, with a back button. Single-folder projects open whole. A bot without
+  projects lists what needs you and its three newest chats; the rest fold under "Older chats". Fold a whole bot or squad and its pending chats stay listed under it, each tagged with the worktree, folder
   or project it lives in (the full path on hover). Your own open/closed choice always wins.
-- **Floating sides (opt-in).** Turn on "Floating sides" in the plugin settings and the left list and the right
-  files/terminal column stop taking width: bring the pointer within about 40 px of a screen edge and they slide over the chat like an
+- **Floating sides (on by default).** The left list and the right
+  files/terminal column take no width: bring the pointer within about 40 px of a screen edge and they slide over the chat like an
   auto-hiding dock, then hide a moment after it leaves (never while you type in them or a menu is open). The title-bar
   side buttons, ⌘B and ⌘J pin or release a side; the chat keeps a small margin so the edges stay free.
 - **Squads layout.** The **Squads** layout (Layout editor in the title bar) puts files over a short terminal on the right.
@@ -59,7 +60,8 @@ Screenshots use invented projects and boards.
 - **A look of its own.** Each bot wears a Lucide icon read from what it does (globe for Web, hammer for the
   builder, shopping bag for a store); change any of them in the plugin settings. A local squad that has no manager
   yet shows as one group, its bots under it. The plugin also ships the **Squads** theme (Catppuccin-inspired, low
-  contrast, Inter): pick it in Settings > Appearance or in the plugin settings. Lucide's licence: `LICENSE-lucide.txt`.
+  contrast, Inter), on every bot by default: Desktop keeps a theme per bot, so the plugin puts it back on each one;
+  turn that off in the plugin settings to pick a theme per bot. Lucide's licence: `LICENSE-lucide.txt`.
 - **Squads at work.** A manager's row wears its board's count (blocked, in review, running); click it for the
   **timeline**: one lane per bot over the last 6 h, 24 h, 3 days or a week. Bars use one legend, the same as the cards:
   queued, waiting on another card, in progress, blocked, in review (QA), done, failed, stopped; striped while a card
@@ -67,7 +69,7 @@ Screenshots use invented projects and boards.
   long waits and cards waiting on you. A click on a bar or an issue opens the card. Read-only; "Squads: open the
   timeline" in the command palette opens it too.
 - **The bell.** A bell in the status bar counts what waits on you: cards blocked for your answer on every board, and
-  chats asking a question or an approval in every bot with a chat open. Newest first, with its age. A click opens the
+  chats asking a question or an approval in every bot with a chat open. Grouped by board, newest first, with its age. A click opens the
   chat, or the card's detail: what it asks you, its history, and **Answer in a chat** (a new chat with the board's
   manager, the card named in the draft). Clear one or **Clear all**; a card comes back only if it blocks again. With
   Hermes in the background a system notification (and a line from the pet, if one is out) tells you a new card needs
@@ -81,8 +83,8 @@ Screenshots use invented projects and boards.
   pick one instead of typing "ok": buttons in Desktop and Discord, numbered buttons in Telegram. It reaches new chats
   (a chat keeps the prompt it started with); off for scheduled runs, webhooks and squad workers. A manager opts out
   with `plugins: {disable: [squad-hub]}` in its squad.yaml.
-- **A quieter window.** The plugin hides the Bots tab and the profile selector (switchable in its settings) and can
-  hide sidebar rows.
+- **A quieter window.** The plugin hides the Bots tab, the profile selector and the Kanban sidebar row (each switchable
+  in its settings) and can hide other sidebar rows.
 
 Every change to Desktop's own window (floating sides, hidden Bots tab and profile selector, hidden sidebar rows, the
 `.env` double-click) is a switch in **Settings > Plugins > Hermes Agent Squads Hub**.

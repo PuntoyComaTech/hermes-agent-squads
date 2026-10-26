@@ -1672,7 +1672,24 @@ class Applier:
             acts.append(f"plugins enable {SQUAD_HUB_PLUGIN}")
             if not self.dry:
                 self.ctx.hermes("plugins", "enable", SQUAD_HUB_PLUGIN, "--no-allow-tool-override", profile=name)
+        acts += self.stale_desktop_half()
         return acts
+
+    def stale_desktop_half(self) -> list[str]:
+        """Desktop copies the desktop half to `<root>/desktop-plugins/squad-hub/` and stamps it `.hermes-package.json`.
+        A copy with no stamp and a different `plugin.js` reads to Desktop as a plugin the user installed by hand, so it
+        is never refreshed again and the window keeps running an old version. Such a copy of our own plugin (its
+        source names it) is removed; Desktop copies the current half, stamped, on the next start or Rescan."""
+        app = self.ctx.root / "desktop-plugins" / SQUAD_HUB_PLUGIN
+        entry = app / "plugin.js"
+        if (app / ".hermes-package.json").exists() or not entry.is_file():
+            return []
+        text = _read(entry)
+        if "Hermes Agent Squads Hub" not in text or text == _read(SRC / "squads" / "_plugins" / SQUAD_HUB_PLUGIN / "desktop" / "plugin.js"):
+            return []
+        if not self.dry:
+            shutil.rmtree(app)
+        return [f"desktop-plugins/{SQUAD_HUB_PLUGIN} - stale unstamped copy (Desktop re-copies it on restart)"]
 
     def shared_browser_plugin(self, name: str, bot: dict) -> list[str]:
         """`shared_browser: true`: install the repo's shared-browser-tabs plugin into the bot's home and enable it;
