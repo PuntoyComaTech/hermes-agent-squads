@@ -386,20 +386,28 @@ PNG = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
                     "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")
 
 
-def test_the_renders_board_shows_every_modellers_newest_render_and_refreshes_itself(site):
+def renders(page: Path) -> list[dict]:
+    text = (page.parent / "renders.js").read_text()
+    assert text.startswith("window.RENDERS = ")
+    return json.loads(text[len("window.RENDERS = "):].rstrip().rstrip(";"))
+
+
+def test_the_renders_viewer_lists_every_newest_render_without_reloading_the_tab(site):
+    """The tab must never reload on a new render (that resets the user's zoom): only renders.js changes."""
     site_dir, _ = site
-    out = tmp = site_dir / "render.png"
-    tmp.write_bytes(PNG)
+    out = site_dir / "render.png"
+    out.write_bytes(PNG)
     first = run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID)
     assert first.returncode == 0 and json.loads(first.stdout)["images"] == 0
     page = Path(json.loads(first.stdout)["path"])
-    assert page == site_dir / "milestones" / WORK_ID / "live" / "index.html" and "No renders yet" in page.read_text()
+    assert page == site_dir / "milestones" / WORK_ID / "live" / "index.html" and renders(page) == []
+    viewer, stamp = page.read_text(), page.stat().st_mtime_ns
     run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID, "--add", str(out), "--name", "hero-neuron")
     (page.parent / "ground.png").write_bytes(PNG)  # a modeller writing straight into live/
     done = json.loads(run("live_renders.py", "--site", str(site_dir), "--id", WORK_ID).stdout)
-    text = page.read_text()
-    assert done["images"] == 2 and 'data-src="hero-neuron.png"' in text and 'data-src="ground.png"' in text
-    assert "setInterval" in text, "an overwritten render must show without a new run"
+    assert done["images"] == 2 and {r["name"] for r in renders(page)} == {"hero-neuron.png", "ground.png"}
+    assert page.stat().st_mtime_ns == stamp and page.read_text() == viewer, "the viewer file is left untouched"
+    assert "setInterval(load" in viewer and "zoomAt" in viewer and "innerHTML" not in viewer
     assert not list(page.parent.glob(".*.tmp")), "writes are atomic: no half file for the tab to load"
 
 
