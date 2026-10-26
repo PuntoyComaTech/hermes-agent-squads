@@ -839,3 +839,13 @@ def test_a_stuck_card_survives_the_timeline_cap_ahead_of_newer_work(model):
     tasks = [task("t_nn01", "running", started=NOW - 10), task("t_nn02", "blocked", block_kind="needs_input", created=NOW - 900_000),
              task("t_nn03", "done", completed=NOW - 20)]
     assert [t["id"] for t in model("windowTasks", tasks, NOW, NOW - 86400)][:1] == ["t_nn02"]
+
+
+def test_the_empty_chat_names_the_squad_from_the_bot_the_pane_builds(model):
+    """ChatIntro reads the bot `visibleBots` returns, not the raw profile: the squad name must survive that step,
+    or every manager's empty chat reads "Web manager" instead of "Web"."""
+    meta = {"hermes-bots": {"title": "Web manager", "sectionId": "managers", "sectionName": "Managers", "squadName": "Web"}}
+    profiles = [{"name": "web", "ui_meta": meta}, {"name": "builder", "ui_meta": {"hermes-bots": {"title": "Builder"}}}]
+    bots = {b["name"]: b for b in model("visibleBots", profiles, {}, {})}
+    assert model("introName", bots["web"]) == "Web"
+    assert model("introName", bots["builder"]) == "Builder"

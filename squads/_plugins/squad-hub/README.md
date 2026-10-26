@@ -19,6 +19,15 @@ flowchart TD
     classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
 ```
 
+
+![The empty chat names the squad and the project it works in](docs/empty-chat.png)
+
+![Squads timeline: each bot's runs, the shared legend and what went wrong](docs/timeline.png)
+
+![The bell lists what waits on you; a card opens with the question it asks](docs/card.png)
+
+Screenshots use invented projects and boards.
+
 - **One list, no profile switch.** A chat opens as a tab under its own bot, so several bots and projects stay open
   side by side. Opening one never reloads the window.
 - **Only the bots you talk to.** Default, the builder and squad managers; squad workers never show, and a bot outside

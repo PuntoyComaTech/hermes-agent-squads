@@ -3,6 +3,12 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.20.1 - 2026-10-26
+
+### Fixed
+
+- squad-hub 1.1.1: the empty chat names the squad ("Web") instead of the bot title ("Web manager"); the pane's bot
+  lost `ui_meta` on the way to the chat. README screenshots with invented data.
 ## 2.20.0 - 2026-10-25
 
 ### Fixed

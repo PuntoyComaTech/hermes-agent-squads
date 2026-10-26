@@ -58,7 +58,7 @@ function isHumanChat(s, now = Date.now() / 1000) {
 const sectionOf = profile => String(profile.ui_meta?.['hermes-bots']?.sectionName || '').trim()
 /** The big lettering of an empty chat: the squad the bot belongs to (stamped by squadctl), else its own title. */
 const introName = bot => {
-  const squad = String(bot.ui_meta?.['hermes-bots']?.squadName || '').trim()
+  const squad = String(bot.squadName || bot.ui_meta?.['hermes-bots']?.squadName || '').trim()
   return squad || bot.title || bot.name
 }
 
@@ -74,7 +74,7 @@ function visibleBots(profiles, humanByProfile, prefs = {}) {
     const role = botRole(p)
     const core = role === 'default' || role === 'builder' || role === 'manager' || pinned.has(p.name)
     if (!core && !(humanByProfile[p.name] > 0)) continue
-    bots.push({ name: p.name, title: botTitle(p), role, other: !core, section: sectionOf(p) })
+    bots.push({ name: p.name, title: botTitle(p), role, other: !core, section: sectionOf(p), squadName: String(p.ui_meta?.['hermes-bots']?.squadName || '').trim() })
   }
   const managed = new Set(bots.filter(b => b.role === 'manager').map(b => b.title.replace(/\s+manager$/i, '').toLowerCase()))
   for (const b of bots) b.group = b.other && b.section && b.section !== 'Managers' && !managed.has(b.section.toLowerCase()) ? b.section : ''
