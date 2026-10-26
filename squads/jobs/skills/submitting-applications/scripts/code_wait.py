@@ -38,7 +38,7 @@ from pathlib import Path
 INBOX = "jobs-inbox"
 ID_RE = re.compile(r"^JOB-\d{8}-[a-z0-9][a-z0-9-]{0,80}$")
 SITE_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$")
-CODE_LINE = re.compile(r"\bcode:\s*([A-Za-z0-9]{4,10})\b")
+CODE_LINE = re.compile(r"(?<![A-Za-z])code:\s*([A-Za-z0-9]{4,10})\b")
 LINK_LINE = re.compile(r"\blink:\s*(https://\S+)")
 EXIT = {"code": 0, "no_code": 1, "unavailable": 3, "timeout": 4}
 
@@ -70,7 +70,9 @@ def inbox_ready(bin_name: str) -> str:
 
 
 def file_card(args) -> str:
-    key = f"jobs:code:{args.opening}:{args.attempt}"
+    # One card per request: a code is single use, so a second request on the same day never reads the first card's
+    # (stale) result through the idempotency key.
+    key = f"jobs:code:{args.opening}:{args.attempt}:{time.strftime('%Y%m%dT%H%M')}"
     body = (f"Mode: CODE\nProject: {args.project}\nOpening: {args.opening}\nSite: {args.site}\n"
             f"Window: {args.window} minutes\nThe applier has the form open and is waiting: return `code: <code>` "
             f"(or `link: <url>`) in the kanban_complete result, or `no code yet`.")
@@ -92,9 +94,17 @@ def card_state(args, card: str) -> tuple[str, str]:
     return str(task.get("status") or ""), text
 
 
+def code_shape(value: str) -> bool:
+    """4-8 digits, or 6-10 letters and digits with at least one digit or mixed case: never a word ("none")."""
+    if value.isdigit():
+        return 4 <= len(value) <= 8
+    return 6 <= len(value) <= 10 and (any(ch.isdigit() for ch in value)
+                                     or (not value.islower() and not value.isupper() and value[1:] != value[1:].lower()))
+
+
 def read_result(text: str) -> dict:
     code = CODE_LINE.search(text)
-    if code:
+    if code and code_shape(code.group(1)) and not re.search(r"\bno\s+code:", text, re.I):
         return {"outcome": "code", "code": code.group(1)}
     link = LINK_LINE.search(text)
     if link:

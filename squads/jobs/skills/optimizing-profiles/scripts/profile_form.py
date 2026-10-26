@@ -53,6 +53,8 @@ MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "
 SHARED = ("skills", "top_skills")
 MAX_REMOVALS = 10
 MAX_PINS = 5
+# the add-skill dialog's follow box, in English and Spanish
+FOLLOW_BOX = r"^(follow this skill|sigue? esta (aptitud|habilidad))"
 # LinkedIn's language proficiency options, as the form lists them (measured 2026-10-26), lower-case
 PROFICIENCY = {"elementary proficiency", "limited working proficiency", "professional working proficiency",
                "full professional proficiency", "native or bilingual proficiency"}
@@ -258,6 +260,9 @@ def structure_steps(rows, current: dict, texts: dict | None = None) -> list[dict
                 "set": {"school": school, **{k: row[k] for k in ("from", "to") if row.get(k)},
                         **({"degree": title} if title else {}), **({"field": row["field"]} if row.get("field") else {})}}
             why = bad_date or ("" if school else "a new school needs its `institution`")
+            if not why and matches(current.get("education"), institution=school, **({"degree": title} if title else {})):
+                # a re-run after the school was saved must not add it twice
+                why = "the profile already holds this school: approve a title or dates row for it instead"
             if why:
                 step.update(result="refused", reason=why)
         else:
@@ -1099,6 +1104,21 @@ class Page:
             return {"result": "failed", "reason": f"LinkedIn offered no skill named {step['skill']!r}: use a name its "
                                                   "picker offers"}
         self.wait(0.6)
+        # LinkedIn ticks "Follow this skill to keep up with relevant content." once a skill is picked (measured
+        # 2026-10-26): following is a feed setting nobody approved, so it is unticked; the guard still refuses any
+        # other ticked box
+        for _ in range(3):
+            ticked = [b for b in self.read().get("boxes") or [] if b.get("checked") and not b.get("sw")
+                      and re.match(FOLLOW_BOX, b.get("label") or "", re.I)]
+            if not ticked:
+                break
+            if not self.mark(kind="box", match=FOLLOW_BOX):
+                return {"result": "failed", "reason": "the follow-this-skill box could not be found again: nothing "
+                                                      "was saved"}
+            self.click_marked()
+            self.wait(0.4)
+        else:
+            return {"result": "failed", "reason": "the follow-this-skill box stayed ticked: nothing was saved"}
         return self.finish(self.save(current_box=False))
 
     def skill_remove(self, step: dict) -> dict:

@@ -39,7 +39,8 @@ LABEL = re.compile(r"(?:\bcode\b|\bc[oó]digo\b|\botp\b|\bpin\b|\bpasscode\b|\bv
 AFTER_LABEL = re.compile(r"(?:is|es|ser[aá]|:|=)\s*$", re.I)
 AFTER_HINT = re.compile(r"(?:expira|expires|v[aá]lid[oa]|valid|minutes|minutos|horas|hours)", re.I)
 AFTER_ACTION = re.compile(r"(?:sign in|log ?in|iniciar sesi[oó]n|acceder|continuar|continue|confirm)", re.I)
-IDENTIFIER = re.compile(r"(?:order|pedido|orden|invoice|factura|ticket|tracking|gu[ií]a|ref|referencia|"
+IDENTIFIER = re.compile(r"(?:order|pedido|orden|invoice|factura|ticket|tracking|gu[ií]a|ref|referencia|reference|"
+                        r"candidate|candidato|requisition|"
                         r"\bid\b|case|caso|contrato|contract|cuenta|account|n[uú]mero|numero|number)\s*"
                         r"[#:.\-]?\s*$", re.I)
 PHONE_WORD = re.compile(r"(?:tel[eé]fono|phone|m[oó]vil|celular|whatsapp|ll[aá]mame|call)\s*[:\-]?\s*$", re.I)
@@ -52,14 +53,20 @@ DIGITS = re.compile(r"(?<![\dA-Za-z+])(\d{4,8})(?![\dA-Za-z])")  # a whole token
 ALNUM = re.compile(r"(?<![A-Za-z0-9@/.#-])([A-Za-z0-9]{6,10})(?![A-Za-z0-9@/-]|\.[A-Za-z0-9])")
 
 
+VOWELS = set("aeiouAEIOU")
+
+
 def alnum_shape(value: str) -> bool:
-    """A letter-and-digit code: both kinds present, or all capitals (a word like "Welcome" or "applicant" is never
-    one). Digits only are read by DIGITS."""
+    """A letter-and-digit code, or Greenhouse's 8 letters in mixed case that do not read as a word. Digits only are
+    read by DIGITS; an all-capitals or capitalised word ("WELCOME", "Applicant") is never one."""
     if value.isdigit():
         return False
-    has_digit = any(ch.isdigit() for ch in value)
-    has_alpha = any(ch.isalpha() for ch in value)
-    return (has_digit and has_alpha) or (value.isalpha() and value.isupper())
+    if any(ch.isdigit() for ch in value):
+        return any(ch.isalpha() for ch in value) and not re.fullmatch(r"[A-Z]?[a-z]+\d{1,2}", value)  # "Welcome1"
+    if len(value) != 8 or value.isupper() or value.islower() or re.fullmatch(r"[A-Z][a-z]+", value):
+        return False
+    inner_caps = sum(ch.isupper() for ch in value[1:])
+    return inner_caps >= 2 or sum(ch in VOWELS for ch in value) <= 2
 
 
 DATE_BEFORE = re.compile(r"\d{1,4}\s*[/.\-]\s*$")
@@ -204,7 +211,13 @@ def extract(raw: str, site: str) -> dict:
         line_end = after.find("\n")
         line = text[line_start:match.end() + (line_end if line_end >= 0 else len(after))]
         alone = line.strip() == value
-        labelled = LABEL.search(before[-70:]) and (AFTER_LABEL.search(before[-10:]) or alone)
+        # The label sits on this line or the line just above: "Security code" can never reach down to "Reference:".
+        if alone:  # the last non-empty line above (blank lines between label and code are common)
+            above = before.rstrip()
+            near = above[above.rfind("\n") + 1:]
+        else:
+            near = before[line_start:]
+        labelled = LABEL.search(near[-70:]) and (AFTER_LABEL.search(before[-10:]) or alone)
         if not labelled:
             continue
         if IDENTIFIER.search(before[-40:]):

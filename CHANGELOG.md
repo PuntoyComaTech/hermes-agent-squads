@@ -28,6 +28,15 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 - squadctl: a bot's `delegation.max_children` sets `delegation.oneshot_max_children`, the delegate_task budget of a
   kanban run (Hermes's one-shot default is 2); the jobs reviewer gets 12 (five lenses plus re-runs).
 
+## 2.21.1 - 2026-10-26
+
+### Fixed
+
+- jobs 4.10.1: adding a skill on LinkedIn was still refused. Once a skill is picked, the add-skill dialog ticks "Follow
+  this skill to keep up with relevant content.", and the save guard refuses any box the step did not set. `skill_add`
+  now unticks that box (in English or Spanish) and the guard still refuses every other box. The plan also refuses an
+  `education_create` row for a school and degree the profile already holds, so re-running a file adds no duplicate.
+
 ## 2.21.0 - 2026-10-26
 
 ### Fixed

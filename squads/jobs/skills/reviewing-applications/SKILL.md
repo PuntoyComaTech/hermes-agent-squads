@@ -45,8 +45,8 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
    **One round names every instance.** Each wrong claim (a truthfulness draft finding, an unanswerable stretch)
    carries `claim_terms`, the 1 to 4 words it ties together (`["Python", "FastAPI", "AI"]`). The script lists every
    sentence in the CV, letter, recruiter message and answers that makes the same claim (`instances`) and adds one hard
-   correction for each instance no correction of yours rewrites. Before the `--out` run, read that list and add a
-   `replace` correction for each outward instance, so the writer gets them all in this round, never one per round.
+   correction for the instances no correction rewrites and the finding's `true_instances` (sentences the record
+   supports) does not list. Before the `--out` run, turn each into a `replace` correction or a `true_instances` entry.
    The script also blocks, whatever the lenses say, a sentence saying the user works remotely now when no current
    experience in `achievements.yaml` records `work_mode: remote`, and an ILR/LinkedIn language label above the
    declared CEFR level ("Professional Working Proficiency" for a B2, notes included).

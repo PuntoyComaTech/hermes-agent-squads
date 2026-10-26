@@ -29,13 +29,14 @@ function field(label, ph) {
     opts.textContent = '';
     for (const name of OFFERED.filter(n => i.value && n.toLowerCase().startsWith(i.value.toLowerCase()))) {
       const o = document.createElement('div'); o.setAttribute('role', 'option'); o.innerText = name;
-      o.onclick = () => { i.value = name; opts.textContent = ''; window.__picked = name; };
+      o.onclick = () => { i.value = name; opts.textContent = ''; window.__picked = name;
+        if (follow) follow.checked = true; };   // LinkedIn ticks "Follow this skill" once a skill is picked
       opts.append(o);
     }
   });
   wrap.append(i, opts); body.append(wrap); return i;
 }
-let input, level;
+let input, level, follow = null;
 if (state.kind === 'language') {
   document.getElementById('head').innerText = 'Add language';
   input = field('Language*', '');
@@ -47,12 +48,18 @@ if (state.kind === 'language') {
 } else {
   document.getElementById('head').innerText = 'Add skill';
   input = field('Skill*', 'Skill (ex: Project Management)');
+  const fl = document.createElement('div');
+  follow = document.createElement('input'); follow.type = 'checkbox'; follow.id = 'follow';
+  const lb = document.createElement('label'); lb.htmlFor = 'follow';
+  lb.innerText = 'Follow this skill to keep up with relevant content.';
+  fl.append(follow, lb); body.append(fl);
 }
 if (state.prefill) input.value = state.prefill;
 dlg.showModal();
 document.getElementById('save').onclick = () => {
   window.__saved = {value: input.value, picked: window.__picked || null,
-                    level: level ? level.options[level.selectedIndex].text : null};
+                    level: level ? level.options[level.selectedIndex].text : null,
+                    ...(follow ? {follow: follow.checked} : {})};
   dlg.close(); dlg.remove();
   const a = document.createElement('div'); a.setAttribute('role', 'alert'); a.innerText = 'Save was successful.';
   document.body.append(a);

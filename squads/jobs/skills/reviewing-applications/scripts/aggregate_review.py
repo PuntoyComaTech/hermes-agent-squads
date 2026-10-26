@@ -55,8 +55,9 @@ Rules, applied deterministically:
 - Every instance at once: a truthfulness draft finding and an unanswerable hiring_manager stretch name the claim's
   `claim_terms` (1 to 4 words the wrong claim ties together, e.g. ["Python", "FastAPI", "AI"]). The script lists every
   sentence of every outward file that holds all of them (jobs-contract claim_sweep.py) under the correction's
-  `instances`, and adds one hard correction naming each instance no correction of this review rewrites: the writer
-  fixes the whole recurring claim in one round instead of one instance per round.
+  `instances`, and adds one hard `sweep` correction naming the outward ones no correction of this review rewrites
+  and the finding does not list in `true_instances` (sentences the record supports): the writer fixes the whole
+  recurring claim in one round instead of one per round.
 - Facts the script checks itself, whatever the lens verdicts (a hard correction of lens `truthfulness`, like a
   confidential term): a sentence saying the user works remotely now ("working remotely from", "keep working
   remotely") while no current experience in achievements.yaml records `work_mode: remote` (profile.md work_mode is the
@@ -197,7 +198,11 @@ class Collector:
             self.warnings.append(f"{where} ({location}): no claim_terms, so other sentences making the same claim "
                                  f"were not searched; run claim_sweep.py with its words before the hand-off")
             return
-        self.claims.append((lens, location, [t.strip() for t in terms]))
+        kept = item.get("true_instances") or []
+        if not (isinstance(kept, list) and all(isinstance(k, str) and k.strip() for k in kept)):
+            self.error(where, "'true_instances' must list quoted sentences the record supports")
+            kept = []
+        self.claims.append((lens, location, [t.strip() for t in terms], [k.strip() for k in kept]))
 
     def supported_claim(self, claim: dict) -> bool:
         """A kept company claim is evidenced by quoted page text or a captured page in the application folder."""
@@ -638,34 +643,46 @@ def outward_text(name: str, text: str, notes: bool = False) -> str:
     return text
 
 
+def masked(text: str) -> str:
+    """A sentence copied into the review, with contact data replaced (the review never carries it)."""
+    for pattern in CONTACT_PATTERNS:
+        text = pattern.sub("[contact]", text)
+    return text
+
+
 def claim_sweep_checks(c: Collector) -> None:
-    """Each wrong claim, everywhere: list every sentence that makes it, and add one hard correction for the outward
-    instances no correction of this review rewrites. Notes no employer reads go to warnings (the reviewer fixes them in
-    place). Run after every lens, so every correction of the round is known."""
-    for lens, location, terms in c.claims:
-        rows = _SWEEP.instances(c.app_files or {}, terms)
-        covered = [s for s in c.corrections + c.soft if s.get("mode") == "replace"]
-        open_rows = []
-        for row in rows:
-            hit = any(s.get("file") == row["file"] and (s["old"] in row["sentence"] or row["sentence"] in s["old"])
-                      for s in covered)
-            if not hit:
-                open_rows.append(row)
+    """Each wrong claim, everywhere: every other outward sentence holding the same words is corrected this round.
+
+    Each sentence is listed on the correction (`instances`). An outward one that no correction rewrites and the lens
+    did not list in the finding's `true_instances` (sentences the record supports, such as "in my previous role I also
+    built AI workflows with Python and FastAPI") is a hard `sweep` correction: a kit that still makes the claim
+    elsewhere is never approved, and a true sentence never loops, because the lens names it once."""
+    swept = set()
+    for lens, location, terms, kept in c.claims:
+        rows = [{**r, "sentence": masked(r["sentence"])} for r in _SWEEP.instances(c.app_files or {}, terms)]
+        fixes = [s for s in c.corrections + c.soft if s.get("mode") == "replace"]
+        open_rows = [r for r in rows if not any(
+            s.get("file") == r["file"] and (s["old"] in r["sentence"] or r["sentence"] in s["old"]
+                                            or (s.get("new") and s["new"] in r["sentence"])) for s in fixes)
+                     and not any(k in r["sentence"] or r["sentence"] in k for k in kept)]
         for item in c.corrections:
             if item.get("lens") == lens and item.get("location") == location:
                 item["instances"] = rows
         outward = [r for r in open_rows if r["outward"]]
         for row in (r for r in open_rows if not r["outward"]):
-            c.warnings.append(f"same claim in a note ({row['file']}): {row['sentence'][:160]}")
-        if outward:
-            c.forced += 1
-            c.corrections.append({
-                "lens": lens, "type": "content", "location": ", ".join(sorted({r["file"] for r in outward})),
-                "mode": "instruction", "claim_terms": terms, "instances": outward,
-                "instructions": f"the claim corrected at {location} ({' + '.join(terms)}) is made again in these "
-                                "sentences: rewrite each one the same way, then run jobs-contract claim_sweep.py "
-                                "with these terms until only true sentences remain: "
-                                + " | ".join(f"{r['file']}: {r['sentence'][:200]}" for r in outward)})
+            c.warnings.append(f"same words in a note ({row['file']}): {row['sentence'][:160]}")
+        key = (tuple(t.lower() for t in terms), tuple(sorted((r["file"], r["sentence"]) for r in outward)))
+        if not outward or key in swept:
+            continue
+        swept.add(key)
+        c.forced += 1
+        c.corrections.append({
+            "lens": lens, "type": "content", "location": ", ".join(sorted({r["file"] for r in outward})),
+            "mode": "instruction", "sweep": True, "claim_terms": terms, "instances": outward,
+            "instructions": f"the claim corrected at {location} ({' + '.join(terms)}) is made again in these "
+                            "sentences: rewrite each one the way the correction does, then run jobs-contract "
+                            "claim_sweep.py with these terms: "
+                            + " | ".join(f"{r['file']}: {r['sentence'][:200]}" for r in outward)})
 
 
 def record_checks(c: Collector, achievements: dict | None) -> None:

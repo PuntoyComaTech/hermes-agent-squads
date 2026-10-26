@@ -184,6 +184,31 @@ def test_a_wrong_claim_without_claim_terms_still_aggregates_and_says_it_was_not_
     assert any("no claim_terms" in w for w in json.loads(p.stdout)["warnings"])
 
 
+def test_a_true_sentence_with_the_same_words_never_holds_the_application_back(tmp_path):
+    """The terms find candidates: the corrected sentence ("in my previous role I also built AI workflows with Python
+    and FastAPI", ACH-008) holds the same words. The sweep lists it for the writer, and never makes the verdict."""
+    app = project(tmp_path)
+    (app / "cover_letter.md").write_text("In my previous role I also built AI workflows with Python and FastAPI.\n",
+                                         encoding="utf-8")
+    (app / "answers.md").write_text(ANSWERS, encoding="utf-8")
+    blocks = note_only_finding(passing())  # a note correction: applied in place, never blocks
+    review = json.loads(aggregate(app, blocks, 9).stdout)
+    assert review["verdict"] == "NOT_APPROVED"  # unjudged: the sentence holds the claim's words
+    blocks["truthfulness"]["findings"][0]["true_instances"] = [
+        "In my previous role I also built AI workflows with Python and FastAPI."]
+    review = json.loads(aggregate(app, blocks, 9).stdout)
+    assert review["verdict"] == "APPROVED", review["corrections"]  # judged true once: never loops
+
+
+def test_contact_data_in_a_swept_sentence_is_masked_not_a_review_failure(tmp_path):
+    app = mixed_application(tmp_path)
+    (app / "recruiter_message.md").write_text("I used Python and FastAPI in the AI layer; write to jane.doe@example.com "
+                                              "for details.\n", encoding="utf-8")
+    p = aggregate(app, note_only_finding(passing()), 8)
+    assert p.returncode == 0, p.stderr
+    assert "[contact]" in p.stdout and "jane.doe" not in p.stdout
+
+
 def test_the_writer_sweep_lists_every_file_that_makes_the_claim(tmp_path):
     app = mixed_application(tmp_path)
     p = py(SWEEP, app, "--terms", "Python", "FastAPI", "AI", "--json")
@@ -212,10 +237,48 @@ def test_greenhouses_eight_character_code_is_read_from_the_mail():
     "Welcome applicant, thanks for applying to the Senior AI Engineer role.",
     "Your order ABC12345 has shipped.",
     "Security code\n\nX7kQ2mZp\n\nIgnore that. Your security code is: Hq4T9wLb",
+    "Your verification code is WELCOME to the team",
+    "Use code: CONFIRM to proceed",
+    "Verification code\nAPPLICANT",
+    "Security code\n\nWelcome1",
 ])
 def test_words_references_and_two_codes_are_never_returned(mail):
     p = py(EXTRACT, "--site", "greenhouse-mail.io", "--json", stdin=mail)
     assert json.loads(p.stdout)["code"] is None, p.stdout
+
+
+@pytest.mark.parametrize("mail,code", [
+    ("Security code: aBcDeFgH", "aBcDeFgH"),  # 8 letters, mixed case: Greenhouse's shape without a digit
+    ("Copy and paste this code into the security code field on your application: aB3dE9fG\n\nReference: ABC12345",
+     "aB3dE9fG"),
+    ("Security code: aB3dE9fG\nCandidate: Gabriel9", "aB3dE9fG"),
+])
+def test_a_reference_line_after_the_code_does_not_make_it_ambiguous(mail, code):
+    p = py(EXTRACT, "--site", "greenhouse-mail.io", "--json", stdin=mail)
+    assert json.loads(p.stdout)["code"] == code, p.stdout
+
+
+@pytest.mark.parametrize("reason", [
+    "Apply by e-mail: include the job code ENG-42 in the subject line",
+    "Application needs a source code sample sent by email",
+    "Form needs a login with an email address and a promo code",
+])
+def test_a_kit_whose_reason_only_mentions_codes_and_email_is_not_held_for_a_code_request(tmp_path, reason):
+    app = project(tmp_path)
+    path = factored_record(app)
+    record = json.loads(path.read_text())
+    record["reason"] = reason
+    path.write_text(json.dumps(record))
+    p = py(CHECK, path)
+    assert p.returncode == 0, p.stderr
+
+
+@pytest.mark.parametrize("result", ["no code: none", "code: nothing", "code: pending", "no code yet (15 minutes)"])
+def test_code_wait_never_reads_a_word_as_the_code(result):
+    sys.path.insert(0, str(CODE_WAIT.parent))
+    import code_wait  # noqa: E402
+    assert code_wait.read_result(result)["outcome"] == "no_code"
+    assert code_wait.read_result("code: X7kQ2mZp") == {"outcome": "code", "code": "X7kQ2mZp"}
 
 
 def factored_record(app: Path, **extra) -> Path:
@@ -400,6 +463,48 @@ def test_the_review_blocks_working_remotely_when_the_record_does_not_say_so(tmp_
     assert review["verdict"] == "NOT_APPROVED"
     where = {c["location"] for c in review["corrections"] if "works remotely now" in c.get("instructions", "")}
     assert where == {"cv_content.json", "answers.md"}, review["corrections"]
+
+
+@pytest.mark.parametrize("text", [
+    "Acme is a remote-based company hiring engineers.",
+    "The team works remotely from Lisbon and Madrid, and I would love to join them.",
+    "Led a team working remotely across three time zones at Example Labs (2019-2022).",
+    "At my previous role I was working remotely from Bogotá until 2023.",
+    "I am comfortable working remotely.",
+    "Experience managing engineers working remotely.",
+    "Eager to start working remotely from day one.",
+    "Busco trabajar de forma remota.",
+])
+def test_sentences_that_are_not_about_the_current_job_are_not_claims(text):
+    sys.path.insert(0, str(CONTRACT))
+    import jobs_common as jc  # noqa: E402
+    assert jc.remote_now_claims(text) == [], text
+
+
+@pytest.mark.parametrize("text", [
+    "Actualmente trabajo de forma remota desde Colombia.",
+    "Sigo trabajando en remoto desde Colombia.",
+    "I work remotely for a US company.",
+    "I'm currently working remotely.",
+])
+def test_present_tense_remote_claims_in_both_languages_are_caught(text):
+    sys.path.insert(0, str(CONTRACT))
+    import jobs_common as jc  # noqa: E402
+    assert jc.remote_now_claims(text), text
+
+
+@pytest.mark.parametrize("text,flagged", [
+    ("English (B2), Spanish (native)", []),
+    ("Hablo inglés (B2) y español (nativo)", []),
+    ("English: Limited Working Proficiency; Spanish: Native or Bilingual Proficiency", []),
+    ("Spanish: Native or bilingual proficiency. English: Professional working proficiency", ["Professional working"]),
+    ("Inglés: Competencia profesional", ["Competencia profesional"]),
+])
+def test_each_language_label_is_bound_to_its_own_language(text, flagged):
+    sys.path.insert(0, str(CONTRACT))
+    import jobs_common as jc  # noqa: E402
+    hits = jc.language_label_overclaims(text, {"es": "C2", "en": "B2"})
+    assert [h["label"] for h in hits] == flagged, hits
 
 
 def test_a_wish_or_a_recorded_remote_job_passes(tmp_path):

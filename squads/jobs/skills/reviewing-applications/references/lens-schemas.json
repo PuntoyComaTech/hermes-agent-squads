@@ -27,7 +27,8 @@
       "verdict": {"enum": ["PASS", "FAIL"]},
       "grounding": {"type": "object", "required": ["sources"],
                     "properties": {"sources": {"type": "array", "items": {"type": "string"},
-                                               "contains": {"const": "achievements.yaml"}}}},
+                                               "allOf": [{"contains": {"const": "achievements.yaml"}},
+                                                         {"contains": {"const": "profile.md"}}]}}},
       "findings": {
         "type": "array",
         "items": {
@@ -41,6 +42,7 @@
             "text": {"$ref": "#/$defs/text"},
             "problem": {"$ref": "#/$defs/text"},
             "claim_terms": {"$ref": "#/$defs/claim_terms"},
+            "true_instances": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "conflicting_sources": {"type": "array", "items": {"type": "string"}},
             "correction": {"$ref": "#/$defs/correction"}
           },
@@ -155,6 +157,7 @@
             "backtrack_question": {"$ref": "#/$defs/text"},
             "answerable_from_sources": {"type": "boolean"},
             "claim_terms": {"$ref": "#/$defs/claim_terms"},
+            "true_instances": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "correction": {"$ref": "#/$defs/correction"}
           },
           "if": {"properties": {"answerable_from_sources": {"const": false}}},

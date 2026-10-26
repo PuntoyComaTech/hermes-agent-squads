@@ -102,8 +102,10 @@ CONSUMED = ("try", "auto")  # the modes that submit without the user in the loop
 CONSULT = re.compile(r"^consult:[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 # A reason that says the form mailed a code ("8-character code e-mailed", "security code sent to the applicant's
 # e-mail", "verification code"): jobs-inbox reads it, so a kit needs the code_request that asked for it.
-EMAILED_CODE = re.compile(r"\b(?:security|verification|confirmation|one[- ]time|access)\s+code\b"
-                          r"|\bcode\b[^.]{0,60}\be-?mail|\be-?mail\w*\b[^.]{0,60}\bcode\b|\bOTP\b", re.I)
+_CODE_WORD = r"(?:security|verification|confirmation|one[- ]time|otp|\d+[- ]character|\d+[- ]digit)\s+code|\bOTP\b"
+_SENT = r"(?:e-?mail(?:ed|s)?|mailed|sent|inbox|correo|enviado)"
+EMAILED_CODE = re.compile(rf"(?:{_CODE_WORD})[^.]{{0,80}}\b{_SENT}\b|\b{_SENT}\b[^.]{{0,80}}(?:{_CODE_WORD})"
+                          r"|c[oó]digo\s+de\s+(?:seguridad|verificaci[oó]n)", re.I)
 CODE_OUTCOMES = ("code", "no_code", "unavailable", "timeout")
 ID_RE = re.compile(r"^JOB-\d{8}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")

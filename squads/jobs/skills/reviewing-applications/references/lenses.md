@@ -64,7 +64,8 @@ source). A claim with no verifiable page is `dropped`: a correction removes or g
 
 `conflicting_sources` is required for `profile_consistency` (no correction); `correction` for `draft` findings and
 `dropped` claims, either of which makes the verdict FAIL. A `draft` finding names `claim_terms` (1 to 4 words the
-claim ties together): search every file for the same claim, one finding per instance, this round. "Working remotely"
+claim ties together) and `true_instances` (sentences with those words the record supports): the script blocks every
+other sentence that makes the claim. "Working remotely"
 is grounded only by `work_mode: remote` on the current experience (profile.md `work_mode` is the search preference);
 "Professional Working Proficiency" reads as C1, above a B2. Both are `draft` findings, whatever earlier rounds said.
 
@@ -152,8 +153,7 @@ the documents do not state (which vector store) is an `interview_questions` entr
 }
 ```
 
-`answerable_from_sources: true` does not block; `false` also names `claim_terms`. Concerns and interview questions are
-plain strings.
+`answerable_from_sources: false` also names `claim_terms`. Concerns and interview questions are plain strings.
 
 ## writing: language check
 
