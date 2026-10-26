@@ -454,7 +454,8 @@ def test_a_learned_edit_merges_into_an_updated_skill_and_survives_the_next_updat
     assert edited.read_text().startswith("# A v2\n") and LEARNED_RULE in edited.read_text()
 
 
-def test_a_conflicting_edit_installs_the_new_version_and_asks(upd, capsys):
+def test_a_conflicting_edit_keeps_what_was_learned_and_saves_the_new_version_aside(upd, capsys):
+    """An update never takes a learned rule away from the builder: the edit stays live, upstream waits beside it."""
     upd.capsys = capsys
     ship(upd, "2.2.0", {"skills/authoring/SKILL.md": "1. Write.\n2. Lint.\n"})
     edited = upd.home / "skills" / "authoring" / "SKILL.md"
@@ -462,9 +463,9 @@ def test_a_conflicting_edit_installs_the_new_version_and_asks(upd, capsys):
     release(upd, "2.3.0", {"skills/authoring/SKILL.md": "1. Write.\n2. Lint with skill_lint.py.\n"})
     code, out, _ = upd.run(capsys)
     assert code == 0 and "Needs you: skills/authoring/SKILL.md changed both here and upstream" in out
-    assert edited.read_text() == "1. Write.\n2. Lint with skill_lint.py.\n"
-    (copy,) = (upd.home / "local" / "backups").glob("edits-*/skills/authoring/SKILL.md")
-    assert copy.read_text() == "1. Write.\n2. Lint with --strict.\n"
+    assert edited.read_text() == "1. Write.\n2. Lint with --strict.\n"
+    (upstream,) = (upd.home / "local" / "backups").glob("edits-*/upstream/skills/authoring/SKILL.md")
+    assert upstream.read_text() == "1. Write.\n2. Lint with skill_lint.py.\n"
 
 
 def test_an_edit_that_went_upstream_is_not_reported(upd, capsys):
@@ -499,14 +500,52 @@ def test_upgrade_merges_a_bot_edit_into_an_updated_squad_skill(installed, capsys
     assert again["applied"] == {} and dest.read_text() == text
 
 
+def test_a_file_the_bot_deleted_stays_deleted_when_upstream_edits_it(installed, capsys):
+    skill = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites"
+    ref = next(p for p in sorted((skill / "references").glob("*.md")))
+    rel = ref.relative_to(skill)
+    src = installed.src / "squads" / "web" / "skills" / "reviewing-sites" / rel
+    ref.unlink()
+    src.write_text(src.read_text() + "UPSTREAM LINE\n")
+    upgrade(installed, capsys)
+    assert not ref.exists(), "the bot removed it on purpose"
+
+
+def test_without_a_merge_base_only_the_files_the_bot_touched_keep_its_copy(installed, capsys):
+    """Bots installed before merge bases existed: an untouched file must still update, never freeze."""
+    import os
+    import shutil as sh
+    skill = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites"
+    src = installed.src / "squads" / "web" / "skills" / "reviewing-sites"
+    sh.rmtree(installed.local / "state" / "skill-base" / "web-qa" / "reviewing-sites")
+    ref_rel = next(p for p in sorted((skill / "references").glob("*.md"))).relative_to(skill)
+    stamp = (skill / ".squad-sha").stat().st_mtime
+    os.utime(skill / ref_rel, (stamp, stamp))
+    (skill / "SKILL.md").write_text((skill / "SKILL.md").read_text() + "LEARNED\n")
+    os.utime(skill / "SKILL.md", (stamp + 60, stamp + 60))
+    (src / ref_rel).write_text((src / ref_rel).read_text() + "UPSTREAM REF\n")
+    upgrade(installed, capsys)
+    assert (skill / "SKILL.md").read_text().endswith("LEARNED\n")
+    assert (skill / ref_rel).read_text().endswith("UPSTREAM REF\n"), "an untouched file takes the new version"
+
+
 def test_upgrade_reports_a_conflicting_bot_edit_and_keeps_a_copy(installed, capsys):
     dest = installed.root / "profiles" / "web-qa" / "skills" / "squad-web" / "reviewing-sites" / "SKILL.md"
     src = installed.src / "squads" / "web" / "skills" / "reviewing-sites" / "SKILL.md"
     first = dest.read_text().splitlines(True)
     dest.write_text("".join(["LOCAL TITLE\n", *first[1:]]))
     src.write_text("".join(["UPSTREAM TITLE\n", *first[1:]]))
+    (dest.parent / "references").mkdir(exist_ok=True)
+    (dest.parent / "references" / "learned.md").write_text("LEARNED REFERENCE\n")  # a file only the bot added
     out = upgrade(installed, capsys)
     assert any("skill reviewing-sites: edited here and changed upstream" in p for p in out["pending"])
-    assert dest.read_text().startswith("UPSTREAM TITLE\n")
-    (copy,) = (installed.local / "backups").glob("skill-edits-*/web-qa/reviewing-sites/SKILL.md")
-    assert copy.read_text().startswith("LOCAL TITLE\n")
+    assert dest.read_text().startswith("LOCAL TITLE\n"), "the bot keeps what it learned"
+    assert (dest.parent / "references" / "learned.md").read_text() == "LEARNED REFERENCE\n"
+    (upstream,) = (installed.local / "backups").glob("skill-edits-*/web-qa/reviewing-sites/upstream/SKILL.md")
+    assert upstream.read_text().startswith("UPSTREAM TITLE\n")
+    again = upgrade(installed, capsys)  # the conflict is reported once, not on every apply
+    assert again["applied"] == {} and not any("reviewing-sites" in p for p in again["pending"])
+    assert dest.read_text().startswith("LOCAL TITLE\n")
+    src.write_text(src.read_text() + "UPSTREAM FOOTER\n")  # a later, non-clashing upstream change still merges in
+    upgrade(installed, capsys)
+    assert dest.read_text().startswith("LOCAL TITLE\n") and dest.read_text().endswith("UPSTREAM FOOTER\n")

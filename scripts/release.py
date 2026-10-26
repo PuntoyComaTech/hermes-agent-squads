@@ -120,23 +120,34 @@ def gate_pytest(py: str, selection: dict | None = None) -> tuple[str, bool, str]
     if probe.returncode != 0:
         return ("pytest", False, f"{py} lacks pytest, pyyaml or jsonschema (the Hermes runtime under scripts/hpy "
                 "has none): pass --python .venv/bin/python")
-    selection = selection or {"full": True, "reason": "whole suite", "tests": []}
+    selection = selection or {"full": True, "reason": "no selection given", "tests": []}
     if not selection["full"] and not selection["tests"]:
         return "pytest", True, f"{selection['reason']}: no test to run"
     xdist = run_cmd([py, "-c", "import xdist"]).returncode == 0
     files = [] if selection["full"] else [f"tests/{t}" for t in selection["tests"]]
     p = run_cmd([py, "-m", "pytest", "-q", "-rf", "-p", "no:cacheprovider", *(["-n", "auto"] if xdist else []), *files])
-    tail = (p.stdout or p.stderr).strip().splitlines()
-    detail = tail[-1] if tail else f"exit {p.returncode}"
-    # name what failed: a red gate that only says "1 failed" cannot be told from a flaky run without a rerun
-    failed = [line.split(" - ")[0].removeprefix("FAILED ") for line in tail if line.startswith("FAILED ")]
-    if failed:
-        detail += ": " + ", ".join(failed[:5]) + (f" (+{len(failed) - 5} more)" if len(failed) > 5 else "")
     scope = "whole suite" if selection["full"] else f"{len(files)} test files"
-    detail += f" [{scope}: {selection['reason']}]"
-    if not xdist:
-        detail += " (serial: pip install pytest-xdist)"
-    return "pytest", p.returncode == 0, detail
+    note = f" [{scope}: {selection['reason']}]" + ("" if xdist else " (serial: pip install pytest-xdist)")
+    summary, _, rest = pytest_detail(p.stdout or "", p.stderr or "", p.returncode).partition("\n")
+    return "pytest", p.returncode == 0, summary + note + (f"\n{rest}" if rest else "")
+
+
+PYTEST_LOG = Path(os.environ.get("TMPDIR") or "/tmp") / "release-pytest.log"
+
+
+def pytest_detail(out: str, err: str, code: int) -> str:
+    """The summary line, then every failed test by name, then where the full log is: a red gate names its tests."""
+    try:
+        PYTEST_LOG.write_text(out + err, encoding="utf-8")
+        where = f"full log: {PYTEST_LOG}"
+    except OSError:
+        where = ""
+    lines = (out or err).strip().splitlines()
+    summary = lines[-1] if lines else f"exit {code}"
+    failed = [ln.split(" - ")[0].split(" ", 1)[1] for ln in lines if ln.startswith(("FAILED ", "ERROR "))]
+    if not failed:
+        return summary
+    return "\n".join([summary, *(f"        {name}" for name in failed), *([f"        {where}"] if where else [])])
 
 
 def gate_skill_lint(py: str) -> tuple[str, bool, str]:

@@ -3,7 +3,7 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
-## 2.20.0 - 2026-10-25
+## 2.21.0 - 2026-10-25
 
 ### Added
 
@@ -20,8 +20,34 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 - squad-hub 1.2.0: coming back to a chat that was showing a preview puts it back on its own when the Desktop lost it
   (switching to another bot's chat drops the page of the one left behind), without a turn of the bot. A preview closed
   before leaving stays closed.
-- web 3.7.3: the manager no longer reopens the live view on its own every time the user returns to the chat; that
+- web 3.8.1: the manager no longer reopens the live view on its own every time the user returns to the chat; that
   turn was the slow, reloading reopen. It opens the tab when the base exists, on request, or when the tab is gone.
+
+## 2.20.0 - 2026-10-25
+
+### Fixed
+
+- An update never takes away what a bot learned: when a bot and the repo change the same lines of a squad skill (or
+  of a builder skill), the bot's lines stay live, every other change still lands, and the new upstream version waits
+  in `local/backups/.../upstream/` with one `pending` line, reported once. Before, the repo version replaced the bot's
+  copy and the lesson only survived in a backup.
+- web 3.8.0: `save_progress.py` commits from a private index (`git commit --only`), so files another builder left
+  staged never block a save or ride along in it, and two saves at the same moment both land; parallel cards no longer
+  sit blocked for an hour.
+- squad-kanban plugin, on every squad bot: a card a manager files from the terminal (`hermes kanban create`,
+  `kanban_chain.py`) now notifies the chat that filed it, through Hermes's own auto-subscribe; before, only the
+  `kanban_create` tool did, and finished cards went unreported. A worker with unsaved changes for 30 minutes is
+  reminded to save the finished piece.
+
+### Added
+
+- web 3.8.0: the manager splits a milestone with several deliverables into a contract card, parallel one-deliverable
+  cards and an integration card (`leading-web/references/coordinating-builders.md`); builders that need each other
+  wait on support cards, and the manager shows every completion as it lands.
+- web 3.8.0: a renders board (`live_renders.py`): each modeller overwrites its newest render, the manager keeps the
+  board open as a tab beside the chat, and it refreshes itself.
+- web 3.8.0 and jobs 4.9.1: lessons the web and jobs managers learned on real runs are now part of the squad
+  (reference-site teardowns, repo handoffs, review rounds that do not converge).
 
 ## 2.19.0 - 2026-10-25
 

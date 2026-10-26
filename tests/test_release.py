@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -147,6 +148,19 @@ def test_green_checks_push_to_main(monkeypatch, capsys):
     assert pushed == ["origin"] and not pr
 
 
+def test_a_red_pytest_gate_names_every_failed_test_and_keeps_the_full_log(monkeypatch, tmp_path):
+    """A red gate that only says '1 failed' costs a second 15-minute run to learn which test: name them."""
+    (tmp_path / "test_x.py").write_text("def test_ok():\n    pass\n\ndef test_broken():\n    assert 1 == 2\n")
+    monkeypatch.setattr(release, "SRC", tmp_path)
+    monkeypatch.setattr(release, "PYTEST_LOG", tmp_path / "pytest.log")
+    name, ok, detail = release.gate_pytest(sys.executable)
+    assert name == "pytest" and not ok
+    lines = detail.splitlines()
+    assert "1 failed, 1 passed" in lines[0]
+    assert lines[1].strip() == "test_x.py::test_broken"
+    assert "assert 1 == 2" in (tmp_path / "pytest.log").read_text() and str(tmp_path / "pytest.log") in detail
+
+
 def test_red_checks_open_a_pr_and_never_push(monkeypatch, capsys):
     monkeypatch.setattr(release, "run_cmd", git())
     green(monkeypatch)
@@ -233,9 +247,12 @@ def test_a_red_pytest_gate_names_the_failing_tests(monkeypatch):
         return cp(out, code=1) if "pytest" in argv and "-c" not in argv else cp("")
 
     monkeypatch.setattr(release, "run_cmd", fake)
+    monkeypatch.setattr(release, "PYTEST_LOG", Path(release.__file__).parent / ".never-written" / "log")
     name, ok, detail = release.gate_pytest("/venv/python")
     assert not ok and "-rf" in calls[-1]
-    assert detail.startswith("2 failed, 2110 passed in 900.00s: tests/test_a.py::test_one, tests/test_b.py::test_two[x]")
+    lines = [line.strip() for line in detail.splitlines()]
+    assert lines[0].startswith("2 failed, 2110 passed in 900.00s [whole suite")
+    assert lines[1:] == ["tests/test_a.py::test_one", "tests/test_b.py::test_two[x]"]
 
 
 def pytest_calls(monkeypatch, xdist=True):

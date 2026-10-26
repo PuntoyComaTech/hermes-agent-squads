@@ -114,7 +114,8 @@ def merge_back(h: Path, state: Path, edits: dict[str, bytes]) -> dict:
     Returns {kept, merged, conflicts: [paths], shipped: {path: bytes}}. `shipped` is the new shipped content of every
     file written here (the next merge base). base = the file as the last update shipped it (local/state/shipped/; with
     no snapshot yet, the new shipped file when its hash equals the one recorded at the last update, i.e. the update
-    did not change it). A conflict leaves the new version on disk; the edit stays in the backup."""
+    did not change it). A conflict keeps the local edit on disk (what the bot learned is never taken away) and records
+    the new shipped file as the next merge base; the caller saves that upstream version beside the backup."""
     recorded = json.loads((state / SHAS).read_text()) if (state / SHAS).is_file() else {}
     out: dict = {"kept": [], "merged": [], "conflicts": [], "shipped": {}}
     for f, ours in sorted(edits.items()):
@@ -131,9 +132,17 @@ def merge_back(h: Path, state: Path, edits: dict[str, bytes]) -> dict:
             base = theirs
         else:
             base = None
-        result, clean = merge3.merge_bytes(base, ours, theirs) if base is not None else (theirs, False)
+        result, clean = merge3.merge_bytes(base, ours, theirs, prefer="ours") if base is not None else (ours, False)
         if not clean:
             out["conflicts"].append(f)
+            if theirs is not None:
+                out["shipped"][f] = theirs
+                out.setdefault("upstream", {})[f] = theirs
+            if result is None:
+                path.unlink(missing_ok=True)  # deleted here on purpose: it stays deleted
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(result)
             continue
         if result is None:
             continue
@@ -285,8 +294,12 @@ def main(argv: list[str] | None = None) -> int:
     if merged["merged"]:
         notes.append(f"Merged your edits into {len(merged['merged'])} updated skill file(s): "
                      + ", ".join(merged["merged"]))
-    notes += [f"Needs you: {f} changed both here and upstream; the new version is installed, your edit is in "
-              f"{backup / f}" for f in merged["conflicts"] if backup]
+    for f, data in (merged.get("upstream") or {}).items():
+        if backup:
+            (backup / "upstream" / f).parent.mkdir(parents=True, exist_ok=True)
+            (backup / "upstream" / f).write_bytes(data)
+    notes += [f"Needs you: {f} changed both here and upstream; your edit stays in place, the new version is in "
+              f"{backup / 'upstream' / f}" for f in merged["conflicts"] if backup]
     if backup:
         notes.append(f"{len(edits)} edited shipped file(s) saved to {backup}")
 

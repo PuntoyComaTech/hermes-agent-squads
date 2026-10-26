@@ -34,6 +34,14 @@ def test_overlapping_or_adjacent_changes_conflict_and_return_theirs():
     assert merge3.merge(BASE, "a\nb\nX\nd\ne\nf\ng\n", "a\nY\nc\nd\ne\nf\ng\n")[1] is False  # touching lines
 
 
+def test_prefer_ours_keeps_the_learned_lines_in_a_clash_and_still_lands_upstream_elsewhere():
+    ours = "a\nLEARNED b\nc\nd\ne\nf\ng\n"
+    theirs = "a\nUPSTREAM b\nc\nd\ne\nf\nNEW g\n"
+    assert merge3.merge(BASE, ours, theirs) == (theirs, False), "the default still never guesses"
+    assert merge3.merge(BASE, ours, theirs, prefer="ours") == ("a\nLEARNED b\nc\nd\ne\nf\nNEW g\n", False)
+    assert merge3.merge_bytes(b"x\n", b"y\n", None, prefer="ours") == (b"y\n", False), "upstream deleted, bot keeps it"
+
+
 def test_trees_keep_local_only_files_and_flag_add_delete_clashes(tmp_path):
     def tree(name, files):
         root = tmp_path / name

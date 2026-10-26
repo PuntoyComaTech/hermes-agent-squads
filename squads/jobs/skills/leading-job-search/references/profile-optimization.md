@@ -63,3 +63,6 @@ Then file a jobs-writer card (`skills: [optimizing-profiles]`, body `Mode: PROFI
 `jobs:profile:<project>:<YYYY-MM-DD>:apply`). Report the writer's verify result in one line per field: applied, or
 failed with the reason. The top-skill pins follow the approved `skills` list. Photo, banner, custom URL, Featured
 and Open to Work are the user's to set.
+
+The copy check runs with `--structure` whenever the structure file exists: without it a right draft for a role those
+rows rename or create fails as `role_not_covered` / `unknown_role` and reads as a bad draft.

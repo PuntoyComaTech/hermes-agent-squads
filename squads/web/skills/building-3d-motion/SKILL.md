@@ -30,11 +30,16 @@ Ordinary UI, styling and simple transitions belong to `web-frontend`: never take
 6. Blender pipeline: `references/blender-pipeline.md` (what to model offline, glTF export, compression).
 7. Budgets: `references/perf-budgets.md` (LCP/INP caps measured, not assumed).
 8. Fallbacks are part of the deliverable: `references/fallbacks.md` (GPU fallback, `prefers-reduced-motion`).
-9. Work on `web/<ID>` in `<repo>` and save each finished piece as you go (site-contract step 8): the scene shell,
+9. Renders the user can watch: after every Blender or offline render pass, overwrite your own image on the renders
+   board (`python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/live_renders.py" --site <site> --id <ID>
+   --add <render> --name <what it shows>`); the manager keeps it open as a tab beside the chat. Never send renders only
+   in the card summary. A milestone with a contract (`milestones/<ID>.contract.md`) is the source of names, scale,
+   palette and the paths you own.
+10. Work on `web/<ID>` in `<repo>` and save each finished piece as you go (site-contract step 8): the scene shell,
    each model or shader, each timeline, the fallback. The user watches the live tab.
-10. Verify in the browser at 390 and 1440 px before completing: no console errors, the fallback path works,
+11. Verify in the browser at 390 and 1440 px before completing: no console errors, the fallback path works,
    reduced motion renders the static branch. `pnpm -C <repo> quality` passes (site-contract step 9).
-11. `kanban_complete`: files in `metadata.changed_files`, what you verified in `metadata.verification`.
+12. `kanban_complete`: files in `metadata.changed_files`, what you verified in `metadata.verification`.
 
 ## Pitfalls
 

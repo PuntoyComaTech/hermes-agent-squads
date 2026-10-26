@@ -64,6 +64,8 @@ PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
 SHARED_BROWSER_URL = "http://127.0.0.1:9333"
 SHARED_BROWSER_PLUGIN = "shared-browser-tabs"
 SQUAD_HUB_PLUGIN = "squad-hub"
+# Every squad bot runs squad-kanban: a manager's CLI-filed cards notify its chat, a worker is reminded to save.
+SQUAD_KANBAN_PLUGIN = "squad-kanban"
 SHARED_BROWSER_SWEEP = {"schedule": "0 */3 * * *", "script": "shared_browser_sweep.py", "agent": False}
 
 
@@ -657,6 +659,26 @@ def live_bots(ctx: Ctx, spec: dict) -> list[str]:
     """Bots a live-state command (status, doctor, uninstall, project add) reports on: every required bot,
     plus an optional bot once its profile exists (optional bots install only via `apply --with`)."""
     return [b for b, s in spec["bots"].items() if not s.get("optional") or ctx.home(b).is_dir()]
+
+
+def write_skill_tree(dest: Path, files: dict[str, bytes], src: Path) -> None:
+    """Replace `dest` with `files` in one rename: a crash mid-write leaves the old skill, never half of one. Each
+    file keeps the mode of its source (a script stays executable), else of the copy it replaces."""
+    tmp = dest.with_name(f".{dest.name}.merge")
+    shutil.rmtree(tmp, ignore_errors=True)
+    for rel, data in files.items():
+        out = tmp / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(data)
+        for origin in (src / rel, dest / rel):
+            if origin.is_file():
+                out.chmod(origin.stat().st_mode & 0o777)
+                break
+    old = dest.with_name(f".{dest.name}.old")
+    shutil.rmtree(old, ignore_errors=True)
+    dest.rename(old)
+    tmp.rename(dest)
+    shutil.rmtree(old, ignore_errors=True)
 
 
 def asset(ctx: Ctx, key: str, *parts: str) -> Path | None:
@@ -1485,25 +1507,42 @@ class Applier:
             # overwrite. The marker holds the source tree sha, so an edited copy no longer matches its own marker.
             edited = dest.is_dir() and bool(have) and tree_sha(dest) != have
             if edited:
-                files, conflicts = merge3.merge_trees(base if base.is_dir() else None, dest, src)
+                # What the bot learned is never taken away: a stretch both sides changed keeps the bot's lines, every
+                # other change from both sides lands, and the upstream version of each clashing file waits beside the
+                # backup for the builder to fold in. The new source becomes the merge base, so the next apply keeps
+                # the bot's copy instead of reporting the same conflict again. No merge base (a bot installed before
+                # merge bases existed): a file written after the install marker is the bot's edit and wins, every
+                # other file takes the new version, so untouched files never freeze at the old release.
+                ours, theirs = merge3.read_tree(dest), merge3.read_tree(src)
+                if base.is_dir():
+                    files, conflicts = merge3.merge_trees(base, dest, src, prefer="ours")
+                else:
+                    stamp = (dest / SHA_MARK).stat().st_mtime
+                    touched = {r for r in ours if (dest / r).stat().st_mtime > stamp + 1 or r not in theirs}
+                    files = {**theirs, **{r: ours[r] for r in touched}}
+                    conflicts = sorted(r for r in touched if r in theirs and ours[r] != theirs[r])
                 if conflicts or not base.is_dir():
                     keep = ctx.local / "backups" / f"skill-edits-{time.strftime('%Y%m%d-%H%M%S')}" / name / skill
-                    acts.append(f"skill ~ {skill} (your edits conflict with the update: new version installed)")
+                    clash = conflicts
+                    acts.append(f"skill ~ {skill} (update merged; your edits kept where they clash: "
+                                f"{', '.join(clash) or 'none'})")
                     pending.append(f"skill {skill}: edited here and changed upstream ({', '.join(conflicts) or 'no merge base'}); "
-                                   f"your copy is in {keep}: move what still applies into the new version")
+                                   f"the bot keeps its copy of those files, the upstream version is in {keep}/upstream: "
+                                   "fold what still applies into the bot's copy")
                     if not dry:
                         shutil.copytree(dest, keep, ignore=shutil.ignore_patterns(SHA_MARK))
+                        for rel in clash:
+                            if rel in theirs:
+                                (keep / "upstream" / rel).parent.mkdir(parents=True, exist_ok=True)
+                                (keep / "upstream" / rel).write_bytes(theirs[rel])
                 else:
                     acts.append(f"skill ~ {skill} (update merged with your edits)")
-                    if not dry:
-                        shutil.rmtree(dest)
-                        for rel, data in files.items():
-                            (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-                            (dest / rel).write_bytes(data)
-                        write_text(dest / SHA_MARK, sha + "\n")
-                        shutil.rmtree(base, ignore_errors=True)
-                        shutil.copytree(src, base, ignore=shutil.ignore_patterns(SHA_MARK, "__pycache__"))
-                        continue
+                if not dry:  # the merged tree, where the bot's copy wins every clash, is the installed skill
+                    write_skill_tree(dest, files, src)
+                    write_text(dest / SHA_MARK, sha + "\n")
+                    shutil.rmtree(base, ignore_errors=True)
+                    shutil.copytree(src, base, ignore=shutil.ignore_patterns(SHA_MARK, "__pycache__"))
+                continue
             else:
                 acts.append(f"skill {'~' if dest.is_dir() else '+'} {skill}")
             if not dry:
@@ -1571,6 +1610,29 @@ class Applier:
         acts += self.provider_plugin(name, bot)
         acts += self.shared_browser_plugin(name, bot)
         acts += self.squad_hub_plugin(name, bot)
+        acts += self.squad_kanban_plugin(name)
+        return acts
+
+    def squad_kanban_plugin(self, name: str) -> list[str]:
+        """Every squad bot (never the builder) gets the repo's squad-kanban plugin, installed and enabled."""
+        if self.self_mode:
+            return []
+        home = self.ctx.home(name)
+        rel = Path("squads") / "_plugins" / SQUAD_KANBAN_PLUGIN
+        src = next((d / rel for d in (self.ctx.src, SRC) if (d / rel).is_dir()), SRC / rel)
+        files = {p.name: p.read_text(encoding="utf-8") for p in sorted(src.iterdir()) if p.suffix in (".py", ".yaml")}
+        dest = home / "plugins" / SQUAD_KANBAN_PLUGIN
+        enabled = list((((read_yaml(home / "config.yaml") or {}).get("plugins") or {}).get("enabled")) or [])
+        acts: list[str] = []
+        if any(_read(dest / f) != text for f, text in files.items()):
+            acts.append(f"plugin {'~' if dest.is_dir() else '+'} {SQUAD_KANBAN_PLUGIN}")
+            if not self.dry:
+                for fname, text in files.items():
+                    write_text(dest / fname, text)
+        if SQUAD_KANBAN_PLUGIN not in enabled:
+            acts.append(f"plugins enable {SQUAD_KANBAN_PLUGIN}")
+            if not self.dry:
+                self.ctx.hermes("plugins", "enable", SQUAD_KANBAN_PLUGIN, "--no-allow-tool-override", profile=name)
         return acts
 
     def squad_hub_plugin(self, name: str, bot: dict) -> list[str]:
@@ -1645,6 +1707,8 @@ class Applier:
             declared.add(SHARED_BROWSER_PLUGIN)
         if bot.get("role") == "manager":
             declared.add(SQUAD_HUB_PLUGIN)
+        if not self.self_mode:
+            declared.add(SQUAD_KANBAN_PLUGIN)
         for provider, _required in self.bot_providers(name, bot):
             found = provider_source(self.ctx, provider)
             if found:
