@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
+           "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
 
 
 def _model_source() -> str:
@@ -940,3 +940,71 @@ def test_an_open_project_shows_each_chat_once_in_its_own_folder(model):
     focused_only = {"live": [], "focused": "b"}
     timex = next(f for f in project["folders"] if f["path"].endswith("timex"))
     assert model("folderOpensByDefault", timex, focused_only) is False, "the chat merely in view does not unfold it"
+
+
+# ---- squad capabilities and project clean-up ------------------------------------------------------------------
+
+def _stamped(name, squad, role="worker", title=None):
+    p = profile(name, section="Managers" if role == "manager" else squad, title=title)
+    p["ui_meta"]["hermes-bots"]["squadName"] = squad
+    return p
+
+
+def test_a_manager_reaches_the_capabilities_of_every_bot_of_its_squad(model):
+    home = [profile("default", default=True), _stamped("jobs", "Jobs", "manager", "Jobs manager"),
+            _stamped("jobs-writer", "Jobs"), _stamped("jobs-scout", "Jobs"), _stamped("web", "Web", "manager"),
+            _stamped("web-qa", "Web")]
+    assert [m["name"] for m in model("squadMembers", home, "jobs")] == ["jobs", "jobs-scout", "jobs-writer"]
+    assert [m["name"] for m in model("squadMembers", home, "jobs-writer")][0] == "jobs-writer", "the bot asked about leads"
+    assert model("squadMembers", home, "default") == [] and model("squadMembers", home, "ghost") == []
+
+
+def test_an_unstamped_fleet_is_matched_through_the_manager_title_and_its_section(model):
+    home = [profile("omni", section="Managers", title="Acme shop manager"), profile("omni-ads", section="Acme shop"),
+            profile("omni-ops", section="Acme shop"), profile("other", section="Elsewhere")]
+    assert [m["name"] for m in model("squadMembers", home, "omni")] == ["omni", "omni-ads", "omni-ops"]
+    assert model("squadMembers", [profile("solo", section="Managers", title="Solo")], "solo") == []
+
+
+def _lane_project(model, chats, worktrees):
+    return model("buildBotTree", {"name": "web"}, [{"id": "p", "name": "Shop", "folders": [{"path": "/w/shop", "is_primary": True}]}],
+                 chats, worktrees)["projects"][0]
+
+
+WT = {"/w/shop": [{"path": "/w/shop", "branch": "main", "isMain": True},
+                  {"path": "/w/shop/.worktrees/done", "branch": "feat/done", "isMain": False},
+                  {"path": "/w/shop/.worktrees/idea", "branch": "feat/idea", "isMain": False},
+                  {"path": "/w/shop/.worktrees/dirty", "branch": "feat/dirty", "isMain": False},
+                  {"path": "/w/shop/.worktrees/wip", "branch": "feat/wip", "isMain": False},
+                  {"path": "/w/shop/.worktrees/t_0a1b2c", "branch": "kanban/t", "isMain": False}]}
+
+
+def _st(state=None, changed=0, ahead=0):
+    return {"pr": {"number": 1, "state": state, "url": "", "title": ""} if state else None, "changed": changed, "ahead": ahead, "behind": 0}
+
+
+def test_clean_up_offers_only_worktrees_with_nothing_to_lose_and_ticks_the_merged_ones(model):
+    project = _lane_project(model, [], WT)
+    wd = "/w/shop/.worktrees/"
+    statuses = {wd + "done": _st("merged"), wd + "idea": _st(), wd + "dirty": _st("merged", changed=2), wd + "wip": _st("open"),
+                wd + "t_0a1b2c": _st("merged")}
+    plan = model("cleanupPlan", project, statuses, {}, 100000.0)
+    got = {w["label"]: (w["reason"], w["pre"]) for w in plan["worktrees"]}
+    assert got == {"done": ("merged", True), "idea": ("nopr", False)}, "dirty, open-PR and kanban checkouts are never listed"
+    unpushed = model("cleanupPlan", project, {wd + "done": _st("merged", ahead=1)}, {}, 100000.0)
+    assert unpushed["worktrees"] == [], "unpushed commits keep a worktree"
+    assert model("cleanupPlan", project, {}, {}, 100000.0)["worktrees"] == [], "a checkout whose status is unknown is kept"
+
+
+def test_clean_up_archives_idle_old_chats_and_the_chats_of_a_removed_worktree(model):
+    now = 1_000_000.0
+    day = 86400
+    chats = [chat("old", "/w/shop", last=now - 10 * day), chat("fresh", "/w/shop", last=now - 1 * day),
+             chat("pin", "/w/shop", last=now - 30 * day, pinned=True), chat("busy", "/w/shop", last=now - 20 * day),
+             chat("unr", "/w/shop", last=now - 20 * day, unread=True),
+             chat("inwt", "/w/shop/.worktrees/done", root="/w/shop", branch="feat/done", last=now - 1 * day)]
+    plan = model("cleanupPlan", _lane_project(model, chats, WT), {"/w/shop/.worktrees/done": _st("merged")}, {"live": ["busy"]}, now)
+    by = {c["session"]["id"]: c["pre"] for c in plan["chats"]}
+    assert by == {"old": True, "inwt": True}, "pinned, working, unread and recent chats stay"
+    keep = model("cleanupPlan", _lane_project(model, chats, WT), {"/w/shop/.worktrees/done": _st("merged")}, {"live": ["inwt"]}, now)
+    assert keep["worktrees"] == [], "a worktree with a chat that needs you is not offered"

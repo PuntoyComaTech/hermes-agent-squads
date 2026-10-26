@@ -37,8 +37,14 @@ Screenshots use invented projects and boards.
 - **Previews you can bring back.** Every preview a chat opens is remembered; the status-bar chip lists them and a
   click reopens one, no prompt to the bot. Coming back to a chat that was showing a preview puts it back on its own
   when the Desktop lost it on the way (switching between bots can); a preview you closed before leaving stays closed.
+- **Clean up a project.** "Clean up…" in a project's menu (and on its own view) lists what can go: worktrees with
+  nothing to lose (no uncommitted files, nothing unpushed, no chat that needs you, no open or draft PR; kanban
+  checkouts never), ticked when their PR is merged or closed, and idle chats older than a week, plus the idle chats of
+  a worktree that goes. You see every row, untick what you want to keep, and one button does it. Nothing is deleted:
+  chats are archived and a removed worktree keeps its branch. Working, unread, in-view and pinned chats stay.
 - **A bot's own pages in one click.** Scheduled jobs, messaging, Kanban and capabilities (capabilities open in a
-  dialog pinned to that bot).
+  dialog pinned to that bot, with a picker for the other bots of its squad, so a connector or skill of any of them is
+  one click away).
 - **Quiet big projects.** A closed project lists the chats that are working, unread or open right under its own row,
   each with the folder (and worktree) it lives in: one click opens the chat, no folder to unfold. Open the project and
   that list goes away: each chat shows once, in its own folder, and the folders holding a chat that needs you start

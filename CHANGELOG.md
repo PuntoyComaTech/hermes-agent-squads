@@ -3,6 +3,17 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.25.0 - 2026-10-26
+
+### Added
+
+- squad-hub 1.4.0:
+  - **Clean up** in a project's menu: lists worktrees with nothing to lose (clean, pushed, no pending chat, no open PR;
+    ticked when the PR is merged or closed) and idle chats older than a week, each ticked or not by what is safe, then
+    archives the chats and removes the worktrees in one click. Nothing is deleted; a removed worktree keeps its branch.
+  - Capabilities of a bot show a picker with the other bots of its squad, so connectors and skills of a worker are
+    reachable from its manager's row.
+
 ## 2.24.1 - 2026-10-26
 
 ### Fixed
