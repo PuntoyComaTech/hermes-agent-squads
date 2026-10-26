@@ -16,7 +16,8 @@ committed, staged, unstaged and untracked. Each path selects tests by these rule
   source      any other file: the tests that name it (file name, module import, owning skill, plugin or squad
               folder), plus the tests that name any script which imports or runs it, transitively; when squadctl
               is one of those scripts, the squadctl tests too (the walk stops there). A file under
-              squads/<key>/ also selects every test of squad <key>; a builder skill's text is covered by the
+              squads/<key>/ also selects every test of squad <key>; its squad.yaml or souls/ also select the
+              tests that read every shipped manifest or SOUL and the squadctl tests; a builder skill's text is covered by the
               repo-wide checks below.
 
 Every change adds the cheap repo-wide checks (test_contracts.py, test_docs.py, test_help_no_yaml.py); a change
@@ -46,7 +47,8 @@ IGNORED_FILES = {"LICENSE", ".gitignore"}
 IGNORED_DIRS = (".github/",)
 DOC_FILES = {"README.md", "AGENTS.md", "llms.txt", "CONTRIBUTING.md"}
 DOC_TESTS = {"test_docs.py", "test_contracts.py"}
-RELEASE_FILES = {"distribution.yaml": {"test_contracts.py", "test_release.py"}, "CHANGELOG.md": {"test_contracts.py"}}
+RELEASE_FILES = {"distribution.yaml": {"test_contracts.py", "test_release.py"},
+                 "CHANGELOG.md": {"test_contracts.py", "test_release.py", "test_watch_upstream.py"}}
 REPO_WIDE = {"test_contracts.py", "test_docs.py", "test_help_no_yaml.py"}
 SQUADS_WIDE = {"test_skill_ownership.py"}
 CODE_EXT = {".py", ".js", ".mjs", ".cjs", ".sh", ".ts"}
@@ -185,6 +187,11 @@ class Repo:
         """test_squadctl.py and every test built on its fake-hermes harness."""
         return ({"test_squadctl.py"} & set(self.tests)) | self.importers_of("test_squadctl.py")
 
+    def every_squad_tests(self) -> set[str]:
+        """Tests that read every shipped manifest or SOUL through a glob or a per-key path."""
+        marks = ('"*/squad.yaml"', '"*/souls/', '/ key / "squad.yaml"', 'squads/{key}/squad.yaml')
+        return {t for t in self.tests if any(m in self.text[t] for m in marks)}
+
     def squad_tests(self, key: str) -> set[str]:
         marks = (f'"squads" / "{key}"', f"squads/{key}/", f"squad-{key}")
         return {t for t in self.tests if t.startswith(f"test_{key}_") or any(m in self.text[t] for m in marks)}
@@ -232,6 +239,9 @@ def select(paths: list[str], repo: Repo | None = None) -> dict:
             parts = path.split("/")
             if parts[0] == "squads" and len(parts) > 2 and not parts[1].startswith("_"):
                 got |= repo.squad_tests(parts[1]) | SQUADS_WIDE
+                if parts[2] == "squad.yaml" or parts[2] == "souls":
+                    # shipped-manifest tests loop over every squad (`glob("*/squad.yaml")`, `squads / key /`)
+                    got |= repo.every_squad_tests() | repo.hub_tests() | {"test_release.py", "test_update_path.py"}
             elif parts[0] == "squads" and len(parts) > 3 and parts[1] == "_plugins":
                 got |= repo.tests_naming({f'"{parts[2]}"', f"/{parts[2]}/", f"{parts[2]}/"}) | SQUADS_WIDE
             elif parts[0] == "skills" and len(parts) > 2:

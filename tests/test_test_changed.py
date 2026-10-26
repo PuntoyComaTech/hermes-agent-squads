@@ -77,6 +77,18 @@ def test_a_squad_file_selects_that_squad_and_not_the_others(repo):
     assert not {t for t in got if t.startswith("test_jobs_")}
 
 
+@pytest.mark.parametrize("path", ["squads/marketing/squad.yaml", "squads/jobs/squad.yaml",
+                                  "squads/marketing/souls/marketing.md"])
+def test_a_shipped_manifest_or_soul_selects_the_tests_that_loop_over_every_squad(repo, path):
+    # each of these tests failed on a broken copy of these files while the old selection stayed green
+    got = picks(repo, path)
+    assert {"test_squadctl.py", "test_messaging.py", "test_update_path.py"} <= got
+
+
+def test_the_changelog_selects_the_release_and_update_watcher_tests(repo):
+    assert {"test_release.py", "test_watch_upstream.py"} <= picks(repo, "CHANGELOG.md")
+
+
 def test_a_test_file_selects_itself_and_the_modules_that_import_it(repo):
     got = picks(repo, "tests/test_jobs_profile.py")
     assert {"test_jobs_profile.py", "test_jobs_consent.py", "test_jobs_submit_gate.py"} <= got
