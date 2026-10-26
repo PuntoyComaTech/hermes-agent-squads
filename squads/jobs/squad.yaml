@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.9.2
+version: 4.9.3
 
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}

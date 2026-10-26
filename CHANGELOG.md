@@ -3,6 +3,22 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.20.3 - 2026-10-26
+
+### Fixed
+
+- jobs 4.9.3, from a LinkedIn "review and fill the gaps" run that left three things unapplied:
+  - Adding a skill failed on every name: LinkedIn's add-skill form is an open `<dialog>` whose field is an `<input>`
+    with no `type` attribute, and the form finder only looked for `input[type="text"]`, so it climbed past the dialog
+    and found no form. It now accepts typeless inputs and prefers the open dialog that holds Save.
+  - `Page.run` crashed on every text step: their `expect` is the list of accepted texts, and `run` called `.get` on it.
+  - The Languages section had no allowed form. `own_profile.py` opens `/details/languages/edit/forms/<new|id>/`,
+    `profile_form.py` adds a `language_create` structure row (LinkedIn's own proficiency labels; a level it does not
+    offer or a language already listed is refused at plan time), `parse_profile.py` reads `/details/languages/`
+    into `languages`, and `profile_diff.py verify` checks the row.
+  - A school saved with one year ("2025") failed verify: the dates line shows that year alone, now read as both its
+    start and its end.
+
 ## 2.20.2 - 2026-10-26
 
 ### Fixed

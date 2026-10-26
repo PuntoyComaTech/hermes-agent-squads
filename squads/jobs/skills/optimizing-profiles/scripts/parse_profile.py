@@ -193,6 +193,18 @@ def education_rows(section) -> list[dict]:
     return rows
 
 
+def language_rows(section) -> list[dict]:
+    """/details/languages/ items: the language, then its proficiency line ("Native or bilingual proficiency")."""
+    rows = []
+    if not isinstance(section, dict):
+        return rows
+    for item in section.get("items") or []:
+        lines = as_list(lines_of(item))
+        if lines:
+            rows.append({"language": lines[0], "proficiency": lines[1] if len(lines) > 1 else "", "edit": edit_of(item)})
+    return rows
+
+
 def build(capture: dict, today: str) -> dict:
     if not isinstance(capture, dict):
         raise UsageError("CAPTURE.json must be an object")
@@ -236,6 +248,7 @@ def build(capture: dict, today: str) -> dict:
         "about": about,
         "experience": experience,
         "education": education,
+        "languages": language_rows(capture.get("languages")),
         "skills": skills,
         "skills_count": len(skills) or (count if isinstance(count, int) else 0),
         "top_skills": top_skills,

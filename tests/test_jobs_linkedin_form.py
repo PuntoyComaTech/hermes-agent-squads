@@ -792,3 +792,123 @@ def test_pins_that_land_out_of_order_or_touch_the_about_text_are_never_saved(bro
     p = about_page(browser, [], catalog, leak=True)                                # a click typed into the About
     out = p.run(pin_plan(["SQL", "Python", "Power BI"])[0])
     assert out["result"] == "failed" and "About text" in out["reason"] and saved(browser) is None
+
+
+# --- v5: the add-skill and add-language dialogs, year-only school dates, the languages section ---------------------
+# The v5 run (2026-10-25) could not add "pgvector" or "PostgreSQL": those forms render Save and an <input> with no type
+# attribute inside an open <dialog>, and the form finder only looked for input[type="text"], so it climbed past the
+# dialog and found no form. `run()` also crashed on text steps, whose `expect` is a list. The languages section had no
+# allowed form at all, and a school saved with only its end year ("2025") failed verify. Fictitious data throughout.
+
+DIALOG = REPO / "tests" / "fixtures" / "linkedin" / "dialog_form.html"
+
+
+@needs_chrome
+def test_a_skill_in_the_add_skill_dialog_is_picked_from_linkedins_list_and_saved(browser):
+    browser.open({"kind": "skill"}, fixture=DIALOG)
+    out = page(browser).skill_add({"skill": "PostgreSQL"})
+    assert out["result"] == "applied", out
+    assert saved(browser) == {"value": "PostgreSQL", "picked": "PostgreSQL", "level": None}
+
+
+@needs_chrome
+def test_a_skill_the_picker_does_not_offer_is_never_saved(browser):
+    browser.open({"kind": "skill"}, fixture=DIALOG)
+    out = page(browser).skill_add({"skill": "Workers"})
+    assert out["result"] == "failed" and saved(browser) is None
+
+
+def lang_approved(name="English", level="Professional working proficiency"):
+    return {"structure": [{"kind": "language_create", "language": name, "proficiency": level}]}
+
+
+@needs_chrome
+def test_a_new_language_is_saved_with_its_proficiency(browser):
+    step = pf.plan(lang_approved(), [CURRENT], "structure")[0]
+    assert step["url"].endswith("/details/languages/edit/forms/new/") and "result" not in step
+    browser.open({"kind": "language"}, fixture=DIALOG)
+    out = page(browser).language(step)
+    assert out["result"] == "applied", out
+    assert saved(browser) == {"value": "English", "picked": "English", "level": "Professional working proficiency"}
+
+
+@needs_chrome
+def test_a_language_form_that_is_not_empty_is_left_alone(browser):
+    step = pf.plan(lang_approved(), [CURRENT], "structure")[0]
+    browser.open({"kind": "language", "prefill": "Spanish"}, fixture=DIALOG)
+    out = page(browser).language(step)
+    assert out["result"] == "refused" and "not empty" in out["reason"] and saved(browser) is None
+
+
+def test_a_language_row_with_a_level_linkedin_does_not_offer_or_already_listed_is_refused():
+    step = pf.plan(lang_approved(level="B2"), [CURRENT], "structure")[0]
+    assert step["result"] == "refused" and "proficiency" in step["reason"]
+    listed = dict(CURRENT, languages=[{"language": "English", "proficiency": "Limited working proficiency"}])
+    step = pf.plan(lang_approved(), [listed], "structure")[0]
+    assert step["result"] == "refused" and "already" in step["reason"]
+
+
+def test_a_text_step_runs_with_its_list_of_expected_texts():
+    # run() read step["expect"].get(...) and crashed on every text step: their expect is the list of accepted texts
+    class Stub(pf.Page):
+        def open(self, *a, **k):
+            return {"result": "open"}
+
+        def read(self):
+            return {"found": True, "boxes": []}
+
+        def text(self, step):
+            return {"result": "applied"}
+
+    stub = Stub(lambda e: None, lambda *a, **k: None, own="ana-example", pause=0)
+    out = stub.run({"action": "text", "control": "about", "url": BASE + "edit/forms/summary/new/",
+                    "expect": ["Sobre mí."], "want": "Nuevo."})
+    assert out["result"] == "applied"
+
+
+def test_the_guard_opens_the_language_forms_and_still_refuses_other_sections():
+    own = SCRIPTS / "own_profile.py"
+    for tail, allow in (("details/languages/edit/forms/new/", True), ("details/languages/edit/forms/123/", True),
+                        ("details/certifications/edit/forms/new/", False), ("details/languages/edit/x/", False)):
+        p = subprocess.run([sys.executable, "-B", str(own), "check", BASE + tail, "--own", "ana-example", "--json"],
+                           capture_output=True, text=True, timeout=60)
+        assert json.loads(p.stdout)["allow"] is allow, tail
+
+
+def test_verify_reads_a_school_saved_with_one_year_and_a_language_entry(tmp_path):
+    diff = SCRIPTS / "profile_diff.py"
+    current = dict(CURRENT, education=CURRENT["education"] + [
+        {"institution": "Sample Language Center", "degree": "Advanced English Program", "dates": "2025",
+         "description": ""}],
+        languages=[{"language": "English", "proficiency": "Professional working proficiency"}])
+    approved = {"fields": [], "structure": [
+        {"kind": "education_create", "institution": "Sample Language Center", "title": "Advanced English Program",
+         "to": "2025"},
+        {"kind": "language_create", "language": "English", "proficiency": "Professional working proficiency"}]}
+    a, c = tmp_path / "a.json", tmp_path / "c.json"
+    a.write_text(json.dumps(approved)), c.write_text(json.dumps(current))
+    p = subprocess.run([sys.executable, "-B", str(diff), "verify", a, c, "--json"], capture_output=True, text=True,
+                       timeout=60)
+    assert p.returncode == 0, p.stdout
+    current["languages"][0]["proficiency"] = "Limited working proficiency"
+    c.write_text(json.dumps(current))
+    p = subprocess.run([sys.executable, "-B", str(diff), "verify", a, c, "--json"], capture_output=True, text=True,
+                       timeout=60)
+    assert p.returncode == 1 and json.loads(p.stdout)["failures"][0]["field"] == "structure:language_create:English"
+
+
+def test_the_languages_section_is_parsed_into_the_capture(tmp_path):
+    parse = SCRIPTS / "parse_profile.py"
+    capture = {"url": BASE, "name": "Ana Example", "headline": "Analyst", "about": "x",
+               "experience": {"found": True, "groups": []}, "education": {"found": True, "items": []},
+               "skills": {"count": 1, "items": ["SQL"]}, "profile_languages": ["Español"],
+               "languages": {"found": True, "items": [["Spanish", "Native or bilingual proficiency"],
+                                                      ["English", "Professional working proficiency"]]}}
+    src, out = tmp_path / "cap.json", tmp_path / "current.json"
+    src.write_text(json.dumps(capture))
+    p = subprocess.run([sys.executable, "-B", str(parse), src, "--output", out, "--today", "2026-10-26"],
+                       capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stderr
+    langs = json.loads(out.read_text())["languages"]
+    assert [(x["language"], x["proficiency"]) for x in langs] == [("Spanish", "Native or bilingual proficiency"),
+                                                                   ("English", "Professional working proficiency")]

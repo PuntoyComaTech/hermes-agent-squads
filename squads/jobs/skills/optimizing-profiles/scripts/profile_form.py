@@ -53,6 +53,9 @@ MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "
 SHARED = ("skills", "top_skills")
 MAX_REMOVALS = 10
 MAX_PINS = 5
+# LinkedIn's language proficiency options, as the form lists them (measured 2026-10-26), lower-case
+PROFICIENCY = {"elementary proficiency", "limited working proficiency", "professional working proficiency",
+               "full professional proficiency", "native or bilingual proficiency"}
 
 
 class UsageError(ValueError):
@@ -235,6 +238,19 @@ def structure_steps(rows, current: dict, texts: dict | None = None) -> list[dict
                 step["set"]["degree"] = title
             else:
                 step["set"].update({k: row[k] for k in ("from", "to") if row.get(k)})
+        elif kind == "language_create":
+            name, level = norm(row.get("language")), norm(row.get("proficiency"))
+            step = steps[("create-language", name.lower())] = {
+                "phase": "structure", "kinds": [kind], "rows": [row], "language": primary, "action": "language",
+                "url": base + "details/languages/edit/forms/new/", "expect": {"new": True},
+                "set": {"language": name, **({"proficiency": level} if level else {})}}
+            why = "" if name else "a new language needs its `language`"
+            if not why and level and level.lower() not in PROFICIENCY:
+                why = f"{level!r} is not a LinkedIn proficiency: use one of {', '.join(sorted(PROFICIENCY))}"
+            if not why and any(norm(x.get("language")).lower() == name.lower() for x in current.get("languages") or []):
+                why = "the profile already lists this language"
+            if why:
+                step.update(result="refused", reason=why)
         elif kind == "education_create":
             step = steps[("create-school", school.lower(), title.lower())] = {
                 "phase": "structure", "kinds": [kind], "rows": [row], "language": primary, "action": "education",
@@ -388,10 +404,14 @@ def plan(approved: dict, captures: list[dict], phase: str) -> list[dict]:
 
 FORM_JS = r"""
 (() => {
-  const save = [...document.querySelectorAll('button')].find(b => (b.innerText || '').trim() === 'Save');
+  // LinkedIn's add-skill and language forms render Save and one <input> with no type attribute inside an open <dialog>;
+  // a field selector that needs type="text" climbs past that dialog and finds no form (measured 2026-10-26)
+  const FIELD = 'input[type="text"], input:not([type]), textarea, select, [contenteditable="true"]';
+  const saves = [...document.querySelectorAll('button')].filter(b => (b.innerText || '').trim() === 'Save');
+  const save = saves.find(b => { const d = b.closest('dialog'); return d && d.open; }) || saves[0];
   if (!save) return null;
   let root = save.parentElement;
-  while (root && !root.querySelector('input[type="text"], textarea, [contenteditable="true"]')) root = root.parentElement;
+  while (root && !root.querySelector(FIELD)) root = root.parentElement;
   return root;
 })()
 """
@@ -880,6 +900,35 @@ class Page:
             return {"result": "failed", "reason": problem + ": nothing was saved"}
         return self.finish(self.save())
 
+    def language(self, step: dict) -> dict:
+        """The add-language form: the language name (LinkedIn's suggestion when it offers one) and the proficiency
+        select, by its label. Only a new, empty form is filled."""
+        values = step.get("set") or {}
+        if not self.mark(kind="input", match=r"(^|\s)language\*?$"):
+            return {"result": "refused", "reason": "the page has no Language field: it is not the language form"}
+        if norm(self.js("(document.querySelector('[data-pf=\"1\"]') || {}).value || ''")):
+            return {"result": "refused", "reason": "the language form is not empty"}
+        self.set_value(values["language"])
+        self.wait(1.2)
+        self.pick(values["language"])           # a suggestion with exactly this name, when the field offers one
+        self.wait(0.5)
+        if values.get("proficiency"):
+            if not self.mark(kind="select", match=r"proficiency$"):
+                return {"result": "failed", "reason": "no proficiency select: nothing was saved"}
+            if "error" in self.set_value(values["proficiency"]):
+                return {"result": "failed", "reason": f"the proficiency {values['proficiency']!r} is not an option: "
+                                                      "nothing was saved"}
+        got = self.js("""(() => { const d = [...document.querySelectorAll('dialog')].find(x => x.open) || document;
+            const i = [...d.querySelectorAll('input')].find(e => /^language/i.test(e.getAttribute('aria-label') || ''));
+            const s = [...d.querySelectorAll('select')].find(e => [...e.options].some(o => /proficiency$/i.test(o.text)));
+            return {language: i ? i.value : null, proficiency: s ? (s.options[s.selectedIndex] || {}).text : null}; })()""")
+        if norm((got or {}).get("language")).lower() != norm(values["language"]).lower():
+            return {"result": "failed", "reason": f"the form holds the language {(got or {}).get('language')!r}: "
+                                                  "nothing was saved"}
+        if values.get("proficiency") and norm((got or {}).get("proficiency")).lower() != norm(values["proficiency"]).lower():
+            return {"result": "failed", "reason": "the proficiency did not take: nothing was saved"}
+        return self.finish(self.save())
+
     def delete(self, step: dict) -> dict:
         problem = self.form_matches(step.get("expect") or {})
         if problem:
@@ -1098,6 +1147,7 @@ class Page:
             return step
         action = str(step.get("action") or "")
         handler = {"text": self.text, "position": self.position, "education": self.education,
+                   "language": self.language,
                    "delete": self.delete, "role_skills": self.role_skills, "skill_add": self.skill_add,
                    "skill_remove": self.skill_remove, "top_skills": self.top_skills}.get(action)
         if handler is None:
@@ -1110,7 +1160,8 @@ class Page:
         # boxes ticked when the form opened (a role's skills, a current role) may stay ticked; a new form starts from
         # none, so a box LinkedIn pre-ticks there ("end current position", in any language) blocks the Save
         pre = {norm(b["label"]).lower() for b in self.read().get("boxes") or [] if b.get("checked") and not b.get("sw")}
-        self.allowed_ticks = set() if (step.get("expect") or {}).get("new") else pre
+        expect = step.get("expect")
+        self.allowed_ticks = set() if isinstance(expect, dict) and expect.get("new") else pre
         try:
             out = handler(step)
         finally:
