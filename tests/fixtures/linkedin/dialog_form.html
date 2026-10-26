@@ -1,0 +1,61 @@
+<!doctype html>
+<!-- LinkedIn's add-skill and add-language forms as measured on 2026-10-26: an open <dialog> holds the form, its field is
+     an <input> with no type attribute, and Save sits in the dialog's footer. Outside the dialog the page keeps a header
+     search box and a video player's caption selects. The state in the URL hash picks the form: {"kind": "skill"} or
+     {"kind": "language"}. Fictitious data; innerHTML below only renders strings this file defines. -->
+<html><head><meta charset="utf-8"><title>Add</title></head><body>
+<header><div role="search"><input placeholder="Search"></div></header>
+<main><div><select aria-label="Color"><option>White</option><option>Black</option></select>
+  <select aria-label="Opacity"><option>Opaque</option></select></div></main>
+<dialog id="dlg">
+  <div>
+    <h2 id="head"></h2>
+    <button aria-label="Dismiss" type="button">x</button>
+    <div id="body"></div>
+    <div><button id="save" type="button">Save</button></div>
+  </div>
+</dialog>
+<script>
+const state = JSON.parse(decodeURIComponent(location.hash.slice(1) || '%7B%7D'));
+const dlg = document.getElementById('dlg');
+const body = document.getElementById('body');
+const OFFERED = ['PostgreSQL', 'PostgreSQL DBA', 'pgvector', 'English', 'English Teaching', 'Spanish'];
+function field(label, ph) {
+  const wrap = document.createElement('div');
+  const i = document.createElement('input');              // no type attribute, as LinkedIn renders it
+  i.setAttribute('aria-label', label); if (ph) i.placeholder = ph;
+  const opts = document.createElement('div'); opts.setAttribute('role', 'listbox');
+  i.addEventListener('input', () => {
+    opts.textContent = '';
+    for (const name of OFFERED.filter(n => i.value && n.toLowerCase().startsWith(i.value.toLowerCase()))) {
+      const o = document.createElement('div'); o.setAttribute('role', 'option'); o.innerText = name;
+      o.onclick = () => { i.value = name; opts.textContent = ''; window.__picked = name; };
+      opts.append(o);
+    }
+  });
+  wrap.append(i, opts); body.append(wrap); return i;
+}
+let input, level;
+if (state.kind === 'language') {
+  document.getElementById('head').innerText = 'Add language';
+  input = field('Language*', '');
+  level = document.createElement('select');
+  ['Select proficiency', 'Elementary proficiency', 'Limited working proficiency', 'Professional working proficiency',
+   'Full professional proficiency', 'Native or bilingual proficiency'].forEach((t, k) => {
+    const o = document.createElement('option'); o.value = k ? String(k) : ''; o.text = t; level.append(o); });
+  const lab = document.createElement('label'); lab.innerText = 'Proficiency level'; lab.append(level); body.append(lab);
+} else {
+  document.getElementById('head').innerText = 'Add skill';
+  input = field('Skill*', 'Skill (ex: Project Management)');
+}
+if (state.prefill) input.value = state.prefill;
+dlg.showModal();
+document.getElementById('save').onclick = () => {
+  window.__saved = {value: input.value, picked: window.__picked || null,
+                    level: level ? level.options[level.selectedIndex].text : null};
+  dlg.close(); dlg.remove();
+  const a = document.createElement('div'); a.setAttribute('role', 'alert'); a.innerText = 'Save was successful.';
+  document.body.append(a);
+};
+</script>
+</body></html>

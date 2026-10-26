@@ -13,21 +13,19 @@ hashed class names that change between builds, so every selector uses a stable a
 - The details pages: experience, education, skills
 - The edit forms and their language tabs
 - Profile languages and one capture per language
+- Dialog forms: add skill, add language
 - Writing: profile_form.py
 - Measured against unverified
 
 ## The browser in one tab
 
-`browser_exec` runs with `shared_browser: true`: one signed-in headless Chromium on `127.0.0.1:9333`. A plugin gives
-each run one tab and closes it at the end, so `new_tab()` navigates that tab. Navigate in place with `goto_url()`,
-never close a tab, never open a window, never type a credential. A sign-in page, a checkpoint, a CAPTCHA or a
-restriction notice ends the run: `kanban_block(kind="needs_input", reason="LinkedIn is not signed in for jobs-writer:
-see the jobs README, LinkedIn session")`.
+`browser_exec` runs with `shared_browser: true` (one signed-in headless Chromium on `127.0.0.1:9333`, one tab per run,
+closed at the end): navigate in place with `goto_url()`, never close a tab or open a window, never type a credential. A
+sign-in page, checkpoint, CAPTCHA or restriction notice ends the run: `kanban_block(kind="needs_input",
+reason="LinkedIn is not signed in for jobs-writer: see the jobs README, LinkedIn session")`.
 
-Cards below the fold mount only while they are near the viewport, and unmount when they leave it. The page scrolls
-`main` (`main#workspace`), not the window: `window.scrollTo` does nothing and `document.scrollHeight` stays ~457.
-Scroll `main` in ~600 px steps and extract immediately after the step that mounted the card, with no scroll back to
-the top.
+Cards below the fold mount only near the viewport. The page scrolls `main` (`main#workspace`), not the window: scroll
+`main` in ~600 px steps and extract right after the step that mounted the card, with no scroll back to the top.
 
 ## The own-profile guard
 
@@ -35,15 +33,14 @@ Run `own_profile.py check <url> --own <slug|me>` before every navigation; it exi
 own `/in/<slug>/`, its `/details/<section>/` pages, the experience, education and skills forms under them, and the
 intro, summary and position forms under `/edit/`, on `https` `www.linkedin.com` or a two-letter locale subdomain. The
 path is percent-decoded and its dot segments resolved first, so `/in/<slug>/edit/../../../in/other/` is judged as
-`/in/other/`. Contact info, overlays, the photo, banner and public-URL forms, Featured, and every `next-action` prompt
-LinkedIn opens after a Save are refused. `own_profile.py record <url> --project <P>` stores the slug `/in/me/`
+`/in/other/`. The languages forms pass too. Contact info, overlays, the photo, banner and public-URL forms, Featured,
+and every `next-action` prompt LinkedIn opens after a Save are refused. `own_profile.py record <url> --project <P>` stores the slug `/in/me/`
 redirected to, and only accepts a URL LinkedIn marked `isSelfProfile=true` or one that repeats the stored slug.
 
 ## The profile card: name, headline, location, About
 
-`https://www.linkedin.com/in/me/` redirects to `https://www.linkedin.com/in/<slug>/?isSelfProfile=true`. Card names
-are `com.linkedin.sdui.profile.card.ref<memberRef><CardName>`; the `memberRef` differs per person, so match the
-suffix: `[componentkey$="Topcard"]`, `[componentkey$="About"]`, `[componentkey$="Skills"]`.
+`/in/me/` redirects to `/in/<slug>/?isSelfProfile=true`. Card keys end in the card name (the `memberRef` before it
+differs per person): `[componentkey$="Topcard"]`, `[componentkey$="About"]`, `[componentkey$="Skills"]`.
 
 | Field | Selector |
 |---|---|
@@ -130,7 +127,6 @@ js("""(() => {
 })()""")
 ```
 Per-skill edit links: `a[aria-label="Edit <skill> skill"]` (`/details/skills/edit/forms/<id>/`); add: `.../forms/new/`.
-
 ## The edit forms and their language tabs
 
 | Field | Where | The control |
@@ -157,9 +153,8 @@ added, so draft skills with names it offers ("Cloudflare", "Generative AI").
 Save is a `button` whose text is `Save`. A form opens in the primary language; `nav a` holds one link per language
 (`?language=en&country=US`) and clicking it swaps the field's text: the intro form gave 163 characters in Spanish and
 163 in English, the About form 1,379 in Spanish and 1,500 in English. So a field's text depends on the tab: read the
-tab before typing, and type only into the tab whose text equals the captured text.
-
-The headline shows no counter: its 220-character limit is enforced by `check_profile_copy.py`.
+tab before typing, and type only into the tab whose text equals the captured text. The headline shows no counter:
+its 220-character limit is enforced by `check_profile_copy.py`.
 
 ## Profile languages and one capture per language
 
@@ -176,6 +171,13 @@ About, each role's Description, each school's Degree, Field of study and Descrip
 `Escape`, never with `Save`. An empty secondary tab shows the primary text until it is written. The About card's
 last lines (`Top skills`, then the pins) are not About text: `parse_profile.py` moves them to `top_skills`.
 
+## Dialog forms: add skill, add language
+
+Measured 2026-10-26: `/in/<slug>/skills/edit/forms/new/` and `/details/languages/edit/forms/new/` open an HTML
+`<dialog>` holding `Skill*` or `Language*` (an `<input>` with no `type`), for languages a proficiency select
+(Elementary / Limited working / Professional working / Full professional / Native or bilingual), and Save in its
+footer; selects outside it (a video player's captions) are not the form. `/details/languages/` lists name, then level.
+
 ## Writing: profile_form.py
 
 Inside `browser_exec`, load it from `$T` (`profile_form.py --help`), make `page = pf.Page(js, cdp, own=<slug>)` and
@@ -188,13 +190,11 @@ when the form closes. It returns `applied`, `refused` (nothing typed or saved) o
   with "<title> at <company>". The step clears the box and sets the end selects before Save.
 - Typing after a Range selection appended to the old headline; the step selects with the editor's own selectAll and
   types only after the whole old text is selected, then compares the field with the approved text before Save.
-- After Save LinkedIn lands on `/edit/forms/next-action/...` (share the position, people you may know, Premium); the
-  guard refuses those pages and the next step navigates away.
-- A Save is refused while `Notify network` is on or any box the step did not set is ticked, in any interface language.
+- After Save LinkedIn lands on `/edit/forms/next-action/...` (share, people you may know, Premium): refused by the
+  guard. A Save is refused while `Notify network` is on or a box the step did not set is ticked, in any language.
 - A skill is added and removed one per Save; the pins are set last on the About form, its text unchanged.
 
 ## Measured against unverified
 
-Measured: the `/in/me/` redirect, the card suffixes, the details sections, 71 skills after scrolling, and the intro,
-summary (with its top-skill pins), position, education and skill forms with their Save, Delete and redirects. Unverified: a `Featured` card (absent: `featured`
-stays empty) and every account setting, which this skill never opens.
+Measured: the `/in/me/` redirect, card suffixes, details sections, 71 skills, and the intro, summary (with its pins),
+position, education, skill and language forms. Unverified: a `Featured` card and every account setting (never opened).

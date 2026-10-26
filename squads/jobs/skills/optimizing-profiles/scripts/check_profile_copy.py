@@ -303,6 +303,8 @@ def apply_structure(rows: list, current: dict) -> dict:
             # the school is the entry's name and never changes here; `title` is its degree
             name = key(row.get("institution"))
             schools[name] = dict(schools.get(name) or {}, institution=str(row.get("institution") or ""))
+        elif kind == "language_create":
+            pass  # a language entry carries no copy block
         elif kind:
             raise UsageError(f"unknown structure kind {kind!r}")
     out["experience"] = [dict(r, company=c, title=t) for (c, t), r in roles.items()]
