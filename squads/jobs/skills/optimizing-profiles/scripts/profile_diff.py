@@ -33,9 +33,11 @@ deletion). Kinds and their keys:
   education_dates    institution, from, to, degree?
   education_create   institution, title?, field?, from, to
   education_delete   institution, degree?
+  language_create    language, proficiency?   (proficiency is LinkedIn's label: "Limited working proficiency" for a B2)
 `was`/`degree` name which degree when one school holds two. `from`/`to` are the date tokens LinkedIn shows ("Oct
 2023", "2021", "Present"; a position needs the month). They are compared as dates, start against start and end
-against end: "2023" does not match "Oct 2023", and from/to swapped do not match. A token that is not a date fails its
+against end: "2023" does not match "Oct 2023", and from/to swapped do not match. A school saved with one year shows
+that year alone ("2025"), and it is read as both its start and its end. A token that is not a date fails its
 row. Structure is one list for every language. A `skills` row may list `remove`: only those skills are removed.
 
 Field ids: `headline`, `about`, `skills`, `top_skills`, `experience:<company>:<title>`,
@@ -54,6 +56,7 @@ import sys
 from pathlib import Path
 
 EXPERIENCE = "experience:"
+HIDDEN = object()  # a role whose page line hid skills behind "+N skills": only its form's ticked boxes can judge it
 
 
 class UsageError(ValueError):
@@ -201,6 +204,8 @@ def value_of(current: dict, field: str):
     if field.startswith("role_skills:"):
         company, _, title = field[len("role_skills:"):].rpartition(":")
         row = find_role(current, norm(company), norm(title))
+        if row is not None and row.get("skills_hidden"):
+            return HIDDEN
         return None if row is None else [norm(s) for s in row.get("skills") or []]
     if field.startswith(EXPERIENCE):
         body = field[len(EXPERIENCE):]
@@ -220,7 +225,7 @@ MONTH_WORDS = [(full, i % 12 + 1) for i, full in enumerate(
      "setembro", "outubro", "novembro", "dezembro"])] + [("setiembre", 9)]
 PRESENT = re.compile(r"^(?:present|current|actualidad|presente|atual|hoy|today)$", re.I)
 KINDS = ("experience_title", "experience_dates", "experience_create", "experience_delete",
-         "education_title", "education_dates", "education_create", "education_delete")
+         "education_title", "education_dates", "education_create", "education_delete", "language_create")
 
 
 def date_token(text) -> tuple | None:
@@ -247,6 +252,9 @@ def date_range(line) -> tuple:
     parts = [p for p in re.split(r"\s+[-–—]\s+|\s*[–—]\s*", head) if p.strip()]
     start = date_token(parts[0]) if parts else None
     end = date_token(parts[1]) if len(parts) > 1 else None
+    if len(parts) == 1 and start is not None:
+        # an education entry saved with one year (only the end, or only the start) shows that year alone: "2025"
+        end = start
     return start, end
 
 
@@ -287,6 +295,18 @@ def check_structure(rows, current: dict) -> tuple[list, list]:
         company, title = norm(row.get("company")), norm(row.get("title"))
         school = norm(row.get("institution"))
         have, why = None, ""
+        if kind == "language_create":
+            name, level = norm(row.get("language")), norm(row.get("proficiency"))
+            have = next((x for x in current.get("languages") or []
+                         if norm(x.get("language")).lower() == name.lower()), None)
+            if have is None:
+                why = "the language is not on the profile"
+            elif level and norm(have.get("proficiency")).lower() != level.lower():
+                why = f"the language shows {have.get('proficiency')!r}, not {level!r}"
+            results.append({"field": f"structure:{kind}:{name}", "ok": not why, "reason": why or None})
+            if why:
+                failures.append({"field": f"structure:{kind}:{name}", "reason": why})
+            continue
         if kind in ("experience_title", "experience_dates", "experience_create"):
             have = find_role(current, company, title)
             if have is None:
@@ -354,6 +374,13 @@ def verify(approved: dict, current: dict | list) -> dict:
                              f"profile in that language tab", "expected": norm(str(want))[:120], "found": ""})
             continue
         have = value_of(capture, field)
+        if have is HIDDEN:
+            results.append({"field": field, "language": lang, "ok": False, "expected_chars": len(norm(want)),
+                            "found_chars": None})
+            failures.append({"field": field, "language": lang, "reason": "the page shows only part of this role's "
+                             "skills (+N skills): capture the role's form boxes as `skills` and parse again",
+                             "expected": norm(want)[:120], "found": ""})
+            continue
         if field == "top_skills":
             ok = have is not None and [norm(x).lower() for x in want or []] == [norm(x).lower() for x in have]
         elif isinstance(want, list) or isinstance(have, list):

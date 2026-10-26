@@ -61,7 +61,9 @@ One code, one message, nothing else read.
    number, amount, time, phone). Exit 2 means the call was wrong — a missing or malformed `--site`, not a missing
    code. Exit 1: read the next message. Exit 3 (`ambiguous`): two different codes in one message, one possibly
    quoted or planted; return none and complete with `ambiguous code: the user reads the mail`.
-4. Return `code: 7392`, or the one link labelled verify or confirm, in the `kanban_complete` result. The tool only
+4. Return `code: 7392` (letters and digits as written: Greenhouse sends 8 characters such as `aB3dE9fG`), or
+   `link: <url>` for the one link labelled verify or confirm, in the `kanban_complete` `result`: the applier's
+   `code_wait.py` reads exactly those two forms while the form waits open. The tool only
    returns an https link on the sender's own domain: a look-alike host, a link that carries a user name before the
    host or a link on any other site comes back as `none`, and the card reports no link — never a link retyped by
    hand. Never in a comment, never in a card body, never twice.

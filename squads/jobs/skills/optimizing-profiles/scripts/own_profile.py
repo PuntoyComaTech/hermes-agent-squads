@@ -41,7 +41,7 @@ DETAILS = {"experience", "education", "skills", "certifications", "projects", "c
            "publications", "volunteering", "patents", "featured", "recommendations", "interests", "causes",
            "organizations", "test-scores"}
 # The only forms the writer edits: the sections approved rows can name. Every other section is read, never edited.
-EDITABLE_DETAILS = {"experience", "education", "skills"}
+EDITABLE_DETAILS = {"experience", "education", "skills", "languages"}
 # Words that may not appear anywhere under /edit/: the modal and the contact-info form carry the user's private data
 # (e-mail, phone, address) and are never needed to rewrite a headline, an About or a role description.
 REFUSED_TAIL = ("contact-info", "overlay")

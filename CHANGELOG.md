@@ -3,7 +3,7 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
-## 2.21.0 - 2026-10-25
+## 2.23.0 - 2026-10-26
 
 ### Added
 
@@ -22,6 +22,111 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
   before leaving stays closed.
 - web 3.8.1: the manager no longer reopens the live view on its own every time the user returns to the chat; that
   turn was the slow, reloading reopen. It opens the tab when the base exists, on request, or when the tab is gone.
+
+## 2.22.0 - 2026-10-26
+
+### Fixed
+
+- jobs 4.11.0, from the second 2026-10-26 end-to-end round:
+  - One review round names every instance of a wrong claim: truthfulness draft findings and unanswerable stretches
+    carry `claim_terms`, and `aggregate_review.py` lists every sentence of the CV, letter, recruiter message and
+    answers that makes the same claim, adding one hard correction for the instances no correction rewrites. The
+    writer runs the new `jobs-contract/scripts/claim_sweep.py` on each correction before handing back.
+  - A code a form mails after Submit (Greenhouse's 8 characters) goes to jobs-inbox: the new
+    `submitting-applications/scripts/code_wait.py` files the `Mode: CODE` card and waits with the form open;
+    `extract_code.py` reads letter-and-digit codes; `check_submission.py` refuses a NOT_POSSIBLE that names an
+    e-mailed code without `code_request {card, outcome}`.
+  - Language dropdowns come from `form_answer.py language` (the highest option not above the declared CEFR level:
+    "Limited Working Proficiency" for a B2); the review blocks an ILR label above the declared level in any outward
+    file, answers.md notes included.
+  - The reviewer passes each lens child the schema `aggregate_review.py --schema <lens>` prints
+    (`references/lens-schemas.json`), so Hermes corrects a malformed block inside the child; a lens that still
+    breaks the contract blocks as `transient`, not as a question. A missing `claim_terms` is a warning, never a stop.
+  - "Working remotely" needs `work_mode: remote` on the current experience in achievements.yaml (new optional key,
+    validated): the renderer refuses it as `work_mode_unbacked` and the review blocks it; profile.md `work_mode` is
+    the search preference. `extract_code.py` digit codes are whole tokens (never the tail of `ABC12345`).
+- squadctl: a bot's `delegation.max_children` sets `delegation.oneshot_max_children`, the delegate_task budget of a
+  kanban run (Hermes's one-shot default is 2); the jobs reviewer gets 12 (five lenses plus re-runs).
+
+## 2.21.1 - 2026-10-26
+
+### Fixed
+
+- jobs 4.10.1: adding a skill on LinkedIn was still refused. Once a skill is picked, the add-skill dialog ticks "Follow
+  this skill to keep up with relevant content.", and the save guard refuses any box the step did not set. `skill_add`
+  now unticks that box (in English or Spanish) and the guard still refuses every other box. The plan also refuses an
+  `education_create` row for a school and degree the profile already holds, so re-running a file adds no duplicate.
+
+## 2.21.0 - 2026-10-26
+
+### Fixed
+
+- jobs 4.10.0, from the 2026-10-25 end-to-end round:
+  - The submit gate reads the analysis gate list from jobs-contract (`jobs_common.GATE_NAMES`), so the applier needs
+    no skill of the scout's; `analyzing-jobs` is off the applier again.
+  - `check_submission.py --method` takes the employer ATS name (`ashby`, `greenhouse`, `lever`, ...): it counts as
+    `no_login_form` and must be the ATS the apply link is on.
+  - The reviewed posting is the apply link: `aggregate_review.py --posting-url` writes the requisition the
+    truthfulness lens verified into `apply_url` (through `apply_link.py`) and into the review; APPROVED is refused
+    while `apply_url` is an aggregator, a job board or an unknown host. `digest_fields.py` hands the applier the
+    review's link, then `apply_url`, never a URL from the opening body (another city's requisition went out).
+  - A correction inside text no employer reads (a NOTE TO SELF, headings, anything in `answers.md` outside its
+    [FIELD] blocks, `strategy.md`, `kit.md`) is applied in place and never makes a round NOT_APPROVED.
+  - `form_questions.py` reads a form's questions from the Greenhouse, Ashby and Lever public job-board APIs before the
+    writer drafts; the review refuses a kit that leaves a required free-text question without its [FIELD].
+  - `form_answer.py` types salary (posted range midpoint, never below the floor, converted to the form's period) and
+    notice period (shortest option of at least the stored days) from `application-data.yaml` `salary_answer` and
+    `notice_period_days`; `validate_profile.py` flags prose rules that cannot be typed.
+  - `card_key.py` prints a card's idempotency key from the project slug (a path becomes the slug); the writer and
+    reviewer run it instead of building the key.
+  - `jobs-search` says each day what it decided: the search filed, "no search today" on weekends, "search paused";
+    a catch-up rerun of the same slot stays quiet.
+  - LinkedIn capture: a one-role company's skills line without its `Skills:` label (`Railway, Cloudflare and +1
+    skill`) is read as skills; `parse_profile.py --role-skills` takes each role form's ticked boxes
+    (`profile_form.Page.ticked_skills()`), and `profile_diff.py verify` reports a role whose page line hides skills as
+    unreadable instead of "field not on the profile".
+- `board_watch.py` reports a card the block-loop detector moved to `triage` at once, with its last block reason
+  (unblock and promote refuse triage and the auto-decomposer rewrites it), and a card whose worker crashed until the
+  dispatcher gave up shows the crash instead of reading as a question.
+## 2.20.3 - 2026-10-26
+
+### Fixed
+
+- jobs 4.9.3, from a LinkedIn "review and fill the gaps" run that left three things unapplied:
+  - Adding a skill failed on every name: LinkedIn's add-skill form is an open `<dialog>` whose field is an `<input>`
+    with no `type` attribute, and the form finder only looked for `input[type="text"]`, so it climbed past the dialog
+    and found no form. It now accepts typeless inputs and prefers the open dialog that holds Save.
+  - `Page.run` crashed on every text step: their `expect` is the list of accepted texts, and `run` called `.get` on it.
+  - The Languages section had no allowed form. `own_profile.py` opens `/details/languages/edit/forms/<new|id>/`,
+    `profile_form.py` adds a `language_create` structure row (LinkedIn's own proficiency labels; a level it does not
+    offer or a language already listed is refused at plan time), `parse_profile.py` reads `/details/languages/`
+    into `languages`, and `profile_diff.py verify` checks the row.
+  - A school saved with one year ("2025") failed verify: the dates line shows that year alone, now read as both its
+    start and its end.
+
+## 2.20.2 - 2026-10-26
+
+### Fixed
+
+- jobs 4.9.2: the applier holds `analyzing-jobs`. Its submit gate loads `score_analysis.py` from that skill, which only
+  the scout had, so every gate crashed and no auto-apply went out. The ownership test now also follows sibling-skill
+  paths inside scripts (`SKILLS / "<skill>"`), not only the run paths written in SKILL.md.
+- jobs 4.9.2: `jobs-contract/scripts/apply_link.py` sets `apply_url` in `opening.md` to the employer's own ATS posting
+  (portal, job-board and look-alike links refused). The reviewer runs it when its truthfulness lens locates the
+  posting after intake, the scout when the analysis finds it: a posting the reviewer found never reached `apply_url`,
+  and the applier stopped on the LinkedIn listing.
+- jobs 4.9.2: `jobs-contract/scripts/upload_copy.py` prints the `CV_<Name>_<Surname>.pdf` to upload and writes it from
+  `cv_ats.pdf` when an older kit lacks it or it is stale; the applier no longer names the file by hand (one kit went
+  out under a different name than the others).
+- jobs 4.9.2: a required free-text form question the record can answer (strength, ownership, priorities, first 90
+  days) goes to the writer as one support card and is entered as `consult:<card>`, never blocked as a user question.
+
+## 2.20.1 - 2026-10-26
+
+### Fixed
+
+- squad-hub 1.1.1: the empty chat names the squad ("Web") instead of the bot title ("Web manager"); the pane's bot
+  lost `ui_meta` on the way to the chat. README screenshots with invented data.
 
 ## 2.20.0 - 2026-10-25
 

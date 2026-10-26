@@ -1,0 +1,194 @@
+{
+  "$comment": "The output_schema of each lens child (delegate_task), passed verbatim: Hermes validates the child's answer against it and sends the child one correction turn with the errors, so a block with the wrong field names (claim/issue for text/problem) is fixed inside the child, before aggregate_review.py reads it. Print one with `aggregate_review.py --schema <lens>`.",
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "correction": {
+      "type": "object",
+      "required": ["type", "mode"],
+      "properties": {
+        "type": {"enum": ["content", "format", "strategy"]},
+        "mode": {"enum": ["replace", "instruction"]},
+        "file": {"type": "string", "minLength": 1},
+        "old": {"type": "string", "minLength": 1},
+        "new": {"type": "string"},
+        "instructions": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {"if": {"properties": {"mode": {"const": "replace"}}}, "then": {"required": ["file", "old", "new"]}},
+        {"if": {"properties": {"mode": {"const": "instruction"}}}, "then": {"required": ["instructions"]}}
+      ]
+    },
+    "claim_terms": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string", "minLength": 1}}
+  },
+  "truthfulness": {
+    "type": "object",
+    "required": ["verdict", "grounding", "findings", "company_claims"],
+    "properties": {
+      "verdict": {"enum": ["PASS", "FAIL"]},
+      "grounding": {"type": "object", "required": ["sources"],
+                    "properties": {"sources": {"type": "array", "items": {"type": "string"},
+                                               "allOf": [{"contains": {"const": "achievements.yaml"}},
+                                                         {"contains": {"const": "profile.md"}}]}}},
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["kind", "check", "location", "text", "problem"],
+          "properties": {
+            "kind": {"enum": ["draft", "profile_consistency"]},
+            "check": {"enum": ["numbers", "dates", "titles", "companies", "tools", "levels", "languages", "citation",
+                               "grounding"]},
+            "location": {"$ref": "#/$defs/text"},
+            "text": {"$ref": "#/$defs/text"},
+            "problem": {"$ref": "#/$defs/text"},
+            "claim_terms": {"$ref": "#/$defs/claim_terms"},
+            "true_instances": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "conflicting_sources": {"type": "array", "items": {"type": "string"}},
+            "correction": {"$ref": "#/$defs/correction"}
+          },
+          "allOf": [
+            {"if": {"properties": {"kind": {"const": "draft"}}},
+             "then": {"required": ["correction", "claim_terms"]}},
+            {"if": {"properties": {"kind": {"const": "profile_consistency"}}},
+             "then": {"required": ["conflicting_sources"]}}
+          ]
+        }
+      },
+      "company_claims": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["claim", "location", "source_url", "source_located_by_reviewer", "reason", "verdict"],
+          "properties": {
+            "claim": {"$ref": "#/$defs/text"},
+            "location": {"$ref": "#/$defs/text"},
+            "source_url": {"type": "string", "pattern": "^https?://"},
+            "source_located_by_reviewer": {"const": true},
+            "source_excerpt": {"type": "string", "minLength": 40},
+            "source_file": {"type": "string", "minLength": 1},
+            "reason": {"$ref": "#/$defs/text"},
+            "verdict": {"enum": ["kept", "dropped"]},
+            "correction": {"$ref": "#/$defs/correction"}
+          },
+          "allOf": [
+            {"if": {"properties": {"verdict": {"const": "dropped"}}}, "then": {"required": ["correction"]}},
+            {"if": {"properties": {"verdict": {"const": "kept"}}},
+             "then": {"anyOf": [{"required": ["source_excerpt"]}, {"required": ["source_file"]}]}}
+          ]
+        }
+      }
+    }
+  },
+  "ats": {
+    "type": "object",
+    "required": ["verdict", "keyword_coverage", "missing", "defects"],
+    "properties": {
+      "verdict": {"enum": ["PASS", "FIX"]},
+      "keyword_coverage": {"type": "number", "minimum": 0, "maximum": 1},
+      "missing": {
+        "type": "array",
+        "items": {"anyOf": [
+          {"type": "string", "minLength": 1},
+          {"type": "object", "required": ["keyword", "evidence"],
+           "properties": {"keyword": {"$ref": "#/$defs/text"}, "evidence": {"type": "string"},
+                          "location": {"type": "string"}, "correction": {"$ref": "#/$defs/correction"}}}
+        ]}
+      },
+      "defects": {
+        "type": "array",
+        "items": {"type": "object", "required": ["location", "problem", "hard"],
+                  "properties": {"location": {"$ref": "#/$defs/text"}, "problem": {"$ref": "#/$defs/text"},
+                                 "hard": {"type": "boolean"}, "environment": {"type": "boolean"},
+                                 "correction": {"$ref": "#/$defs/correction"}}}
+      },
+      "pages": {"type": "object", "required": ["expected", "actual"],
+                "properties": {"expected": {"type": "integer"}, "actual": {"type": "integer"}}}
+    }
+  },
+  "recruiter": {
+    "type": "object",
+    "required": ["verdict", "seconds_to_understand", "would_open_evidence", "blockers", "market"],
+    "properties": {
+      "verdict": {"enum": ["PASS", "FIX"]},
+      "seconds_to_understand": {"type": "integer", "minimum": 0},
+      "would_open_evidence": {"type": "boolean"},
+      "blockers": {
+        "type": "array",
+        "items": {"type": "object", "required": ["location", "problem", "correction"],
+                  "properties": {"location": {"$ref": "#/$defs/text"}, "problem": {"$ref": "#/$defs/text"},
+                                 "correction": {"$ref": "#/$defs/correction"}}}
+      },
+      "market": {
+        "type": "object",
+        "required": ["checked", "violations"],
+        "properties": {
+          "checked": {"type": "array", "minItems": 1,
+                      "items": {"enum": ["photo", "age", "marital_status", "references_line", "page_limit"]}},
+          "pages": {"type": "integer"},
+          "page_limit": {"type": "integer"},
+          "violations": {
+            "type": "array",
+            "items": {"type": "object", "required": ["convention", "location", "problem", "correction"],
+                      "properties": {"convention": {"enum": ["photo", "age", "marital_status", "references_line",
+                                                             "page_limit"]},
+                                     "location": {"$ref": "#/$defs/text"}, "problem": {"$ref": "#/$defs/text"},
+                                     "correction": {"$ref": "#/$defs/correction"}}}
+          }
+        }
+      }
+    }
+  },
+  "hiring_manager": {
+    "type": "object",
+    "required": ["verdict", "can_do_the_job", "concerns", "interview_questions", "stretches"],
+    "properties": {
+      "verdict": {"enum": ["PASS", "FIX"]},
+      "can_do_the_job": {"type": "boolean"},
+      "concerns": {"type": "array", "items": {"type": "string", "minLength": 1}},
+      "interview_questions": {"type": "array", "items": {"type": "string"}},
+      "stretches": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["location", "claim", "backtrack_question", "answerable_from_sources"],
+          "properties": {
+            "location": {"$ref": "#/$defs/text"},
+            "claim": {"$ref": "#/$defs/text"},
+            "backtrack_question": {"$ref": "#/$defs/text"},
+            "answerable_from_sources": {"type": "boolean"},
+            "claim_terms": {"$ref": "#/$defs/claim_terms"},
+            "true_instances": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "correction": {"$ref": "#/$defs/correction"}
+          },
+          "if": {"properties": {"answerable_from_sources": {"const": false}}},
+          "then": {"required": ["correction", "claim_terms"]}
+        }
+      }
+    }
+  },
+  "writing": {
+    "type": "object",
+    "required": ["verdict", "findings", "language"],
+    "properties": {
+      "verdict": {"enum": ["PASS", "FIX"]},
+      "findings": {
+        "type": "array",
+        "items": {"type": "object", "required": ["location", "text", "fix", "correction"],
+                  "properties": {"location": {"$ref": "#/$defs/text"}, "text": {"$ref": "#/$defs/text"},
+                                 "fix": {"$ref": "#/$defs/text"}, "correction": {"$ref": "#/$defs/correction"}}}
+      },
+      "language": {
+        "type": "object",
+        "required": ["document_language", "opening_language", "declared_level", "implied_level"],
+        "properties": {
+          "document_language": {"type": "string", "minLength": 2},
+          "opening_language": {"type": "string", "minLength": 2},
+          "declared_level": {"enum": ["A1", "A2", "B1", "B2", "C1", "C2", null]},
+          "implied_level": {"enum": ["A1", "A2", "B1", "B2", "C1", "C2", null]},
+          "location": {"type": "string"},
+          "correction": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/correction"}]}
+        }
+      }
+    }
+  }
+}

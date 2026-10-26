@@ -95,6 +95,12 @@ A profile has one primary language and optional secondary ones (the "Profile lan
 own copy of every field, and a recruiter sees the one matching their interface. Draft one complete copy per language,
 the same facts in both, written natively rather than word for word.
 
+The Languages section (spoken languages, not profile tabs) is filled from `achievements.yaml` `languages` with a
+`language_create` structure row and LinkedIn's own proficiency labels: native C2 is "Native or bilingual proficiency",
+B2 and B1 are "Limited working proficiency" (on the ILR scale "Professional working proficiency" is level 3, about C1:
+never a higher label than the certified level; `jobs-contract/scripts/form_answer.py language` gives the label). The section has no
+description field; the certificate itself goes in Education.
+
 ## Other fields and settings
 
 Photo, banner and Featured are advice only. Open to Work: public frame or recruiters-only; the user chooses and the

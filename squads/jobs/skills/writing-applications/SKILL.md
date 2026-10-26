@@ -22,25 +22,40 @@ One opening per card. Documents are written in the posting's language. The card 
 3. Write `application/cv_content.json` (shape in `skills/rendering-cv/references/content-schema.md`). Each bullet is
    a strong verb, what, for whom and the result, 12 to 22 words, and it cites its achievement ids. Mark a bullet
    `"keep": true` when the letter depends on it.
-4. Write `cover_letter.md` (`references/cover-letter.md`) and `answers.md` (`references/application-forms.md`) for the
-   deliverables listed in `profile.md`. Every body paragraph ends with its `<!-- achievements: ACH-... -->` comment.
+4. Read the real form first: `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/form_questions.py"
+   "<apply_url>" --out <P>/openings/<ID>/application/form_questions.json` (Greenhouse, Ashby and Lever public APIs;
+   exit 1 on any other host: list the form's questions from the page into the same file by hand). Every required
+   free-text question gets its own section in `answers.md`, its heading quoting the question, and a [FIELD]; the review
+   refuses a kit that leaves one out. Then write `cover_letter.md` (`references/cover-letter.md`) and `answers.md`
+   (`references/application-forms.md`) for the deliverables listed in `profile.md`. Every body paragraph ends with its `<!-- achievements: ACH-... -->` comment.
    Motivation and closing paragraphs use `<!-- achievements: none -->`.
 5. Render the CV, then the letter, with `rendering-cv`. Read `render_report.json` (CV) and `render_report_letter.json`.
 6. A `stretch_flags` entry is softened by you to the recorded proficiency ("participated in", "contributed to") and
    listed in the card in one line; it never stops the card. Ask the user only when no truthful wording keeps the
    bullet useful.
 7. Set `status.json` to `in_review`. Create the reviewer's card: jobs-reviewer, `skills: [reviewing-applications]`,
-   `parents: [<your card id>]`, `idempotency_key` `jobs:application:<project>:<ID>:review` (CORRECTION:
-   `...:review-r2`; CHANGE round N: `...:review-c<N>`).
+   `parents: [<your card id>]`, `idempotency_key` printed by
+   `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/card_key.py" application <project slug> <ID> review`
+   (CORRECTION: stage `review-r2`; CHANGE round N: `review-c<N>`).
 
 **CORRECTION and CHANGE.** Apply exactly what the reviewer or the user asked, note each change in `strategy.md`, then
-redo steps 5 to 7. A requested claim with no verified achievement is never written:
-`kanban_block(kind="needs_input", reason="<missing achievement>")`.
+fix every other instance of the same wrong claim: for each correction run
+`python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/claim_sweep.py" <P>/openings/<ID>/application --terms
+<its claim_terms, or the 2 to 4 words the claim ties together>` and rewrite each sentence it lists (CV, letter,
+recruiter message, answers and their notes) the same way, until it lists only true sentences. A correction names one
+instance; the review counts every round you leave another one. Then redo steps 5 to 7. A requested claim with no
+verified achievement is never written: `kanban_block(kind="needs_input", reason="<missing achievement>")`.
 
 ## Pitfalls
 
 - Never claim a number, title, scope or proficiency that `achievements.yaml` does not hold. `participated` stays
   `participated`; "led" is written only when the record says led.
+- `profile.md` holds what the user wants (work mode, goals, availability), never facts about the current job.
+  "Working remotely from <country>" needs `work_mode: remote` on the current experience in `achievements.yaml`;
+  without it write "based in <country>" (the renderer refuses the rest as `work_mode_unbacked`).
+- A language level is the declared CEFR level ("English: B2"). Never an ILR/LinkedIn label above it: "Professional
+  Working Proficiency" reads as C1. A dropdown option is the one `jobs-contract/scripts/form_answer.py language`
+  prints; name that exact option in the answers.md note.
 - Never edit `analysis.json`, `opening.md` or the history in `status.json`.
 - Contact data appears only in the rendered header, never in the text of a bullet or a letter.
 - Never print age, photo, marital status, date of birth or nationality. Age appears only when the profile sets

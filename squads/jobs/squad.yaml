@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.9.1
+version: 4.11.0
 
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
@@ -64,7 +64,9 @@ bots:
     description: "Six-lens review of every application before the digest; verifies company claims itself"
     lane: review
     toolsets: [file, skills, kanban, todo, delegation, terminal, web]
-    delegation: {lane: review}   # lens children judge truthfulness: they run on the review model, not the research lane
+    # Lens children judge truthfulness: they run on the review model, not the research lane. A review is five lens
+    # children plus a re-run of any malformed one, in one kanban run (Hermes's one-shot default is 2 children).
+    delegation: {lane: review, max_children: 12}
     skills: {squad: [reviewing-applications, rendering-cv, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
   jobs-applier:

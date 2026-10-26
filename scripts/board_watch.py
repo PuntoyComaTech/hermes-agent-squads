@@ -6,7 +6,12 @@ Reported once per wait (state: $HERMES_HOME/local/state/board_watch.json):
     notify subscription on a messaging platform (the chain started in that chat, so it already got the event). A
     Desktop or CLI subscription (`tui`, `cli`) does not count: a chain filed from a Desktop session inherits it on
     every card, and the owner who reads the squad from a phone channel would never see the question;
-  - any other `blocked`, or `running` with no activity, after --hours.
+  - any other `blocked`, or `running` with no activity, after --hours;
+  - `triage`, at once: Hermes's unblock-loop detector moved the card there after the same block came back twice.
+    `unblock` and `promote` refuse a triage card, and the auto-decomposer would rewrite its title and body before
+    the next run, so the owner (or the manager) decides it: the line names the last block reason;
+  - a block that follows `gave_up` (the worker crashed until the dispatcher stopped retrying) carries the crash
+    reason, so a host failure is not read as the bot asking something.
 
 The text is read on a phone. A card that asks the owner prints its block reason as written (the reason is the
 message), and a worker's question names the worker and the card; stale cards get one line each with the first line
@@ -59,16 +64,24 @@ def hermes_json(argv: list[str], default):
         return default
 
 
+BLOCK_KINDS = ("blocked", "gave_up", "block_loop_detected")
+
+
 def last_block(base: list[str], card_id: str) -> dict:
-    """{'epoch', 'kind', 'reason'} of the newest `blocked` event; {} when unreadable."""
+    """{'epoch', 'kind', 'reason', 'event'} of the newest blocked, gave_up or block_loop_detected event; {} when
+    unreadable. A gave_up (the dispatcher stopped retrying a crashing worker) has no kind: its reason is the error."""
     data = hermes_json([*base, "show", card_id, "--json"], {})
-    events = [e for e in (data.get("events") or []) if isinstance(e, dict) and e.get("kind") == "blocked"]
+    events = [e for e in (data.get("events") or []) if isinstance(e, dict) and e.get("kind") in BLOCK_KINDS]
     if not events:
         return {}
     newest = max(events, key=lambda e: to_epoch(e.get("created_at")) or 0)
     payload = newest.get("payload") if isinstance(newest.get("payload"), dict) else {}
+    reason = (payload.get("reason") or "").strip()
+    if newest.get("kind") == "gave_up":
+        error = " ".join(str(payload.get("error") or "").split())
+        reason = f"the worker crashed {payload.get('failures') or ''} times and the dispatcher gave up: {error[:240]}"
     return {"epoch": to_epoch(newest.get("created_at")), "kind": payload.get("kind"),
-            "reason": (payload.get("reason") or "").strip()}
+            "reason": reason, "event": newest.get("kind")}
 
 
 def subscribed(base: list[str], card_id: str) -> bool:
@@ -97,14 +110,21 @@ def findings(cards: list[dict], base: list[str], hours: float, now: float) -> li
     out = []
     for card in cards:
         status, cid = card.get("status"), str(card.get("id") or "")
-        if status not in ("blocked", "running") or not cid:
+        if status not in ("blocked", "running", "triage") or not cid:
             continue
-        block = last_block(base, cid) if status == "blocked" else {}
+        block = last_block(base, cid) if status in ("blocked", "triage") else {}
+        if status == "triage":
+            if block.get("event") != "block_loop_detected":
+                continue  # a card filed into triage on purpose is the specifier's, not the owner's
+            out.append({"id": cid, "title": card.get("title") or "", "assignee": card.get("assignee") or "unassigned",
+                        "status": status, "note": "loop", "reason": block.get("reason") or "",
+                        "key": f"{cid}@{int(block.get('epoch') or 0)}"})
+            continue
         since = block.get("epoch") or to_epoch(card.get("started_at")) or to_epoch(card.get("created_at"))
         if not since:
             continue
         idle = (now - since) / 3600
-        asks_user = status == "blocked" and block.get("kind") in (None, "needs_input")
+        asks_user = status == "blocked" and block.get("kind") in (None, "needs_input") and block.get("event") != "gave_up"
         if asks_user and not subscribed(base, cid):
             note = "asks"
         elif idle >= hours:
@@ -163,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
             blocks.append(f["reason"] + tail)
         elif f["note"] == "asks":
             blocks.append(f"{f['title']} ({f['assignee']} · {f['id']}) is waiting for you")
+        elif f["note"] == "loop":
+            first = next((ln.strip() for ln in f["reason"].splitlines() if ln.strip() and "MEDIA:" not in ln), "")
+            blocks.append(f"{f['title']} ({f['assignee']} · {f['id']}) blocked twice for the same reason and went to "
+                          f"triage; nothing runs it until you decide" + (f": {first}" if first else ""))
         else:
             first = next((ln.strip() for ln in f["reason"].splitlines() if ln.strip() and "MEDIA:" not in ln), "")
             blocks.append(f"{f['title']} ({f['assignee']} · {f['id']}): {f['note']}" + (f" - {first}" if first else ""))

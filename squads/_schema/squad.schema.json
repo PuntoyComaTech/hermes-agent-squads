@@ -233,7 +233,10 @@
         "delegation": {
           "type": "object",
           "additionalProperties": false,
-          "properties": {"lane": {"oneOf": [{"$ref": "#/$defs/lane"}, {"type": "null"}]}}
+          "properties": {
+            "lane": {"oneOf": [{"$ref": "#/$defs/lane"}, {"type": "null"}]},
+            "max_children": {"description": "delegation.oneshot_max_children: the delegate_task children one kanban run (a `chat -q` one-shot) may spawn in total; Hermes defaults to 2. A bot that fans out one child per lens and re-runs a malformed one needs more.", "type": "integer", "minimum": 1, "maximum": 50}
+          }
         },
         "memory": {
           "description": "Built-in memory (MEMORY.md, USER.md); default true. An external provider is chosen per profile with `hermes -p <bot> memory setup`, never in the manifest (skills/hermes-platform/references/memory.md).",

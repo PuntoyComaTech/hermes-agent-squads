@@ -31,7 +31,7 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
 | `.trash/<timestamp>/` | jobs (manager, reset_project.py) | the user only |
 | `templates/<name>.html` + gate record | the user, registered by jobs-writer (template_check.py) | jobs-writer |
 | `searches/*.md`, `searches/seen.json`, `companies/*.md` | jobs-scout | all |
-| `openings/<ID>/opening.md`, `analysis.json` | jobs-scout | all |
+| `openings/<ID>/opening.md`, `analysis.json` | jobs-scout (`apply_url` also jobs-reviewer, through `apply_link.py`) | all |
 | `openings/<ID>/application/*`, `interview.md`, `profiles/*` | jobs-writer | all |
 | `reports/inbox-*.json`, `reports/followups/*` | jobs-inbox | all |
 | `openings/<ID>/review-N.json` | jobs-reviewer | all |
@@ -42,7 +42,10 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
    fetched text), `fetch_page.py` and `robots_check.py` (polite fetch), `status.py` (status history),
    `seen_state.py` (search state, ranking), `salary_lookup.py` (the user's own benchmark), `tracker.py`
    (applications), `build_dashboard.py` (offline pipeline view), `skill_gaps.py` (hard-skill gaps), `link_check.py`
-   (offline link verdict: verified, official_ats or unverified; reviewed list in `official_hosts.json`), `expand_candidates.py`
+   (offline link verdict: verified, official_ats or unverified; reviewed list in `official_hosts.json`), `apply_link.py`
+   (sets `apply_url` in `opening.md` to the employer's own ATS posting found after intake; refuses a portal link),
+   `card_key.py` (the idempotency key of a card), `form_questions.py` (an ATS form's questions from its public API),
+   `form_answer.py` (salary and notice-period values from `application-data.yaml`), `upload_copy.py` (prints the `CV_<Name>_<Surname>.pdf` to upload, written from `cv_ats.pdf` when missing or stale), `expand_candidates.py`
    (undeclared skills, projects and certificates, de-duplicated against achievements.yaml), `reset_project.py`
    (recoverable reset: a preview, then `--confirm RESET` moves entries to `.trash`). Never edit
    `seen.json`, `status.json` or `tracker.csv` by hand.
@@ -50,7 +53,9 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
    - `board: "jobs"`, `assignee` and `skills: [<skill>]` of the next stage, `parents: [<your card id>]`, the project
      of your card, and `workspace_kind: dir` with `workspace_path: <P>`.
    - `idempotency_key` = `jobs:application:<project>:<ID>:<stage>` for the first pass, `write-r2`/`review-r2` for the
-     correction round, `write-c<N>`/`review-c<N>`/`digest-c<N>` for CHANGE round N counted per opening. Never pre-file
+     correction round, `write-c<N>`/`review-c<N>`/`digest-c<N>` for CHANGE round N counted per opening. `<project>` is
+     the project slug (`job-search`), never its path: print the key with `card_key.py application <project> <ID>
+     <stage>` (a path given is turned into the slug). Never pre-file
      the application chain: each stage files the next.
    - Body: id, stage, round, project slug and path, input and output paths, document language, decisions made.
 5. Ask a peer with a support card (`kanban_create` with no parent), then `kanban_link(parent_id=<support card>,

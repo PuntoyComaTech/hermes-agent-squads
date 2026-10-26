@@ -142,7 +142,7 @@ def test_a_profile_without_front_matter_is_an_error(tmp_path):
     ("2026-10-21 10:00", "2026-10-21-08"),   # catch-up after a missed 08:00 run: the 08 slot, not a new one
     ("2026-10-21 15:00", None),              # the old second daily slot is gone
     ("2026-10-21 07:30", None),              # before the first slot
-    ("2026-10-24 08:00", None),              # Saturday
+    ("2026-10-24 08:00", "weekend"),         # Saturday: said once that day, never a card
 ])
 def test_the_slot_comes_from_the_schedule(tmp_path, now, expected):
     # The key is the scheduled slot, so a late run in the catch-up window reuses the slot's card.
@@ -150,7 +150,9 @@ def test_the_slot_comes_from_the_schedule(tmp_path, now, expected):
     board(env)
     add_project(env, tmp_path, "ana-search", ACTIVE, use=True)
     result = first_result(run_gate(env, sys.executable, "--json", "--dry-run", "--now", now))
-    if expected is None:
+    if expected == "weekend":
+        assert result["filed"] is False and result["reason"] == "weekend", result
+    elif expected is None:
         assert result["filed"] is False and result["reason"] == "outside schedule hours", result
     else:
         assert result["filed"] is True and result["key"] == f"jobs:search:ana-search:{expected}", result
@@ -253,3 +255,27 @@ def test_bad_search_times_stop_the_search_with_a_message(tmp_path, times):
     add_project(env, tmp_path, "ana-search", profile_with(times), use=True)
     p = run_gate(env, sys.executable, "--now", "2026-10-21 12:05")
     assert p.returncode == 1 and "search_times" in p.stdout and "no se ejecutó" in p.stdout, p.stdout + p.stderr
+
+
+def test_the_owner_hears_once_a_day_what_the_search_decided(tmp_path):
+    """2026-10-25: every run printed nothing, a weekend included, and the owner thought searches had stopped Friday."""
+    env, root = make_env(tmp_path)
+    board(env)
+    add_project(env, tmp_path, "ana-search", profile_with('["09:00", "15:00"]'), use=True)
+    said = {now: run_gate(env, SYSTEM_PY if Path(SYSTEM_PY).is_file() else sys.executable, "--now", now).stdout.strip()
+            for now in ("2026-10-24 09:05", "2026-10-24 10:05", "2026-10-26 08:05", "2026-10-26 09:05",
+                        "2026-10-26 10:05", "2026-10-26 15:05")}
+    assert said["2026-10-24 09:05"].startswith("Hoy no hay búsqueda (sábado 2026-10-24)"), said
+    assert "Próxima: lunes 09:00" in said["2026-10-24 09:05"]
+    assert said["2026-10-24 10:05"] == said["2026-10-26 08:05"] == said["2026-10-26 10:05"] == "", said
+    assert said["2026-10-26 09:05"].startswith("Búsqueda 2026-10-26-09 lanzada para ana-search"), said
+    assert said["2026-10-26 15:05"].startswith("Búsqueda 2026-10-26-15 lanzada"), said
+
+
+def test_a_paused_search_says_so_on_weekdays(tmp_path):
+    env, _ = make_env(tmp_path)
+    board(env)
+    add_project(env, tmp_path, "ana-search", "---\nsearch: paused\nuser_language: en\ntimezone: America/Lima\n---\n",
+                use=True)
+    assert "Search paused for ana-search" in run_gate(env, sys.executable, "--now", "2026-10-21 12:05").stdout
+    assert run_gate(env, sys.executable, "--now", "2026-10-21 13:05").stdout == ""

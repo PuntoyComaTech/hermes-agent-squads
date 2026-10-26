@@ -55,7 +55,15 @@ def verdict(status):
     return None, "", None, None
 
 
-def apply_url(analysis, opening_md):
+def apply_url(analysis, opening_md, opening_dir=None):
+    """The link the applier submits on: the latest review's verified posting, then opening.md `apply_url` (the field
+    apply_link.py writes), and only then an older analysis or body link. A first URL in the body is the intake
+    listing, often another city's requisition or an aggregator: it is the last resort."""
+    review = latest_review(opening_dir) if opening_dir else {}
+    if review.get("apply_url"):
+        return review["apply_url"]
+    if front(opening_md, "apply_url"):
+        return front(opening_md, "apply_url")
     for head, tail in LINK_PATHS:
         value = dig(analysis, head, tail)
         if value:
@@ -65,6 +73,13 @@ def apply_url(analysis, opening_md):
             if token.startswith(("http://", "https://")):
                 return token.strip("()[]<>\"',")
     return None
+
+
+def latest_review(opening_dir):
+    """The newest review-*.json of the opening (by modification time, as the submit gate reads it)."""
+    paths = [p for p in glob.glob(os.path.join(opening_dir, "review-*.json"))
+             if re.search(r"review-c?\d+\.json$", p)]
+    return load(max(paths, key=os.path.getmtime)) if paths else {}
 
 
 def front(opening_md, key):
@@ -153,7 +168,7 @@ def main(argv):
         for key in ("eligibility_note", "language_note", "location_note", "seniority_note"):
             if gates.get(key):
                 print("            %s: %s" % (key.replace("_note", ""), gates[key]))
-        print("   apply:   %s" % (apply_url(analysis, opening_md) or "no ATS link on file"))
+        print("   apply:   %s" % (apply_url(analysis, opening_md, opening_dir) or "no ATS link on file"))
         print("   kit:     %s" % kit(opening_dir))
         review = review_verdict(opening_dir)
         if review:

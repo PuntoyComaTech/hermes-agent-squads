@@ -14,6 +14,10 @@ Usage:
 one of its subdomains). A link whose address only resembles it (`example.com.evil.io`), carries a user name before
 the host (`https://***@evil.io/...`), or is not https is never returned, whatever its label says.
 
+A code is 4 to 8 digits, or 6 to 10 letters and digits (an ATS security code: Greenhouse mails 8 characters such as
+`aB3dE9fG` before it accepts an application). A letter-and-digit code is read only right after code wording
+("security code:", "your code is") or alone on its line under it, so a word of the message is never taken for one.
+
 Accept plain text or HTML (links are read from hrefs, tags are dropped). Output is one JSON object:
 `{"site", "code", "link", "source", "rejected": [{"value", "reason"}]}`; `source` is `code`, `link` or `none`.
 
@@ -35,7 +39,8 @@ LABEL = re.compile(r"(?:\bcode\b|\bc[oó]digo\b|\botp\b|\bpin\b|\bpasscode\b|\bv
 AFTER_LABEL = re.compile(r"(?:is|es|ser[aá]|:|=)\s*$", re.I)
 AFTER_HINT = re.compile(r"(?:expira|expires|v[aá]lid[oa]|valid|minutes|minutos|horas|hours)", re.I)
 AFTER_ACTION = re.compile(r"(?:sign in|log ?in|iniciar sesi[oó]n|acceder|continuar|continue|confirm)", re.I)
-IDENTIFIER = re.compile(r"(?:order|pedido|orden|invoice|factura|ticket|tracking|gu[ií]a|ref|referencia|"
+IDENTIFIER = re.compile(r"(?:order|pedido|orden|invoice|factura|ticket|tracking|gu[ií]a|ref|referencia|reference|"
+                        r"candidate|candidato|requisition|"
                         r"\bid\b|case|caso|contrato|contract|cuenta|account|n[uú]mero|numero|number)\s*"
                         r"[#:.\-]?\s*$", re.I)
 PHONE_WORD = re.compile(r"(?:tel[eé]fono|phone|m[oó]vil|celular|whatsapp|ll[aá]mame|call)\s*[:\-]?\s*$", re.I)
@@ -44,7 +49,26 @@ CURRENCY_BEFORE = re.compile(r"(?:[$€£¥]|\b(?:usd|eur|pen|cop|mxn|clp|ars|br
 CURRENCY_AFTER = re.compile(r"^\s*(?:[$€£¥]|\b(?:usd|eur|pen|cop|mxn|clp|ars|brl|gbp)\b)", re.I)
 TIME_AFTER = re.compile(r"^\s*(?:hours?|hrs?|horas?|h)\b", re.I)
 PHONE_LIKE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
-DIGITS = re.compile(r"(?<![\d+])(\d{4,8})(?![\d])")
+DIGITS = re.compile(r"(?<![\dA-Za-z+])(\d{4,8})(?![\dA-Za-z])")  # a whole token: never the tail of ABC12345
+ALNUM = re.compile(r"(?<![A-Za-z0-9@/.#-])([A-Za-z0-9]{6,10})(?![A-Za-z0-9@/-]|\.[A-Za-z0-9])")
+
+
+VOWELS = set("aeiouAEIOU")
+
+
+def alnum_shape(value: str) -> bool:
+    """A letter-and-digit code, or Greenhouse's 8 letters in mixed case that do not read as a word. Digits only are
+    read by DIGITS; an all-capitals or capitalised word ("WELCOME", "Applicant") is never one."""
+    if value.isdigit():
+        return False
+    if any(ch.isdigit() for ch in value):
+        return any(ch.isalpha() for ch in value) and not re.fullmatch(r"[A-Z]?[a-z]+\d{1,2}", value)  # "Welcome1"
+    if len(value) != 8 or value.isupper() or value.islower() or re.fullmatch(r"[A-Z][a-z]+", value):
+        return False
+    inner_caps = sum(ch.isupper() for ch in value[1:])
+    return inner_caps >= 2 or sum(ch in VOWELS for ch in value) <= 2
+
+
 DATE_BEFORE = re.compile(r"\d{1,4}\s*[/.\-]\s*$")
 DATE_AFTER = re.compile(r"^\s*[/.\-]\s*\d")
 LINK_WORDS = re.compile(r"(?:verif|confirm|activ|valid|code|c[oó]digo|sign[- ]?in|log[- ]?in|sesi[oó]n)", re.I)
@@ -174,6 +198,33 @@ def extract(raw: str, site: str) -> dict:
             rejected.append({"value": value, "reason": "no code wording near it"})
             continue
         accepted.append(value)
+        if best is None or points > best[0]:
+            best = (points, value)
+    for match in ALNUM.finditer(text):
+        # Letter-and-digit codes (an ATS "security code" such as Greenhouse's 8 characters): only right after code
+        # wording or alone on their line under it, never a word of the sentence.
+        value = match.group(1)
+        if not alnum_shape(value):
+            continue
+        before, after = text[:match.start()], text[match.end():]
+        line_start = before.rfind("\n") + 1
+        line_end = after.find("\n")
+        line = text[line_start:match.end() + (line_end if line_end >= 0 else len(after))]
+        alone = line.strip() == value
+        # The label sits on this line or the line just above: "Security code" can never reach down to "Reference:".
+        if alone:  # the last non-empty line above (blank lines between label and code are common)
+            above = before.rstrip()
+            near = above[above.rfind("\n") + 1:]
+        else:
+            near = before[line_start:]
+        labelled = LABEL.search(near[-70:]) and (AFTER_LABEL.search(before[-10:]) or alone)
+        if not labelled:
+            continue
+        if IDENTIFIER.search(before[-40:]):
+            rejected.append({"value": value, "reason": "order or reference number"})
+            continue
+        accepted.append(value)
+        points = 4 + (3 if AFTER_LABEL.search(before[-10:]) else 0) + (2 if alone else 0)
         if best is None or points > best[0]:
             best = (points, value)
     if len(set(accepted)) > 1:

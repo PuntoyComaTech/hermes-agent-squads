@@ -14,7 +14,8 @@ application (the `jobs-notices` cron, CV attached) and a question the squad cann
 
 1. At the digest stage, when the review is APPROVED, `gates.eligibility` is PASS and `fit.score` is at or above
    `apply_threshold`: set `applying` and file the jobs-applier card (`skills: [submitting-applications]`, key
-   `jobs:application:<project>:<ID>:apply`) with the ID, the paths and `apply_url`. No `consent.json`. Then
+   `jobs:application:<project>:<ID>:apply`) with the ID, the paths and the `apply:` line `scripts/digest_fields.py <P>`
+   prints (the reviewed posting, else `opening.md` `apply_url`): never a URL copied from the opening body or a note. No `consent.json`. Then
    `kanban_complete` the digest card: no block, no message.
 2. Below the threshold, WATCH or NOT_APPROVED: no message; the opening stays in the project files. The owner finds
    it by asking "show my pipeline" (`scripts/digest_fields.py` lists every opening with its id, verdict and score),

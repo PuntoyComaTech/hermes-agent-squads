@@ -140,7 +140,8 @@ an earlier line.
 `result`: SUBMITTED, NEEDS_DATA or NOT_POSSIBLE. `method`: no_login_form, linkedin_easy_apply, requires_account, email,
 linkedin, captcha or other. `source`: contact.yaml, application-data.yaml, answers.md, cv or `consult:<card id>`.
 `check_submission.py` enforces the shape: no field values, a confirmation screenshot for SUBMITTED, `kit.md` for
-NOT_POSSIBLE. `check_submission.py --gate [--before-submit] [--method <class>]` runs before any submit. With
+NOT_POSSIBLE, and for a NOT_POSSIBLE whose reason names a code the form mailed, `code_request: {card, outcome}`
+(jobs-inbox was asked through `code_wait.py`: no_code, unavailable or timeout). `check_submission.py --gate [--before-submit] [--method <class>]` runs before any submit. With
 `apply_consent: per_opening` it needs `consent.json` for this opening dated on or after the latest ready line and bound
 to the kit as it is now. With `auto_apply: auto` (standing consent, `apply_consent: standing`, a dated
 `auto_apply_since`) there is no consent.json: the gate needs `analysis.json` with `id` = the folder name,

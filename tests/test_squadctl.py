@@ -272,13 +272,26 @@ def test_doctor_warns_on_any_kanban_cap(web, capsys):
 
 def test_delegation_lane_and_passthrough(web):
     assert web.config("web-backend")["delegation"] == {"provider": "prov-code-complex", "model": "model-code-complex",
-                                                       "reasoning_effort": "medium"}
+                                                       "reasoning_effort": "medium", "oneshot_max_children": 2}
     # every bot without its own delegation lane delegates on the cheap research lane
     assert web.config("web-qa")["delegation"]["model"] == "model-research"
     assert web.config("web")["delegation"]["model"] == "model-research"
     # Deploys run through the CLIs' own logins (D-036), so no bot passes a provider token through its env.
     assert web.config("web-deployer")["terminal"]["env_passthrough"] == []
     assert web.config("web-qa")["terminal"]["env_passthrough"] == []
+
+
+def test_delegation_max_children_sets_the_one_shot_budget(env, capsys):
+    """A kanban worker runs as `chat -q`, where Hermes caps delegate_task children at
+    delegation.oneshot_max_children (default 2) for the whole run: the jobs reviewer needs five lenses plus re-runs."""
+    env.squad("web", mutate=lambda s: s["bots"]["web-backend"]["delegation"].update(max_children=12))
+    env.run("apply", "web", capsys=capsys)
+    assert env.config("web-backend")["delegation"]["oneshot_max_children"] == 12
+    assert env.config("web-qa")["delegation"]["oneshot_max_children"] == 2  # no budget: Hermes's default
+    # a budget removed from the manifest goes back to the default instead of staying in the profile
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    assert env.config("web-backend")["delegation"]["oneshot_max_children"] == 2
 
 
 def test_ui_meta_hidden_section_and_revision(web):

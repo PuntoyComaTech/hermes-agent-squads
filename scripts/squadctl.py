@@ -51,6 +51,7 @@ MANAGER_ONLY = {"clarify", "vision", "browser", "cronjob"}
 WITHHOLDABLE = {"terminal", "web", "delegation", "session_search", "code_execution"}
 # delegate_task children of a bot run on this lane unless the manifest names another (`delegation: {lane: ...}`).
 DEFAULT_DELEGATION_LANE = "research"
+ONESHOT_DEFAULT = 2  # Hermes's delegation.oneshot_max_children default (tools/delegate_tool_config.py)
 BASE_SOUL = Path("squads") / "_base" / "hermes-base.md"
 CRON_TOOLSETS = ["terminal", "file", "skills", "kanban", "todo"]
 SHA_MARK = ".squad-sha"
@@ -1196,6 +1197,11 @@ class Applier:
         plan += [["delegation.provider", dm["provider"] if dm else "", False],
                  ["delegation.model", dm["model"] if dm else "", False],
                  ["delegation.reasoning_effort", (dm or {}).get("reasoning") or "", False]]
+        # A kanban worker is a `chat -q` one-shot: Hermes caps its delegate_task children at
+        # delegation.oneshot_max_children (default 2) for the whole run, re-runs included. No budget in the manifest
+        # writes Hermes's default back, so a budget removed from squad.yaml does not stay in the profile.
+        budget = (bot.get("delegation") or {}).get("max_children")
+        plan.append(["delegation.oneshot_max_children", int(budget) if deleg and budget else ONESHOT_DEFAULT, False])
         plan += self.fallback_plan()
         plan += [["platform_toolsets.cli", sorted(toolsets), False],  # hermes tools enable stores sorted(union)
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],
