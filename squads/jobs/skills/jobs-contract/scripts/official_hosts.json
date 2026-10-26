@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "reviewed_on": "2026-10-21",
-  "note": "Read by link_check.py. ats: the public ATS hosts and the shape of their board path. shape path: the board is the first path segment (host/<board>); subdomain: the board is the host label (<board>.host); workday: <tenant>[.wdN].myworkdayjobs.com/[<locale>/]<site>. portals: the squad's own portal CLIs (searching-portals): their posting pages are official_ats and are read through the portal's detail command. job_boards: reviewed job boards that are not employers (their posting pages are verdict job_board). path: a regex on the URL path, matched case-insensitively. hosts: a host name, or *.domain for every subdomain. shorteners, forms, messaging: never job postings. reviewed_boards: boards a reviewer confirmed on the employer's own careers page; empty until then, so every ATS board is official_ats. Add an entry as {\"url\": \"https://boards.greenhouse.io/<board>\", \"company\": \"<Employer>\", \"reviewed_on\": \"YYYY-MM-DD\"}; the url must be the board itself, with no posting path.",
+  "reviewed_on": "2026-10-26",
+  "note": "Read by link_check.py. ats: the public ATS hosts and the shape of their board path. shape path: the board is the first path segment (host/<board>), or the first after path_prefix (Dover: host/apply/<board>); subdomain: the board is the host label (<board>.host); workday: <tenant>[.wdN].myworkdayjobs.com/[<locale>/]<site>. portals: the squad's own portal CLIs (searching-portals): their posting pages are official_ats and are read through the portal's detail command. job_boards: reviewed job boards that are not employers (their posting pages are verdict job_board). path: a regex on the URL path, matched case-insensitively. hosts: a host name, or *.domain for every subdomain. shorteners, forms, messaging: never job postings. reviewed_boards: boards a reviewer confirmed on the employer's own careers page; empty until then, so every ATS board is official_ats. Add an entry as {\"url\": \"https://boards.greenhouse.io/<board>\", \"company\": \"<Employer>\", \"reviewed_on\": \"YYYY-MM-DD\"}; the url must be the board itself, with no posting path.",
   "ats": [
     {
       "id": "greenhouse",
@@ -47,6 +47,16 @@
       "reserved": []
     },
     {
+      "id": "dover",
+      "brand": "dover",
+      "hosts": [
+        "app.dover.com"
+      ],
+      "shape": "path",
+      "path_prefix": "/apply",
+      "reserved": []
+    },
+    {
       "id": "manatal",
       "brand": "careers-page",
       "hosts": [
@@ -54,7 +64,11 @@
         "careers-page.com"
       ],
       "shape": "path",
-      "reserved": ["apply", "static", "api"]
+      "reserved": [
+        "apply",
+        "static",
+        "api"
+      ]
     },
     {
       "id": "smartrecruiters",

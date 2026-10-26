@@ -105,6 +105,16 @@ def test_an_agency_posting_on_a_manatal_career_page_is_an_employer_ats_link():
     assert classify("https://careers-page.com.jobs-offer.example/mineo/job/1")["verdict"] == "unverified"
 
 
+def test_a_dover_requisition_is_an_employer_ats_link():
+    """Dover keeps boards under /apply/<Company>/<id>. Unlisted, a verified Dover requisition was refused as the
+    employer link and the reviewer blocked an application that passed every lens."""
+    r = classify("https://app.dover.com/apply/Acme%20Media%20LLC/0b00cf5a-b741-475d-8e1b-2ce1763c1494/", company="Acme Media LLC")
+    assert (r["verdict"], r["board"]) == ("official_ats", "acme media llc")
+    assert r["board_url"] == "https://app.dover.com/apply/Acme%20Media%20LLC"
+    assert classify("https://app.dover.com/jobs/acme/1")["verdict"] == "unverified", "outside /apply is no board"
+    assert classify("https://app.dover.com.apply-now.example/apply/acme/1")["verdict"] == "unverified"
+
+
 def test_workday_link_gives_the_tenant_site_and_board_url():
     result = classify(ACME_WORKDAY, company="Acme")
     assert result["verdict"] == "official_ats"

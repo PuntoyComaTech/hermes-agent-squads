@@ -983,28 +983,35 @@ def _st(state=None, changed=0, ahead=0):
     return {"pr": {"number": 1, "state": state, "url": "", "title": ""} if state else None, "changed": changed, "ahead": ahead, "behind": 0}
 
 
-def test_clean_up_offers_only_worktrees_with_nothing_to_lose_and_ticks_the_merged_ones(model):
-    project = _lane_project(model, [], WT)
+def test_clean_up_offers_only_worktrees_with_nothing_to_lose_and_ticks_merged_or_idle_ones(model):
+    now = 1_000_000.0
+    day = 86400
     wd = "/w/shop/.worktrees/"
-    statuses = {wd + "done": _st("merged"), wd + "idea": _st(), wd + "dirty": _st("merged", changed=2), wd + "wip": _st("open"),
-                wd + "t_0a1b2c": _st("merged")}
-    plan = model("cleanupPlan", project, statuses, {}, 100000.0)
+    chats = [chat("i", wd + "idea", root="/w/shop", branch="feat/idea", last=now - 3 * day),
+             chat("n", wd + "new", root="/w/shop", branch="feat/new", last=now - 3600)]
+    wts = {"/w/shop": WT["/w/shop"] + [{"path": wd + "new", "branch": "feat/new", "isMain": False},
+                                       {"path": wd + "bare", "branch": "feat/bare", "isMain": False}]}
+    project = _lane_project(model, chats, wts)
+    statuses = {wd + "done": _st("merged"), wd + "idea": _st(), wd + "new": _st(), wd + "bare": _st(),
+                wd + "dirty": _st("merged", changed=2), wd + "wip": _st("open"), wd + "t_0a1b2c": _st("merged")}
+    plan = model("cleanupPlan", project, statuses, {}, now)
     got = {w["label"]: (w["reason"], w["pre"]) for w in plan["worktrees"]}
-    assert got == {"done": ("merged", True), "idea": ("nopr", False)}, "dirty, open-PR and kanban checkouts are never listed"
-    unpushed = model("cleanupPlan", project, {wd + "done": _st("merged", ahead=1)}, {}, 100000.0)
+    assert got == {"done": ("merged", True), "idea": ("idle", True), "new": ("recent", False), "bare": ("nochats", False)}, \
+        "dirty, open-PR and kanban checkouts are never listed; a recent or chatless one is offered unticked"
+    unpushed = model("cleanupPlan", project, {wd + "done": _st("merged", ahead=1)}, {}, now)
     assert unpushed["worktrees"] == [], "unpushed commits keep a worktree"
-    assert model("cleanupPlan", project, {}, {}, 100000.0)["worktrees"] == [], "a checkout whose status is unknown is kept"
+    assert model("cleanupPlan", project, {}, {}, now)["worktrees"] == [], "a checkout whose status is unknown is kept"
 
 
 def test_clean_up_archives_idle_old_chats_and_the_chats_of_a_removed_worktree(model):
     now = 1_000_000.0
     day = 86400
-    chats = [chat("old", "/w/shop", last=now - 10 * day), chat("fresh", "/w/shop", last=now - 1 * day),
+    chats = [chat("old", "/w/shop", last=now - 3 * day), chat("fresh", "/w/shop", last=now - 1 * day),
              chat("pin", "/w/shop", last=now - 30 * day, pinned=True), chat("busy", "/w/shop", last=now - 20 * day),
              chat("unr", "/w/shop", last=now - 20 * day, unread=True),
              chat("inwt", "/w/shop/.worktrees/done", root="/w/shop", branch="feat/done", last=now - 1 * day)]
     plan = model("cleanupPlan", _lane_project(model, chats, WT), {"/w/shop/.worktrees/done": _st("merged")}, {"live": ["busy"]}, now)
     by = {c["session"]["id"]: c["pre"] for c in plan["chats"]}
-    assert by == {"old": True, "inwt": True}, "pinned, working, unread and recent chats stay"
+    assert by == {"old": True, "inwt": True}, "pinned, working, unread and chats used in the last 2 days stay"
     keep = model("cleanupPlan", _lane_project(model, chats, WT), {"/w/shop/.worktrees/done": _st("merged")}, {"live": ["inwt"]}, now)
     assert keep["worktrees"] == [], "a worktree with a chat that needs you is not offered"

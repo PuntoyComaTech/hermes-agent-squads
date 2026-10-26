@@ -3,6 +3,21 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.25.1 - 2026-10-26
+
+### Changed
+
+- squad-hub 1.4.1: Clean up works on 2 days: chats unused for 2 days are archived, and worktrees unused for 2 days
+  (with nothing to lose) are ticked for removal, which frees their disk space and keeps their branch.
+
+### Fixed
+
+- `squadctl upgrade` refreshes the files of a plugin this repo ships (squad-hub, shared-browser-tabs) inside a private
+  bot the repo does not install, when that bot already carries it; its config and everything else stay untouched.
+  Before, such a copy stayed on the version first copied.
+- jobs 4.11.2: Dover (`app.dover.com/apply/<company>/<id>`) is a listed ATS. Unlisted, a verified Dover requisition was
+  refused as the employer link and the reviewer blocked an application that passed every lens.
+
 ## 2.25.0 - 2026-10-26
 
 ### Added

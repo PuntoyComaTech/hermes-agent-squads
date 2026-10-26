@@ -2251,8 +2251,39 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
                                       "actions": sum(len(b["actions"]) for b in changed)}
         else:
             report["unchanged"].append(key)
+    report["foreign_plugins"] = refresh_foreign_plugins(ctx, set(keys) | {b for sp in specs.values() for b in sp["bots"]},
+                                                        a.dry_run)
     emit(ctx, report)
     return 1 if report["errors"] else 0
+
+
+SHIPPED_PLUGINS = (SQUAD_HUB_PLUGIN, SHARED_BROWSER_PLUGIN)
+
+
+def refresh_foreign_plugins(ctx: Ctx, managed: set[str], dry: bool) -> list[str]:
+    """A private bot this repo does not install (a hand-made profile, a fleet with its own manifest) may carry one of
+    the plugins this repo ships, copied there on the owner's request. Its files follow the repo's version on every
+    upgrade, so it does not run an old copy forever; nothing else is touched: no config, no enable, no SOUL, no
+    skill. A profile without that plugin folder is left alone."""
+    acts: list[str] = []
+    if not ctx.profiles.is_dir():
+        return acts
+    for home in sorted(p for p in ctx.profiles.iterdir() if p.is_dir() and p.name not in managed):
+        for plugin in SHIPPED_PLUGINS:
+            dest = home / "plugins" / plugin
+            src = SRC / "squads" / "_plugins" / plugin
+            if not dest.is_dir() or not src.is_dir():
+                continue
+            files = [f for f in sorted(src.rglob("*")) if f.is_file() and "__pycache__" not in f.parts
+                     and f.suffix in (".py", ".yaml", ".js")]
+            stale = [f for f in files if _read(dest / f.relative_to(src)) != _read(f)]
+            if not stale:
+                continue
+            acts.append(f"{home.name}: {plugin} files refreshed ({len(stale)})")
+            if not dry:
+                for f in stale:
+                    write_text(dest / f.relative_to(src), _read(f))
+    return acts
 
 
 def cmd_status(ctx: Ctx, a: argparse.Namespace) -> int:

@@ -1944,6 +1944,35 @@ def test_an_unattended_upgrade_hands_the_keys_to_the_bots(env, capsys, monkeypat
     assert "sk-root" not in json.dumps(out)
 
 
+def test_upgrade_refreshes_a_shipped_plugin_in_a_private_bot_and_touches_nothing_else(env, capsys):
+    """A private bot the repo does not install (a hand-made profile, a fleet with its own manifest) that carries
+    squad-hub because the owner asked: before, its copy stayed on the version first copied while every squad bot
+    moved on. upgrade refreshes those files only; its config, its other plugins and a bot without the plugin stay
+    as they are."""
+    env.squad("web")
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    env.local.joinpath("installed.yaml").write_text(yaml.safe_dump({"squads": {"web": {"version": "3.0.0"}}, **models_doc()}))
+    mine = env.root / "profiles" / "acmebot"
+    old = mine / "plugins" / "squad-hub" / "desktop" / "plugin.js"
+    old.parent.mkdir(parents=True)
+    old.write_text("// old squad-hub\n")
+    (mine / "config.yaml").write_text("model: {default: x}\n")
+    (mine / "plugins" / "own-plugin").mkdir()
+    (mine / "plugins" / "own-plugin" / "__init__.py").write_text("# mine\n")
+    bare = env.root / "profiles" / "plainbot"
+    bare.mkdir(parents=True)
+    _, out = env.run("upgrade", capsys=capsys)
+    pkg = REPO / "squads" / "_plugins" / "squad-hub"
+    assert old.read_text() == (pkg / "desktop" / "plugin.js").read_text()
+    assert (mine / "plugins" / "squad-hub" / "plugin.yaml").read_text() == (pkg / "plugin.yaml").read_text()
+    assert (mine / "config.yaml").read_text() == "model: {default: x}\n", "config untouched"
+    assert (mine / "plugins" / "own-plugin" / "__init__.py").read_text() == "# mine\n"
+    assert not (bare / "plugins").exists(), "a bot without the plugin gets none"
+    assert any(a.startswith("acmebot: squad-hub") for a in out["foreign_plugins"])
+    _, again = env.run("upgrade", capsys=capsys)
+    assert again["foreign_plugins"] == [], "a second upgrade copies nothing"
+
+
 def test_an_empty_website_blocklist_lifts_the_block_an_earlier_version_installed(env, capsys):
     """Jobs 4.1 lets the scout open LinkedIn: removing the key from the manifest used to leave the old domain in the
     installed profile, so the scout stayed blocked after the update. An explicit empty list clears it."""

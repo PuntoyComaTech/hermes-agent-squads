@@ -36,7 +36,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -51,7 +51,7 @@ SCHEME_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*):")
 CONTROL_RE = re.compile(r"[\s\x00-\x1f\x7f]")
 NUMERIC_HOST_RE = re.compile(r"^(?:[0-9.]+|(?:0x[0-9a-f]+\.?)+)$")
 HOST_RE = re.compile(r"^[a-z0-9-]+(?:\.[a-z0-9-]+)+$")
-BOARD_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+BOARD_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$")
 WORKDAY_LABEL_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})(?:\.wd[0-9]{1,3})?$")
 LOCALE_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
 LEGAL_WORDS = frozenset({
@@ -235,9 +235,14 @@ def _ats_board(st, entry, suffix, host, path):
     segs = [s for s in path.split("/") if s]
     problem, board, owner, board_url = None, "", "", None
     if entry["shape"] == "path":
-        board = segs[0] if segs else ""
+        # a path ATS may keep its boards under a fixed prefix (Dover: app.dover.com/apply/<board>/<posting>)
+        pre = [x for x in entry["path_prefix"].split("/") if x]
+        if pre and [x.lower() for x in segs[: len(pre)]] != pre:
+            problem = "no_board_path"
+        rest = segs[len(pre):] if pre else segs
+        board = unquote(rest[0]) if rest else ""
         owner = board
-        board_url = f"https://{host}/{board}" if board else None
+        board_url = f"https://{host}/{'/'.join(pre + [rest[0]])}" if rest else None
     elif suffix is None:
         problem = "host_shape"
     elif entry["shape"] == "subdomain":
