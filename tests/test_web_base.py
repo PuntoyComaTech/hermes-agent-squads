@@ -409,6 +409,7 @@ def test_the_renders_viewer_lists_every_newest_render_without_reloading_the_tab(
     assert page.stat().st_mtime_ns == stamp and page.read_text() == viewer, "the viewer file is left untouched"
     assert "setInterval(load" in viewer and "zoomAt" in viewer and "innerHTML" not in viewer
     assert not list(page.parent.glob(".*.tmp")), "writes are atomic: no half file for the tab to load"
+    assert "[hidden]{display:none!important}" in viewer, "a hidden overlay must not swallow thumbnail clicks"
 
 
 def test_the_renders_board_refuses_a_path_as_a_name(site):

@@ -7,7 +7,8 @@ script rewrites `live/renders.js` (the images and their modification times) and 
 the viewer itself changed, so the tab is never reloaded and the user's zoom is never reset.
 
 The viewer, opened once by the manager with `desktop_preview`: one render fills the tab, thumbnails of the others
-in a strip below. Wheel or pinch zooms at the pointer, drag pans, double-click toggles fit / 100 %, `0` fits, `1` is
+in a strip below; the ⛶ button (or Enter) takes the viewer to full screen, Esc brings it back. Wheel or pinch zooms
+at the pointer, drag pans, double-click toggles fit / 100 %, `0` fits, `1` is
 100 %, arrow keys or a thumbnail switch, `F` follows the newest render. Every 2 s it re-reads `renders.js` and
 reloads only an image whose time changed, decoded off screen first, so an update never flickers and keeps the view.
 Watching it costs no model tokens: it is a local page, no bot reads it.
@@ -32,13 +33,16 @@ VIEWER = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Renders - __ID__</title>
 <style>
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;background:#0d0d0f;color:#ccc;font:12px system-ui,sans-serif;overflow:hidden}
 #stage{position:absolute;inset:0 0 96px 0;overflow:hidden;cursor:grab;touch-action:none;background:
   repeating-conic-gradient(#151518 0 25%,#111114 0 50%) 0 0/24px 24px}
 #stage.drag{cursor:grabbing}
 #img{position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;-webkit-user-drag:none}
 #hud,#help{position:absolute;top:8px;padding:4px 8px;border-radius:6px;background:#000a;pointer-events:none}
-#hud{left:10px}#help{right:10px;color:#888}
+#hud{left:10px}#help{right:56px;color:#888}
+#full{position:absolute;right:10px;top:6px;width:36px;height:28px;border:0;border-radius:6px;background:#000a;
+  color:#ddd;font-size:16px;cursor:pointer}#full:hover{background:#7aa2ff;color:#000}
 #strip{position:absolute;left:0;right:0;bottom:0;height:96px;display:flex;gap:6px;padding:6px;overflow-x:auto;
   background:#08080a;border-top:1px solid #222}
 .th{flex:0 0 auto;height:84px;border:2px solid transparent;border-radius:6px;overflow:hidden;position:relative;
@@ -49,7 +53,9 @@ html,body{margin:0;height:100%;background:#0d0d0f;color:#ccc;font:12px system-ui
 #empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#777}
 </style></head><body>
 <div id="stage"><img id="img" alt=""><div id="hud"></div>
-<div id="help">wheel zoom · drag pan · double-click fit/100% · 0 fit · 1 100% · ←→ switch · F follow newest</div></div>
+<div id="help">wheel zoom · drag pan · double-click fit/100% · 0 fit · 1 100% · ←→ switch · F follow newest ·
+Enter full screen · Esc back</div>
+<button id="full" title="Full screen (Enter); Esc to leave">⛶</button></div>
 <div id="strip"></div>
 <div id="empty" hidden>No renders yet: the first one shows here as soon as a modeller saves it.</div>
 <script>
@@ -135,6 +141,12 @@ addEventListener('keydown', e => {
   else if (e.key === 'ArrowRight' && list[i + 1]) { follow = false; show(list[i + 1].name, false); }
   else if (e.key === 'ArrowLeft' && i > 0) { follow = false; show(list[i - 1].name, false); }
 });
+function fullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen();
+}
+document.getElementById('full').addEventListener('pointerdown', e => e.stopPropagation());
+document.getElementById('full').addEventListener('click', fullscreen);
+addEventListener('keydown', e => { if (e.key === 'Enter') fullscreen(); });
 addEventListener('resize', () => { if (fitted) fit(); });
 load();
 setInterval(load, 2000);
