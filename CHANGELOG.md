@@ -3,6 +3,17 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.0 - 2026-10-26
+
+### Changed
+
+- jobs 4.12.0: a platform the reviewed list does not name no longer stops an application. `link_check.py` gives it the
+  new verdict `new_platform` (an employer's own careers site, an ATS not listed yet, with no sign of fraud): it is
+  applied to like any ATS and the report names the platform. Only a sign of fraud stops it (`unverified`: look-alike
+  of a listed brand, including one that embeds a whole listed domain, shortener, form or chat link, hidden or raw-IP
+  host, bare apex). `official_hosts.json` records known platforms; it is no longer a gate. echojobs.io is listed as an
+  aggregator, so its pages stay kit only.
+
 ## 2.25.1 - 2026-10-26
 
 ### Changed

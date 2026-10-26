@@ -762,7 +762,9 @@ def posting_checks(c: Collector, opening_url: str, posting_url: str, verdict_ok:
     lc = c.apply_link.lc
     result = lc.classify(opening_url, lc.load_data(lc.DATA_FILE))
     linkedin_job = result.get("kind") == "portal" and result.get("ats") == "linkedin"
-    if not ((result.get("kind") == "ats" and result.get("verdict") in ("verified", "official_ats")) or linkedin_job):
+    employer = (result.get("kind") == "ats" and result.get("verdict") in ("verified", "official_ats")) \
+        or result.get("verdict") == "new_platform"
+    if not (employer or linkedin_job):
         c.error("posting_url", f"opening.md apply_url {opening_url or '(none)'} is not the employer's posting "
                                f"(link_check: {result.get('verdict')}, {result.get('kind')}): pass --posting-url with "
                                "the employer requisition the truthfulness lens verified")

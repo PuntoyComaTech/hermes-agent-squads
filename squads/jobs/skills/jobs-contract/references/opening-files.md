@@ -40,7 +40,8 @@ guard_counts: {hidden: 0, instructions: 0, hidden_urls: 0, invisible: 0, mixed_s
 
 Labels: `mass_posting`, `eligibility_unverified`, `timezone_unknown`, `language_not_stated`, `salary_missing`,
 `contract_missing`, `possible_repost`, `stale`, `scam`, `closed`. Add one only when it is visible in the posting.
-`unverified_link` comes from `link_check.py` (the URL, not the posting text) and goes with `link_verdict: unverified`.
+`unverified_link` comes from `link_check.py` (the URL, not the posting text) and goes with `link_verdict: unverified`;
+`new_platform` goes with `link_verdict: new_platform` (a host the reviewed list does not name, no sign of fraud).
 The guard's excerpts never go into a file: they are shown to the user once.
 
 ## analysis.json (scout)

@@ -32,7 +32,7 @@ Rules (contract: jobs-contract references/opening-files.md, submission.json):
   answers.md, cv or consult:<card id>). A value key is refused: the file never carries field values.
 - SUBMITTED: method no_login_form (or linkedin_easy_apply under auto_apply: auto); at least one filled field; no
   pending_questions; a screenshot named like confirmation.* that exists; every screenshot listed exists; the authority
-  rules below; the apply_url is not `unverified` (link_check.py).
+  rules below; the apply_url is not `unverified` (link_check.py: a sign of fraud; a `new_platform` host passes).
 - NEEDS_DATA: at least one pending question with its text (options optional).
 - NOT_POSSIBLE: a reason, and application/kit.md exists beside the file (manual_kit names it when given). A reason
   that names a code the form mailed to the applicant also needs code_request {card, outcome}: jobs-inbox was asked
@@ -783,11 +783,12 @@ class Checker:
         result = module.classify(apply_url, module.load_data())
         verdict, kind = result.get("verdict"), result.get("kind")
         if verdict == "unverified":
-            self.error("apply_url", "the apply link is unverified (link_check.py): only a manual kit is allowed")
+            self.error("apply_url", "the apply link shows a sign of fraud (link_check.py unverified): only a manual "
+                                    "kit is allowed")
         elif verdict == "job_board" or kind == "portal":
             # The bot submits only through the employer's own ATS; a portal or board page is never an apply target.
             self.error("apply_url", "the apply link is a job board or portal, not the employer: kit only")
-        elif verdict not in ("verified", "official_ats"):
+        elif verdict not in ("verified", "official_ats", "new_platform"):
             self.error("apply_url", f"the apply link verdict '{verdict}' is not an employer ATS: kit only")
         elif self.ats and result.get("ats") != self.ats:
             self.error("method", f"--method {self.ats} names an ATS the apply link is not on "

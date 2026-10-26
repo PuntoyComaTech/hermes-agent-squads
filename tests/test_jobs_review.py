@@ -709,7 +709,7 @@ def test_a_scam_lookalike_link_can_never_be_marked_submitted(tmp_path):
     # A recruiter message sent a look-alike Greenhouse host; the applier must fall back to a manual kit.
     app = make_application(tmp_path, apply_url="https://boards-greenhouse.io/acme/jobs/123")
     proc = check(app, submitted())
-    assert proc.returncode == 1 and "apply link is unverified" in proc.stderr
+    assert proc.returncode == 1 and "sign of fraud" in proc.stderr
     kit = {**submitted(), "result": "NOT_POSSIBLE", "method": "other", "filled_fields": [], "screenshots": [],
            "reason": "unverified apply link", "manual_kit": "application/kit.md"}
     assert check(app, kit).returncode == 0

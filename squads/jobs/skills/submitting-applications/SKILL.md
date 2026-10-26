@@ -34,7 +34,7 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
    - the card's opening id, the folder name and the id in `opening.md` are the same opening;
    - `apply_url` comes from `opening.md` and the form is on that host. Run
      `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/link_check.py" "<apply_url>" --json`: an
-     `unverified` verdict is kit only, never SUBMITTED, never a form opened on that host;
+     `unverified` (a sign of fraud) is kit only, never a form opened on that host; `new_platform` is applied to;
    - the form's language equals the opening's language, and so do the answers you will enter (`answers.md`);
    - `application/cv_ats.pdf` is this opening's CV and `render_report.json` has no hard defect;
    - the screenshots show only the form, the answers and the confirmation page (no account menu, profile or mail
@@ -107,7 +107,7 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
 - Never invent an answer: missing data is a question. A "used <tool>?" whose family the candidate holds is yes.
 - Never submit a second opening under the same card, and never apply twice under standing consent (step 2).
 - Never turn a click that happened into NOT_POSSIBLE: the record decides that, not the bot's second thoughts.
-- Never auto-submit an `unverified` apply_url, even with the user's confirmation: the kit goes to the user.
+- Never auto-submit an `unverified` apply_url (a sign of fraud), even with the user's confirmation: the kit goes to the user.
 - Never drive the shared browser past a sign-in wall, a checkpoint, a CAPTCHA or a restriction notice, and never type
   a credential: that stops LinkedIn work for the day (references/easy-apply.md).
 - Screenshots and `submission.json` stay in `application/`; no contact data in a card, a comment or a status note.

@@ -38,6 +38,8 @@ def refusal(url: str) -> str | None:
     except lc.DataError as exc:
         return f"official_hosts.json unreadable: {exc}"
     result = lc.classify(url, data)
+    if result["verdict"] == "new_platform":
+        return None  # an employer site or an ATS not listed yet, with no sign of fraud
     if result["verdict"] not in ("verified", "official_ats") or result["kind"] != "ats":
         return (f"link_check.py says verdict '{result['verdict']}', kind '{result['kind']}': only an employer ATS "
                 "posting replaces apply_url")

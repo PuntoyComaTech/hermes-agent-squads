@@ -42,7 +42,8 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
    fetched text), `fetch_page.py` and `robots_check.py` (polite fetch), `status.py` (status history),
    `seen_state.py` (search state, ranking), `salary_lookup.py` (the user's own benchmark), `tracker.py`
    (applications), `build_dashboard.py` (offline pipeline view), `skill_gaps.py` (hard-skill gaps), `link_check.py`
-   (offline link verdict: verified, official_ats or unverified; reviewed list in `official_hosts.json`), `apply_link.py`
+   (offline link verdict: verified, official_ats, job_board, new_platform or unverified; only `unverified`, a sign of
+   fraud, stops an application; `official_hosts.json` records known platforms, it is never a gate), `apply_link.py`
    (sets `apply_url` in `opening.md` to the employer's own ATS posting found after intake; refuses a portal link),
    `card_key.py` (the idempotency key of a card), `form_questions.py` (an ATS form's questions from its public API),
    `form_answer.py` (salary and notice-period values from `application-data.yaml`), `upload_copy.py` (prints the `CV_<Name>_<Surname>.pdf` to upload, written from `cv_ats.pdf` when missing or stale), `expand_candidates.py`

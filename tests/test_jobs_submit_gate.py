@@ -339,7 +339,7 @@ NEVER_SUBMITTABLE = ("auto_apply never", "try without consent.json", "unverified
 
 def never_submittable(root, case):
     if case == "unverified apply_url":
-        app = make_opening(root, apply_url="https://random-unknown-host.example/apply")
+        app = make_opening(root, apply_url="https://boards-greenhouse.io/acme/jobs/1")  # a look-alike: a sign of fraud
     elif case == "job board apply_url":
         app = make_opening(root, apply_url="https://www.computrabajo.com.co/ofertas-de-trabajo/x")
     else:

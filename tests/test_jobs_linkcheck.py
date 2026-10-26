@@ -185,7 +185,6 @@ LOOKALIKES = [
     ("https://boards.greenhouse.io:8443/acme", "unusual_port"),
     ("https://boards.greenhouse.io\\@evil.example/acme", "backslash"),
     ("https://boards.greenhouse.io/acme\u200b/jobs/1", "invisible_char"),
-    ("https://unknown-company.example/careers/1", "unknown_host"),
     ("https://linkedin.com/feed/", "not_a_posting"),
     ("https://acme.bamboohr.com/", "no_board_path"),
     ("", "empty"),
@@ -218,10 +217,26 @@ def test_http_downgrade_is_flagged_and_never_verified(reviewed):
     assert any("plain http" in r for r in result["reasons"])
 
 
-def test_unknown_company_domain_is_unverified_with_employer_guidance():
-    result = classify("https://careers.acme-example.com/job/123", company="Acme")
-    assert result["verdict"] == "unverified"
-    assert any("employer's own careers page" in g for g in result["guidance"])
+def test_a_platform_the_list_does_not_name_is_a_new_platform_not_a_stop():
+    """The list lags behind the platforms that exist: an employer's own careers site or an unlisted ATS with no sign of
+    fraud is applied to and named in the report, never refused for being unlisted."""
+    for url in ("https://careers.acme-example.com/job/123", "https://unknown-company.example/careers/1"):
+        result = classify(url, company="Acme")
+        assert result["verdict"] == "new_platform", result
+        assert "unknown_host" in result["flags"] and result["guidance"] == []
+        assert any("not on the reviewed list" in m for m in result["manual_checks"])
+
+
+def test_a_company_whose_name_contains_a_listed_domain_is_not_a_look_alike():
+    for url in ("https://jobs.clever.com/careers/1", "https://careers.antilever.co/job/2"):
+        assert classify(url, company="Acme")["verdict"] == "new_platform", url
+
+
+def test_a_sign_of_fraud_still_stops_an_unlisted_host():
+    for url in ("https://greenhouse-careers.example/acme/1", "https://bit.ly/3abcd", "https://forms.gle/abc",
+                "https://user:pw@careers.acme-example.com/job/1", "https://203.0.113.9/jobs/1",
+                "https://jobs.lever.co.apply-now.example/acme/1"):
+        assert classify(url, company="Acme")["verdict"] == "unverified", url
 
 
 # --- board_company_mismatch -----------------------------------------------------------------------------------------

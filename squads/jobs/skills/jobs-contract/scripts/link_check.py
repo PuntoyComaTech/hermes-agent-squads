@@ -12,7 +12,9 @@ Verdicts:
   job_board     a reviewed job board's posting page (job_boards in official_hosts.json: aggregators that are not
                 employers). The board is recognised, but it is not the employer: the manual checks find the
                 employer's own posting before any application.
-  unverified    anything else: look-alike or unlisted hosts, shorteners, forms, chat links, bare apex domains,
+  new_platform  a host the reviewed list does not name (an employer's own site, an ATS not listed yet) with no sign of
+                fraud: applied to like any employer ATS, and named in the report.
+  unverified    a sign of fraud: look-alike hosts, shorteners, forms, chat links, bare apex domains,
                 IP literals, non-http(s) schemes, userinfo, non-ASCII or punycode hosts. The output carries
                 anti-scam guidance. A flag is a fact about the link; a hard flag forces unverified. The soft flags
                 (http_not_https, board_company_mismatch) only add a FLAG to a verdict.
@@ -47,6 +49,9 @@ MAX_LEN = 2048
 ATS_SHAPES = ("path", "subdomain", "workday")
 DATA_LISTS = ("ats", "portals", "job_boards", "shorteners", "forms", "messaging", "reviewed_boards")
 SOFT_FLAGS = frozenset({"http_not_https", "board_company_mismatch"})
+# A platform the reviewed list does not name yet, with no sign of fraud: the squad applies there like on any ATS and
+# names the platform in its report. The list is a record of what was seen, never a gate.
+NEW_PLATFORM_FLAGS = frozenset({"unknown_host", "unlisted_ats_host"})
 SCHEME_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*):")
 CONTROL_RE = re.compile(r"[\s\x00-\x1f\x7f]")
 NUMERIC_HOST_RE = re.compile(r"^(?:[0-9.]+|(?:0x[0-9a-f]+\.?)+)$")
@@ -177,6 +182,9 @@ def load_data(path=DATA_FILE):
     data = {
         "ats": ats, "portals": portals, "job_boards": job_boards, "apex": apex,
         "brands": sorted({e["brand"] for e in ats} | {p["brand"] for p in portals + job_boards}),
+        # every listed registrable domain with its brand, for look-alikes that embed a whole domain
+        "domains": sorted({(".".join((h[2:] if h.startswith("*.") else h).split(".")[-2:]), e["brand"])
+                           for e in ats + portals + job_boards for h in e["hosts"]}),
         "shorteners": _rules(raw["shorteners"], "shorteners"),
         "forms": _rules(raw["forms"], "forms"),
         "messaging": _rules(raw["messaging"], "messaging"),
@@ -224,9 +232,19 @@ def _same_board_url(url, board_url):
             and not given.query and not given.fragment)
 
 
-def _brand_in(host, brands):
+def _brand_in(host, brands, domains=()):
+    """The listed brand an unlisted host borrows: a brand word among its labels (boards-greenhouse.io), or a whole
+    listed domain inside it (careers-page.com.jobs-offer.example, which splits the hyphenated brand apart)."""
     tokens = set(re.split(r"[.\-_]", host))
-    return next((brand for brand in brands if brand in tokens), None)
+    hit = next((brand for brand in brands if brand in tokens or brand in host.split(".")), None)
+    if hit:
+        return hit
+    for domain, brand in domains:
+        if host == domain or host.endswith("." + domain):
+            continue
+        if re.search(r"(?:^|[.-])" + re.escape(domain) + r"(?:[.-]|$)", host):
+            return brand
+    return None
 
 
 def _ats_board(st, entry, suffix, host, path):
@@ -369,7 +387,7 @@ def analyze(raw, data):
         st["kind"], st["ats"] = "ats", data["apex"][last_two]
         flags.append("unlisted_ats_host")
         return st
-    brand = _brand_in(host, data["brands"])
+    brand = _brand_in(host, data["brands"], data["domains"])
     if brand:
         st["brand"] = brand
         flags.append("lookalike_host")
@@ -399,6 +417,9 @@ def _squash(name):
 
 
 def _manual_checks(st):
+    if st["kind"] == "unknown" or "unlisted_ats_host" in st["flags"]:
+        return [f"A platform not on the reviewed list ({st['host']}): apply as on any employer ATS and name it in the "
+                "report, so the user sees it and it can be added to official_hosts.json."]
     if st["kind"] in ("portal", "job_board"):
         return ["A portal or job board listing is not the employer's page: find the employer's own posting by "
                 "searching the company name, and use the same role and reference id from there."]
@@ -439,7 +460,7 @@ def _result(st, verdict, company, reviewed, warnings):
         "board_url": st["board_url"] if verdict in ("verified", "official_ats") else None,
         "reviewed": reviewed, "flags": flags,
         "reasons": [_reason(flag, st, company) for flag in flags],
-        "manual_checks": _manual_checks(st) if verdict in ("official_ats", "job_board")
+        "manual_checks": _manual_checks(st) if verdict in ("official_ats", "job_board", "new_platform")
         or "board_company_mismatch" in flags else [],
         "guidance": _guidance(st) if verdict == "unverified" else [],
         "data_warnings": list(warnings),
@@ -450,9 +471,11 @@ def classify(raw, data, company=None):
     st = analyze(raw, data)
     flags = st["flags"]
     reviewed = bool(st["board_key"]) and st["board_key"] in data["reviewed"]
-    hard = [flag for flag in flags if flag not in SOFT_FLAGS]
+    hard = [flag for flag in flags if flag not in SOFT_FLAGS and flag not in NEW_PLATFORM_FLAGS]
     if hard:
-        verdict = "unverified"  # analyze() always names at least one hard flag for a host it does not know
+        verdict = "unverified"  # a sign of fraud: look-alike, shortener, form, chat link, hidden host...
+    elif NEW_PLATFORM_FLAGS & set(flags):
+        verdict = "new_platform"
     elif st["kind"] == "portal":
         verdict = "official_ats"
     elif st["kind"] == "job_board":
