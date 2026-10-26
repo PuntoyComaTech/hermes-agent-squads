@@ -1,4 +1,14 @@
 name: squad-hub
-version: 1.0.0
-description: "Desktop navigator for squads: bot, project, folder, worktree, chat in one list. Opt-in (Capabilities > Plugins)."
+version: 1.1.0
+description: "Hermes Agent Squads Hub: one Desktop list of bots, projects, worktrees and chats, a squad timeline, a bell for what waits on you, and managers that ask with buttons."
 author: PuntoyComaTech
+requires_hermes: ">=0.22.2"
+provides_hooks:
+  - post_tool_call
+  - transform_llm_output
+config_schema:
+  desktop_cards:
+    type: bool
+    default: false
+    label: Kanban cards in Desktop replies
+    description: Set by the Desktop half when it is on. Off, managers never write card lines, which would show as raw text.

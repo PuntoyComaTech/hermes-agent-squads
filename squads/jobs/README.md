@@ -129,7 +129,9 @@ Change the times through the builder; it keeps them in your local overlay.
 
 ## Applying
 
-`auto_apply` in `profile.md` is asked once. `auto` is a standing yes: an approved opening with eligibility passed and a
+Applying is automatic by default: the squad sends every good match right away, and you read the sent CVs when you
+have time and tell the manager what to improve; it learns your taste for the next ones. `auto_apply` in `profile.md`
+is asked once, `auto` first. `auto` is a standing yes: an approved opening with eligibility passed and a
 fit at or above your threshold is submitted at once, up to `daily_apply_cap` (10) per day and `daily_easy_apply_cap`
 (5) LinkedIn Easy Apply per day. You are told the company, the role, the CV used and the link. A form the squad cannot
 finish becomes a question to you or a manual kit. `try` and `ask` need your "apply" per opening; `never` writes kits.

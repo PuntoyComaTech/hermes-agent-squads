@@ -84,7 +84,7 @@ before the first click. `profile.md` decides the rest: `auto` or a per-opening a
   gap), no gate at FAIL, `fit.score` at or above a finite `apply_threshold` (0..100), an employer ATS link (or a
   LinkedIn `/jobs/view` page for Easy Apply) and cap room. A cap means tomorrow, never a kit.
 - `try` + `per_opening`: `application/consent.json` is the evidence of the user's apply for this opening. The manager
-  writes it, never the applier, from the user's literal words (`{opening_id, by, words, date, kit_sha256}`), bound to
+  writes it, never the applier, from the user's own answer, typed or a clicked `clarify` choice (`{opening_id, by, words, date, kit_sha256}`), bound to
   the kit the user saw: `opening_id` equals the folder, `by` is the user's name and never a bot profile, and a changed
   `cv_ats.pdf`, letter or `answers.md` refuses the submit. The consent date is not before the approval.
 - `ask` + `per_opening`: the same file, plus `"screenshot_approval": {"by", "words", "date", "screenshot"}` after the

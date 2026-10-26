@@ -10,7 +10,7 @@ them in plain language; no coding needed.
 
 You install one bot, the **builder**. It asks which squads you want, suggests a model for each bot from the AI
 providers you already use, and installs only what you approve. Later it creates squads for your own goals, changes
-existing ones and keeps everything updated. In the Desktop app, the optional **Squad Hub** plugin puts every bot,
+existing ones and keeps everything updated. In the Desktop app, the optional **Hermes Agent Squads Hub** plugin puts every bot,
 project and chat in one list.
 
 ## How the builder works
@@ -90,7 +90,7 @@ builder chat                                                                    
    and choose its folder: any folder you like, new or an existing repo. Each project is one site, brand or job
    search; open chats inside it and the manager and its workers work in that folder.
 
-6. Optional, in the Desktop app: **Capabilities > Plugins**, turn on **Squad Hub** ([below](#squad-hub-desktop)).
+6. Optional, in the Desktop app: **Capabilities > Plugins**, turn on **Hermes Agent Squads Hub** ([below](#hermes-agent-squads-hub-desktop)).
 
 `builder chat` needs `~/.local/bin` on your `PATH`; `hermes -p builder chat` always works.
 
@@ -106,14 +106,15 @@ builder chat                                                                    
 Every squad has one manager you talk to, workers that pass work through a Kanban board, and a reviewer. Publishing,
 sending, applying, deploying and spending always wait for your explicit yes.
 
-## Squad Hub (Desktop)
+## Hermes Agent Squads Hub (Desktop)
 
-An optional plugin for the Hermes Desktop app, shipped with the builder and off until you turn it on in
-**Capabilities > Plugins**. It replaces the Bots tab and the slow profile switch with one list.
+**Hermes Agent Squads Hub**, a plugin shipped with the builder. Its Desktop half is off until you turn it on in
+**Capabilities > Plugins**, and replaces the Bots tab and the slow profile switch with one list. Its agent half runs on
+every manager: questions come with buttons, and Kanban cards show live in Desktop replies.
 
 ```mermaid
 flowchart TD
-    H(["Squad Hub: one list"]):::you
+    H(["Squads Hub: one list"]):::you
     H --> B["Bot<br/>builder, managers, yours"]:::lead
     B --> P["Project<br/>a site, a brand, a job search"]:::bot
     P --> F["Folder<br/>main checkout or worktree"]:::bot
@@ -121,6 +122,8 @@ flowchart TD
     C --> N{"Something needs you?"}:::ask
     N -->|"working or unread"| S(["A dot on the row, a count<br/>below; ⌘⇧U jumps there"]):::done
     N -->|"a preview was open"| V(["Reopen it in one click"]):::done
+    N -->|"a question or a blocked card"| Q(["The bell; a click answers"]):::done
+    N -->|"how did the squad do?"| T(["Timeline: runs per bot,<br/>what went wrong"]):::done
 
     classDef you fill:#ede9fe,stroke:#7c3aed,color:#1e1b4b
     classDef lead fill:#fce7f3,stroke:#db2777,color:#831843
@@ -131,6 +134,9 @@ flowchart TD
 
 - Several bots and projects open side by side; squad workers stay out of sight.
 - Big projects stay quiet: the chats that need you show under the project, the rest fold away.
+- Squads at work: each manager's board count, a timeline of every run with what went wrong, a bell for whatever
+  waits on you, the PR of each worktree, and live Kanban cards in the chat.
+- Managers ask with buttons (suggested answers), with buttons instead of "reply ok".
 - Optional, each a switch in its settings: floating side panels that slide in near the screen edge, a calm
   Catppuccin-style theme, a layout with files over a small terminal, and `.env` files that open in your editor.
 
@@ -159,7 +165,7 @@ always wait for your explicit yes.
 **What do I need?** Hermes Agent 0.22 or newer (macOS, Linux or Windows) and one connected model provider.
 
 **Where are my projects?** In the Desktop app: Sessions, pick the squad's manager in the bottom selector, or turn on
-the Squad Hub plugin and find them under each manager. Each project lives in the folder you chose when you created
+the Hermes Agent Squads Hub plugin and find them under each manager. Each project lives in the folder you chose when you created
 it; squads never pick or move folders.
 
 ## Updates

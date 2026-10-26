@@ -38,7 +38,7 @@ Rules (contract: jobs-contract references/opening-files.md, submission.json):
 Authority for SUBMITTED:
 - profile.md auto_apply (default try): `never` refuses every SUBMITTED. `ask` needs review_before_submit true and the
   screenshot approval below. `try` needs application/consent.json for this opening, written by the manager from the
-  user's literal words. `auto` is standing consent recorded once in profile.md: no consent.json, and instead
+  user's own answer (typed, or the clarify choice clicked). `auto` is standing consent recorded once in profile.md: no consent.json, and instead
   apply_consent: standing, a dated auto_apply_since, the daily caps, a method of no_login_form or linkedin_easy_apply,
   and an analysis.json of this opening that clears the profile: fit.decision PURSUE, fit.score a finite number in
   0..100 at or above apply_threshold, no gate of GATE_NAMES at FAIL, and its id equal to the opening folder name.
@@ -108,7 +108,7 @@ GATE_STATUSES = ("ready", "applying")
 RECORD_STATUSES = ("ready", "applying", "applied")
 KIT_SHA = re.compile(r"^[0-9a-f]{64}$")
 REVIEW_NAME = re.compile(r"review-(c?)(\d+)\.json\Z")
-# Every bot profile of squads/jobs/squad.yaml: consent.json is the user's words, and no bot writes them.
+# Every bot profile of squads/jobs/squad.yaml: consent.json is the user's own answer (typed or a clicked choice), and no bot writes it.
 BOT_NAMES = frozenset({"jobs", "jobs-scout", "jobs-writer", "jobs-reviewer", "jobs-applier", "jobs-inbox"})
 # --post-submit softens these rules and no others, and only with proof the gate opened for this opening under
 # GATE_HOURS ago (application/gate.json, written by --gate): they are the ones that can move between the click and the
@@ -563,7 +563,7 @@ class Checker:
         needs_screenshot = review_flag or mode == "ask"
         path = self.base / "consent.json"
         if not path.is_file():
-            self.error("consent", "SUBMITTED needs application/consent.json with the user's words for this opening")
+            self.error("consent", "SUBMITTED needs application/consent.json with the user's answer for this opening")
             return
         consent = read_object(path)
         if consent is None:
@@ -571,13 +571,13 @@ class Checker:
             return
         for where, text in self.strings(consent, "consent"):
             if any(p.search(text) for p in CONTACT_PATTERNS):
-                self.error(where, "contact data in consent.json; quote the user's words without addresses or numbers")
+                self.error(where, "contact data in consent.json; quote the user's answer without addresses or numbers")
         if consent.get("opening_id") != opening.name:
             self.error("consent.opening_id", f"names {consent.get('opening_id')!r}, not this opening "
                                              f"{opening.name!r}: consent covers one opening")
         for key in ("by", "words"):
             if not isinstance(consent.get(key), str) or not consent[key].strip():
-                self.error(f"consent.{key}", "must be the non-empty text the user wrote")
+                self.error(f"consent.{key}", "must be the non-empty answer the user gave (typed or the choice clicked)")
         by = consent.get("by")
         if isinstance(by, str) and by.strip().casefold() in BOT_NAMES:
             self.error("consent.by", f"names the bot profile {by.strip()!r}: consent is the user's own name, and no bot "
@@ -699,7 +699,7 @@ class Checker:
             return
         for key in ("by", "words"):
             if not isinstance(shot.get(key), str) or not shot[key].strip():
-                self.error(f"screenshot_approval.{key}", "must be the non-empty text the user wrote")
+                self.error(f"screenshot_approval.{key}", "must be the non-empty answer the user gave (typed or the choice clicked)")
         given = strict_day(shot.get("date"))
         if given is None:
             self.error("screenshot_approval.date", "must be YYYY-MM-DD")

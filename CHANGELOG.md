@@ -3,6 +3,45 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.19.0 - 2026-10-25
+
+### Added
+
+- squad-hub, squads at work: a manager's row wears its Kanban board's count (blocked, in review, running), and a
+  read-only **timeline** shows each bot's runs over 6 h to 7 days in one legend shared with the cards (queued, waiting
+  on another card, in progress, blocked, in review, done, failed, stopped) beside **What went wrong**: Hermes' Kanban
+  diagnostics plus failed runs, long waits and cards waiting on you. A click opens the card.
+- squad-hub bell in the status bar: cards blocked for your answer on every board and chats asking a question or an
+  approval in every bot with a chat open, newest first. A click opens the chat or the card's detail (what it asks,
+  history, **Answer in a chat** with the board's manager); clear one or all, and a card returns only if it blocks
+  again. A system notification (and a pet line) when a new card blocks while Hermes is in the background, switchable.
+- squad-hub PR chip per worktree (open, draft, merged; uncommitted changes) on an open folder.
+- squad-hub cards in the chat: `::squad-task{board id}` and `::squad-board{board}` render a live card; the plugin's new
+  agent half appends the cards a turn filed when a Desktop reply did not show them.
+- Every manager asks with suggested answers (`clarify`) instead of "reply ok": the squad-hub agent half adds the rule
+  to managers' prompts (not to cron runs or workers). `squadctl apply` ships squad-hub to every manager and enables
+  its agent half (disabled again for a bot that stops being a manager, or that lists it under `plugins.disable`);
+  the desktop half stays opt-in. The Desktop title is **Hermes Agent Squads Hub**; the install key stays `squad-hub`. The web onboarding summary ends in clarify choices.
+- jobs 4.9.0: an apply or submit approval is asked with `clarify` choices; the clicked choice counts as the user's
+  answer in `consent.json` (`words`), same as a typed yes. Nothing is written from a card, a digest or an inferred yes.
+- jobs 4.9.0: onboarding offers `auto_apply: auto` first and recommended; the README says applying is automatic by
+  default and the user tunes the manager from the CVs already sent.
+
+- squad-hub empty chat: the squad's name in large letters (the official `chat.empty` slot and the SDK `Wordmark`) and,
+  below, the project, folder and worktree the chat works in; a switch turns it off. squadctl stamps `squadName` on every
+  bot's `ui_meta`.
+- web 3.7.2: the onboarding summary ends in clarify choices.
+
+### Fixed
+
+- squad-hub: session events no longer refetch boards, PR chips and the timeline (a `gh pr list` per folder on every
+  Kanban heartbeat); a board read that times out keeps its last cards instead of notifying them again; done cards in
+  chat stop polling; a run that never started reads as failed; the Kanban page link shows only when that plugin is on.
+- squad-hub agent half writes card lines only where the desktop half can draw them (plugin setting `desktop_cards`,
+  set by the desktop half); the bell asks only live backends and never wakes a sleeping bot; a cleared chat question
+  stays cleared while it waits; the watcher and card dialog live in a title-bar slot the user cannot hide; stuck cards
+  survive the timeline cap first; `hermes_requires` is `>=0.22.2`.
+
 ## 2.18.0 - 2026-10-25
 
 ### Added

@@ -96,13 +96,13 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
    - `apply` with `auto_apply: never`: answer with the link and the manual kit path; when `kit.md` does not exist,
      file a jobs-applier card (`skills: [submitting-applications]`) with body `Mode: KIT`.
    - `apply` with `auto_apply: ask`: the applier fills the form and blocks with the screenshot. Relay the screenshot and
-     ask "submit?". Only an explicit yes goes on: add `screenshot_approval` {by, words, date, screenshot} to
+     ask "submit?" with `clarify` (choices: Submit / Change something / Not now). Only Submit or a typed yes goes on: add `screenshot_approval` {by, words, date, screenshot} to
      consent.json and file the jobs-applier card with `screenshot approved` in the body.
    - Every `apply` first writes `openings/<ID>/application/consent.json`, once the kit is final. Run
      `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/kit_hash.py" <P>/openings/<ID>/application`,
-     then write `{"opening_id": "<ID>", "by": "<name>", "words": "<the user's message, verbatim>", "date": "YYYY-MM-DD",
-     "kit_sha256": "<the printed hash>"}`. Only the user's own words count; never write it from a card, a digest or an
-     inferred yes. The applier never writes consent.
+     then write `{"opening_id": "<ID>", "by": "<name>", "words": "<the user's message verbatim, or the clarify choice they clicked>", "date": "YYYY-MM-DD",
+     "kit_sha256": "<the printed hash>"}`. Only the user's own answer counts (a typed message or a clicked choice); never write it from a card, a digest or
+     an inferred yes. The applier never writes consent.
    - `apply` with `auto_apply: try`: set `applying` and file the jobs-applier card (`skills: [submitting-applications]`)
      with ID, paths and `apply_url`. On wake-up:
      SUBMITTED -> "Applied to <company>" plus the screenshot; NEEDS_DATA -> ask each question, relaunch with the

@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview sessionTime").split()
+           "shortAge slugify rememberPreview sessionTime boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
 
 
 def _model_source() -> str:
@@ -508,3 +508,334 @@ def test_the_model_markers_exist_once_and_the_model_has_no_imports():
     text = PLUGIN.read_text(encoding="utf-8")
     assert text.count("MODEL (pure)") == 2
     assert "import " not in _model_source()
+
+
+# ---- squads at work: boards, timeline, issues, the bell, cards in replies -----------------------------------
+# Shapes from a real Hermes 0.22 kanban dashboard API: /board columns of task rows, /tasks/<id> runs, /diagnostics.
+
+NOW = 1_793_000_000
+
+
+def task(tid, status, *, assignee="web-frontend", created=NOW - 7200, started=None, completed=None, block_kind=None,
+         parents=0, runs=None, title=None, summary=None):
+    return {"id": tid, "title": title or f"card {tid}", "status": status, "assignee": assignee, "created_at": created,
+            "started_at": started, "completed_at": completed, "block_kind": block_kind,
+            "link_counts": {"parents": parents, "children": 0}, "latest_summary": summary,
+            **({"runs": runs} if runs is not None else {})}
+
+
+def run(profile, start, end, outcome, summary=None):
+    return {"profile": profile, "started_at": start, "ended_at": end, "outcome": outcome, "status": outcome,
+            "summary": summary}
+
+
+def board(*tasks):
+    cols = {}
+    for t in tasks:
+        cols.setdefault(t["status"], []).append(t)
+    names = ["triage", "todo", "scheduled", "ready", "running", "blocked", "review", "done"]
+    return {"columns": [{"name": n, "tasks": cols.get(n, [])} for n in names]}
+
+
+def test_the_board_digest_counts_columns_and_only_blocks_a_human_answers(model):
+    b = board(task("t_aa01", "blocked", block_kind="needs_input"), task("t_aa02", "blocked", block_kind="dependency"),
+              task("t_aa03", "blocked", block_kind="transient"), task("t_aa04", "blocked", block_kind="capability"),
+              task("t_aa05", "blocked"), task("t_aa06", "review"), task("t_aa07", "running"), task("t_aa08", "todo"),
+              task("t_aa09", "ready"), task("t_aa10", "done"))
+    d = model("boardDigest", b)
+    assert (d["blocked"], d["review"], d["running"], d["queued"], d["done"]) == (5, 1, 1, 2, 1)
+    assert [t["id"] for t in d["needsYou"]] == ["t_aa01", "t_aa04", "t_aa05"]
+
+
+def test_a_manager_finds_its_board_by_name_then_by_its_own_workers(model):
+    boards = [{"slug": "web", "assignees": ["web", "web-qa"]},
+              {"slug": "shopfront", "assignees": ["shop", "shop-scout"]},
+              {"slug": "default", "assignees": ["builder", "default"]}]
+    assert model("boardForBot", "web", boards)["slug"] == "web"
+    assert model("boardForBot", "shop", boards)["slug"] == "shopfront"
+    # the builder takes cards on `default` but has no workers there: that board is not its squad's
+    assert model("boardForBot", "builder", boards) is None
+
+
+def test_a_board_belongs_to_the_bots_that_took_its_cards_not_to_every_profile(model):
+    """The real /board payload lists every profile on disk under `assignees`; the default board would then claim
+    every manager. Only the cards say whose board it is."""
+    default = {**board(task("t_ab01", "done", assignee="builder"), task("t_ab02", "done", assignee="default")),
+               "assignees": ["builder", "default", "shop", "shop-scout", "web", "web-qa"]}
+    shopb = board(task("t_ab03", "blocked", assignee="shop-scout"), task("t_ab04", "done", assignee="shop"))
+    boards = [{"slug": "default", "assignees": model("taskAssignees", default)},
+              {"slug": "shopfront", "assignees": model("taskAssignees", shopb)}]
+    assert boards[0]["assignees"] == ["builder", "default"]
+    assert model("boardForBot", "shop", boards)["slug"] == "shopfront"
+
+
+def test_the_timeline_draws_each_run_in_its_bots_lane_and_the_wait_before_it(model):
+    t1 = task("t_bb01", "done", assignee="web-frontend", created=NOW - 9000,
+              runs=[run("web-frontend", NOW - 8000, NOW - 7000, "crashed"),
+                    run("web-frontend", NOW - 6900, NOW - 6000, "completed")])
+    t2 = task("t_bb02", "review", assignee="web-qa", created=NOW - 5000,
+              runs=[run("web-qa", NOW - 4000, None, None)])
+    t3 = task("t_bb03", "todo", assignee="web-frontend", created=NOW - 3000, runs=[])
+    tl = model("timelineOf", [t1, t2, t3], NOW, NOW - 86400)
+    lanes = {l["name"]: l["bars"] for l in tl["lanes"]}
+    assert set(lanes) == {"web-frontend", "web-qa"}
+    fe = lanes["web-frontend"]
+    assert [b["kind"] for b in fe] == ["wait", "run", "run", "wait"]
+    assert fe[0] == {**fe[0], "start": NOW - 9000, "end": NOW - 8000}
+    assert [b.get("tone") for b in fe if b["kind"] == "run"] == ["fail", "done"]
+    assert fe[-1]["open"] and fe[-1]["end"] == NOW  # never picked up yet: waits until now
+    qa = lanes["web-qa"]
+    assert qa[-1]["open"] and qa[-1]["end"] == NOW and qa[-1]["tone"] == "run"
+
+
+def test_the_timeline_keeps_only_what_touches_the_window(model):
+    old = task("t_cc01", "done", created=NOW - 900_000, runs=[run("web-qa", NOW - 800_000, NOW - 799_000, "completed")])
+    tl = model("timelineOf", [old], NOW, NOW - 86400)
+    assert tl["lanes"] == []
+
+
+def test_issues_put_core_diagnostics_first_and_add_only_what_timing_shows(model):
+    crashy = task("t_dd01", "blocked", assignee="jobs-writer", block_kind="needs_input",
+                  runs=[run("jobs-writer", NOW - 9000, NOW - 8900, "crashed"),
+                        run("jobs-writer", NOW - 8000, NOW - 7900, "crashed")])
+    slow = task("t_dd02", "done", assignee="jobs-scout", created=NOW - 20000,
+                runs=[run("jobs-scout", NOW - 10000, NOW - 9000, "completed")])
+    gated = task("t_dd03", "done", assignee="jobs-scout", created=NOW - 20000, parents=1,
+                 runs=[run("jobs-scout", NOW - 10000, NOW - 9000, "completed")])
+    forgotten = task("t_dd04", "blocked", assignee="jobs", block_kind="needs_input", created=NOW - 200000,
+                     runs=[run("jobs", NOW - 100000, NOW - 99000, "blocked")])
+    diags = [{"task_id": "t_dd01", "task_title": "Apply LinkedIn", "task_assignee": "jobs-writer",
+              "diagnostics": [{"kind": "repeated_failures", "severity": "error", "title": "Agent crash x2",
+                               "last_seen_at": NOW - 7900, "count": 2}]}]
+    issues = model("issuesOf", [crashy, slow, gated, forgotten], diags, NOW)
+    kinds = [(i["kind"], i["taskId"]) for i in issues]
+    assert kinds[0] == ("repeated_failures", "t_dd01")
+    # the crash core already reported is not reported twice
+    assert ("run_failed", "t_dd01") not in kinds
+    assert ("slow_start", "t_dd02") in kinds
+    # a card that waited for its parent was not slow to start
+    assert ("slow_start", "t_dd03") not in kinds
+    assert ("waiting_on_you", "t_dd04") in kinds
+
+
+def test_a_failed_run_core_did_not_flag_is_an_issue(model):
+    t = task("t_ee01", "done", runs=[run("web-qa", NOW - 900, NOW - 800, "timed_out"),
+                                      run("web-qa", NOW - 700, NOW - 600, "completed")])
+    issues = model("issuesOf", [t], [], NOW)
+    assert [(i["kind"], i["severity"], i["text"]) for i in issues] == [("run_failed", "warning", "timed_out")]
+
+
+def test_the_bell_lists_parked_chats_then_cards_waiting_on_you(model):
+    active = [{"id": "r1", "session_key": "s1", "status": "waiting", "title": "Publish the site?"},
+              {"id": "r2", "session_key": "s2", "status": "working", "title": "busy"},
+              {"id": "r3", "session_key": "s3", "status": "idle", "title": "quiet"}]
+    chats = [{"id": "s1", "profile": "web", "title": "Bakery site"}]
+    boards = [{"slug": "jobs", "digest": {"needsYou": [task("t_ff01", "blocked", assignee="jobs", block_kind="needs_input",
+                                                            title="Digest: Truelogic", summary="approve?")]}}]
+    items = model("bellItems", active, chats, boards)
+    assert [(x["type"], x["key"]) for x in items] == [("chat", "chat:s1"), ("card", "card:jobs:t_ff01")]
+    assert items[0]["profile"] == "web" and items[1]["summary"] == "approve?"
+    assert model("newSince", ["chat:s1"], items) == [items[1]]
+
+
+def test_the_notification_skips_what_was_already_waiting_and_names_each_new_card_once(model):
+    """Opening Hermes with five cards already blocked must not fire five notifications; a card that blocks later
+    fires once, and a chat asking a question never does (Desktop notifies those itself)."""
+    old = {"key": "card:jobs:t_aa01", "type": "card"}
+    chat = {"key": "chat:s9", "type": "chat"}
+    assert model("bellFresh", None, [old, chat]) == []
+    new = {"key": "card:jobs:t_aa02", "type": "card"}
+    assert model("bellFresh", ["card:jobs:t_aa01"], [old, new, chat]) == [new]
+    assert model("bellFresh", ["card:jobs:t_aa01", "card:jobs:t_aa02"], [old, new]) == []
+
+
+def test_the_timeline_names_what_a_card_waited_for_and_where_it_sits_now(model):
+    """A card gated on a parent waited on another card, not on a bot; a card blocked after its run sits blocked up to
+    now in that bot's lane; a card sent back to the queue waits again."""
+    gated = task("t_gg01", "done", assignee="web-qa", created=NOW - 9000, parents=1,
+                 runs=[run("web-qa", NOW - 5000, NOW - 4000, "completed")])
+    asks = task("t_gg02", "blocked", assignee="jobs", block_kind="needs_input", created=NOW - 2910,
+                runs=[run("jobs", NOW - 2900, NOW - 2800, "blocked")])
+    review = task("t_gg03", "review", assignee="web-frontend", created=NOW - 1995,
+                  runs=[run("web-frontend", NOW - 1990, NOW - 1000, "review_requested")])
+    tl = model("timelineOf", [gated, asks, review], NOW, NOW - 86400)
+    lanes = {l["name"]: l["bars"] for l in tl["lanes"]}
+    assert [(b["kind"], b["state"]) for b in lanes["web-qa"]] == [("wait", "dep"), ("run", "done")]
+    assert [(b["kind"], b["state"]) for b in lanes["jobs"]] == [("run", "block"), ("state", "block")]
+    assert lanes["jobs"][-1]["start"] == NOW - 2800 and lanes["jobs"][-1]["end"] == NOW and lanes["jobs"][-1]["open"]
+    assert [(b["kind"], b["state"]) for b in lanes["web-frontend"]] == [("run", "review"), ("state", "review")]
+
+
+def test_a_card_reads_as_one_of_the_legend_states(model):
+    cases = [(task("t_hh01", "todo"), "queued"), (task("t_hh02", "todo", parents=1), "dep"),
+             (task("t_hh03", "ready"), "queued"), (task("t_hh04", "running"), "run"),
+             (task("t_hh05", "blocked", block_kind="needs_input"), "block"), (task("t_hh06", "review"), "review"),
+             (task("t_hh07", "done"), "done")]
+    for t, want in cases:
+        assert model("cardState", t) == want, t["id"]
+
+
+def test_cleared_bell_items_stay_cleared_until_the_card_blocks_again(model):
+    """Clearing the bell hides each item; the same card blocked again (a new recurrence or run) comes back, and the
+    newest card is listed first."""
+    def bl(tid, started, rec=1):
+        return {**task(tid, "blocked", assignee="jobs", block_kind="needs_input", started=started), "block_recurrences": rec}
+    boards = [{"slug": "jobs", "digest": {"needsYou": [bl("t_ii01", NOW - 200000), bl("t_ii02", NOW - 100)]}}]
+    items = model("bellItems", [], [], boards)
+    assert [x["taskId"] for x in items] == ["t_ii02", "t_ii01"], "newest first"
+    dismissed = {model("dismissKey", x): NOW for x in items}
+    assert model("bellVisible", items, dismissed) == []
+    again = [{"slug": "jobs", "digest": {"needsYou": [bl("t_ii01", NOW - 50, rec=2), bl("t_ii02", NOW - 100)]}}]
+    back = model("bellVisible", model("bellItems", [], [], again), dismissed)
+    assert [x["taskId"] for x in back] == ["t_ii01"]
+
+
+def test_a_card_detail_shows_what_it_asks_and_its_story(model):
+    events = [{"kind": "created", "created_at": NOW - 900}, {"kind": "heartbeat", "created_at": NOW - 800},
+              {"kind": "claimed", "created_at": NOW - 700},
+              {"kind": "blocked", "created_at": NOW - 600, "payload": {"reason": "Approve the hero copy?", "kind": "needs_input"}},
+              {"kind": "commented", "created_at": NOW - 500}]
+    t = task("t_jj01", "blocked", block_kind="needs_input", summary="old note")
+    needs = model("cardNeeds", t, events)
+    assert needs == {"reason": "Approve the hero copy?", "at": NOW - 600, "kind": "needs_input"}
+    assert model("cardNeeds", t, [])["reason"] == "old note"
+    # a gate filed already blocked: core writes `initial_status` as the reason; the question is the card's body
+    gate = {**task("t_jj02", "blocked", block_kind="needs_input"), "body": "Founder picks A, B or C."}
+    filed = [{"kind": "blocked", "created_at": NOW - 60, "payload": {"reason": "initial_status"}}]
+    assert model("cardNeeds", gate, filed)["reason"] == "Founder picks A, B or C."
+    asked = [{"body": "Which design, A or B?", "created_at": NOW - 30}]
+    assert model("cardNeeds", gate, filed, asked)["reason"] == "Which design, A or B?"
+    assert [e["kind"] for e in model("historyOf", events)] == ["blocked", "claimed", "created"]
+
+
+def test_a_card_is_answered_to_its_boards_manager(model):
+    assert model("boardManager", "web", ["web", "web-qa"], ["web-qa"]) == "web"
+    assert model("boardManager", "shopfront", ["shop", "shop-scout"], ["shop", "shop-scout"]) == "shop"
+    assert model("boardManager", "default", ["builder"], ["builder", "default"]) == ""
+
+
+def test_card_directives_accept_ids_only(model):
+    assert model("cardRef", {"id": "t_ab12", "board": "web"}) == {"id": "t_ab12", "board": "web"}
+    assert model("cardRef", {"id": "t_ab12"}) == {"id": "t_ab12", "board": ""}
+    for bad in [{"id": "ab12"}, {"id": "t_AB12"}, {"id": "t_ab12", "board": "../x"}, {"id": "t_ab12 x"},
+                {"id": "t_ab12", "board": "https://evil"}, {}]:
+        assert model("cardRef", bad) is None, bad
+    assert model("boardRef", {"board": "jobs"}) == {"board": "jobs"}
+    assert model("boardRef", {"board": "Jobs!"}) is None
+
+
+def test_a_worktree_chip_reads_pr_state_and_local_changes(model):
+    pr = {"branch": "feat-x", "draft": True, "number": 12, "state": "open", "title": "x", "url": "https://github.com/o/r/pull/12"}
+    s = model("laneStatus", pr, {"changed": 3, "ahead": 2, "behind": 0})
+    assert s == {"pr": {"number": 12, "state": "draft", "url": pr["url"], "title": "x"}, "changed": 3, "ahead": 2, "behind": 0}
+    assert model("laneStatus", {**pr, "draft": False, "state": "merged"}, None)["pr"]["state"] == "merged"
+    assert model("laneStatus", None, None) == {"pr": None, "changed": 0, "ahead": 0, "behind": 0}
+
+
+def _catalogs():
+    """The plugin's own MESSAGES object, evaluated by node from plugin.js (no copy kept in the test)."""
+    text = PLUGIN.read_text(encoding="utf-8")
+    start = text.index("const MESSAGES = {")
+    depth, i = 0, text.index("{", start)
+    for i in range(i, len(text)):
+        depth += {"{": 1, "}": -1}.get(text[i], 0)
+        if depth == 0:
+            break
+    script = "const MESSAGES = " + text[text.index("{", start):i + 1] + "; console.log(JSON.stringify(MESSAGES))"
+    out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)
+
+
+def test_the_spanish_interface_has_every_string_the_english_one_has():
+    m = _catalogs()
+    assert set(m["en"]) == set(m["es"]), sorted(set(m["en"]) ^ set(m["es"]))
+    assert all(str(v).strip() for v in m["es"].values())
+
+
+def test_every_run_outcome_and_diagnostic_hermes_writes_has_a_label():
+    """Outcomes from hermes_cli/kanban_db.py and diagnostic kinds from kanban_diagnostics.py (Hermes 0.22.2): a
+    missing one shows as raw English in a Spanish app."""
+    outcomes = ["blocked", "changes_requested", "completed", "crashed", "gave_up", "reclaimed", "review_requested",
+                "scheduled", "spawn_failed", "stale", "timed_out"]
+    kinds = ["block_unblock_cycling", "hallucinated_cards", "prose_phantom_refs", "repeated_crashes", "repeated_failures",
+             "review_dependency_deadlock", "running_with_open_parents", "stranded_in_ready", "stuck_in_blocked",
+             "triage_aux_unavailable"]
+    for lang, cat in _catalogs().items():
+        missing = [k for k in [f"out_{o}" for o in outcomes] + [f"iss_{k}" for k in kinds] if k not in cat]
+        assert not missing, (lang, missing)
+
+
+def test_a_run_that_never_started_reads_as_failed(model):
+    t = task("t_kk01", "ready", runs=[run("web-qa", NOW - 900, NOW - 899, "spawn_failed")])
+    lanes = model("timelineOf", [t], NOW, NOW - 86400)["lanes"]
+    runs = [b for lane in lanes for b in lane["bars"] if b["kind"] == "run"]
+    assert [b["state"] for b in runs] == ["fail"], lanes
+
+
+def test_a_chat_waiting_in_any_bots_backend_is_listed_once(model):
+    """A shared backend answers for several bots, so the primary and a bot's own route can report the same chat; the
+    bot's own backend may be the only one that knows it is waiting."""
+    primary = [{"id": "r1", "session_key": "s1", "status": "idle"}, {"id": "r2", "session_key": "s2", "status": "working"}]
+    web = [{"id": "r1", "session_key": "s1", "status": "waiting"}, {"id": "r9", "session_key": "s9", "status": "waiting"}]
+    merged = model("mergeActive", [primary, web, []])
+    assert sorted((r["session_key"], r["status"]) for r in merged) == [("s1", "waiting"), ("s2", "working"), ("s9", "waiting")]
+
+
+def test_a_board_that_failed_to_load_keeps_its_cards_so_nothing_renotifies(model):
+    before = [{"slug": "jobs", "digest": {"needsYou": [{"id": "t_aa01"}]}}, {"slug": "web", "digest": {"needsYou": []}}]
+    now = [None, {"slug": "web", "digest": {"needsYou": []}}]  # the jobs read timed out this round
+    kept = model("keepLastBoards", now, ["jobs", "web"], before)
+    assert [b["slug"] for b in kept] == ["jobs", "web"]
+    known = [x["key"] for x in model("bellItems", [], [], before)]
+    assert model("bellFresh", known, model("bellItems", [], [], kept)) == []
+    # a board that is gone from the list is not kept
+    assert [b["slug"] for b in model("keepLastBoards", now, ["web"], before)] == ["web"]
+
+
+def test_the_timeline_reads_open_cards_and_cards_that_ended_in_the_window_newest_first(model):
+    tasks = [task("t_ll01", "done", completed=NOW - 900_000), task("t_ll02", "done", completed=NOW - 100),
+             task("t_ll03", "blocked", block_kind="needs_input", created=NOW - 500_000),
+             {**task("t_ll04", "archived"), "completed_at": None}, task("t_ll05", "running", started=NOW - 50)]
+    got = [t["id"] for t in model("windowTasks", tasks, NOW, NOW - 86400)]
+    assert got == ["t_ll03", "t_ll05", "t_ll02"], "blocked first, then newest activity"
+
+
+def test_a_pr_link_opens_only_over_https(model):
+    pr = {"branch": "x", "draft": False, "number": 3, "state": "open", "title": "x", "url": "javascript:alert(1)"}
+    assert model("laneStatus", pr, None)["pr"]["url"] == ""
+    assert model("laneStatus", {**pr, "url": "https://github.com/o/r/pull/3"}, None)["pr"]["url"].startswith("https://")
+
+
+def test_a_card_line_without_a_board_finds_the_board_that_holds_the_id(model):
+    """A bot that filed a card without naming the board writes `::squad-task{id=...}`; asking the backend's current
+    board would show "Card not found" when the card lives on its squad's board."""
+    boards = [{"slug": "default", "board": board(task("t_mm01", "done"))},
+              {"slug": "web", "board": board(task("t_mm02", "ready"), task("t_mm03", "blocked"))}]
+    assert model("boardOfTask", "t_mm03", boards) == "web"
+    assert model("boardOfTask", "t_mm99", boards) == ""
+
+
+def test_an_empty_chat_is_titled_with_its_squad_then_the_bot(model):
+    # managers sit in the shared "Managers" section: the squad name comes from its own stamp
+    squad = {"name": "web", "title": "Web manager", "ui_meta": {"hermes-bots": {"sectionName": "Managers", "squadName": "Web"}}}
+    assert model("introName", squad) == "Web"
+    assert model("introName", {"name": "builder", "title": "Builder", "ui_meta": {}}) == "Builder"
+    assert model("introName", {"name": "default", "title": "", "ui_meta": None}) == "default"
+
+
+def test_a_cleared_chat_question_rings_again_only_after_it_stopped_waiting(model):
+    """Opening a waiting chat bumps its last_active; the dismissal must not depend on it, or the row comes back while
+    the same question is still open. Once the chat stops waiting, its dismissal is dropped so a new question rings."""
+    waiting = [{"key": "chat:s1", "stamp": "", "type": "chat"}]
+    dismissed = {model("dismissKey", waiting[0]): NOW}
+    reopened = model("bellItems", [{"id": "r1", "session_key": "s1", "status": "waiting", "last_active": NOW + 5}], [], [])
+    assert model("bellVisible", reopened, dismissed) == []
+    assert model("staleChatDismissals", reopened, dismissed) == []
+    assert model("staleChatDismissals", [], dismissed) == ["chat:s1@"]
+
+
+def test_a_stuck_card_survives_the_timeline_cap_ahead_of_newer_work(model):
+    tasks = [task("t_nn01", "running", started=NOW - 10), task("t_nn02", "blocked", block_kind="needs_input", created=NOW - 900_000),
+             task("t_nn03", "done", completed=NOW - 20)]
+    assert [t["id"] for t in model("windowTasks", tasks, NOW, NOW - 86400)][:1] == ["t_nn02"]

@@ -1,4 +1,4 @@
-// Squad Hub — a Hermes Desktop plugin for the Hermes Agent Squads way of working.
+// Hermes Agent Squads Hub (key `squad-hub`) — a Hermes Desktop plugin for the Hermes Agent Squads way of working.
 //
 //   Bot  →  Project  →  Folder  →  Lane (main checkout | worktree)  →  Chat
 //
@@ -11,7 +11,7 @@
 // `react/jsx-runtime`. The pure model between the MODEL markers is extracted and tested by
 // tests/test_squad_hub_model.py, which runs it under node.
 import * as sdk from '@hermes/plugin-sdk'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment as React_Fragment, useEffect, useMemo, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 // ───────────────────────────── MODEL (pure) ─────────────────────────────
@@ -56,6 +56,11 @@ function isHumanChat(s, now = Date.now() / 1000) {
 
 /** The Desktop section a profile is filed under (`ui_meta.hermes-bots.sectionName`), '' for none. */
 const sectionOf = profile => String(profile.ui_meta?.['hermes-bots']?.sectionName || '').trim()
+/** The big lettering of an empty chat: the squad the bot belongs to (stamped by squadctl), else its own title. */
+const introName = bot => {
+  const squad = String(bot.ui_meta?.['hermes-bots']?.squadName || '').trim()
+  return squad || bot.title || bot.name
+}
 
 /** The bots a squads user talks to. Default, the builder and squad managers always show;
  *  any other profile only when it has a human chat (squad workers never do). A bot outside those whose
@@ -322,6 +327,255 @@ function nextPending(items, currentId) {
 
 /** Folder glyph: the project's main folder, a git repo, or a plain folder. */
 const folderIcon = (folder, isRepo) => (folder.primary ? 'house' : isRepo ? 'folder-git-2' : 'folder')
+// ── squads at work: boards, timeline, what went wrong, what waits for you ──
+/** Blocks a human answers: the bot asked (`needs_input`), lacks access (`capability`), or an older block without a
+ *  kind. A `dependency` or `transient` block clears on its own. */
+const HUMAN_BLOCKS = new Set(['needs_input', 'capability', '', null, undefined])
+const boardTasks = board => (board?.columns || []).flatMap(c => c.tasks || [])
+
+/** A board payload as the counts a squad row, the bell and the timeline read. */
+function boardDigest(board) {
+  const n = {}
+  for (const c of board?.columns || []) n[c.name] = (c.tasks || []).length
+  const needsYou = boardTasks(board).filter(t => t.status === 'blocked' && HUMAN_BLOCKS.has(t.block_kind))
+  return {
+    blocked: n.blocked || 0,
+    review: n.review || 0,
+    running: n.running || 0,
+    queued: (n.triage || 0) + (n.todo || 0) + (n.scheduled || 0) + (n.ready || 0),
+    done: n.done || 0,
+    needsYou
+  }
+}
+
+/** The bots that actually took cards on a board. The board payload's own `assignees` lists every profile on disk
+ *  (it feeds the assignee picker), so it cannot say whose board it is. */
+const taskAssignees = board => [...new Set(boardTasks(board).map(t => t.assignee).filter(Boolean))].sort()
+
+/** The board a bot leads: the board named like it (squads name the board after the manager), else the board its own
+ *  workers (`<bot>-<role>`) take cards from. `boards`: [{ slug, assignees }]. */
+function boardForBot(name, boards) {
+  return (
+    boards.find(b => b.slug === name) ||
+    boards.find(b => (b.assignees || []).includes(name) && (b.assignees || []).some(a => a.startsWith(name + '-'))) ||
+    null
+  )
+}
+
+const FAILED_RUNS = new Set(['crashed', 'timed_out', 'gave_up', 'spawn_failed'])
+const RUN_TONE = { completed: 'done', done: 'done', running: 'run', blocked: 'block', review_requested: 'review', changes_requested: 'review', reclaimed: 'stop', stale: 'stop', rate_limited: 'stop', scheduled: 'queued', dependency_wait: 'dep' }
+/** Every state the timeline, the cards and the legend speak, in the order a card moves through them. */
+const STATES = ['queued', 'dep', 'run', 'block', 'review', 'done', 'fail', 'stop']
+const QUEUED = new Set(['triage', 'todo', 'ready', 'scheduled'])
+/** Where a card sits now, in the legend's words. A queued card with parents waits on another card. */
+function cardState(t) {
+  if (!t) return 'queued'
+  if (t.status === 'blocked') return 'block'
+  if (t.status === 'review') return 'review'
+  if (t.status === 'running') return 'run'
+  if (t.status === 'done' || t.status === 'archived') return 'done'
+  return (t.link_counts?.parents || 0) > 0 && t.status === 'todo' ? 'dep' : 'queued'
+}
+const runTone = outcome => (FAILED_RUNS.has(outcome) ? 'fail' : RUN_TONE[outcome] || (outcome ? 'stop' : 'run'))
+
+/** One lane per bot that ran work. Each card draws the wait before its first run (queued, or waiting on another
+ *  card when it has parents), one bar per run, and where it sits since its last run (blocked, in review, queued
+ *  again) up to now. A task without its run list draws one bar from its own stamps. Times are unix seconds. */
+function timelineOf(tasks, now, from) {
+  const lanes = new Map()
+  const lane = name => {
+    if (!lanes.has(name)) lanes.set(name, { name, bars: [] })
+    return lanes.get(name).bars
+  }
+  for (const t of tasks) {
+    const runs = Array.isArray(t.runs) && t.runs.length
+      ? t.runs
+      : t.started_at
+        ? [{ profile: t.assignee, started_at: t.started_at, ended_at: t.completed_at || (t.status === 'running' ? null : t.started_at), outcome: t.status === 'done' ? 'completed' : t.status === 'running' ? null : t.status }]
+        : []
+    const first = runs.reduce((m, r) => Math.min(m, r.started_at || Infinity), Infinity)
+    const owner = t.assignee || runs[0]?.profile || 'unassigned'
+    const waiting = (t.link_counts?.parents || 0) > 0 ? 'dep' : 'queued'
+    const base = { taskId: t.id, title: t.title, status: t.status }
+    if (t.created_at && first !== Infinity && first - t.created_at > 60) {
+      lane(owner).push({ ...base, kind: 'wait', state: waiting, start: t.created_at, end: first })
+    } else if (t.created_at && first === Infinity && !['done', 'archived'].includes(t.status)) {
+      lane(owner).push({ ...base, kind: 'wait', state: t.status === 'blocked' ? 'block' : waiting, start: t.created_at, end: now, open: true })
+    }
+    let lastEnd = 0
+    let lastProfile = owner
+    let open = false
+    for (const r of runs) {
+      if (!r.started_at) continue
+      const tone = runTone(r.ended_at ? r.outcome : null)
+      lane(r.profile || owner).push({ ...base, kind: 'run', state: tone, tone, start: r.started_at, end: r.ended_at || now, open: !r.ended_at, outcome: r.outcome || (r.ended_at ? '' : 'running'), summary: r.summary || r.error || '' })
+      if (!r.ended_at) open = true
+      else if (r.ended_at >= lastEnd) {
+        lastEnd = r.ended_at
+        lastProfile = r.profile || owner
+      }
+    }
+    const sitting = t.status === 'blocked' ? 'block' : t.status === 'review' ? 'review' : QUEUED.has(t.status) ? waiting : ''
+    if (!open && lastEnd && sitting && now - lastEnd > 60) {
+      lane(t.status === 'blocked' ? lastProfile : owner).push({ ...base, kind: 'state', state: sitting, start: lastEnd, end: now, open: true })
+    }
+  }
+  const out = []
+  for (const l of lanes.values()) {
+    const bars = l.bars.filter(b => b.end >= from && b.start <= now).sort((a, b) => a.start - b.start)
+    if (bars.length) out.push({ name: l.name, bars })
+  }
+  return { from, to: now, lanes: out.sort((a, b) => a.name.localeCompare(b.name)) }
+}
+
+const SEVERITY_RANK = { critical: 0, error: 1, warning: 2, info: 3 }
+const LONG_WAIT = 2 * 3600
+const LONG_BLOCK = 12 * 3600
+
+/** What went wrong on a board, loudest and newest first: core's own diagnostics (repeated crashes, stuck blocks,
+ *  block/unblock cycling, invented cards…) plus what only timing shows: failed runs, cards that waited hours before a
+ *  bot picked them up, and blocks that have waited on a human for half a day. */
+function issuesOf(tasks, diagnostics, now) {
+  const out = []
+  const covered = new Set()
+  for (const row of diagnostics || []) {
+    for (const d of row.diagnostics || []) {
+      covered.add(row.task_id + ':' + d.kind)
+      covered.add(row.task_id)
+      out.push({ kind: d.kind, severity: d.severity || 'warning', taskId: row.task_id, title: row.task_title || row.task_id, assignee: row.task_assignee || '', at: d.last_seen_at || now, text: d.title || d.message || d.summary || '', count: d.count || 1, source: 'hermes' })
+    }
+  }
+  for (const t of tasks) {
+    const runs = Array.isArray(t.runs) ? t.runs : []
+    const failed = runs.filter(r => FAILED_RUNS.has(r.outcome))
+    if (failed.length && !covered.has(t.id)) {
+      const last = failed[failed.length - 1]
+      out.push({ kind: 'run_failed', severity: failed.length > 1 ? 'error' : 'warning', taskId: t.id, title: t.title, assignee: last.profile || t.assignee || '', at: last.ended_at || now, text: last.outcome, count: failed.length, source: 'timeline' })
+    }
+    const first = runs.reduce((m, r) => Math.min(m, r.started_at || Infinity), t.started_at || Infinity)
+    const parents = t.link_counts?.parents || 0
+    if (t.created_at && first !== Infinity && !parents && first - t.created_at > LONG_WAIT) {
+      out.push({ kind: 'slow_start', severity: 'info', taskId: t.id, title: t.title, assignee: t.assignee || '', at: first, text: String(Math.round((first - t.created_at) / 3600)) + 'h', count: 1, source: 'timeline' })
+    }
+    if (t.status === 'blocked' && HUMAN_BLOCKS.has(t.block_kind) && !covered.has(t.id + ':stuck_in_blocked')) {
+      const since = runs.filter(r => r.outcome === 'blocked').reduce((m, r) => Math.max(m, r.ended_at || 0), 0) || t.completed_at || t.started_at || t.created_at || now
+      if (now - since > LONG_BLOCK) out.push({ kind: 'waiting_on_you', severity: 'warning', taskId: t.id, title: t.title, assignee: t.assignee || '', at: since, text: String(Math.round((now - since) / 3600)) + 'h', count: 1, source: 'timeline' })
+    }
+  }
+  return out.sort((a, b) => (SEVERITY_RANK[a.severity] ?? 4) - (SEVERITY_RANK[b.severity] ?? 4) || b.at - a.at)
+}
+
+/** Everything waiting on the user, chats first (a bot is parked on an approval or a question), then cards a bot
+ *  blocked for a human answer. `active`: session.active_list rows; `chats`: stored chat rows; `boards`:
+ *  [{ slug, digest }]. Keys are stable, so a new item can be told from one already seen. */
+function bellItems(active, chats, boards) {
+  const byId = new Map((chats || []).map(c => [c.id, c]))
+  const items = []
+  for (const r of active || []) {
+    if (r.status !== 'waiting') continue
+    const chat = byId.get(r.session_key) || null
+    items.push({ key: 'chat:' + r.session_key, stamp: '', at: r.last_active || 0, type: 'chat', runtimeId: r.id, storedId: r.session_key, title: r.title || chat?.title || 'Chat', profile: chat?.profile || '' })
+  }
+  const cards = []
+  for (const b of boards || []) {
+    for (const t of b.digest?.needsYou || []) cards.push({ key: 'card:' + b.slug + ':' + t.id, stamp: (t.block_recurrences || 0) + ':' + (t.started_at || t.created_at || 0), at: t.started_at || t.created_at || 0, type: 'card', board: b.slug, taskId: t.id, title: t.title, profile: t.assignee || '', summary: t.latest_summary || '' })
+  }
+  return items.concat(cards.sort((x, y) => y.at - x.at))
+}
+/** One row per live chat across backends: a shared backend answers for several bots, so the same chat comes back
+ *  once per ask; `waiting` wins over any other status reported for it. */
+function mergeActive(lists) {
+  const by = new Map()
+  for (const list of lists || []) {
+    for (const r of list || []) {
+      const key = r.session_key || r.id
+      const had = by.get(key)
+      if (!had || (r.status === 'waiting' && had.status !== 'waiting')) by.set(key, r)
+    }
+  }
+  return [...by.values()]
+}
+/** A board whose read failed this round keeps its last known digest, so its waiting cards do not vanish and come
+ *  back as new (a second notification for the same card). Boards that left the list are dropped. */
+function keepLastBoards(results, slugs, previous) {
+  const fresh = (results || []).filter(Boolean) // a failed read is null
+  const got = new Set(fresh.map(b => b.slug))
+  const kept = (previous || []).filter(b => slugs.includes(b.slug) && !got.has(b.slug))
+  return [...fresh, ...kept].sort((a, b) => slugs.indexOf(a.slug) - slugs.indexOf(b.slug))
+}
+const TIMELINE_CAP = 150
+/** Cards that touch the window, blocked and in-review first, then newest activity, so a cap never hides a stuck card: open cards, and finished or archived
+ *  cards that ended inside it (an archived card with no end stamp is out). */
+const OPEN_STATUSES = new Set(['running', 'blocked', 'review', 'ready', 'todo', 'triage', 'scheduled'])
+function windowTasks(tasks, now, from) {
+  const last = t => t.completed_at || t.started_at || t.created_at || 0
+  const stuck = t => (t.status === 'blocked' || t.status === 'review' ? 0 : 1)
+  return (tasks || [])
+    .filter(t => OPEN_STATUSES.has(t.status) || (t.completed_at && t.completed_at >= from))
+    .sort((a, b) => stuck(a) - stuck(b) || last(b) - last(a))
+}
+/** A dismissal names one occurrence: a card blocked again (a new run, a new recurrence) or a chat parked again
+ *  comes back to the bell. */
+const dismissKey = x => x.key + '@' + (x.stamp || '')
+const bellVisible = (items, dismissed) => items.filter(x => !(dismissed || {})[dismissKey(x)])
+/** Chat dismissals that no longer match a waiting chat: a chat that stopped waiting and asks again rings again. */
+const staleChatDismissals = (items, dismissed) => {
+  const waiting = new Set(items.filter(x => x.type === 'chat').map(dismissKey))
+  return Object.keys(dismissed || {}).filter(k => k.startsWith('chat:') && !waiting.has(k))
+}
+const newSince = (seen, items) => items.filter(x => !seen.includes(x.key))
+/** What to notify about: nothing on the first look (the state the user opened Hermes to), then only the cards that
+ *  were not in the previous look. A parked chat already gets Desktop's own "needs input" notification. */
+const bellFresh = (known, items) => {
+  if (!known) return []
+  const had = new Set(known)
+  return items.filter(x => x.type === 'card' && !had.has(x.key))
+}
+
+/** A squad card reference from model-written directive attributes: ids only, never content. */
+const TASK_ID_RE = /^t_[0-9a-f]{4,32}$/
+const BOARD_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
+function cardRef(attrs) {
+  const id = String(attrs?.id || '')
+  const board = String(attrs?.board || '')
+  if (!TASK_ID_RE.test(id) || (board && !BOARD_SLUG_RE.test(board))) return null
+  return { id, board }
+}
+function boardRef(attrs) {
+  const board = String(attrs?.board || '')
+  return BOARD_SLUG_RE.test(board) ? { board } : null
+}
+
+/** A worktree's pull request and checkout as one quiet chip: PR number and state, files changed, commits to push. */
+function laneStatus(pr, repo) {
+  const state = pr ? (pr.draft ? 'draft' : pr.state || 'open') : ''
+  const url = /^https:\/\/[^/\s]+\//.test(String(pr?.url || '')) ? pr.url : ''
+  return { pr: pr ? { number: pr.number, state, url, title: pr.title } : null, changed: repo?.changed || 0, ahead: repo?.ahead || 0, behind: repo?.behind || 0 }
+}
+/** What a card asks of the user: the reason of its last block (a bot writes it there), else its latest summary. */
+/** Block reasons core writes for itself, not for the user. */
+const MACHINE_REASONS = new Set(['initial_status', 'parent_not_done', ''])
+function cardNeeds(task, events, comments) {
+  const last = (events || []).filter(e => e.kind === 'blocked').pop()
+  const said = String(last?.payload?.reason || '').trim()
+  const note = (comments || []).filter(c => (c.created_at || 0) >= (last?.created_at || 0)).pop()
+  const reason = !MACHINE_REASONS.has(said) ? said : String(note?.body || task?.latest_summary || task?.body || '').trim()
+  return { reason, at: last?.created_at || 0, kind: last?.payload?.kind || task?.block_kind || '' }
+}
+const HISTORY_KINDS = new Set(['created', 'promoted', 'dependency_wait', 'claimed', 'blocked', 'unblocked', 'review_requested', 'changes_requested', 'completed', 'crashed', 'timed_out', 'gave_up', 'reclaimed', 'scheduled', 'archived'])
+/** A card's story, newest first, without heartbeats, spawns and comments. */
+const historyOf = (events, limit = 8) => (events || []).filter(e => HISTORY_KINDS.has(e.kind)).map(e => ({ kind: e.kind, at: e.created_at || 0 })).sort((a, b) => b.at - a.at).slice(0, limit)
+/** The manager to answer a board's card to: the bot named like the board, else the one whose workers take its cards. */
+/** The board holding a card id, for a card line written without one: the boards already loaded carry every task. */
+function boardOfTask(id, boards) {
+  for (const b of boards || []) if (boardTasks(b.board).some(t => t.id === id)) return b.slug
+  return ''
+}
+function boardManager(slug, profileNames, assignees) {
+  if ((profileNames || []).includes(slug)) return slug
+  const a = assignees || []
+  return a.find(x => a.some(y => y.startsWith(x + '-'))) || ''
+}
 // ─────────────────────────── END MODEL (pure) ───────────────────────────
 
 // ───────────────────────────── host wiring ─────────────────────────────
@@ -330,7 +584,8 @@ const {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
   SessionStatusDot, COMPOSER_AREAS, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleRow, EmptyState,
-  CapabilitiesView, ColorSwatches, PROFILE_SWATCHES, CHAT_EMPTY_AREA, profileColor, haptic, isSubmitEnter, requestTheme, useTheme, THEMES_AREA, STATUSBAR_AREAS, PALETTE_AREA, KEYBINDS_AREA, SIDEBAR_NAV_PREFS_AREA
+  CapabilitiesView, ColorSwatches, PROFILE_SWATCHES, CHAT_EMPTY_AREA, profileColor, haptic, isSubmitEnter, requestTheme, useTheme, THEMES_AREA, STATUSBAR_AREAS, PALETTE_AREA, KEYBINDS_AREA, SIDEBAR_NAV_PREFS_AREA,
+  TRANSCRIPT_DIRECTIVE_AREA, Skeleton, Wordmark
 } = sdk
 
 const ID = 'squad-hub'
@@ -367,7 +622,7 @@ const MESSAGES = {
     sortRecent: 'Order bots by recent activity', sortRecentHint: 'Off: default, builder, then managers.', navRows: 'Sidebar rows',
     visibleBots: 'Visible bots', allVisible: 'Every bot you can talk to is listed here; squad workers never are.',
     ctxPreviews: 'Previews', ctxFiles: 'Files', ctxReview: 'Review', ctxTerminal: 'Terminal', botCaps: 'Capabilities of {0}',
-    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side', cmdPinRight: 'Squads: pin or hide the right side', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', introHint: 'Works in the place below. Ask away.', alsoPending: 'Also waiting here', floatSides: 'Floating sides', floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar pin them.', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.', openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.', envOpenFailed: 'Could not open it. Is an app set to open this file type?', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'Catppuccin-inspired, low contrast: cream by day, mocha by night. Follows the light/dark switch.', themeUse: 'Use it', themeActive: 'In use', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads'
+    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side', cmdPinRight: 'Squads: pin or hide the right side', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', introHint: 'Works in the place below. Ask away.', alsoPending: 'Also waiting here', floatSides: 'Floating sides', floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar pin them.', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.', openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.', envOpenFailed: 'Could not open it. Is an app set to open this file type?', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'Catppuccin-inspired, low contrast: cream by day, mocha by night. Follows the light/dark switch.', themeUse: 'Use it', themeActive: 'In use', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', cmdTimeline: 'Squads: open the timeline', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', tlSkipped: '{0} older cards are not drawn; pick a shorter window.', out_spawn_failed: 'did not start', out_stale: 'went stale', out_review_requested: 'sent to review', out_changes_requested: 'changes requested', out_scheduled: 'scheduled', iss_stranded_in_ready: 'Ready but nobody picks it up', iss_triage_aux_unavailable: 'Triage could not run', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', tlHint: 'Hover a bar for details; click it for the card.', tlStill: 'still', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', timeline: 'Timeline', timelineTitle: 'Squads timeline', timelineEmpty: 'No board with work yet', timelineEmptyHint: 'A squad’s board appears here once its manager files cards.', timelineQuiet: 'Nothing ran in this window.', tlLegend: 'Solid: a bot working · faint: a card waiting · red: a run that failed. Hover a bar for details.', tlWaited: 'waited {0}', issuesTitle: 'What went wrong', issuesNone: 'Nothing to look at in this window.', iss_repeated_failures: 'Repeated failures', iss_repeated_crashes: 'Repeated crashes', iss_stuck_in_blocked: 'Stuck blocked', iss_block_unblock_cycling: 'Blocked again and again', iss_hallucinated_cards: 'Invented cards', iss_prose_phantom_refs: 'Refers to cards that do not exist', iss_review_dependency_deadlock: 'Review deadlock', iss_running_with_open_parents: 'Ran before its parents finished', iss_run_failed: 'A run failed', iss_slow_start: 'Waited long to start', iss_waiting_on_you: 'Waiting on you', out_completed: 'done', out_crashed: 'crashed', out_timed_out: 'timed out', out_blocked: 'blocked', out_reclaimed: 'reclaimed', out_rate_limited: 'rate limited', out_gave_up: 'gave up', out_running: 'running', col_blocked: 'blocked', col_review: 'review', col_running: 'running', col_todo: 'to do', col_done: 'done', col_ready: 'ready', col_triage: 'triage', col_scheduled: 'scheduled', col_archived: 'archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Opens the timeline.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', bellCard: '{0} board · {1} needs an answer', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardTimeline: 'Timeline', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
   },
   es: {
     search: 'Buscar chats, proyectos, worktrees', refresh: 'Actualizar', loading: 'Cargando…', loadFailed: 'No se pudo cargar',
@@ -392,19 +647,25 @@ const MESSAGES = {
     sortRecent: 'Ordenar bots por actividad reciente', sortRecentHint: 'Apagado: default, builder y luego managers.', navRows: 'Filas de la barra lateral',
     visibleBots: 'Bots visibles', allVisible: 'Aquí está cada bot con el que puedes hablar; los workers de un squad nunca salen.',
     ctxPreviews: 'Previews', ctxFiles: 'Archivos', ctxReview: 'Revisión', ctxTerminal: 'Terminal', botCaps: 'Capacidades de {0}',
-    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdFloat: 'Squads: costados flotantes sí/no', cmdPinLeft: 'Squads: fijar u ocultar el costado izquierdo', cmdPinRight: 'Squads: fijar u ocultar el costado derecho', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', introHint: 'Trabaja en el lugar de abajo. Pídele lo que necesites.', alsoPending: 'También pendiente aquí', floatSides: 'Costados flotantes', floatSidesHint: 'La lista izquierda y los archivos/terminal de la derecha no ocupan ancho: acerca el puntero a un borde y se deslizan sobre el chat; al salir se ocultan. Los botones laterales de la barra de título los fijan.', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor; cada uno se abre en tu editor para ese archivo.', openInEditor: 'Abrir en el editor', noEnv: 'No hay archivo .env en esta carpeta.', envOpenFailed: 'No se pudo abrir. ¿Hay una app asignada a este tipo de archivo?', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'Inspirado en Catppuccin, de bajo contraste: crema de día, mocha de noche. Sigue el modo claro/oscuro.', themeUse: 'Usarlo', themeActive: 'En uso', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads'
+    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdFloat: 'Squads: costados flotantes sí/no', cmdPinLeft: 'Squads: fijar u ocultar el costado izquierdo', cmdPinRight: 'Squads: fijar u ocultar el costado derecho', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', introHint: 'Trabaja en el lugar de abajo. Pídele lo que necesites.', alsoPending: 'También pendiente aquí', floatSides: 'Costados flotantes', floatSidesHint: 'La lista izquierda y los archivos/terminal de la derecha no ocupan ancho: acerca el puntero a un borde y se deslizan sobre el chat; al salir se ocultan. Los botones laterales de la barra de título los fijan.', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor; cada uno se abre en tu editor para ese archivo.', openInEditor: 'Abrir en el editor', noEnv: 'No hay archivo .env en esta carpeta.', envOpenFailed: 'No se pudo abrir. ¿Hay una app asignada a este tipo de archivo?', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'Inspirado en Catppuccin, de bajo contraste: crema de día, mocha de noche. Sigue el modo claro/oscuro.', themeUse: 'Usarlo', themeActive: 'En uso', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', cmdTimeline: 'Squads: abrir la línea de tiempo', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', tlSkipped: '{0} tarjetas más antiguas no se dibujan; elige un periodo más corto.', out_spawn_failed: 'no arrancó', out_stale: 'quedó colgada', out_review_requested: 'enviada a revisión', out_changes_requested: 'pidieron cambios', out_scheduled: 'programada', iss_stranded_in_ready: 'Lista pero nadie la toma', iss_triage_aux_unavailable: 'El triage no pudo correr', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', tlHint: 'Pasa el puntero por una barra para ver el detalle; haz clic para abrir la tarjeta.', tlStill: 'sigue así', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', timeline: 'Línea de tiempo', timelineTitle: 'Línea de tiempo de los squads', timelineEmpty: 'Aún no hay tableros con trabajo', timelineEmptyHint: 'El tablero de un squad aparece aquí cuando su manager crea tarjetas.', timelineQuiet: 'Nada se ejecutó en este periodo.', tlLegend: 'Sólido: un bot trabajando · tenue: una tarjeta esperando · rojo: una ejecución que falló. Pasa el puntero por una barra para ver el detalle.', tlWaited: 'esperó {0}', issuesTitle: 'Qué salió mal', issuesNone: 'Nada que revisar en este periodo.', iss_repeated_failures: 'Fallos repetidos', iss_repeated_crashes: 'Caídas repetidas', iss_stuck_in_blocked: 'Bloqueada hace tiempo', iss_block_unblock_cycling: 'Se bloquea una y otra vez', iss_hallucinated_cards: 'Tarjetas inventadas', iss_prose_phantom_refs: 'Menciona tarjetas que no existen', iss_review_dependency_deadlock: 'Revisión trabada', iss_running_with_open_parents: 'Corrió antes que sus dependencias', iss_run_failed: 'Una ejecución falló', iss_slow_start: 'Tardó en empezar', iss_waiting_on_you: 'Te está esperando', out_completed: 'hecha', out_crashed: 'se cayó', out_timed_out: 'se pasó de tiempo', out_blocked: 'bloqueada', out_reclaimed: 'reclamada', out_rate_limited: 'límite de uso', out_gave_up: 'abandonada', out_running: 'en curso', col_blocked: 'bloqueadas', col_review: 'en revisión', col_running: 'en curso', col_todo: 'por hacer', col_done: 'hechas', col_ready: 'listas', col_triage: 'triage', col_scheduled: 'programadas', col_archived: 'archivadas', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Abre la línea de tiempo.', pr_open: 'abierto', pr_draft: 'borrador', pr_merged: 'fusionado', pr_closed: 'cerrado', changedFiles: '{0} archivos cambiados', toPush: '{0} commits por subir', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', bellCard: 'tablero {0} · {1} necesita una respuesta', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardTimeline: 'Línea de tiempo', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
   }
 }
 const fmt = (s, ...a) => String(s).replace(/\{(\d+)\}/g, (_, i) => a[i] ?? '')
 const useT = () => {
   const t = usePluginI18n(ID)
-  return (k, ...a) => fmt(t(k), ...a)
+  const tr = (k, ...a) => fmt(t(k), ...a)
+  /** A key built from data (`out_<outcome>`, `iss_<kind>`): the fallback when no string exists for it. */
+  tr.or = (k, fallback) => {
+    const v = t(k)
+    return v && v !== k ? v : fallback
+  }
+  return tr
 }
 const patchSession = (bot, id, body) =>
   window.hermesDesktop.api({ path: `/api/sessions/${encodeURIComponent(id)}`, method: 'PATCH', profile: bot.name, body: { ...body, profile: bot.name } })
 
 // ───────────────────────────── state ─────────────────────────────
-const DEFAULT_PREFS = { envDoubleClick: true, floatSides: false, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: true, hideRail: true, hiddenNav: [] }
+const DEFAULT_PREFS = { notifyAway: true, envDoubleClick: true, floatSides: false, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: true, hideRail: true, hiddenNav: [] }
 let storage = null
 let ctxRef = null
 const prefsAtom = atom({ ...DEFAULT_PREFS })
@@ -817,7 +1078,11 @@ const SQUADS_LAYOUT = {
 
 // ───────────────────────────── data ─────────────────────────────
 const SOURCES = 'desktop,tui,cli'
-const refresh = () => queryClient.invalidateQueries({ queryKey: ['squad-hub'] }, { cancelRefetch: false })
+/** Session events move the chat list and the worktrees only; boards, PR chips, cards and the timeline keep their own
+ *  slower timers (a `gh pr list` per folder on every kanban heartbeat would burn GitHub's rate limit). */
+const refresh = () => {
+  for (const key of [SNAPSHOT_KEY, ['squad-hub', 'worktrees']]) queryClient.invalidateQueries({ queryKey: key }, { cancelRefetch: false })
+}
 let refreshTimer = null
 /** Gateway events (state.db moves on every kanban run) coalesce into one refetch at most every 2.5 s. */
 const refreshSoon = () => {
@@ -930,6 +1195,101 @@ async function loadWorktrees(paths, ms = 6000) {
   return out
 }
 
+// ───────────────────────────── squads at work (data) ─────────────────────────────
+/** Kanban reads go through the app's own REST bridge to the bundled kanban backend (same API the Kanban page uses);
+ *  every call is a GET. */
+const kanban = (path, timeoutMs = 8000) =>
+  Promise.race([
+    window.hermesDesktop.api({ path: '/api/plugins/kanban' + path }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+  ])
+const BOARDS_KEY = ['squad-hub', 'boards']
+
+/** Every board with the bots that take its cards and its digest; one request per board, shared by every surface. */
+async function loadBoards() {
+  const { boards = [] } = await kanban('/boards')
+  const live = boards.filter(b => !b.archived && (b.total || 0) > 0)
+  const out = await Promise.all(
+    live.map(async b => {
+      try {
+        const board = await kanban('/board?board=' + encodeURIComponent(b.slug))
+        return { slug: b.slug, name: b.name || b.slug, icon: b.icon || '', color: b.color || '', assignees: taskAssignees(board), digest: boardDigest(board), board }
+      } catch {
+        return null
+      }
+    })
+  )
+  return keepLastBoards(out, live.map(b => b.slug), queryClient.getQueryData(BOARDS_KEY))
+}
+const boardsQuery = () => ({ queryKey: BOARDS_KEY, queryFn: loadBoards, staleTime: 15000, refetchInterval: 30000, retry: false })
+
+/** The board this bot leads, or null. */
+/** Desktop's own Kanban page is a plugin that ships off; a link to it is offered only when it is on. */
+const kanbanOn = () => {
+  try {
+    return host.pluginDecisions?.get?.()?.kanban === true
+  } catch {
+    return false
+  }
+}
+/** React side: re-renders when the Kanban plugin is switched on or off. */
+const useKanbanOn = () => {
+  const d = useValue(host.pluginDecisions || atom({}))
+  return d?.kanban === true
+}
+/** Bots this window has chats open or running for (their backends are up). */
+function openChatBots(snap) {
+  const ids = new Set([host.state.focusedStoredSessionId.get(), ...liveAtom.get()].filter(Boolean)) // live backends only: never wake one
+  return [...new Set((snap?.chats || []).filter(c => ids.has(c.id)).map(c => c.profile).filter(Boolean))]
+}
+function useBotBoard(bot) {
+  const { data } = useQuery(boardsQuery())
+  return useMemo(() => (data ? boardForBot(bot.name, data) : null), [data, bot.name])
+}
+
+const LIVE_KEY = ['squad-hub', 'active']
+/** Live sessions of the active backend: a chat parked on an approval or a question reads `waiting`. */
+/** Waiting chats live in each bot's own backend. One `session.active_list` per backend that is already up (a sleeping
+ *  bot has nothing waiting and is never woken for this): the primary, plus every bot with a chat open in this window. */
+async function loadActive() {
+  const bots = ['', ...openChatBots(queryClient.getQueryData(SNAPSHOT_KEY))]
+  const lists = await Promise.all(
+    bots.map(bot =>
+      (bot && host.requestProfile ? host.requestProfile(bot, 'session.active_list', {}, 6000, { spawnPriority: 'background' }) : rpc('session.active_list', {}))
+        .then(r => r.sessions || [])
+        .catch(() => [])
+    )
+  )
+  return mergeActive(lists)
+}
+const activeQuery = () => ({ queryKey: LIVE_KEY, queryFn: loadActive, staleTime: 4000, refetchInterval: 8000, retry: false })
+
+/** Worktree chips: one `prList` per repo (GitHub, read-only) and one `repoStatus` per lane, refreshed every minute. */
+async function loadLaneStatus(repo, lanes) {
+  const g = git()
+  const out = {}
+  if (!g) return out
+  const branches = [...new Set(lanes.map(l => l.branch).filter(b => b && b !== 'main' && b !== 'master'))]
+  let prs = []
+  try {
+    prs = branches.length && g.review?.prList ? (await g.review.prList(repo, branches)).prs || [] : []
+  } catch {
+    prs = []
+  }
+  await Promise.all(
+    lanes.map(async l => {
+      let st = null
+      try {
+        st = g.repoStatus ? await g.repoStatus(l.path) : null
+      } catch {
+        st = null
+      }
+      out[l.key] = laneStatus(prs.find(p => p.branch === l.branch) || null, st)
+    })
+  )
+  return out
+}
+
 // ───────────────────────────── actions ─────────────────────────────
 async function openChat(bot, id, intent = 'tab') {
   try {
@@ -962,8 +1322,10 @@ async function newChat(bot, cwd) {
     refresh()
     await host.openSession(created.stored_session_id, { profile: bot, intent: 'tab' })
     haptic?.('tap')
+    return created.stored_session_id
   } catch (e) {
     host.notifyError(e, 'Could not start the chat')
+    return null
   }
 }
 
@@ -1112,7 +1474,7 @@ function ChatRow({ bot, session, depth, activeId, ctl, hint }) {
   )
 }
 
-function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query }) {
+function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query, status }) {
   const t = useT()
   const key = `lane:${bot.name}:${lane.key}`
   const collapsed = useValue(collapsedAtom)
@@ -1139,6 +1501,7 @@ function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query }) {
           ]
         })
       ),
+      status ? jsx(LaneChip, { status }) : null,
       h('span', { className: 'sqh-age' }, shortAge(laneTime(lane)))
     ),
     open ? lane.sessions.map(s => h(ChatRow, { key: s.id, bot, session: s, depth: depth + 1, activeId, ctl })) : null,
@@ -1175,6 +1538,14 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
   const wide = false
   const open = query.trim() ? true : isOpen(collapsed, key, wide)
   const chats = folder.lanes.reduce((n, l) => n + l.sessions.length, 0)
+  const { data: laneStats } = useQuery({
+    queryKey: ['squad-hub', 'lanes', folder.path, folder.lanes.map(l => l.key + '@' + l.branch).join('|')],
+    queryFn: () => loadLaneStatus(folder.path, folder.lanes),
+    enabled: open && Boolean(folder.repo) && Boolean(git()),
+    staleTime: 60000,
+    refetchInterval: 120000,
+    retry: false
+  })
   return h(
     'div',
     {},
@@ -1194,7 +1565,7 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
       ),
       open || active.length ? null : h('span', { className: 'sqh-age' }, chats ? shortAge(laneTime({ sessions: folder.lanes.flatMap(l => l.sessions) })) : '')
     ),
-    open ? folder.lanes.map(l => h(LaneBlock, { key: l.key, bot, folder, lane: l, depth: 3, activeId, ctl, query })) : null
+    open ? folder.lanes.map(l => h(LaneBlock, { key: l.key, bot, folder, lane: l, depth: 3, activeId, ctl, query, status: laneStats?.[l.key] })) : null
   )
 }
 
@@ -1290,6 +1661,7 @@ function BotBlock({ tree, activeId, ctl, query }) {
       jsx(DisclosureCaret, { open }),
       jsx(IconTile, { icon: iconFor(bot, prefs.icons || {}) }),
       h('span', { className: 'sqh-label' }, bot.title),
+      bot.role === 'manager' ? jsx(BoardChip, { bot }) : null,
       h(
         'span',
         { className: 'sqh-actions', onClick: stop, onPointerDown: stop },
@@ -1300,7 +1672,8 @@ function BotBlock({ tree, activeId, ctl, query }) {
             'sep',
             { label: t('scheduled'), run: () => openBotPage(bot.name, '/cron') },
             { label: t('messaging'), run: () => openBotPage(bot.name, '/messaging') },
-            { label: t('kanban'), run: () => openBotPage(bot.name, '/kanban') },
+            kanbanOn() ? { label: t('kanban'), run: () => openBotPage(bot.name, '/kanban') } : null,
+            bot.role === 'manager' ? { label: t('timeline'), run: () => openTimeline(boardForBot(bot.name, queryClient.getQueryData(BOARDS_KEY) || [])?.slug || '') } : null,
             { label: t('capabilities'), run: () => ctl.capabilities(bot) },
             'sep',
             { label: pinned ? t('unpin') : t('pinTop'), run: () => { refreshSoon(); savePrefs({ pinned: pinned ? prefs.pinned.filter(n => n !== bot.name) : [...prefs.pinned, bot.name], order: pinned ? prefs.order : [bot.name, ...prefs.order.filter(n => n !== bot.name)] }) } },
@@ -1752,7 +2125,17 @@ function goNextPending() {
   if (next && next.session.id !== current) openChat(next.bot.name, next.session.id)
   else host.notify({ kind: 'info', message: fmt(lang().nothingPending) })
 }
-const lang = () => (String(document.documentElement.lang || navigator.language || 'en').toLowerCase().startsWith('es') ? MESSAGES.es : MESSAGES.en)
+/** The plugin's strings in the app's own language (Settings > Language), for code outside React. */
+const lang = () => {
+  const tr = ctxRef?.i18n?.t
+  if (typeof tr !== 'function') return MESSAGES.en
+  const out = {}
+  for (const k of Object.keys(MESSAGES.en)) {
+    const v = tr(k)
+    out[k] = v && v !== k ? v : MESSAGES.en[k]
+  }
+  return out
+}
 
 /** Status bar: what needs you everywhere ("2 working · 3 unread"); a click opens the most urgent one. */
 function PendingCount() {
@@ -1786,6 +2169,443 @@ function PendingCount() {
   })
 }
 
+// ───────────────────────────── squads at work (UI) ─────────────────────────────
+const PR_ICON = { draft: 'git-pull-request-draft', open: 'git-pull-request', merged: 'git-merge', closed: 'git-pull-request' }
+
+/** A worktree's PR and local changes, quiet: nothing when there is nothing to say. */
+function LaneChip({ status }) {
+  const t = useT()
+  const { pr, changed, ahead } = status
+  if (!pr && !changed && !ahead) return null
+  return h(
+    'span',
+    { className: 'sqh-lanechip', onClick: stop, onPointerDown: stop },
+    pr
+      ? h('button', { type: 'button', className: 'sqh-pr', 'data-state': pr.state, title: `#${pr.number} ${pr.title} · ${t.or('pr_' + pr.state, pr.state)}`, onClick: () => pr.url && ctxRef?.os?.openExternal?.(pr.url) }, jsx(Glyph, { name: PR_ICON[pr.state] || 'git-pull-request', size: 11 }), '#', pr.number)
+      : null,
+    changed ? h('span', { className: 'sqh-dirty', title: t('changedFiles', changed) }, '±', changed) : null,
+    ahead ? h('span', { className: 'sqh-dirty', title: t('toPush', ahead) }, '↑', ahead) : null
+  )
+}
+
+/** A squad's board on its manager's row: blocked cards (red) and cards in review, nothing when the board is calm. */
+function BoardChip({ bot }) {
+  const t = useT()
+  const b = useBotBoard(bot)
+  if (!b) return null
+  const { blocked, review, running } = b.digest
+  if (!blocked && !review && !running) return null
+  return h(
+    'button',
+    { type: 'button', className: 'sqh-boardchip', title: t('boardTip', b.name, blocked, review, running), onClick: e => (stop(e), openTimeline(b.slug)), onPointerDown: stop },
+    blocked ? h('span', { className: 'sqh-bc-blocked' }, h('i', {}), blocked) : null,
+    review ? h('span', { className: 'sqh-bc-review' }, h('i', {}), review) : null,
+    !blocked && !review && running ? h('span', { className: 'sqh-bc-running' }, h('i', {}), running) : null
+  )
+}
+
+// ── the bell: approvals, questions and blocked cards across every bot ──
+const bellSeenAtom = atom([])
+/** Dismissed occurrences (`key@stamp` → when), persisted: a card blocked again comes back on its own. */
+const bellDismissedAtom = atom({})
+function dismissBell(items) {
+  const next = { ...bellDismissedAtom.get() }
+  const now = Math.floor(Date.now() / 1000)
+  for (const x of items) next[dismissKey(x)] = now
+  // forget dismissals older than 30 days: their cards moved on long ago
+  for (const [k, at] of Object.entries(next)) if (now - at > 30 * 86400) delete next[k]
+  bellDismissedAtom.set(next)
+  storage?.set('bellDismissed', next)
+}
+function useBell() {
+  const { data: active } = useQuery(activeQuery())
+  const { data: boards } = useQuery(boardsQuery())
+  const { data: snap } = useQuery(snapshotQuery())
+  const dismissed = useValue(bellDismissedAtom)
+  const all = useMemo(() => bellItems(active || [], snap?.chats || [], boards || []), [active, boards, snap])
+  /** `ready`: the boards answered once, so a card missing from the list is known absent, not merely unloaded. */
+  return useMemo(() => Object.assign(bellVisible(all, dismissed), { ready: boards !== undefined, all }), [all, dismissed, boards])
+}
+
+/** A click on a bell row is an answer in progress: the row leaves the count, and the place to answer opens. */
+function openBellItem(item) {
+  dismissBell([item])
+  if (item.type === 'chat') {
+    const bot = item.profile || host.state.profile.get()
+    openChat(bot, item.storedId)
+  } else openCard(item.board, item.taskId)
+}
+
+function Bell() {
+  const t = useT()
+  const items = useBell()
+  const seen = useValue(bellSeenAtom)
+  const fresh = newSince(seen, items).length
+  const now = Date.now() / 1000
+  return jsxs(DropdownMenu, {
+    onOpenChange: open => open && bellSeenAtom.set(items.map(x => x.key)),
+    children: [
+      jsx(DropdownMenuTrigger, {
+        asChild: true,
+        children: h(
+          'button',
+          { type: 'button', className: 'sqh-bell', 'data-on': items.length ? 'true' : 'false', 'aria-label': t('bell'), title: items.length ? t('bellCount', items.length) : t('bellNone') },
+          jsx(Glyph, { name: 'bell', size: 14 }),
+          items.length ? h('span', { className: 'sqh-bell-n', 'data-fresh': fresh ? 'true' : 'false' }, items.length) : null
+        )
+      }),
+      jsx(DropdownMenuContent, {
+        align: 'end',
+        className: 'sqh-bellmenu',
+        children: items.length
+          ? [
+              h('div', { key: 'h', className: 'sqh-bellhead' }, h('span', {}, t('bellHead')), h('button', { type: 'button', className: 'sqh-bellclear', onClick: () => dismissBell(items) }, t('bellClear'))),
+              ...items.slice(0, 14).map(x =>
+                jsx(
+                  DropdownMenuItem,
+                  {
+                    onSelect: () => openBellItem(x),
+                    children: h(
+                      'span',
+                      { className: 'sqh-bellrow' },
+                      jsx(Glyph, { name: x.type === 'chat' ? 'circle-alert' : 'clock', size: 13 }),
+                      h('span', { className: 'sqh-bellmain' }, h('span', { className: 'sqh-belltitle' }, String(x.title).slice(0, 60)), h('span', { className: 'sqh-hint' }, x.type === 'chat' ? t('bellChat', x.profile || '') : t('bellCard', x.board, x.profile))),
+                      x.at ? h('span', { className: 'sqh-bellage' }, shortAge(x.at, now)) : null
+                    )
+                  },
+                  x.key
+                )
+              ),
+              items.length > 14 ? h('div', { key: 'more', className: 'sqh-bellhead' }, t('bellMore', items.length - 14)) : null
+            ].filter(Boolean)
+          : h('div', { className: 'sqh-bellhead' }, t('bellNone'))
+      })
+    ]
+  })
+}
+
+/** A native notice for each new thing that needs you, only while Hermes is in the background (Desktop's own
+ *  notifications already cover a chat you are looking at). The pet says it too when one is out. */
+let bellKnown = null
+function watchBell(items, ready = true) {
+  if (!ready) return // before the boards load, every blocked card would look new
+  const fresh = bellFresh(bellKnown, items)
+  bellKnown = new Set(items.map(x => x.key))
+  if (!fresh.length || !prefsAtom.get().notifyAway) return
+  const m = lang()
+  const cards = fresh
+  if (!cards.length) return
+  if (document.hasFocus()) return // the bell's count already says it; a notice is for when Hermes is behind
+  const first = cards[0]
+  const name = (queryClient.getQueryData(BOARDS_KEY) || []).find(b => b.slug === first.board)?.name || first.board
+  const title = cards.length > 1 ? fmt(m.notifyMany, cards.length) : fmt(m.notifyCard, name)
+  ctxRef?.os?.notify?.({ title, body: String(first.title).slice(0, 120), onActivate: () => openBellItem(first) })
+  try {
+    if (ctxRef?.pet?.visible?.get?.()) ctxRef.pet.say(title, { id: 'bell', tone: 'wait', ttlMs: 12000 })
+  } catch {
+    /* no pet */
+  }
+}
+function BellWatcher() {
+  const items = useBell()
+  useEffect(() => {
+    watchBell(items, items.ready)
+    const gone = staleChatDismissals(items.all || [], bellDismissedAtom.get())
+    if (gone.length && items.ready) {
+      const next = { ...bellDismissedAtom.get() }
+      for (const k of gone) delete next[k]
+      bellDismissedAtom.set(next)
+      storage?.set('bellDismissed', next)
+    }
+  }, [items])
+  return null
+}
+
+/** The agent half writes card lines only when this desktop half can draw them: it sets the plugin's own
+ *  `desktop_cards` setting on each manager once per session of the app (a declared setting, written through Hermes'
+ *  plugin settings route), and clears it when the plugin is disposed. */
+const cardsSet = new Set()
+async function setDesktopCards(bot, on) {
+  try {
+    const params = { action: 'settings', key: ID, values: { desktop_cards: on } }
+    await (bot && host.requestProfile ? host.requestProfile(bot, 'plugins.manage', params, 8000) : rpc('plugins.manage', params))
+    if (on) cardsSet.add(bot)
+    else cardsSet.delete(bot)
+  } catch {
+    /* a bot without the agent half: nothing to switch */
+  }
+}
+function CardsSwitch() {
+  const { data: snap } = useQuery(snapshotQuery())
+  useEffect(() => {
+    const managers = (snap?.profiles || []).filter(p => botRole(p) === 'manager' || p.name === 'builder').map(p => p.name)
+    for (const bot of managers) if (!cardsSet.has(bot)) setDesktopCards(bot, true)
+  }, [snap])
+  return null
+}
+
+// ── one card, read-only: where it is, what it asks of you, its story, and where to answer ──
+const cardDialogAtom = atom(null)
+function openCard(board, id) {
+  if (TASK_ID_RE.test(String(id || ''))) cardDialogAtom.set({ board: board || '', id })
+}
+
+/** Answer a card where squads answer: in a new chat with the board's manager, the card named in the draft. */
+async function replyToCard(board, task) {
+  const snap = queryClient.getQueryData(SNAPSHOT_KEY)
+  const boards = queryClient.getQueryData(BOARDS_KEY) || []
+  const names = (snap?.profiles || []).map(p => p.name)
+  const manager = boardManager(board, names, boards.find(b => b.slug === board)?.assignees || []) || (names.includes(task.created_by) ? task.created_by : '')
+  if (!manager) return host.notify({ kind: 'error', message: lang().noManager })
+  const stored = await newChat(manager)
+  if (!stored) return
+  const text = fmt(lang().replyDraft, task.id, task.title, board)
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 300))
+    if (await host.composer?.setDraft?.(stored || null, text)) return
+  }
+}
+
+function StateChip({ state }) {
+  const t = useT()
+  return h('span', { className: 'sqh-st', 'data-state': state, title: t('sth_' + state) }, h('i', {}), t('st_' + state))
+}
+
+function CardDialogHost() {
+  const sel = useValue(cardDialogAtom)
+  return sel ? jsx(CardDialog, { sel, close: () => cardDialogAtom.set(null) }) : null
+}
+function CardDialog({ sel, close }) {
+  const t = useT()
+  const kanbanShown = useKanbanOn()
+  const q = useQuery({
+    queryKey: ['squad-hub', 'card', sel.board, sel.id],
+    queryFn: () => kanban(`/tasks/${sel.id}${sel.board ? '?board=' + encodeURIComponent(sel.board) : ''}`),
+    staleTime: 5000,
+    retry: false
+  })
+  const task = q.data?.task
+  const state = cardState(task)
+  const needs = cardNeeds(task, q.data?.events, q.data?.comments)
+  const story = historyOf(q.data?.events)
+  const now = Date.now() / 1000
+  const blockedForYou = task && task.status === 'blocked' && HUMAN_BLOCKS.has(task.block_kind)
+  const bellItem = task ? (bellItems([], [], queryClient.getQueryData(BOARDS_KEY) || []).find(x => x.taskId === task.id) || null) : null
+  return jsx(Dialog, {
+    open: true,
+    onOpenChange: o => !o && close(),
+    children: jsxs(DialogContent, {
+      className: 'sqh-cd',
+      children: [
+        jsxs(DialogHeader, {
+          children: [
+            jsx(DialogTitle, { children: task ? task.title : t('loading') }),
+            jsx(DialogDescription, { children: task ? h('span', { className: 'sqh-cd-meta' }, jsx(StateChip, { state }), h('span', {}, t('cardOn', sel.board || '—', task.assignee || '—')), h('span', {}, task.id)) : '' })
+          ]
+        }),
+        q.error ? h('div', { className: 'sqh-hint' }, t('cardMissing')) : null,
+        task ? h('div', { className: 'sqh-cd-help' }, t('sth_' + state)) : null,
+        task && needs.reason
+          ? h('div', { className: 'sqh-cd-block' }, h('div', { className: 'sqh-cd-sub' }, blockedForYou ? t('cardNeedsYou') : t('cardLatest'), needs.at ? h('span', { className: 'sqh-hint' }, ' · ', shortAge(needs.at, now)) : null), h('div', { className: 'sqh-cd-reason' }, needs.reason.slice(0, 1600)))
+          : null,
+        story.length
+          ? h('div', { className: 'sqh-cd-story' }, h('div', { className: 'sqh-cd-sub' }, t('cardStory')), story.map((e, i) => h('div', { key: i, className: 'sqh-cd-ev' }, h('span', {}, t.or('ev_' + e.kind, e.kind)), h('span', { className: 'sqh-hint' }, shortAge(e.at, now)))))
+          : null,
+        jsxs(DialogFooter, {
+          children: [
+            task && blockedForYou ? jsx(Button, { onClick: () => (close(), replyToCard(sel.board, task)), children: t('cardReply') }) : null,
+            task ? jsx(Button, { variant: 'ghost', onClick: () => (close(), openTimeline(sel.board, task.id)), children: t('cardTimeline') }) : null,
+            kanbanShown ? jsx(Button, { variant: 'ghost', onClick: () => (close(), host.navigate('/kanban')), children: t('cardBoard') }) : null,
+            bellItem && !bellDismissedAtom.get()[dismissKey(bellItem)] ? jsx(Button, { variant: 'ghost', onClick: () => (dismissBell([bellItem]), close()), children: t('bellDismiss') }) : null,
+            jsx(Button, { variant: 'ghost', onClick: close, children: t('close') })
+          ].filter(Boolean)
+        })
+      ]
+    })
+  })
+}
+
+// ── cards inside a bot's reply: ::squad-task{board id} and ::squad-board{board} ──
+function DirectiveNote({ text, source }) {
+  return h('span', { className: 'sqh-cardnote', title: source }, jsx(Glyph, { name: 'circle-alert', size: 12 }), text)
+}
+function SquadTaskCard({ attrs, source, streaming }) {
+  const t = useT()
+  const kanbanShown = useKanbanOn()
+  const { data: boards } = useQuery(boardsQuery())
+  const raw = cardRef(attrs)
+  const ref = raw && !raw.board ? { ...raw, board: boardOfTask(raw.id, boards) } : raw
+  const q = useQuery({
+    queryKey: ['squad-hub', 'card', ref?.board || '', ref?.id || ''],
+    queryFn: () => kanban(`/tasks/${ref.id}${ref.board ? '?board=' + encodeURIComponent(ref.board) : ''}`),
+    enabled: Boolean(ref) && !streaming,
+    staleTime: 10000,
+    refetchInterval: q => (['done', 'archived'].includes(q.state.data?.task?.status) ? false : 30000),
+    retry: false
+  })
+  if (!ref) return jsx(DirectiveNote, { text: t('cardInvalid'), source })
+  if (streaming || q.isLoading) return h('div', { className: 'sqh-card sqh-card-loading' }, jsx(Skeleton, { className: 'h-10 w-full' }))
+  if (q.error || !q.data?.task) return jsx(DirectiveNote, { text: t('cardMissing'), source })
+  const task = q.data.task
+  const runs = q.data.runs || []
+  const failed = runs.filter(r => FAILED_RUNS.has(r.outcome)).length
+  return h(
+    'div',
+    { className: 'sqh-card', 'data-status': task.status },
+    h('div', { className: 'sqh-card-top' }, jsx(StateChip, { state: cardState(task) }), h('span', { className: 'sqh-card-who' }, task.assignee || '—'), failed ? h('span', { className: 'sqh-card-fail' }, t('cardFailed', failed)) : null),
+    h('div', { className: 'sqh-card-title' }, task.title),
+    task.latest_summary ? h('div', { className: 'sqh-card-sum' }, String(task.latest_summary).slice(0, 220)) : null,
+    h('div', { className: 'sqh-card-actions' }, h('button', { type: 'button', onClick: () => openCard(ref.board || '', ref.id) }, jsx(Glyph, { name: 'circle-alert', size: 12 }), t('cardDetail')), h('button', { type: 'button', onClick: () => openTimeline(ref.board || '', ref.id) }, jsx(Glyph, { name: 'chart-gantt', size: 12 }), t('cardTimeline')), kanbanShown ? h('button', { type: 'button', onClick: () => host.navigate('/kanban') }, jsx(Glyph, { name: 'layers', size: 12 }), t('cardBoard')) : null)
+  )
+}
+function SquadBoardCard({ attrs, source, streaming }) {
+  const t = useT()
+  const kanbanShown = useKanbanOn()
+  const ref = boardRef(attrs)
+  const { data: boards, isLoading } = useQuery(boardsQuery())
+  if (!ref) return jsx(DirectiveNote, { text: t('cardInvalid'), source })
+  if (streaming || isLoading) return h('div', { className: 'sqh-card sqh-card-loading' }, jsx(Skeleton, { className: 'h-10 w-full' }))
+  const b = (boards || []).find(x => x.slug === ref.board)
+  if (!b) return jsx(DirectiveNote, { text: t('cardMissing'), source })
+  const d = b.digest
+  return h(
+    'div',
+    { className: 'sqh-card' },
+    h('div', { className: 'sqh-card-title' }, b.name),
+    h('div', { className: 'sqh-card-counts' }, [['block', d.blocked], ['review', d.review], ['run', d.running], ['queued', d.queued], ['done', d.done]].map(([k, n]) => h('span', { key: k, className: 'sqh-st', 'data-state': k, title: t('sth_' + k) }, h('i', {}), h('b', {}, n), ' ', t('st_' + k)))),
+    h('div', { className: 'sqh-card-actions' }, h('button', { type: 'button', onClick: () => openTimeline(b.slug) }, jsx(Glyph, { name: 'chart-gantt', size: 12 }), t('cardTimeline')), kanbanShown ? h('button', { type: 'button', onClick: () => host.navigate('/kanban') }, jsx(Glyph, { name: 'layers', size: 12 }), t('cardBoard')) : null)
+  )
+}
+
+// ── the squads timeline: who worked on what, when, how long cards waited, what failed ──
+const RANGES = [['6h', 6 * 3600], ['24h', 86400], ['3d', 3 * 86400], ['7d', 7 * 86400]]
+const timelineAtom = atom({ board: '', focus: '', range: 86400 })
+let timelineDispose = null
+
+/** Opens (or re-fronts) the Squads timeline tab on a board, optionally focused on one card. */
+function openTimeline(board = '', focus = '') {
+  timelineAtom.set({ ...timelineAtom.get(), board: board || timelineAtom.get().board, focus })
+  if (typeof host.openWorkspace !== 'function') return
+  timelineDispose = host.openWorkspace('squad-hub-timeline', { title: lang().timelineTitle, minWidth: '34rem', render: () => jsx(TimelinePage, {}), onClose: () => (timelineDispose = null) })
+}
+
+/** Runs of the cards that touch the window: the board rows carry no runs, so each card's runs come from its own
+ *  task read (cached; done cards change rarely). */
+async function loadTimeline(slug, range) {
+  const now = Math.floor(Date.now() / 1000)
+  const from = now - range
+  const board = await kanban('/board?board=' + encodeURIComponent(slug) + '&include_archived=true')
+  const touching = windowTasks(boardTasks(board), now, from)
+  const tasks = touching.slice(0, TIMELINE_CAP)
+  const full = await Promise.all(
+    tasks.map(async t => {
+      try {
+        const d = await queryClient.fetchQuery({ queryKey: ['squad-hub', 'card', slug, t.id], queryFn: () => kanban(`/tasks/${t.id}?board=${encodeURIComponent(slug)}`), staleTime: t.status === 'done' ? 300000 : 15000 })
+        return { ...t, runs: d.runs || [] }
+      } catch {
+        return t
+      }
+    })
+  )
+  let diagnostics = []
+  try {
+    diagnostics = (await kanban('/diagnostics?board=' + encodeURIComponent(slug))).diagnostics || []
+  } catch {
+    diagnostics = []
+  }
+  const inWindow = diagnostics.filter(d => (d.diagnostics || []).some(x => (x.last_seen_at || now) >= from))
+  return { now, from, timeline: timelineOf(full, now, from), issues: issuesOf(full, inWindow, now), tasks: full.length, skipped: touching.length - tasks.length }
+}
+
+const ISSUE_ICON = { critical: 'circle-alert', error: 'circle-alert', warning: 'clock', info: 'clock' }
+function TimelinePage() {
+  const t = useT()
+  const sel = useValue(timelineAtom)
+  const { data: boards } = useQuery(boardsQuery())
+  const slug = sel.board || boards?.[0]?.slug || ''
+  const q = useQuery({ queryKey: ['squad-hub', 'timeline', slug, sel.range], queryFn: () => loadTimeline(slug, sel.range), enabled: Boolean(slug), staleTime: 20000, refetchInterval: 45000, retry: false })
+  const [hover, setHover] = useState(null)
+  const data = q.data
+  const span = data ? Math.max(1, data.now - data.from) : 1
+  const pct = v => ((v - data.from) / span) * 100
+  const ticks = data ? Array.from({ length: 7 }, (_, i) => data.from + (span * i) / 6) : []
+  const tickLabel = v => {
+    const d = new Date(v * 1000)
+    return sel.range > 86400 ? d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit' }) : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+  const dur = s => (s >= 3600 ? (s / 3600).toFixed(s >= 36000 ? 0 : 1) + ' h' : Math.max(1, Math.round(s / 60)) + ' min')
+  return h(
+    'div',
+    { className: 'sqh sqh-tl' },
+    h(
+      'div',
+      { className: 'sqh-tl-head' },
+      h('div', { className: 'sqh-tl-title' }, jsx(Glyph, { name: 'chart-gantt', size: 16 }), t('timelineTitle')),
+      h('div', { className: 'sqh-tl-boards' }, (boards || []).map(b => h('button', { key: b.slug, type: 'button', 'data-on': b.slug === slug ? 'true' : 'false', onClick: () => timelineAtom.set({ ...sel, board: b.slug, focus: '' }) }, b.name, b.digest.blocked ? h('span', { className: 'sqh-bc-blocked' }, h('i', {}), b.digest.blocked) : null))),
+      h('div', { className: 'sqh-tl-range' }, RANGES.map(([label, secs]) => h('button', { key: label, type: 'button', 'data-on': sel.range === secs ? 'true' : 'false', onClick: () => timelineAtom.set({ ...sel, range: secs }) }, label)), jsx(IconBtn, { icon: 'refresh', label: t('refresh'), onClick: () => q.refetch() }))
+    ),
+    !slug ? jsx(EmptyState, { title: t('timelineEmpty'), description: t('timelineEmptyHint') }) : null,
+    slug && q.isLoading ? h('div', { className: 'sqh-tl-body' }, jsx(Skeleton, { className: 'h-40 w-full' })) : null,
+    data
+      ? h(
+          'div',
+          { className: 'sqh-tl-body' },
+          h(
+            'div',
+            { className: 'sqh-tl-chart' },
+            h('div', { className: 'sqh-tl-axis' }, h('span', { className: 'sqh-tl-name' }), h('div', { className: 'sqh-tl-track' }, ticks.map((v, i) => h('span', { key: i, className: 'sqh-tl-tick', style: { left: (i / 6) * 100 + '%' } }, tickLabel(v))))),
+            data.timeline.lanes.length
+              ? data.timeline.lanes.map(l =>
+                  h(
+                    'div',
+                    { key: l.name, className: 'sqh-tl-lane' },
+                    h('span', { className: 'sqh-tl-name', title: l.name }, l.name),
+                    h(
+                      'div',
+                      { className: 'sqh-tl-track' },
+                      l.bars.map((b, i) =>
+                        h('span', {
+                          key: i,
+                          className: 'sqh-tl-bar',
+                          'data-kind': b.kind,
+                          'data-state': b.state || b.tone || 'run',
+                          'data-open': b.open ? 'true' : 'false',
+                          'data-focus': sel.focus && sel.focus === b.taskId ? 'true' : 'false',
+                          style: { left: Math.max(0, pct(b.start)) + '%', width: Math.max(0.35, pct(Math.min(b.end, data.now)) - Math.max(0, pct(b.start))) + '%' },
+                          onMouseEnter: () => setHover({ ...b, lane: l.name }),
+                          onMouseLeave: () => setHover(null),
+                          onClick: () => (timelineAtom.set({ ...sel, focus: b.taskId }), openCard(slug, b.taskId))
+                        })
+                      )
+                    )
+                  )
+                )
+              : h('div', { className: 'sqh-empty' }, t('timelineQuiet')),
+            h('div', { className: 'sqh-tl-hover' }, hover ? [h('b', { key: 'a' }, hover.title), ' · ', hover.lane, ' · ', t('st_' + (hover.state || 'run')) + (hover.kind === 'run' && hover.outcome && hover.outcome !== 'running' ? ' (' + t.or('out_' + hover.outcome, hover.outcome) + ')' : '') + ' · ' + dur(hover.end - hover.start) + (hover.open ? ' · ' + t('tlStill') : ''), hover.summary ? h('span', { key: 's', className: 'sqh-hint' }, ' — ', String(hover.summary).slice(0, 140)) : null] : h('span', { className: 'sqh-hint' }, t('tlHint'))),
+            h('div', { className: 'sqh-tl-legend' }, STATES.map(st => h('span', { key: st, className: 'sqh-st', 'data-state': st, title: t('sth_' + st) }, h('i', {}), t('st_' + st))))
+          ),
+          h(
+            'div',
+            { className: 'sqh-tl-issues' },
+            h('div', { className: 'sqh-tl-sub' }, t('issuesTitle'), ' ', h('span', { className: 'sqh-hint' }, data.issues.length || '')),
+            data.issues.length
+              ? data.issues.slice(0, 40).map((x, i) =>
+                  h(
+                    'button',
+                    { key: i, type: 'button', className: 'sqh-issue', 'data-sev': x.severity, 'data-focus': sel.focus === x.taskId ? 'true' : 'false', onClick: () => (timelineAtom.set({ ...sel, focus: x.taskId }), openCard(slug, x.taskId)) },
+                    jsx(Glyph, { name: ISSUE_ICON[x.severity] || 'clock', size: 13 }),
+                    h('span', { className: 'sqh-issue-main' }, h('span', { className: 'sqh-issue-kind' }, t.or('iss_' + x.kind, x.kind.replace(/_/g, ' ')), x.count > 1 ? ' ×' + x.count : '', x.source === 'timeline' && x.text ? ' · ' + (x.kind === 'run_failed' ? t.or('out_' + x.text, x.text) : x.text) : ''), h('span', { className: 'sqh-issue-title' }, x.title), h('span', { className: 'sqh-hint' }, [x.assignee, shortAge(x.at)].filter(Boolean).join(' · ')))
+                  )
+                )
+              : h('div', { className: 'sqh-empty' }, t('issuesNone'))
+          )
+        )
+      : null,
+    data?.skipped ? h('div', { className: 'sqh-hint' }, t('tlSkipped', data.skipped)) : null,
+    q.error ? h('div', { className: 'sqh-empty' }, t('loadFailed')) : null
+  )
+}
+
 /** An empty chat says whose it is and where it works, with that place's other chats one click away. */
 function ChatIntro({ sessionId }) {
   const t = useT()
@@ -1808,8 +2628,13 @@ function ChatIntro({ sessionId }) {
   return h(
     'div',
     { className: 'sqh-intro' },
-    h('div', { className: 'sqh-intro-head' }, jsx(IconTile, { icon: iconFor(tree.bot, prefs.icons || {}), size: 34 }), h('div', {}, h('h2', {}, tree.bot.title), h('div', { className: 'sqh-hint' }, t('introHint')))),
-    where.length ? h('div', { className: 'sqh-intro-where' }, where.map(w => h('span', { key: w, className: 'sqh-where' }, w))) : null,
+    h(
+      'div',
+      { className: 'sqh-intro-brand' },
+      jsx(IconTile, { icon: iconFor(tree.bot, prefs.icons || {}), size: 44 }),
+      Wordmark && prefs.chatWordmark !== false ? jsx(Wordmark, { className: 'sqh-intro-mark', text: introName(tree.bot), width: 'calc(80% - 1rem)' }) : h('h2', {}, introName(tree.bot)),
+      h('div', { className: 'sqh-intro-place' }, where.length ? where.join(' · ') : t('introNoProject'))
+    ),
     pending.length
       ? h('div', { className: 'sqh-intro-list' }, h('div', { className: 'sqh-hint' }, t('alsoPending')), pending.map(x => h(Row, { key: x.session.id, depth: 0, onClick: () => openChat(tree.bot.name, x.session.id) }, jsx(SessionStatusDot, { storedSessionId: x.session.id, session: x.session }), h('span', { className: 'sqh-label' }, x.session.title || x.session.preview || 'Chat'), h('span', { className: 'sqh-where' }, whereOf(x).split(' · ').pop() || tree.bot.title))))
       : null
@@ -1902,6 +2727,8 @@ function SettingsPage() {
     h('div', { className: 'sqh-hint', style: { padding: '14px 0 4px' } }, t('setup')),
     jsx(ToggleRow, { checked: prefs.floatSides, label: t('floatSides'), description: t('floatSidesHint'), onChange: on => savePrefs({ floatSides: on }) }),
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' } }, h('div', { style: { flex: 1 } }, h('div', { style: { color: 'var(--foreground)', fontWeight: 500 } }, t('layoutName')), h('div', { className: 'sqh-hint' }, t('layoutHint'))), jsx(Button, { variant: 'outline', onClick: applySquadsLayout, children: t('themeUse') })),
+    jsx(ToggleRow, { checked: prefs.chatWordmark !== false, label: t('chatWordmark'), description: t('chatWordmarkHint'), onChange: on => savePrefs({ chatWordmark: on }) }),
+    jsx(ToggleRow, { checked: prefs.notifyAway !== false, label: t('notifyAway'), description: t('notifyAwayHint'), onChange: on => savePrefs({ notifyAway: on }) }),
     jsx(ToggleRow, { checked: prefs.envDoubleClick !== false, label: t('envDoubleClick'), description: t('envDoubleClickHint'), onChange: on => savePrefs({ envDoubleClick: on }) }),
     jsx(ToggleRow, { checked: prefs.hideBotsTab, label: t('hideBotsTab'), description: t('hideBotsTabHint'), onChange: on => savePrefs({ hideBotsTab: on }) }),
     jsx(ToggleRow, { checked: prefs.hideRail, label: t('hideRail'), description: t('hideRailHint'), onChange: on => savePrefs({ hideRail: on }) }),
@@ -1982,6 +2809,13 @@ const LUCIDE = {
   "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\" /> <rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\" /> <line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\" /> <line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\" />"
   }
 const UI_ICONS = {
+  "bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /> <path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
+  "chart-gantt": "<path d=\"M10 6h8\" /> <path d=\"M12 16h6\" /> <path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /> <path d=\"M8 11h7\" />",
+  "git-pull-request": "<circle cx=\"18\" cy=\"18\" r=\"3\" /> <circle cx=\"6\" cy=\"6\" r=\"3\" /> <path d=\"M13 6h3a2 2 0 0 1 2 2v7\" /> <line x1=\"6\" x2=\"6\" y1=\"9\" y2=\"21\" />",
+  "git-pull-request-draft": "<circle cx=\"18\" cy=\"18\" r=\"3\" /> <circle cx=\"6\" cy=\"6\" r=\"3\" /> <path d=\"M18 6V5\" /> <path d=\"M18 11v-1\" /> <line x1=\"6\" x2=\"6\" y1=\"9\" y2=\"21\" />",
+  "git-merge": "<circle cx=\"18\" cy=\"18\" r=\"3\" /> <circle cx=\"6\" cy=\"6\" r=\"3\" /> <path d=\"M6 21V9a9 9 0 0 0 9 9\" />",
+  "circle-alert": "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\" /> <line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\" />",
+  "clock": "<path d=\"M12 6v6l4 2\" /> <circle cx=\"12\" cy=\"12\" r=\"10\" />",
   "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />",
   "folder-git-2": "<path d=\"M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5\" /> <circle cx=\"13\" cy=\"12\" r=\"2\" /> <path d=\"M18 19c-2.8 0-5-2.2-5-5v8\" /> <circle cx=\"20\" cy=\"19\" r=\"2\" />",
   "layers": "<path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\" /> <path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\" /> <path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\" />",
@@ -2072,17 +2906,115 @@ html[data-sqh-float] [data-sqh-side][data-sqh-open]{transform:none;opacity:1}
 .sqh-pending b{font-weight:600;color:var(--foreground)}
 .sqh-intro{max-width:520px;margin:12vh auto 0;padding:0 24px;display:grid;gap:14px;color:var(--ui-text-secondary)}
 .sqh-intro-head{display:flex;align-items:center;gap:12px}
+.sqh-intro-brand{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+.sqh-intro-brand h2{margin:0;font-size:1.6rem;font-weight:600;color:var(--foreground)}
+.sqh-intro-mark{margin:0}
+.sqh-intro-place{font-size:12.5px;color:var(--muted-foreground);letter-spacing:.01em}
 .sqh-intro-head h2{margin:0;font-size:1.05rem;font-weight:600;color:var(--foreground)}
 .sqh-intro-where{display:flex;flex-wrap:wrap;gap:6px}
 .sqh-intro .sqh-where{max-width:none;font-size:.75rem;padding:2px 9px}
 .sqh-intro-list{display:grid;gap:2px}
 .sqh-menuchat{display:flex;align-items:center;gap:8px;min-width:280px}
 .sqh-menuchat span:nth-child(2){flex:1}
+.sqh-boardchip{display:inline-flex;gap:6px;align-items:center;margin-left:auto;background:none;border:0;padding:0 2px;font-size:10.5px;color:var(--muted-foreground);cursor:pointer}
+.sqh-boardchip span,.sqh-tl-boards span{display:inline-flex;align-items:center;gap:3px}
+.sqh-boardchip i,.sqh-tl-boards i,.sqh-card-col i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.sqh-bc-blocked i{background:var(--dt-destructive)}
+.sqh-bc-review i{background:var(--color-amber-500)}
+.sqh-bc-running i{background:var(--ui-accent,var(--primary))}
+.sqh-bot:hover .sqh-boardchip{display:none}
+.sqh-lanechip{display:inline-flex;gap:6px;align-items:center;margin-left:auto;font-size:10.5px;color:var(--muted-foreground)}
+.sqh-lane:hover .sqh-lanechip{display:none}
+.sqh-pr{display:inline-flex;align-items:center;gap:2px;background:none;border:0;padding:0;color:inherit;cursor:pointer;font:inherit}
+.sqh-pr[data-state=open]{color:var(--color-emerald-500)}
+.sqh-pr[data-state=merged]{color:var(--color-violet-500)}
+.sqh-pr[data-state=closed]{color:var(--dt-destructive)}
+.sqh-dirty{opacity:.8}
+.sqh-bell{position:relative;display:inline-flex;align-items:center;gap:4px;height:100%;padding:0 6px;background:none;border:0;color:var(--ui-text-secondary,var(--muted-foreground));cursor:pointer}
+.sqh-bell[data-on=true]{color:var(--foreground)}
+.sqh-bell-n{font-size:10px;font-weight:600;min-width:14px;height:14px;padding:0 3px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--foreground) 14%,transparent)}
+.sqh-bell-n[data-fresh=true]{background:color-mix(in srgb,var(--color-amber-500) 70%,transparent);color:var(--background)}
+.sqh-bellmenu{min-width:300px;max-width:380px}
+.sqh-bellhead{padding:6px 8px 4px;font-size:11px;color:var(--muted-foreground)}
+.sqh-bellrow{display:flex;gap:8px;align-items:flex-start;min-width:0}
+.sqh-bellmain{display:grid;min-width:0}
+.sqh-belltitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sqh-card{margin:8px 0;max-width:560px;border:1px solid var(--ui-stroke-tertiary,var(--border));border-radius:10px;padding:10px 12px;background:color-mix(in srgb,var(--card,var(--background)) 70%,transparent);display:grid;gap:5px;font-size:13px}
+.sqh-card-loading{padding:8px}
+.sqh-card-top{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--muted-foreground)}
+.sqh-card-col{display:inline-flex;gap:5px;align-items:center}
+.sqh-card-col[data-tone=bad] i{background:var(--dt-destructive)}
+.sqh-card-col[data-tone=warn] i{background:var(--color-amber-500)}
+.sqh-card-col[data-tone=good] i{background:var(--ui-accent,var(--primary))}
+.sqh-card-col[data-tone=muted] i{background:color-mix(in srgb,var(--foreground) 35%,transparent)}
+.sqh-card-fail{color:var(--dt-destructive)}
+.sqh-card-title{color:var(--foreground);font-weight:500}
+.sqh-card-sum{color:var(--muted-foreground);font-size:12px;line-height:1.45}
+.sqh-card-counts{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted-foreground)}
+.sqh-card-counts [data-tone=bad] b{color:var(--dt-destructive)}
+.sqh-card-actions{display:flex;gap:6px;margin-top:2px}
+.sqh-card-actions button,.sqh-tl-boards button,.sqh-tl-range button{display:inline-flex;gap:5px;align-items:center;font-size:11.5px;padding:3px 8px;border-radius:6px;border:1px solid var(--ui-stroke-tertiary,var(--border));background:none;color:var(--muted-foreground);cursor:pointer}
+.sqh-card-actions button:hover,.sqh-tl-boards button:hover,.sqh-tl-range button:hover{color:var(--foreground)}
+.sqh-tl-boards button[data-on=true],.sqh-tl-range button[data-on=true]{color:var(--foreground);background:color-mix(in srgb,var(--foreground) 7%,transparent)}
+.sqh-cardnote{display:inline-flex;gap:5px;align-items:center;font-size:12px;color:var(--muted-foreground)}
+.sqh-tl{height:100%;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;container-type:inline-size}
+.sqh-tl-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.sqh-tl-title{display:flex;gap:8px;align-items:center;font-weight:600;color:var(--foreground);margin-right:6px}
+.sqh-tl-boards,.sqh-tl-range{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sqh-tl-range{margin-left:auto}
+.sqh-tl-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+@container (max-width:900px){.sqh-tl-body{grid-template-columns:1fr}}
+.sqh-tl-chart{display:grid;gap:6px;min-width:0}
+.sqh-tl-axis,.sqh-tl-lane{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:center}
+.sqh-tl-name{font-size:12px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sqh-tl-track{position:relative;height:20px;border-radius:5px;background:color-mix(in srgb,var(--foreground) 4%,transparent)}
+.sqh-tl-axis .sqh-tl-track{background:none;height:16px}
+.sqh-tl-tick{position:absolute;top:0;transform:translateX(-50%);font-size:10px;color:var(--muted-foreground);white-space:nowrap}
+.sqh-tl-tick:first-child{transform:none}
+.sqh-tl-tick:last-child{transform:translateX(-100%)}
+.sqh-tl-bar{position:absolute;top:3px;bottom:3px;border-radius:4px;cursor:pointer;min-width:3px;transition:filter .12s}
+.sqh-tl-bar:hover{filter:brightness(1.15)}
+.sqh-tl-bar[data-open=true]{border-right:2px dashed color-mix(in srgb,var(--foreground) 50%,transparent)}
+.sqh-tl-bar[data-focus=true]{outline:2px solid var(--foreground);outline-offset:1px}
+.sqh-tl-hover{min-height:20px;font-size:12px;color:var(--foreground);padding-top:4px}
+.sqh-tl-issues{display:grid;gap:4px;min-width:0}
+.sqh-tl-sub{font-size:12px;font-weight:600;color:var(--foreground);padding-bottom:4px}
+.sqh-issue{display:flex;gap:8px;align-items:flex-start;text-align:left;padding:7px 8px;border-radius:8px;border:1px solid transparent;background:none;color:var(--muted-foreground);cursor:pointer;min-width:0}
+.sqh-issue:hover,.sqh-issue[data-focus=true]{background:color-mix(in srgb,var(--foreground) 5%,transparent);border-color:var(--ui-stroke-tertiary,var(--border))}
+.sqh-issue[data-sev=error],.sqh-issue[data-sev=critical]{color:var(--dt-destructive)}
+.sqh-issue[data-sev=warning]{color:var(--color-amber-500)}
+.sqh-issue-main{display:grid;min-width:0;gap:1px}
+.sqh-issue-kind{font-size:11px;font-weight:600}
+.sqh-issue-title{font-size:12.5px;color:var(--foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sqh-st{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted-foreground);white-space:nowrap}
+.sqh-st i{width:8px;height:8px;border-radius:2px;display:inline-block;background:var(--sqh-c)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=queued]{--sqh-c:color-mix(in srgb,var(--foreground) 22%,transparent)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=dep]{--sqh-c:color-mix(in srgb,var(--color-sky-500) 45%,transparent)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=run]{--sqh-c:var(--color-sky-500)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=block]{--sqh-c:var(--color-amber-500)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=review]{--sqh-c:var(--color-violet-500)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=done]{--sqh-c:var(--color-emerald-500)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=fail]{--sqh-c:var(--dt-destructive)}
+:is(.sqh-st,.sqh-tl-bar)[data-state=stop]{--sqh-c:var(--color-zinc-400)}
+.sqh-tl-bar[data-state]{background:var(--sqh-c)}
+.sqh-tl-bar[data-kind=wait],.sqh-tl-bar[data-kind=state]{top:6px;bottom:6px;opacity:.75;background:repeating-linear-gradient(135deg,var(--sqh-c) 0 5px,color-mix(in srgb,var(--sqh-c) 55%,transparent) 5px 10px)}
+.sqh-tl-legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding-top:6px}
+.sqh-bellhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sqh-bellclear{background:none;border:0;padding:0;font-size:11px;color:var(--muted-foreground);cursor:pointer}
+.sqh-bellclear:hover{color:var(--foreground);text-decoration:underline}
+.sqh-bellage{margin-left:auto;font-size:10.5px;color:var(--muted-foreground);padding-left:8px;white-space:nowrap}
+.sqh-cd{max-width:560px}
+.sqh-cd-meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12px}
+.sqh-cd-help{font-size:12px;color:var(--muted-foreground)}
+.sqh-cd-sub{font-size:11.5px;font-weight:600;color:var(--foreground);padding-bottom:4px}
+.sqh-cd-reason{white-space:pre-wrap;font-size:12.5px;line-height:1.5;color:var(--foreground);max-height:240px;overflow:auto;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--foreground) 5%,transparent)}
+.sqh-cd-story{display:grid;gap:3px}
+.sqh-cd-ev{display:flex;justify-content:space-between;font-size:12px;color:var(--muted-foreground)}
 `
 
 export default {
   id: ID,
-  name: 'Squad Hub',
+  name: 'Hermes Agent Squads Hub',
   description: 'One navigator for Hermes Agent Squads: bot → project → folder → worktree → chat, several bots open at once.',
   defaultEnabled: false,
   register(ctx) {
@@ -2092,6 +3024,7 @@ export default {
     prefsAtom.set({ ...DEFAULT_PREFS, ...ctx.storage.get('prefs', {}) })
     collapsedAtom.set(ctx.storage.get('collapsed', {}))
     previewsAtom.set(ctx.storage.get('previews', {}))
+    bellDismissedAtom.set(ctx.storage.get('bellDismissed', {}))
 
     styleEl = document.createElement('style')
     styleEl.dataset.squadHub = 'ui'
@@ -2120,6 +3053,22 @@ export default {
     if (CHAT_EMPTY_AREA) ctx.register({ id: 'intro', area: CHAT_EMPTY_AREA, data: { render: props => jsx(ChatIntro, props) } })
     if (COMPOSER_AREAS?.atCompletions) ctx.register({ id: 'at-folders', area: COMPOSER_AREAS.atCompletions, data: { provide: atFolders } })
     ctx.register({ id: 'pending', area: STATUSBAR_AREAS.left, order: 29, render: () => jsx(PendingCount, {}) })
+    ctx.register({ id: 'bell', area: STATUSBAR_AREAS.right, order: 5, render: () => jsx(Bell, {}) })
+    // the watcher, the cards switch and the card dialog must not live in a status-bar item the user can hide:
+    // title-bar slots are permanent mount points and render nothing visible here
+    ctx.register({ id: 'bell-host', area: sdk.TITLEBAR_AREAS?.right || 'titleBar.right', order: 999, render: () => h(React_Fragment, {}, jsx(BellWatcher, {}), jsx(CardDialogHost, {}), jsx(CardsSwitch, {})) })
+    if (TRANSCRIPT_DIRECTIVE_AREA) {
+      ctx.registerMany([
+        { id: 'card-task', area: TRANSCRIPT_DIRECTIVE_AREA, data: { name: 'squad-task', render: p => jsx(SquadTaskCard, p) } },
+        { id: 'card-board', area: TRANSCRIPT_DIRECTIVE_AREA, data: { name: 'squad-board', render: p => jsx(SquadBoardCard, p) } }
+      ])
+    }
+    ctx.onDispose(() => timelineDispose?.())
+    ctx.onDispose(() => { for (const bot of [...cardsSet]) setDesktopCards(bot, false) })
+    let liveTimer = null
+    const liveSoon = () => liveTimer || (liveTimer = setTimeout(() => ((liveTimer = null), queryClient.invalidateQueries({ queryKey: LIVE_KEY })), 1500))
+    for (const type of ['approval.request', 'clarify.request', 'request.cancel', 'message.complete']) ctx.onEvent(type, liveSoon)
+    ctx.onDispose(() => clearTimeout(liveTimer))
     ctx.onDispose(stopFloat)
     applyFloat()
     document.addEventListener('dblclick', onTreeDoubleClick, true)
@@ -2146,6 +3095,7 @@ export default {
           }
         }
       },
+      { id: 'cmd-timeline', area: PALETTE_AREA, data: { id: 'squad-hub.timeline', label: MESSAGES.en.cmdTimeline, keywords: ['gantt', 'timeline', 'kanban', 'runs', 'failures'], run: () => openTimeline() } },
       { id: 'cmd-next', area: PALETTE_AREA, data: { id: 'squad-hub.next-pending', label: MESSAGES.en.cmdNext, keywords: ['pending', 'unread', 'working', 'next'], run: goNextPending } },
       { id: 'key-next', area: KEYBINDS_AREA, data: { id: 'squad-hub.next-pending', label: MESSAGES.en.cmdNext, category: 'navigation', defaults: ['mod+shift+u'], run: goNextPending } },
       { id: 'cmd-float', area: PALETTE_AREA, data: { id: 'squad-hub.float', label: MESSAGES.en.cmdFloat, keywords: ['float', 'auto hide', 'sidebar', 'dock'], run: () => savePrefs({ floatSides: !prefsAtom.get().floatSides }) } },
@@ -2186,9 +3136,9 @@ export default {
       clearTimeout(refreshTimer)
       refreshTimer = null
     })
-    ctx.registerSettingsPage?.({ id: 'settings', title: 'Squad Hub', icon: 'organization', render: () => jsx(SettingsPage, {}) })
+    ctx.registerSettingsPage?.({ id: 'settings', title: 'Hermes Agent Squads Hub', icon: 'organization', render: () => jsx(SettingsPage, {}) })
 
-    window.__squadHub = { setSide, newChat, atFolders, savePrefs, floatState, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadWorktrees, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview }
+    window.__squadHub = { openCard, dismissBell, bellDismissedAtom, openTimeline, loadBoards, loadTimeline, setSide, newChat, atFolders, savePrefs, floatState, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadWorktrees, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview }
     ctx.onDispose(() => {
       delete window.__squadHub
     })

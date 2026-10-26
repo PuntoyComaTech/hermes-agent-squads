@@ -1258,7 +1258,9 @@ class Applier:
         else:
             section = self.spec.get("section") or {"id": self.key, "name": self.spec.get("name") or self.key}
         return {"title": bot["title"], "hidden": False,
-                "sectionId": section["id"], "sectionName": section["name"]}
+                "sectionId": section["id"], "sectionName": section["name"],
+                # the squad a bot belongs to, managers included: squad-hub letters an empty chat with it
+                "squadName": str(self.spec.get("name") or self.key)}
 
     def cron_plan(self, name: str, bot: dict, notes: list[str]) -> dict:
         jobs = {}
@@ -1568,27 +1570,41 @@ class Applier:
                     ctx.hermes("plugins", "disable", pname, profile=name)
         acts += self.provider_plugin(name, bot)
         acts += self.shared_browser_plugin(name, bot)
-        acts += self.squad_hub_plugin(name)
+        acts += self.squad_hub_plugin(name, bot)
         return acts
 
-    def squad_hub_plugin(self, name: str) -> list[str]:
-        """The builder (`--self`) carries the squad-hub package: Hermes Desktop copies its desktop half to the app-level
-        desktop-plugins folder and lists it in Capabilities > Plugins, where it stays off until the user turns it on.
-        No Python half runs, so nothing is enabled here and no squad bot gets a copy."""
-        if not self.self_mode:
+    def squad_hub_plugin(self, name: str, bot: dict) -> list[str]:
+        """Every manager (the builder included) carries the squad-hub package and runs its agent half: it asks the user
+        with suggested answers (`clarify`) and appends live Kanban cards to Desktop replies. Hermes Desktop copies the
+        desktop half to its app-level plugins folder and lists it in Capabilities > Plugins, off until the user turns
+        it on. Workers never get it: nobody answers a worker's question. A bot that lost the manager role, or lists
+        squad-hub under `plugins.disable`, gets it disabled (the files stay, as for any plugin)."""
+        home = self.ctx.home(name)
+        enabled = list((((read_yaml(home / "config.yaml") or {}).get("plugins") or {}).get("enabled")) or [])
+        opted_out = SQUAD_HUB_PLUGIN in ((bot.get("plugins") or {}).get("disable") or [])
+        if bot.get("role") != "manager" or opted_out:
+            if SQUAD_HUB_PLUGIN in enabled and not opted_out:  # an opt-out is disabled by the `disable` loop
+                if not self.dry:
+                    self.ctx.hermes("plugins", "disable", SQUAD_HUB_PLUGIN, profile=name)
+                return [f"plugins disable {SQUAD_HUB_PLUGIN}"]
             return []
         rel = Path("squads") / "_plugins" / SQUAD_HUB_PLUGIN
         src = next((d / rel for d in (self.ctx.src, SRC) if (d / rel).is_dir()), SRC / rel)
         files = {"plugin.yaml": src / "plugin.yaml", "__init__.py": src / "__init__.py", "desktop/plugin.js": src / "desktop" / "plugin.js"}
-        dest = self.ctx.home(name) / "plugins" / SQUAD_HUB_PLUGIN
+        dest = home / "plugins" / SQUAD_HUB_PLUGIN
         fresh = {rel_path: _read(path) for rel_path, path in files.items()}
         stale = [rel_path for rel_path, text in fresh.items() if text and _read(dest / rel_path) != text]
-        if not stale:
-            return []
-        if not self.dry:
-            for rel_path in stale:
-                write_text(dest / rel_path, fresh[rel_path])
-        return [f"plugin {'~' if dest.is_dir() else '+'} {SQUAD_HUB_PLUGIN} (desktop half, opt-in)"]
+        acts: list[str] = []
+        if stale:
+            acts.append(f"plugin {'~' if dest.is_dir() else '+'} {SQUAD_HUB_PLUGIN} (agent half on, desktop half opt-in)")
+            if not self.dry:
+                for rel_path in stale:
+                    write_text(dest / rel_path, fresh[rel_path])
+        if SQUAD_HUB_PLUGIN not in enabled:
+            acts.append(f"plugins enable {SQUAD_HUB_PLUGIN}")
+            if not self.dry:
+                self.ctx.hermes("plugins", "enable", SQUAD_HUB_PLUGIN, "--no-allow-tool-override", profile=name)
+        return acts
 
     def shared_browser_plugin(self, name: str, bot: dict) -> list[str]:
         """`shared_browser: true`: install the repo's shared-browser-tabs plugin into the bot's home and enable it;
@@ -1627,6 +1643,8 @@ class Applier:
         declared |= set(spec.get("disable") or [])
         if bot.get("shared_browser"):
             declared.add(SHARED_BROWSER_PLUGIN)
+        if bot.get("role") == "manager":
+            declared.add(SQUAD_HUB_PLUGIN)
         for provider, _required in self.bot_providers(name, bot):
             found = provider_source(self.ctx, provider)
             if found:

@@ -285,10 +285,11 @@ def test_ui_meta_hidden_section_and_revision(web):
     """All bots are visible (V-12); the manager is filed under Managers, workers under the squad section."""
     manager = yaml.safe_load((web.root / "profiles" / "web" / "profile.yaml").read_text())
     worker = yaml.safe_load((web.root / "profiles" / "web-qa" / "profile.yaml").read_text())
+    # squadName: managers share the Managers section, and squad-hub letters an empty chat with the squad
     assert manager["ui_meta"]["hermes-bots"] == {"title": "Web manager", "hidden": False,
-                                                 "sectionId": "managers", "sectionName": "Managers"}
+                                                 "sectionId": "managers", "sectionName": "Managers", "squadName": "Web"}
     assert worker["ui_meta"]["hermes-bots"] == {"title": "Web QA", "hidden": False,
-                                                "sectionId": "web", "sectionName": "Web"}
+                                                "sectionId": "web", "sectionName": "Web", "squadName": "Web"}
     assert manager["_ui_meta_revisions"] == {"hermes-bots": 1}
 
 
@@ -1113,7 +1114,7 @@ def test_apply_self_creates_builder_watch_on_the_digest_lane(env, capsys):
     assert (job["model"], job["provider"], job["reasoning_effort"], job["skills"]) == (
         "model-digest", "prov-digest", "high", ["tracking-updates"])
     meta = yaml.safe_load((home / "profile.yaml").read_text())["ui_meta"]["hermes-bots"]
-    assert meta == {"title": "Builder", "hidden": False, "sectionId": "managers", "sectionName": "Managers"}
+    assert meta == {"title": "Builder", "hidden": False, "sectionId": "managers", "sectionName": "Managers", "squadName": "Builder"}
     assert not any(c["args"][:2] == ["profile", "create"] for c in env.calls())
     _, again = env.run("apply", "--self", capsys=capsys)
     assert again["summary"] == {"unchanged": 1}
@@ -1131,33 +1132,77 @@ def test_apply_self_installs_no_squad(env, capsys):
     assert st["installed"] == 1 and [s["squad"] for s in st["squads"]] == ["builder"]
 
 
-def test_apply_self_ships_the_squad_hub_desktop_plugin_and_enables_nothing(env, capsys):
-    """The builder carries the squad-hub package so Desktop can list it (opt-in); a squad's bots never get it."""
+def _hub_enables(env, name):
+    return [c["args"] for c in env.calls() if c["args"][:3] == ["plugins", "enable", "squad-hub"] and c.get("profile") == name]
+
+
+def test_every_manager_carries_squad_hub_and_runs_its_agent_half(env, capsys):
+    """A manager talks to the user: it gets the package (the desktop half rides along, opt-in in Desktop) and its
+    agent half enabled, so it asks with suggested answers. A worker never does: nobody answers a worker."""
     env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
     env.seed_builder()
     env.run("apply", "--self", capsys=capsys)
-    home = env.root / "profiles" / "builder"
     pkg = REPO / "squads" / "_plugins" / "squad-hub"
+    home = env.root / "profiles" / "builder"
     for rel in ("plugin.yaml", "__init__.py", "desktop/plugin.js"):
         assert (home / "plugins" / "squad-hub" / rel).read_text() == (pkg / rel).read_text(), rel
-    assert "squad-hub" not in (env.config("builder").get("plugins") or {}).get("enabled", []), "the user turns it on in Desktop"
-    assert not any(c["args"][:2] == ["plugins", "enable"] and "squad-hub" in c["args"] for c in env.calls())
-    _, again = env.run("apply", "--self", capsys=capsys)
-    assert again["summary"] == {"unchanged": 1}, "a second apply copies nothing"
+    assert _hub_enables(env, "builder"), "the builder's agent half is enabled"
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    assert (env.root / "profiles" / "web" / "plugins" / "squad-hub" / "__init__.py").is_file()
+    assert _hub_enables(env, "web")
+    for worker in ("web-qa", "web-frontend"):
+        assert not (env.root / "profiles" / worker / "plugins" / "squad-hub").exists(), worker
+        assert not _hub_enables(env, worker), worker
 
 
-def test_apply_self_restores_an_edited_squad_hub_plugin_and_a_squad_apply_never_ships_it(env, capsys):
+def test_squad_hub_apply_restores_an_edit_and_a_second_apply_changes_nothing(env, capsys):
     env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
     env.seed_builder()
     env.run("apply", "--self", capsys=capsys)
+    assert "squad-hub" in env.config("builder")["plugins"]["enabled"], "the fake enable wrote it, as hermes does"
     js = env.root / "profiles" / "builder" / "plugins" / "squad-hub" / "desktop" / "plugin.js"
     js.write_text("// edited by hand\n")
     _, out = env.run("apply", "--self", capsys=capsys)
     assert out["summary"] == {"changed": 1}
     assert js.read_text() == (REPO / "squads" / "_plugins" / "squad-hub" / "desktop" / "plugin.js").read_text()
+    n = len(env.calls())
+    _, again = env.run("apply", "--self", capsys=capsys)
+    assert again["summary"] == {"unchanged": 1}, "a second apply copies and enables nothing"
+    assert not [c for c in env.calls()[n:] if c["args"][:2] == ["plugins", "enable"]]
+
+
+def test_a_manager_that_opts_out_of_squad_hub_stays_off(env, capsys):
+    """A manager that lists squad-hub under plugins.disable keeps it off on every apply, never flipping back on."""
     env.squad("web")
     env.run("apply", "web", capsys=capsys)
-    assert not (env.root / "profiles" / "web" / "plugins" / "squad-hub").exists()
+    assert _hub_enables(env, "web")
+
+    def opt_out(spec):
+        spec["bots"]["web"].setdefault("plugins", {})["disable"] = ["squad-hub"]
+    env.squad("web", opt_out)
+    n = len(env.calls())
+    env.run("apply", "web", capsys=capsys)
+    calls = [c["args"] for c in env.calls()[n:] if c.get("profile") == "web"]
+    assert ["plugins", "disable", "squad-hub"] in calls
+    assert not [c for c in calls if c[:3] == ["plugins", "enable", "squad-hub"]]
+    n = len(env.calls())
+    env.run("apply", "web", capsys=capsys)
+    assert not [c["args"] for c in env.calls()[n:] if c.get("profile") == "web" and c["args"][:3] == ["plugins", "enable", "squad-hub"]], \
+        "an opted-out manager stays off: apply never alternates"
+
+
+def test_a_worker_that_still_runs_squad_hub_gets_it_disabled(env, capsys):
+    """A bot moved from manager to worker keeps a stale squad-hub enable on disk; apply turns it off so the worker
+    stops asking the user."""
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    cfg = env.config("web-qa")
+    cfg.setdefault("plugins", {}).setdefault("enabled", []).append("squad-hub")
+    (env.root / "profiles" / "web-qa" / "config.yaml").write_text(yaml.safe_dump(cfg))
+    n = len(env.calls())
+    env.run("apply", "web", capsys=capsys)
+    assert ["plugins", "disable", "squad-hub"] in [c["args"] for c in env.calls()[n:] if c.get("profile") == "web-qa"]
 
 
 def test_agent_cron_is_pinned_and_doctor_warns_on_an_unpinned_one(env, capsys):
@@ -2008,3 +2053,4 @@ def test_doctor_finds_bun_where_its_installer_puts_it(tmp_path, monkeypatch):
     bun.chmod(0o755)
     assert squadctl.app_launcher("bun") == [str(bun)]
     assert squadctl.app_problem("bun") is None
+

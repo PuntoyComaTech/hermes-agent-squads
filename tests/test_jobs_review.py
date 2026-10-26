@@ -616,7 +616,7 @@ def approve(app, day="2026-10-20"):
 
 
 def consent(app, by="Ana Example", words=USER_WORDS, day="2026-10-20", opening_id=OPENING_ID, **extra):
-    """The manager's consent.json: the user's literal words for this one opening, bound to the kit as it is now."""
+    """The manager's consent.json: the user's own answer (typed or clicked) for this one opening, bound to the kit as it is now."""
     proc = subprocess.run([sys.executable, str(CHECK), "--kit-hash", str(app)], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     data = {"opening_id": opening_id, "by": by, "words": words, "date": day, "kit_sha256": proc.stdout.strip(), **extra}

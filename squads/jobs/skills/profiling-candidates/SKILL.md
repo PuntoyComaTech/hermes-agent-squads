@@ -40,9 +40,10 @@ Career stage: `references/stage-playbook.md`.
    Order: user_language and timezone; consent; stage; situation; market and eligibility per country (quoted codes);
    languages with CEFR levels and the honesty note; deal breakers (never a work mode); energisers and drains; work
    style; writing style; salary floor; search settings. Each answer fills a key from `references/profile-keys.md`.
-   Consent is one question with four plain answers: never (no submit, a kit for the user), ask (fills the form, waits
-   for the user's yes on a screenshot), try (submits on the user's apply for each opening), auto (the user says yes
-   once; the squad applies every day on its own). For auto write `apply_consent: standing`, `auto_apply_since` as
+   Consent is one `clarify` question, auto first and recommended: the squad exists to apply fast, and the user reviews
+   what was sent and tunes the manager afterwards. Answers: auto (the user says yes once; the squad applies every day
+   on its own), try (submits on the user's apply for each opening), ask (fills the form, waits for the user's yes on a
+   screenshot), never (no submit, a kit for the user). For auto write `apply_consent: standing`, `auto_apply_since` as
    today's date, and the caps `daily_apply_cap` (offer 10) and `daily_easy_apply_cap` (offer 5); for never, try and ask
    write `apply_consent: per_opening`. Say in one line that auto submits without asking again, and that the caps and
    the fit score are the only brake.

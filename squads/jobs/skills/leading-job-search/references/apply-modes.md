@@ -35,7 +35,7 @@ application (the `jobs-notices` cron, CV attached) and a question the squad cann
 
 ## Try, ask, never
 
-As in step 6 of the skill: the digest asks, and the user's own words write `consent.json`.
+As in step 6 of the skill: the manager asks with `clarify` when the user reads the digest, and the user's own answer (typed or the choice they clicked) writes `consent.json`.
 
 ## Verification codes
 

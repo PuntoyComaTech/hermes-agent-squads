@@ -1,4 +1,4 @@
-"""Consent and pre-submit gate for the jobs squad: a submit needs the user's literal words, or a standing yes.
+"""Consent and pre-submit gate for the jobs squad: a submit needs the user's own answer (typed or clicked), or a standing yes.
 
 Pins check_submission.py: a SUBMITTED record needs application/consent.json naming this opening, dated not before the
 review approval — or, under `auto_apply: auto`, the standing consent in profile.md with the fit score, the eligibility
@@ -63,7 +63,7 @@ def kit_hash(app):
 
 
 def consent(app, by="Ana Example", words=USER_WORDS, day="2026-10-20", opening_id=OPENING_ID, **extra):
-    """The manager's consent.json: the user's literal words for this one opening, bound to the kit as it is now."""
+    """The manager's consent.json: the user's own answer (typed or clicked) for this one opening, bound to the kit as it is now."""
     data = {"opening_id": opening_id, "by": by, "words": words, "date": day, "kit_sha256": kit_hash(app), **extra}
     (app / "consent.json").write_text(json.dumps(data), encoding="utf-8")
 
@@ -101,14 +101,14 @@ def check(app, data, *extra):
     return subprocess.run([sys.executable, str(CHECK), str(path), *extra], capture_output=True, text=True)
 
 
-# A SUBMITTED record without consent.json (no literal words from the user) is refused, whatever the profile says.
+# A SUBMITTED record without consent.json (no answer from the user) is refused, whatever the profile says.
 
 def test_submit_without_the_users_words_is_refused(tmp_path):
     app = ready_to_submit(tmp_path)
     (app / "consent.json").unlink()
     proc = check(app, submitted())
     assert proc.returncode == 1
-    assert "consent.json" in proc.stderr and "user's words" in proc.stderr
+    assert "consent.json" in proc.stderr and "user's answer" in proc.stderr
 
 
 def test_consent_for_another_opening_does_not_cover_this_one(tmp_path):
@@ -599,7 +599,7 @@ def test_easy_apply_counts_against_its_own_cap_only(tmp_path):
 
 
 def test_easy_apply_needs_standing_consent(tmp_path):
-    app = ready_to_submit(tmp_path)  # try, with the user's words for this opening
+    app = ready_to_submit(tmp_path)  # try, with the user's answer for this opening
     open_analysis(app)
     proc = check(app, {**submitted(), "method": "linkedin_easy_apply"}, "--apply-url", LINKEDIN_JOB)
     assert proc.returncode == 1 and "auto_apply: auto" in proc.stderr, proc.stderr

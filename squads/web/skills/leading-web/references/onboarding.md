@@ -47,7 +47,9 @@ What it is: a page with your menu, hours and a contact form, in Spanish and Engl
 Stack: Astro, in plain words: an extremely fast site, no server, USD 0/month.
 Plan: M1 home and menu, M2 contact form and legal pages, M3 English version.
 Still open: do you have the menu as a PDF or should I write it from your dishes?
-Reply "ok" to start, or tell me what to change.
 ```
 
-Rules: no file paths, no jargon, no model or tool names, at most one screen. Quote the reply options literally.
+Then ask with `clarify`, choices `Start` / `Change something` / `Not now`, `Start` first.
+
+Rules: no file paths, no jargon, no model or tool names, at most one screen. The summary never ends in "reply ok": the
+choices carry the answer.
