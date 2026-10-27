@@ -93,7 +93,9 @@ When the wording is unclear, choose FLAG over a silent PASS. The user is the tie
 Compare the posting's work mode with `work_mode` and `cities` in the profile.
 
 - Onsite or hybrid in a city outside `cities`, with no relocation stated as acceptable: DISCARD, quote the place.
-- Remote restricted to countries that exclude `market.country`: DISCARD, quote the restriction.
+- Remote restricted to countries that exclude `market.country`: DISCARD, quote the restriction. Record every
+  country the posting hires in as `hiring_countries` (ISO codes, primary first), body included: the analysis gates
+  read that list, and a region alone (`remote_region:eu`) hides a list that names the user's country or misses it.
 - Remote restricted to a country the candidate needs sponsorship for: DISCARD, quote. The candidate's CV market does
   not change this.
 - Remote in a named region the scout cannot map to the candidate's country: FLAG. Never guess a region's membership.

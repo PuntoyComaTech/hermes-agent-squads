@@ -52,6 +52,9 @@ and no deal-breaker. The score weights are yours to change in `profile.md`.
 - **Market conventions**: photo, age, marital status, page count and date format follow the country you apply in.
   Age and photo never appear unless you say so.
 - **Eligibility**: citizenship, residency or sponsorship wording is checked against your situation per country.
+- **Remote scope**: a remote opening counts only when it is genuinely global or its hiring countries include one where
+  you may work (`eligibility` citizen, resident or permit). "Remote, EU only" for someone based in Colombia is
+  discarded without asking; a region the gate cannot map is flagged, never passed.
 - **Your voice**: tone, formality and phrases to avoid apply to every letter, answer and follow-up.
 
 ## What you can ask

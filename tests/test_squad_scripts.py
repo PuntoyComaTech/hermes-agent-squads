@@ -37,5 +37,7 @@ def test_start_search_is_silent_without_profile_md(tmp_path):
     assert created.returncode == 0, created.stderr
     p = run([START_SEARCH, "--json"], env)
     assert p.returncode == 0 and '"no profile.md"' in p.stdout  # the project resolved; the gap is profile.md
-    p = run([START_SEARCH], env)
+    # Outside the daily report hour (the first slot's hour, 12:00 by default) the gap is silent. A fixed time keeps
+    # the test from failing when the suite runs between 12:00 and 13:00.
+    p = run([START_SEARCH, "--now", "2026-10-27 09:30"], env)
     assert (p.returncode, p.stdout) == (0, ""), p.stderr

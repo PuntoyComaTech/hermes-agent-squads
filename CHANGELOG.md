@@ -3,6 +3,20 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.4 - 2026-10-27
+
+### Fixed
+
+- jobs 4.12.1: a remote opening that hires only in countries where the user cannot work is rejected. The location gate
+  passed every `remote_region:<x>` and the eligibility gate read a single country, so a posting hiring in Ukraine and
+  14 EU countries passed both (eligibility as `eligibility_unverified`) for a candidate in Colombia and reached
+  auto-apply. One helper now turns the scope into countries for both gates: opening.md `hiring_countries` (new, ISO
+  codes, wins over `work_mode`), else `remote_country:<CC>`, else a region table (EU, EEA, Europe, EMEA, LATAM, North
+  America, US-Canada, Americas, APAC; worldwide is no restriction). No workable country: location FAIL
+  (`remote only in <list>, not in your countries`) and eligibility FAIL. A region the table does not hold, or a
+  non-ISO list entry: FLAG on both, never PASS. The scout and the analyst record `hiring_countries`.
+- Tests: the start-search silence test no longer fails when the suite runs during the noon report hour.
+
 ## 2.26.3 - 2026-10-27
 
 ### Fixed

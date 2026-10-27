@@ -793,6 +793,96 @@ def test_an_instruction_to_a_summariser_or_screener_is_flagged_by_the_guard(line
     assert json.loads(proc.stdout)["findings"]["instruction_like"] == []
 
 
+# --- hiring scope: a remote role restricted to countries the candidate does not work in ------------------------------
+
+def colombia_profile(**kw) -> str:
+    """A CO citizen based in CO who does not relocate: CO is the only country this candidate may work in."""
+    return profile_text(eligibility=["  - {country: CO, status: citizen}",
+                                     '  - {country: US, status: needs_sponsorship, notes: ""}'],
+                        cities="[Cali]", **kw).replace("market: {country: PE, cv_page_limit: 2}",
+                                                          "market: {country: CO, cv_page_limit: 2}")
+
+
+# A real case (2026-10-27): remote, hiring in Ukraine and 14 EU countries; the posting says nothing about citizenship.
+# location PASS and eligibility_unverified PASS let it reach an auto-application for a candidate in Colombia.
+EU_SCOPE_BODY = ("Senior full-stack developer, React and Node. Remote. We hire in Ukraine, Romania, Poland, Sweden, "
+                 "Portugal, Slovakia, Bulgaria, Croatia, Slovenia, Germany, Belgium, Denmark, France, Spain and "
+                 "Czechia.")
+EU_SCOPE = "hiring_countries: [UA, RO, PL, SE, PT, SK, BG, HR, SI, DE, BE, DK, FR, ES, CZ]"
+
+
+def test_a_remote_role_hiring_only_in_eu_countries_rejects_a_candidate_in_colombia(tmp_path):
+    decision, written = decision_of(tmp_path, EU_SCOPE_BODY, work_mode="remote_region:eu",
+                                    profile=colombia_profile(), front_extra=(EU_SCOPE,))
+    gates = written["gates"]
+    assert gates["location"] == "FAIL", gates["location_note"]
+    assert gates["location_note"].startswith("remote only in UA, RO, PL"), gates["location_note"]
+    assert "not in your countries (CO)" in gates["location_note"]
+    assert gates["eligibility"] != "PASS", gates["eligibility_note"]
+    assert not gates["eligibility_note"].startswith("eligibility_unverified")
+    assert decision == "REJECT"
+
+
+def test_the_eu_region_alone_rejects_a_candidate_in_colombia_without_a_country_list(tmp_path):
+    # The opening that started this recorded only work_mode: remote_region:eu.
+    decision, written = decision_of(tmp_path, EU_SCOPE_BODY, work_mode="remote_region:eu",
+                                    profile=colombia_profile())
+    assert written["gates"]["location"] == "FAIL", written["gates"]["location_note"]
+    assert written["gates"]["eligibility"] != "PASS"
+    assert decision == "REJECT"
+
+
+@pytest.mark.parametrize("work_mode, front_extra", [
+    ("remote_global", ()),
+    ("remote_region:latam", ()),
+    ("remote_region:Latin America", ()),
+    ("remote_region:worldwide", ()),
+    ("remote_region:eu", ("hiring_countries: [ES, PT, CO]",)),  # the list wins over the region and names CO
+])
+def test_a_scope_that_covers_colombia_or_the_world_passes(tmp_path, work_mode, front_extra):
+    _, written = decision_of(tmp_path, "Remote role for a senior developer.", work_mode=work_mode,
+                             profile=colombia_profile(), front_extra=front_extra)
+    assert written["gates"]["location"] == "PASS", (work_mode, written["gates"]["location_note"])
+    assert written["gates"]["eligibility"] == "PASS", (work_mode, written["gates"]["eligibility_note"])
+
+
+@pytest.mark.parametrize("work_mode, front_extra", [
+    ("remote_region:nordics-plus", ()),
+    ("remote_region:eu", ("hiring_countries: [Romania, PL]",)),  # a name, not an ISO code: ambiguous list
+])
+def test_a_scope_the_gate_cannot_map_is_a_flag_never_a_pass(tmp_path, work_mode, front_extra):
+    decision, written = decision_of(tmp_path, "Remote role for a senior developer.", work_mode=work_mode,
+                                    profile=colombia_profile(), front_extra=front_extra)
+    assert written["gates"]["location"] == "FLAG", written["gates"]["location_note"]
+    assert written["gates"]["eligibility"] == "FLAG", written["gates"]["eligibility_note"]
+    assert decision == "WATCH"
+
+
+def test_a_remote_country_list_of_sponsorship_countries_still_fails_location(tmp_path):
+    _, written = decision_of(tmp_path, "Remote role.", work_mode="remote_region:north america",
+                             profile=colombia_profile(), front_extra=("hiring_countries: [US]",))
+    assert written["gates"]["location"] == "FAIL"
+    assert "where you need sponsorship" in written["gates"]["location_note"]
+    assert written["gates"]["eligibility"] == "FLAG", written["gates"]["eligibility_note"]
+
+
+def test_triage_reads_the_same_scope_as_finalize(tmp_path):
+    # ranking-openings/triage_merge.py calls the same gate functions: one rule for both stages.
+    sys.path.insert(0, str(SCORE.parent))
+    try:
+        import score_analysis as sa
+    finally:
+        sys.path.pop(0)
+    root = tmp_path / "P"
+    write_project(root, colombia_profile())
+    profile = sa.read_profile(root)
+    opening = {"work_mode": "remote_region:eu",
+               "hiring_countries": ["UA", "RO", "PL", "SE", "PT", "SK", "BG", "HR", "SI", "DE", "BE", "DK", "FR",
+                                    "ES", "CZ"]}
+    assert sa.location_gate(profile, opening)[0] == "FAIL"
+    assert sa.eligibility_gate(profile, opening, EU_SCOPE_BODY)[0] == "FAIL"
+
+
 def test_e_verify_wording_is_us_authorisation_for_a_candidate_needing_sponsorship(tmp_path):
     # Real posting: "uses e-Verify to validate your ability to work legally in the United States". It requires US
     # work authorisation, so a candidate who needs US sponsorship must not get a PASS on eligibility.

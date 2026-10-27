@@ -242,6 +242,106 @@ def default_country(profile: dict, opening_fm: dict):
     return profile_market(profile)
 
 
+# --- hiring scope -------------------------------------------------------------------------------------------------
+# Where a remote role may be done, as a set of ISO-3166 alpha-2 codes. One helper answers it for the location and the
+# eligibility gates. Sources, first that applies: opening.md `hiring_countries` (every country the posting names),
+# `remote_country:<CC>`, `remote_region:<name>` through REGIONS. A region name REGIONS does not hold is unresolved:
+# FLAG, never PASS. `remote_global` and the worldwide names are no restriction.
+
+_EU = "AT BE BG HR CY CZ DK EE FI FR DE GR IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split()
+_EEA = _EU + "IS LI NO".split()
+_EUROPE = _EEA + "GB CH UA MD RS ME MK AL BA XK BY AD MC SM VA TR GE AM AZ".split()
+_MIDDLE_EAST = "AE BH IL IQ JO KW LB OM PS QA SA EG".split()
+_AFRICA = ("DZ AO BJ BW BF BI CV CM CF TD KM CG CD CI DJ GQ ER SZ ET GA GM GH GN GW KE LS LR LY MG MW ML MR MU "
+           "MA MZ NA NE NG RW ST SN SC SL SO ZA SS SD TZ TG TN UG ZM ZW").split()
+_LATAM = "AR BO BR CL CO CR CU DO EC SV GT HN HT MX NI PA PY PE PR UY VE".split()
+_NORTH_AMERICA = "US CA MX".split()
+REGIONS = {
+    "eu": _EU, "eea": _EEA, "europe": _EUROPE, "emea": _EUROPE + _MIDDLE_EAST + _AFRICA, "latam": _LATAM,
+    "north_america": _NORTH_AMERICA, "us_canada": ["US", "CA"],
+    "americas": _LATAM + _NORTH_AMERICA + "BZ GY SR JM TT BS BB".split(),
+    "apac": "AU NZ JP KR CN HK TW SG MY TH VN PH ID IN PK BD LK NP KH LA MM MN BN".split(),
+}
+REGION_ALIASES = {
+    "eu": "eu", "european union": "eu", "eu27": "eu", "eea": "eea", "eu eea": "eea", "eu and eea": "eea",
+    "european economic area": "eea", "europe": "europe", "europa": "europe", "emea": "emea", "latam": "latam",
+    "latin america": "latam", "latinoamerica": "latam", "america latina": "latam", "lac": "latam",
+    "north america": "north_america", "north_america": "north_america", "norteamerica": "north_america",
+    "us canada": "us_canada", "us and canada": "us_canada", "us_canada": "us_canada", "americas": "americas",
+    "apac": "apac", "asia pacific": "apac",
+}
+WORLDWIDE = {"global", "worldwide", "anywhere", "world", "international", "mundo", "cualquier lugar"}
+ISO2_RE = re.compile(r"^[A-Z]{2}$")
+
+
+def hiring_scope(opening_fm: dict):
+    """(kind, countries, label) of a remote opening; None when the role is not remote (onsite, hybrid, unknown).
+
+    kind: "global" (no restriction), "countries" (countries is a set of ISO codes), "unresolved" (a region name
+    REGIONS does not hold, or a hiring_countries entry that is not an ISO code). label names the scope in a reason.
+    An explicit `hiring_countries` list wins over the country or region in work_mode.
+    """
+    mode = str(opening_fm.get("work_mode") or "").strip()
+    base, _, arg = mode.partition(":")
+    base, arg = base.strip().lower(), arg.strip()
+    if base not in ("remote_global", "remote_region", "remote_country"):
+        return None
+    listed = opening_fm.get("hiring_countries")
+    if isinstance(listed, str):
+        listed = [part for part in re.split(r"[,\s]+", listed) if part]
+    if isinstance(listed, list) and listed:
+        codes = list(dict.fromkeys(str(code).strip().upper() for code in listed))
+        bad = [code for code in codes if not ISO2_RE.match(code)]
+        if bad:
+            return "unresolved", None, f"hiring_countries {', '.join(bad)} (not ISO country codes)"
+        return "countries", set(codes), ", ".join(codes)
+    if base == "remote_global":
+        return "global", None, "anywhere"
+    if base == "remote_country":
+        code = arg.upper()
+        return ("countries", {code}, code) if ISO2_RE.match(code) else ("unresolved", None, f"remote_country:{arg}")
+    key = re.sub(r"[^a-z0-9_]+", " ", ss.fold(arg)).strip()
+    if key in WORLDWIDE:
+        return "global", None, "anywhere"
+    region = REGION_ALIASES.get(key)
+    if not region:
+        return "unresolved", None, arg or "an unnamed region"
+    return "countries", set(REGIONS[region]), region.replace("_", " ").upper()
+
+
+def scope_check(profile: dict, opening_fm: dict):
+    """(kind, verdict, note) of the hiring scope against the candidate's countries; None when the role is not remote.
+
+    kind: "open" (global, or the scope holds a workable country), "sponsorship" (the scope's only listed countries
+    the candidate has a row for need sponsorship), "outside" (no country of the scope is workable), "unresolved".
+    Workable: an eligibility row with a status in WORKABLE_STATUSES, plus the market country unless its row needs
+    sponsorship.
+    """
+    scope = hiring_scope(opening_fm)
+    if scope is None:
+        return None
+    kind, countries, label = scope
+    if kind == "global":
+        return "open", "PASS", ""
+    if kind == "unresolved":
+        return "unresolved", "FLAG", f"remote in {label}: the gate cannot map it to countries; confirm it covers you"
+    statuses = {row["country"].upper(): row.get("status") for row in eligibility_rows(profile)}
+    workable = {code for code, status in statuses.items() if status in WORKABLE_STATUSES}
+    market = profile_market(profile)
+    if market and statuses.get(market) != "needs_sponsorship":
+        workable.add(market)
+    if countries & workable:
+        return "open", "PASS", ""
+    sponsored = sorted(code for code in countries if statuses.get(code) == "needs_sponsorship")
+    if sponsored:
+        # The candidate is not in those countries; the CV market does not change that. Relocation is the user's call.
+        where = f"remote only in {label}, where you need sponsorship"
+        if profile.get("plans_to_relocate") is True:
+            return "sponsorship", "FLAG", f"{where}; you are willing to relocate"
+        return "sponsorship", "FAIL", where
+    return "outside", "FAIL", f"remote only in {label}, not in your countries ({', '.join(sorted(workable)) or 'none'})"
+
+
 # --- gates --------------------------------------------------------------------------------------------------------
 
 # Residence wording: the candidate must live in the country the posting names. A bare 'live' or 'reside' is not
@@ -285,10 +385,12 @@ def _restricted_country(opening_fm: dict):
     The market default does not count: a role in a city of the candidate's own market is not a restriction to a
     country.
     """
+    scope = hiring_scope(opening_fm)
+    if scope is not None:
+        kind, countries, _ = scope
+        return next(iter(countries)) if kind == "countries" and len(countries) == 1 else None
     mode = str(opening_fm.get("work_mode") or "").strip()
     base, _, arg = mode.lower().partition(":")
-    if base == "remote_country":
-        return arg.strip().upper() or None
     if base in ("onsite", "hybrid"):
         named = _countries_in(ss.fold(arg))
         if len(named) == 1:
@@ -368,6 +470,21 @@ def eligibility_gate(profile: dict, opening_fm: dict, body: str):
     role in a country where the candidate needs sponsorship. Unrecognised wording FLAGs that candidate, which blocks
     PURSUE.
     """
+    scoped = scope_check(profile, opening_fm)
+    if scoped and scoped[0] == "outside":
+        # The posting hires only where the candidate may not work: no wording makes that eligible.
+        return "FAIL", f"{scoped[2]}; the posting hires only there"
+    worst, notes = eligibility_wording(profile, opening_fm, body)
+    if scoped and worst == "PASS" and (scoped[0] == "unresolved" or (
+            scoped[0] == "sponsorship" and notes.startswith("eligibility_unverified"))):
+        # A scope the gate cannot map, or a silent posting that hires only where the candidate needs sponsorship, is
+        # never a silent PASS.
+        return "FLAG", f"{scoped[2]}; {notes}"
+    return worst, notes
+
+
+def eligibility_wording(profile: dict, opening_fm: dict, body: str):
+    """eligibility_gate without the hiring scope: the posting's wording against the eligibility table."""
     raw_clauses, instructions = _clauses(body)
     clauses = []
     for raw, addressed in raw_clauses:
@@ -523,24 +640,12 @@ def location_gate(profile: dict, opening_fm: dict):
         if not arg:
             return "FLAG", f"{base} without a city in the opening"
         return _place_verdict(profile, base, arg)
-    if base == "remote_country":
-        if not arg:
-            return "FLAG", "remote for a country not named in the opening"
-        country = arg.upper()
-        statuses = {row["country"].upper(): row.get("status") for row in eligibility_rows(profile)}
-        if statuses.get(country) == "needs_sponsorship":
-            # The role is restricted to a country where the candidate needs sponsorship, so the candidate is not
-            # in that country. The CV market does not change that. Relocation is the user's call: a FLAG.
-            if profile.get("plans_to_relocate") is True:
-                return "FLAG", f"remote only in {country}, where you need sponsorship; you are willing to relocate"
-            return "FAIL", f"remote only in {country}, where you need sponsorship"
-        # Only a country where the candidate may work counts; needs_sponsorship does not.
-        workable = {code for code, status in statuses.items() if status in WORKABLE_STATUSES}
-        market = market_country(profile, {})
-        if country == market or country in workable:
-            return "PASS", ""
-        return "FAIL", f"remote only in {country}, not in your countries"
-    return "PASS", ""
+    if base == "remote_country" and not arg:
+        return "FLAG", "remote for a country not named in the opening"
+    scoped = scope_check(profile, opening_fm)
+    if scoped is None:
+        return "FLAG", f"work mode {base} is not one the gate knows; confirm where the role is done"
+    return scoped[1], scoped[2]
 
 
 # --- seniority ----------------------------------------------------------------------------------------------------
