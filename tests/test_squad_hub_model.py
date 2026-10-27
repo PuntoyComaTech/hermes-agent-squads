@@ -1047,11 +1047,11 @@ def test_the_chat_zone_is_found_from_the_layout_even_with_its_tab_strip_off(mode
 def test_a_manager_row_counts_the_cards_waiting_on_you_not_every_blocked_card(model):
     """The manager row showed a bare "8": every blocked card, even those cleared from the bell or blocked on another
     card. It now counts what waits on your answer and is still in the bell; cleared ones stay listed, uncounted."""
-    b = board(task("t_aa01", "blocked", assignee="omni", block_kind="needs_input", started=100),
-              task("t_aa02", "blocked", assignee="omni-scout", block_kind="needs_input", started=200),
-              task("t_aa03", "blocked", assignee="omni", block_kind="dependency", started=300),
-              task("t_aa04", "running", assignee="omni-ops"))
-    entry = {"slug": "omnicommerce", "name": "Omnicommerce", "digest": model("boardDigest", b)}
+    b = board(task("t_aa01", "blocked", assignee="shop", block_kind="needs_input", started=100),
+              task("t_aa02", "blocked", assignee="shop-scout", block_kind="needs_input", started=200),
+              task("t_aa03", "blocked", assignee="shop", block_kind="dependency", started=300),
+              task("t_aa04", "running", assignee="shop-ops"))
+    entry = {"slug": "shop", "name": "Shop", "digest": model("boardDigest", b)}
     waiting = model("boardWaiting", entry, {})
     assert [x["taskId"] for x in waiting] == ["t_aa02", "t_aa01"], "newest first, the dependency wait is not yours"
     cleared = {model("dismissKey", waiting[0]): 1}
