@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.5 - 2026-10-27
+
+### Fixed
+
+- Every bot's base SOUL says that every message to the user, progress notes included, is in the language of the
+  user's last message, even when tools answer in English. Before, the rule sat once at the end of each role and bots
+  slipped into English in their notes between tool calls.
+
 ## 2.26.4 - 2026-10-27
 
 ### Fixed
