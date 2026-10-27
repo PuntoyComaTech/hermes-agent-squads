@@ -228,18 +228,39 @@ function bellGroups(items) {
 
 /** Prefs saved by an older version, brought once to this version's defaults: floating sides on, the Kanban sidebar
  *  row hidden (squads read their boards here), the Squads theme on every bot. A choice made after that is kept. */
-const PREFS_VERSION = 2
+const PREFS_VERSION = 3
 function upgradePrefs(stored, defaults) {
   const p = { ...defaults, ...(stored || {}) }
   // the version saved with the prefs, never the defaults' own: prefs from before versioning have none
-  if (stored && (Number(stored.prefsVersion) || 0) < 2) {
+  const from = stored ? Number(stored.prefsVersion) || 0 : PREFS_VERSION
+  if (from < 2) {
     p.floatSides = true
     p.squadsTheme = true
     p.hiddenNav = [...new Set([...(p.hiddenNav || []), 'kanban:nav'])]
   }
+  // 1.3.0 hid Desktop's own profile selector and Bots tab by default: they come back, hiding them is a choice
+  if (from < 3) {
+    p.hideRail = false
+    p.hideBotsTab = false
+  }
   p.prefsVersion = PREFS_VERSION
   return p
 }
+
+/** The layout group that holds the chat (`workspace`), read from the layout tree Desktop persists. A zone whose tab
+ *  strip is off (or that fronts a session tab) has no `workspace` tab in the DOM, so the tree is the only sure way. */
+function workspaceGroup(node) {
+  if (!node || typeof node !== 'object') return null
+  if (node.type === 'group') return (node.panes || []).includes('workspace') ? node.id : null
+  for (const c of node.children || []) {
+    const id = workspaceGroup(c)
+    if (id) return id
+  }
+  return null
+}
+
+/** The cards on a board that wait on you and were not cleared from the bell: what a manager's row counts. */
+const boardWaiting = (board, dismissed) => (board ? bellVisible(bellItems([], [], [board]), dismissed) : [])
 
 /** The bots of one squad, the manager first: those stamped with the same squad name, or (a fleet with no stamp) filed
  *  in a Desktop section named like the manager ("Acme shop manager" -> section "Acme shop"). Empty when the bot
@@ -699,8 +720,25 @@ const {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
   SessionStatusDot, COMPOSER_AREAS, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleRow, EmptyState,
   CapabilitiesView, ColorSwatches, PROFILE_SWATCHES, CHAT_EMPTY_AREA, profileColor, haptic, isSubmitEnter, requestTheme, useTheme, THEMES_AREA, STATUSBAR_AREAS, PALETTE_AREA, KEYBINDS_AREA, SIDEBAR_NAV_PREFS_AREA,
-  TRANSCRIPT_DIRECTIVE_AREA, Skeleton, Wordmark
+  TRANSCRIPT_DIRECTIVE_AREA, Skeleton, Wordmark, ackStoredSessionId
 } = sdk
+
+/** Read a chat in Desktop's own unread store, in its own bot's bucket and on the backend. Desktop acks the chat in view
+ *  under the window's profile only, so a chat of another bot opened as a tab kept its "unread" mark for good. */
+async function markRead(bot, id) {
+  if (!id) return
+  try {
+    const row = (queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []).find(c => c.id === id && (!bot || c.profile === bot))
+    const ids = row ? chatIds(row) : [id]
+    const raw = JSON.parse(localStorage.getItem('hermes.desktop.unreadFinishedSessions') || '{}')
+    for (const x of ids) {
+      // the owner's bucket; other buckets only when the owner is unknown (another bot's same-named chat stays)
+      const buckets = bot ? [bot] : [null, ...Object.keys(raw).filter(p => (raw[p] || []).includes(x))]
+      for (const p of buckets) ackStoredSessionId?.(x, p)
+    }
+  } catch {}
+  if (bot) await patchSession({ name: bot }, id, { unread: false }).catch(() => null)
+}
 
 const ID = 'squad-hub'
 const SNAPSHOT_KEY = ['squad-hub', 'snapshot']
@@ -714,7 +752,7 @@ const rpc = (method, params) => host.request(method, params)
 
 const MESSAGES = {
   en: {
-    cleanMenu: 'Clean up…', cleanTitle: 'Clean up {0}', cleanHelp: 'Pick what to tidy. Chats are archived; a removed worktree frees its disk space and keeps its branch, so no commit is lost.', cleanNothing: 'Nothing to clean: every chat is recent or needs you, and every worktree is in use.', cleanWorktrees: 'Worktrees with nothing to lose', cleanChats: 'Chats unused for 2+ days', cleanWhy_merged: 'PR merged', cleanWhy_closed: 'PR closed', cleanWhy_idle: 'unused for 2+ days', cleanWhy_recent: 'used recently', cleanWhy_nochats: 'no chats, check it first', cleanMore: '{0} more are not shown', cleanKeeps: 'Kept: chats working, unread, in view or pinned; worktrees with changes, unpushed commits or an open PR.', cleanGo: 'Clean up ({0})', cleaning: 'Cleaning…', cleanDone: '{0} cleaned up.', cleanFailed: '{0} could not be.', squadBots: 'Squad bots', 
+    chipWaiting: '{0} waiting on you', chipBlocked: '{0} waiting on you · seen', chipRunning: '{0} running', chipReview: '{0} in review', chipHead: 'Cards on the {0} board that wait on you', chipTimeline: 'Open the timeline', cleanMenu: 'Clean up…', cleanTitle: 'Clean up {0}', cleanHelp: 'Pick what to tidy. Chats are archived; a removed worktree frees its disk space and keeps its branch, so no commit is lost.', cleanNothing: 'Nothing to clean: every chat is recent or needs you, and every worktree is in use.', cleanWorktrees: 'Worktrees with nothing to lose', cleanChats: 'Chats unused for 2+ days', cleanWhy_merged: 'PR merged', cleanWhy_closed: 'PR closed', cleanWhy_idle: 'unused for 2+ days', cleanWhy_recent: 'used recently', cleanWhy_nochats: 'no chats, check it first', cleanMore: '{0} more are not shown', cleanKeeps: 'Kept: chats working, unread, in view or pinned; worktrees with changes, unpushed commits or an open PR.', cleanGo: 'Clean up ({0})', cleaning: 'Cleaning…', cleanDone: '{0} cleaned up.', cleanFailed: '{0} could not be.', squadBots: 'Squad bots', 
     openProject: 'Open the project', back: 'Back to the list', foldersN: '{0} folders', olderChats: 'Older chats', bellChats: 'Chats asking you', bellClearGroup: 'Clear', 
     search: 'Search chats, projects, worktrees', refresh: 'Refresh', loading: 'Loading…', loadFailed: 'Could not load',
     newChatWith: 'New chat with {0}', newChatIn: 'New chat in {0}', newChatHere: 'New chat here', chats: 'Chats',
@@ -738,10 +776,10 @@ const MESSAGES = {
     sortRecent: 'Order bots by recent activity', sortRecentHint: 'Off: default, builder, then managers.', navRows: 'Sidebar rows',
     visibleBots: 'Visible bots', allVisible: 'Every bot you can talk to is listed here; squad workers never are.',
     ctxPreviews: 'Previews', ctxFiles: 'Files', ctxReview: 'Review', ctxTerminal: 'Terminal', botCaps: 'Capabilities of {0}',
-    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side', cmdPinRight: 'Squads: pin or hide the right side', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', introHint: 'Works in the place below. Ask away.', alsoPending: 'Also waiting here', floatSides: 'Floating sides', floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar pin them.', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.', openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.', envOpenFailed: 'Could not open it. Is an app set to open this file type?', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', themeActive: 'In use', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', cmdTimeline: 'Squads: open the timeline', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', tlSkipped: '{0} older cards are not drawn; pick a shorter window.', out_spawn_failed: 'did not start', out_stale: 'went stale', out_review_requested: 'sent to review', out_changes_requested: 'changes requested', out_scheduled: 'scheduled', iss_stranded_in_ready: 'Ready but nobody picks it up', iss_triage_aux_unavailable: 'Triage could not run', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', tlHint: 'Hover a bar for details; click it for the card.', tlStill: 'still', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', timeline: 'Timeline', timelineTitle: 'Squads timeline', timelineEmpty: 'No board with work yet', timelineEmptyHint: 'A squad’s board appears here once its manager files cards.', timelineQuiet: 'Nothing ran in this window.', tlLegend: 'Solid: a bot working · faint: a card waiting · red: a run that failed. Hover a bar for details.', tlWaited: 'waited {0}', issuesTitle: 'What went wrong', issuesNone: 'Nothing to look at in this window.', iss_repeated_failures: 'Repeated failures', iss_repeated_crashes: 'Repeated crashes', iss_stuck_in_blocked: 'Stuck blocked', iss_block_unblock_cycling: 'Blocked again and again', iss_hallucinated_cards: 'Invented cards', iss_prose_phantom_refs: 'Refers to cards that do not exist', iss_review_dependency_deadlock: 'Review deadlock', iss_running_with_open_parents: 'Ran before its parents finished', iss_run_failed: 'A run failed', iss_slow_start: 'Waited long to start', iss_waiting_on_you: 'Waiting on you', out_completed: 'done', out_crashed: 'crashed', out_timed_out: 'timed out', out_blocked: 'blocked', out_reclaimed: 'reclaimed', out_rate_limited: 'rate limited', out_gave_up: 'gave up', out_running: 'running', col_blocked: 'blocked', col_review: 'review', col_running: 'running', col_todo: 'to do', col_done: 'done', col_ready: 'ready', col_triage: 'triage', col_scheduled: 'scheduled', col_archived: 'archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Opens the timeline.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', bellCard: '{0} board · {1} needs an answer', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardTimeline: 'Timeline', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
+    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side', cmdPinRight: 'Squads: pin or hide the right side', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', introHint: 'Works in the place below. Ask away.', alsoPending: 'Also waiting here', floatSides: 'Floating sides', floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar pin them.', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.', openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.', envOpenFailed: 'Could not open it. Is an app set to open this file type?', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', themeActive: 'In use', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', cmdTimeline: 'Squads: open the timeline', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', tlSkipped: '{0} older cards are not drawn; pick a shorter window.', out_spawn_failed: 'did not start', out_stale: 'went stale', out_review_requested: 'sent to review', out_changes_requested: 'changes requested', out_scheduled: 'scheduled', iss_stranded_in_ready: 'Ready but nobody picks it up', iss_triage_aux_unavailable: 'Triage could not run', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', tlHint: 'Hover a bar for details; click it for the card.', tlStill: 'still', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', timeline: 'Timeline', timelineTitle: 'Squads timeline', timelineEmpty: 'No board with work yet', timelineEmptyHint: 'A squad’s board appears here once its manager files cards.', timelineQuiet: 'Nothing ran in this window.', tlLegend: 'Solid: a bot working · faint: a card waiting · red: a run that failed. Hover a bar for details.', tlWaited: 'waited {0}', issuesTitle: 'What went wrong', issuesNone: 'Nothing to look at in this window.', iss_repeated_failures: 'Repeated failures', iss_repeated_crashes: 'Repeated crashes', iss_stuck_in_blocked: 'Stuck blocked', iss_block_unblock_cycling: 'Blocked again and again', iss_hallucinated_cards: 'Invented cards', iss_prose_phantom_refs: 'Refers to cards that do not exist', iss_review_dependency_deadlock: 'Review deadlock', iss_running_with_open_parents: 'Ran before its parents finished', iss_run_failed: 'A run failed', iss_slow_start: 'Waited long to start', iss_waiting_on_you: 'Waiting on you', out_completed: 'done', out_crashed: 'crashed', out_timed_out: 'timed out', out_blocked: 'blocked', out_reclaimed: 'reclaimed', out_rate_limited: 'rate limited', out_gave_up: 'gave up', out_running: 'running', col_blocked: 'blocked', col_review: 'review', col_running: 'running', col_todo: 'to do', col_done: 'done', col_ready: 'ready', col_triage: 'triage', col_scheduled: 'scheduled', col_archived: 'archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Click for the cards waiting on you; the timeline is at the bottom.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', bellCard: '{0} board · {1} needs an answer', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardTimeline: 'Timeline', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
   },
   es: {
-    cleanMenu: 'Limpiar…', cleanTitle: 'Limpiar {0}', cleanHelp: 'Elige qué ordenar. Los chats se archivan; un worktree quitado libera su espacio en disco y conserva su rama, así que no se pierde ningún commit.', cleanNothing: 'Nada que limpiar: todos los chats son recientes o te necesitan y todos los worktrees están en uso.', cleanWorktrees: 'Worktrees sin nada que perder', cleanChats: 'Chats sin uso hace 2+ días', cleanWhy_merged: 'PR fusionado', cleanWhy_closed: 'PR cerrado', cleanWhy_idle: 'sin uso hace 2+ días', cleanWhy_recent: 'usado hace poco', cleanWhy_nochats: 'sin chats, revísalo antes', cleanMore: 'Hay {0} más que no se muestran', cleanKeeps: 'Se conservan: chats trabajando, sin leer, a la vista o fijados; worktrees con cambios, commits sin subir o un PR abierto.', cleanGo: 'Limpiar ({0})', cleaning: 'Limpiando…', cleanDone: '{0} limpiados.', cleanFailed: '{0} no se pudieron.', squadBots: 'Bots del squad', 
+    chipWaiting: '{0} te esperan', chipBlocked: '{0} te esperan · vistas', chipRunning: '{0} en curso', chipReview: '{0} en revisión', chipHead: 'Tarjetas del tablero {0} que te esperan', chipTimeline: 'Abrir la línea de tiempo', cleanMenu: 'Limpiar…', cleanTitle: 'Limpiar {0}', cleanHelp: 'Elige qué ordenar. Los chats se archivan; un worktree quitado libera su espacio en disco y conserva su rama, así que no se pierde ningún commit.', cleanNothing: 'Nada que limpiar: todos los chats son recientes o te necesitan y todos los worktrees están en uso.', cleanWorktrees: 'Worktrees sin nada que perder', cleanChats: 'Chats sin uso hace 2+ días', cleanWhy_merged: 'PR fusionado', cleanWhy_closed: 'PR cerrado', cleanWhy_idle: 'sin uso hace 2+ días', cleanWhy_recent: 'usado hace poco', cleanWhy_nochats: 'sin chats, revísalo antes', cleanMore: 'Hay {0} más que no se muestran', cleanKeeps: 'Se conservan: chats trabajando, sin leer, a la vista o fijados; worktrees con cambios, commits sin subir o un PR abierto.', cleanGo: 'Limpiar ({0})', cleaning: 'Limpiando…', cleanDone: '{0} limpiados.', cleanFailed: '{0} no se pudieron.', squadBots: 'Bots del squad', 
     openProject: 'Abrir el proyecto', back: 'Volver a la lista', foldersN: '{0} carpetas', olderChats: 'Chats anteriores', bellChats: 'Chats que te preguntan', bellClearGroup: 'Limpiar', 
     search: 'Buscar chats, proyectos, worktrees', refresh: 'Actualizar', loading: 'Cargando…', loadFailed: 'No se pudo cargar',
     newChatWith: 'Nuevo chat con {0}', newChatIn: 'Nuevo chat en {0}', newChatHere: 'Nuevo chat aquí', chats: 'Chats',
@@ -765,7 +803,7 @@ const MESSAGES = {
     sortRecent: 'Ordenar bots por actividad reciente', sortRecentHint: 'Apagado: default, builder y luego managers.', navRows: 'Filas de la barra lateral',
     visibleBots: 'Bots visibles', allVisible: 'Aquí está cada bot con el que puedes hablar; los workers de un squad nunca salen.',
     ctxPreviews: 'Previews', ctxFiles: 'Archivos', ctxReview: 'Revisión', ctxTerminal: 'Terminal', botCaps: 'Capacidades de {0}',
-    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdFloat: 'Squads: costados flotantes sí/no', cmdPinLeft: 'Squads: fijar u ocultar el costado izquierdo', cmdPinRight: 'Squads: fijar u ocultar el costado derecho', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', introHint: 'Trabaja en el lugar de abajo. Pídele lo que necesites.', alsoPending: 'También pendiente aquí', floatSides: 'Costados flotantes', floatSidesHint: 'La lista izquierda y los archivos/terminal de la derecha no ocupan ancho: acerca el puntero a un borde y se deslizan sobre el chat; al salir se ocultan. Los botones laterales de la barra de título los fijan.', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor; cada uno se abre en tu editor para ese archivo.', openInEditor: 'Abrir en el editor', noEnv: 'No hay archivo .env en esta carpeta.', envOpenFailed: 'No se pudo abrir. ¿Hay una app asignada a este tipo de archivo?', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'En todos los bots: inspirado en Catppuccin, de bajo contraste, crema de día y mocha de noche. Apagado, cada bot conserva el tema que le elijas.', themeUse: 'Usarlo', themeActive: 'En uso', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', cmdTimeline: 'Squads: abrir la línea de tiempo', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', tlSkipped: '{0} tarjetas más antiguas no se dibujan; elige un periodo más corto.', out_spawn_failed: 'no arrancó', out_stale: 'quedó colgada', out_review_requested: 'enviada a revisión', out_changes_requested: 'pidieron cambios', out_scheduled: 'programada', iss_stranded_in_ready: 'Lista pero nadie la toma', iss_triage_aux_unavailable: 'El triage no pudo correr', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', tlHint: 'Pasa el puntero por una barra para ver el detalle; haz clic para abrir la tarjeta.', tlStill: 'sigue así', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', timeline: 'Línea de tiempo', timelineTitle: 'Línea de tiempo de los squads', timelineEmpty: 'Aún no hay tableros con trabajo', timelineEmptyHint: 'El tablero de un squad aparece aquí cuando su manager crea tarjetas.', timelineQuiet: 'Nada se ejecutó en este periodo.', tlLegend: 'Sólido: un bot trabajando · tenue: una tarjeta esperando · rojo: una ejecución que falló. Pasa el puntero por una barra para ver el detalle.', tlWaited: 'esperó {0}', issuesTitle: 'Qué salió mal', issuesNone: 'Nada que revisar en este periodo.', iss_repeated_failures: 'Fallos repetidos', iss_repeated_crashes: 'Caídas repetidas', iss_stuck_in_blocked: 'Bloqueada hace tiempo', iss_block_unblock_cycling: 'Se bloquea una y otra vez', iss_hallucinated_cards: 'Tarjetas inventadas', iss_prose_phantom_refs: 'Menciona tarjetas que no existen', iss_review_dependency_deadlock: 'Revisión trabada', iss_running_with_open_parents: 'Corrió antes que sus dependencias', iss_run_failed: 'Una ejecución falló', iss_slow_start: 'Tardó en empezar', iss_waiting_on_you: 'Te está esperando', out_completed: 'hecha', out_crashed: 'se cayó', out_timed_out: 'se pasó de tiempo', out_blocked: 'bloqueada', out_reclaimed: 'reclamada', out_rate_limited: 'límite de uso', out_gave_up: 'abandonada', out_running: 'en curso', col_blocked: 'bloqueadas', col_review: 'en revisión', col_running: 'en curso', col_todo: 'por hacer', col_done: 'hechas', col_ready: 'listas', col_triage: 'triage', col_scheduled: 'programadas', col_archived: 'archivadas', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Abre la línea de tiempo.', pr_open: 'abierto', pr_draft: 'borrador', pr_merged: 'fusionado', pr_closed: 'cerrado', changedFiles: '{0} archivos cambiados', toPush: '{0} commits por subir', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', bellCard: 'tablero {0} · {1} necesita una respuesta', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardTimeline: 'Línea de tiempo', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
+    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdFloat: 'Squads: costados flotantes sí/no', cmdPinLeft: 'Squads: fijar u ocultar el costado izquierdo', cmdPinRight: 'Squads: fijar u ocultar el costado derecho', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', introHint: 'Trabaja en el lugar de abajo. Pídele lo que necesites.', alsoPending: 'También pendiente aquí', floatSides: 'Costados flotantes', floatSidesHint: 'La lista izquierda y los archivos/terminal de la derecha no ocupan ancho: acerca el puntero a un borde y se deslizan sobre el chat; al salir se ocultan. Los botones laterales de la barra de título los fijan.', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor; cada uno se abre en tu editor para ese archivo.', openInEditor: 'Abrir en el editor', noEnv: 'No hay archivo .env en esta carpeta.', envOpenFailed: 'No se pudo abrir. ¿Hay una app asignada a este tipo de archivo?', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'En todos los bots: inspirado en Catppuccin, de bajo contraste, crema de día y mocha de noche. Apagado, cada bot conserva el tema que le elijas.', themeUse: 'Usarlo', themeActive: 'En uso', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', cmdTimeline: 'Squads: abrir la línea de tiempo', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', tlSkipped: '{0} tarjetas más antiguas no se dibujan; elige un periodo más corto.', out_spawn_failed: 'no arrancó', out_stale: 'quedó colgada', out_review_requested: 'enviada a revisión', out_changes_requested: 'pidieron cambios', out_scheduled: 'programada', iss_stranded_in_ready: 'Lista pero nadie la toma', iss_triage_aux_unavailable: 'El triage no pudo correr', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', tlHint: 'Pasa el puntero por una barra para ver el detalle; haz clic para abrir la tarjeta.', tlStill: 'sigue así', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', timeline: 'Línea de tiempo', timelineTitle: 'Línea de tiempo de los squads', timelineEmpty: 'Aún no hay tableros con trabajo', timelineEmptyHint: 'El tablero de un squad aparece aquí cuando su manager crea tarjetas.', timelineQuiet: 'Nada se ejecutó en este periodo.', tlLegend: 'Sólido: un bot trabajando · tenue: una tarjeta esperando · rojo: una ejecución que falló. Pasa el puntero por una barra para ver el detalle.', tlWaited: 'esperó {0}', issuesTitle: 'Qué salió mal', issuesNone: 'Nada que revisar en este periodo.', iss_repeated_failures: 'Fallos repetidos', iss_repeated_crashes: 'Caídas repetidas', iss_stuck_in_blocked: 'Bloqueada hace tiempo', iss_block_unblock_cycling: 'Se bloquea una y otra vez', iss_hallucinated_cards: 'Tarjetas inventadas', iss_prose_phantom_refs: 'Menciona tarjetas que no existen', iss_review_dependency_deadlock: 'Revisión trabada', iss_running_with_open_parents: 'Corrió antes que sus dependencias', iss_run_failed: 'Una ejecución falló', iss_slow_start: 'Tardó en empezar', iss_waiting_on_you: 'Te está esperando', out_completed: 'hecha', out_crashed: 'se cayó', out_timed_out: 'se pasó de tiempo', out_blocked: 'bloqueada', out_reclaimed: 'reclamada', out_rate_limited: 'límite de uso', out_gave_up: 'abandonada', out_running: 'en curso', col_blocked: 'bloqueadas', col_review: 'en revisión', col_running: 'en curso', col_todo: 'por hacer', col_done: 'hechas', col_ready: 'listas', col_triage: 'triage', col_scheduled: 'programadas', col_archived: 'archivadas', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Clic para ver las tarjetas que te esperan; la línea de tiempo está al final.', pr_open: 'abierto', pr_draft: 'borrador', pr_merged: 'fusionado', pr_closed: 'cerrado', changedFiles: '{0} archivos cambiados', toPush: '{0} commits por subir', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', bellCard: 'tablero {0} · {1} necesita una respuesta', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardTimeline: 'Línea de tiempo', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
   }
 }
 const fmt = (s, ...a) => String(s).replace(/\{(\d+)\}/g, (_, i) => a[i] ?? '')
@@ -783,7 +821,7 @@ const patchSession = (bot, id, body) =>
   window.hermesDesktop.api({ path: `/api/sessions/${encodeURIComponent(id)}`, method: 'PATCH', profile: bot.name, body: { ...body, profile: bot.name } })
 
 // ───────────────────────────── state ─────────────────────────────
-const DEFAULT_PREFS = { notifyAway: true, envDoubleClick: true, floatSides: true, squadsTheme: true, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: true, hideRail: true, hiddenNav: ['kanban:nav'], prefsVersion: PREFS_VERSION }
+const DEFAULT_PREFS = { notifyAway: true, envDoubleClick: true, floatSides: true, squadsTheme: true, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: false, hideRail: false, hiddenNav: ['kanban:nav'], prefsVersion: PREFS_VERSION }
 let storage = null
 let ctxRef = null
 const prefsAtom = atom({ ...DEFAULT_PREFS })
@@ -812,10 +850,29 @@ const isOpen = (collapsed, key, def = true) => (key in collapsed ? !collapsed[ke
  *  still comes from the backend. */
 /** Desktop flags a chat that finished while you were elsewhere in its own persisted marker (the backend learns
  *  about it later, if at all); this reads that same marker so the list agrees with the dots everywhere else. */
+const UNREAD_DAYS = 3
+/** Every id a chat answers to: its own and, after auto-compression, its lineage root (where Desktop keys its marker). */
+const chatIds = c => [...new Set([c.id, c._lineage_root_id, ...(Array.isArray(c._lineage_ids) ? c._lineage_ids : [])].filter(Boolean))]
 function readUnreadMarkers() {
   try {
     const raw = JSON.parse(localStorage.getItem('hermes.desktop.unreadFinishedSessions') || '{}')
-    return [...new Set(Object.values(raw).flat().filter(id => typeof id === 'string'))].sort()
+    // Desktop paints a chat's dot from its OWN profile's bucket only; a stale copy of the id under another profile
+    // (left there by a window that had that profile up) is not unread, and nothing would ever clear it
+    const chats = queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []
+    const owners = new Map()
+    const old = new Set()
+    const now = Date.now() / 1000
+    for (const c of chats) {
+      // a compressed chat's marker sits under its lineage root
+      for (const id of chatIds(c)) {
+        if (!owners.has(id)) owners.set(id, new Set())
+        owners.get(id).add(c.profile || 'default')
+        // a chat untouched for days is not news: its old marker would keep it in every shortcut list
+        const t = sessionTime(c)
+        if (t > 0 && now - t > UNREAD_DAYS * 86400) old.add(id)
+      }
+    }
+    return [...new Set(Object.entries(raw).flatMap(([p, ids]) => (Array.isArray(ids) ? ids : []).filter(id => typeof id === 'string' && !old.has(id) && (!owners.has(id) || owners.get(id).has(p)))))].sort()
   } catch {
     return []
   }
@@ -879,10 +936,24 @@ let floatTimers = {}
 let floatStyle = null
 let floatOff = null
 
+/** Desktop keeps one layout tree per interface mode (`.simple` suffix in Simple mode): read both. */
+function layoutTrees() {
+  const out = []
+  for (const k of ['hermes.desktop.layoutTree.v2', 'hermes.desktop.layoutTree.v2.simple']) {
+    try {
+      const t = JSON.parse(localStorage.getItem(k) || 'null')
+      if (t) out.push(t)
+    } catch {}
+  }
+  return out
+}
+
 function sideWrappers() {
   // The row the chat sits in, climbed from the workspace: a column-root layout (Terminal deck, Quad) keeps its
   // bottom rail and never has a top or bottom child mistaken for a side.
+  const fromTree = layoutTrees().map(workspaceGroup).filter(Boolean).map(id => document.querySelector(`[data-tree-group="${cssEscape(id)}"]:not([data-pane-host])`)).find(Boolean)
   const ws = document.querySelector('[data-tree-tab="workspace"]')?.closest('[data-tree-group]') ||
+    fromTree ||
     document.querySelector(`[data-tree-group="${cssEscape(document.querySelector('[data-pane-host="workspace"]')?.getAttribute('data-tree-group') || '')}"]:not([data-pane-host])`)
   let root = ws?.closest('[data-tree-split]')
   while (root && getComputedStyle(root).flexDirection !== 'row') root = root.parentElement?.closest('[data-tree-split]')
@@ -909,6 +980,7 @@ function paintFloat() {
   if (!root) {
     floatState.left.groups = []
     floatState.right.groups = []
+    for (const e of document.querySelectorAll('[data-sqh-edge]')) e.hidden = true
     return
   }
   root.dataset.sqhFloatRoot = ''
@@ -919,6 +991,8 @@ function paintFloat() {
     const groups = el ? [...el.querySelectorAll('[data-tree-group]')].map(g => g.getAttribute('data-tree-group')) : []
     if (!el || !groups.length) {
       st.groups = []
+      const edge = document.querySelector(`[data-sqh-edge="${side}"]`)
+      if (edge) edge.hidden = true
       continue
     }
     if (el.dataset.sqhSide !== side) {
@@ -930,6 +1004,9 @@ function paintFloat() {
     const show = st.open || st.pinned
     if (show) el.dataset.sqhOpen = ''
     else delete el.dataset.sqhOpen
+    // the edge strip only where this side floats hidden: never a dead band over a side that is shown or absent
+    const edge = document.querySelector(`[data-sqh-edge="${side}"]`)
+    if (edge) edge.hidden = show
     // pane hosts sit outside the split tree: lift them with their side, and hide them with it so a closed side
     // can neither be focused off-screen nor shift the window
     for (const id of groups) rules.push(`[data-pane-host][data-tree-group="${cssEscape(id)}"]{z-index:46!important;background:var(--sidebar,var(--ui-bg-chrome,var(--background)));${show ? 'opacity:1;transition:opacity var(--sqh-in) ease!important;' : 'opacity:.35;visibility:hidden!important;transition:opacity var(--sqh-out) ease-in,visibility 0s linear var(--sqh-out)!important;'}}`)
@@ -950,12 +1027,8 @@ function zonesOf(node, out = {}) {
 }
 function watchReveals() {
   if (!floatOff) return
-  let zones
-  try {
-    zones = zonesOf(JSON.parse(localStorage.getItem('hermes.desktop.layoutTree.v2') || 'null'))
-  } catch {
-    return
-  }
+  const zones = {}
+  for (const t of layoutTrees()) zonesOf(t, zones)
   for (const side of ['left', 'right']) {
     const st = floatState[side]
     const sig = st.groups.map(id => id + '=' + (zones[id] || '')).join('|')
@@ -1006,8 +1079,9 @@ function onFloatPointer(e) {
   for (const side of ['left', 'right']) {
     const st = floatState[side]
     if (!st.groups.length || st.pinned) continue
-    // the band is measured from the chat's own edge, so a profile rail or a window inset never pushes it outward
-    const main = document.querySelector('[data-sqh-main]')?.getBoundingClientRect()
+    // the band is measured from the layout's own outer edge, so a profile rail or a window inset never pushes it
+    // outward, and a column between the chat and the side (a preview) never pulls it inward
+    const main = document.querySelector('[data-sqh-float-root]')?.getBoundingClientRect()
     const atEdge = side === 'left' ? x <= (main ? Math.max(0, main.left) : 0) + FLOAT_EDGE : x >= (main ? Math.min(window.innerWidth, main.right) : window.innerWidth) - FLOAT_EDGE
     if (!st.open) {
       // armed once on entering the band and kept while the pointer moves inside it: re-arming on every move meant the
@@ -1048,7 +1122,8 @@ function sideOfToggle(target) {
 }
 function onToggleClick(e) {
   const side = sideOfToggle(e.target)
-  if (!side) return
+  // a side that does not float keeps Desktop's own toggle: swallowing it would leave the button dead
+  if (!side || !floatState[side].groups.length) return
   e.stopPropagation()
   e.preventDefault()
   // every click toggles, however fast (the OS numbers a burst 1, 2, 3…); the dblclick event itself is only swallowed
@@ -1064,13 +1139,8 @@ function onToggleKey(e) {
 }
 /** A side zone left folded (by a toggle before floating was on) unfolds through Desktop's own toggle once. */
 function unfoldSides() {
-  let tree
-  try {
-    tree = JSON.parse(localStorage.getItem('hermes.desktop.layoutTree.v2') || 'null')
-  } catch {
-    return
-  }
-  const folded = zonesOf(tree)
+  const folded = {}
+  for (const t of layoutTrees()) zonesOf(t, folded)
   for (const side of ['left', 'right']) {
     if (floatState[side].groups.some(id => String(folded[id] || '').endsWith(':min'))) {
       ctxRef?.runAction?.(side === 'left' ? 'view.toggleSidebar' : 'view.toggleRightSidebar')
@@ -1102,6 +1172,26 @@ function startFloat() {
       setSide(side, false)
     }
   }
+  // A preview (an Electron <webview>) swallows every pointer event over it, so a side whose screen edge it covers
+  // never heard the pointer arrive. A thin strip on each edge, above the page, hears it instead.
+  const catchers = ['left', 'right'].map(side => {
+    const el = document.createElement('div')
+    el.dataset.sqhEdge = side
+    el.hidden = true
+    el.addEventListener('pointerenter', () => {
+      const st = floatState[side]
+      if (st.groups.length && !st.open && !st.pinned && !floatTimers[side]) floatTimers[side] = setTimeout(() => setSide(side, true), FLOAT_SHOW_MS)
+    })
+    el.addEventListener('pointerleave', () => {
+      // a pointer that only brushed the edge leaves before the side shows: nothing opens (a re-enter re-arms it)
+      if (!floatState[side].open) {
+        clearTimeout(floatTimers[side])
+        floatTimers[side] = null
+      }
+    })
+    document.body.append(el)
+    return el
+  })
   const timer = setInterval(paintFloat, 1200)
   const revealTimer = setInterval(watchReveals, 250)
   document.addEventListener('pointermove', onFloatPointer, { passive: true })
@@ -1111,6 +1201,7 @@ function startFloat() {
   window.addEventListener('keydown', onToggleKey, true)
   setTimeout(unfoldSides, 400)
   floatOff = () => {
+    for (const el of catchers) el.remove()
     clearInterval(timer)
     clearInterval(revealTimer)
     for (const k of Object.keys(sideSig)) delete sideSig[k]
@@ -1414,6 +1505,7 @@ async function loadLaneStatus(repo, lanes) {
 async function openChat(bot, id, intent = 'tab') {
   try {
     await host.openSession(id, { profile: bot, intent })
+    markRead(bot, id).then(refreshSoon)
   } catch (e) {
     host.notifyError(e, 'Could not open the chat')
   }
@@ -2169,17 +2261,19 @@ function CleanDialog({ state, close }) {
     setBusy(true)
     let done = 0
     let failed = 0
+    let why = ''
+    const fail = (name, e) => { failed++; why = why || `${name}: ${String(e?.message || e).replace(/^Error:\s*/, '').slice(0, 160)}` }
     for (const c of plan.chats) {
       if (!picked.has('chat:' + c.session.id)) continue
-      try { await patchSession(state.bot, c.session.id, { archived: true }); done++ } catch { failed++ }
+      try { await patchSession(state.bot, c.session.id, { archived: true }); done++ } catch (e) { fail(c.session.title || c.session.id, e) }
     }
     for (const w of plan.worktrees) {
       if (!picked.has('wt:' + w.key)) continue
-      try { await git().worktreeRemove(w.folderPath, w.path); done++ } catch { failed++ }
+      try { await git().worktreeRemove(w.folderPath, w.path); done++ } catch (e) { fail(w.label, e) }
     }
     setBusy(false)
     await refresh()
-    host.notify({ kind: failed ? 'warning' : 'success', message: fmt(lang().cleanDone, done) + (failed ? ' ' + fmt(lang().cleanFailed, failed) : '') })
+    host.notify({ kind: failed ? 'warning' : 'success', message: fmt(lang().cleanDone, done) + (failed ? ' ' + fmt(lang().cleanFailed, failed) + ' ' + why : '') })
     close()
   }
   const row = (key, main, sub, age) => h('label', { key, className: 'sqh-cleanrow' }, h('input', { type: 'checkbox', checked: picked?.has(key) || false, onChange: () => toggle(key) }), h('span', { className: 'sqh-cleanmain' }, h('span', { className: 'sqh-belltitle' }, main), sub ? h('span', { className: 'sqh-hint' }, sub) : null), age ? h('span', { className: 'sqh-bellage' }, age) : null)
@@ -2456,20 +2550,49 @@ function LaneChip({ status }) {
   )
 }
 
-/** A squad's board on its manager's row: blocked cards (red) and cards in review, nothing when the board is calm. */
+/** A squad's board on its manager's row, in words: the cards waiting on your answer ("8 waiting on you"), else
+ *  what is running. A click lists those cards; each opens with the question it asks and a button to answer. */
 function BoardChip({ bot }) {
   const t = useT()
   const b = useBotBoard(bot)
+  const dismissed = useValue(bellDismissedAtom)
   if (!b) return null
   const { blocked, review, running } = b.digest
-  if (!blocked && !review && !running) return null
-  return h(
-    'button',
-    { type: 'button', className: 'sqh-boardchip', title: t('boardTip', b.name, blocked, review, running), onClick: e => (stop(e), openTimeline(b.slug)), onPointerDown: stop },
-    blocked ? h('span', { className: 'sqh-bc-blocked' }, h('i', {}), blocked) : null,
-    review ? h('span', { className: 'sqh-bc-review' }, h('i', {}), review) : null,
-    !blocked && !review && running ? h('span', { className: 'sqh-bc-running' }, h('i', {}), running) : null
-  )
+  // cleared from the bell = seen: the count goes quiet, but the cards stay listed here until they are answered
+  const waiting = boardWaiting(b, {})
+  const fresh = boardWaiting(b, dismissed).length
+  const label = fresh ? t('chipWaiting', fresh) : waiting.length ? t('chipBlocked', waiting.length) : running ? t('chipRunning', running) : review ? t('chipReview', review) : ''
+  if (!label) return null
+  const tone = fresh ? 'blocked' : waiting.length ? 'seen' : running ? 'running' : 'review'
+  const now = Date.now() / 1000
+  return jsxs(DropdownMenu, {
+    children: [
+      jsx(DropdownMenuTrigger, {
+        asChild: true,
+        children: h(
+          'button',
+          { type: 'button', className: 'sqh-boardchip', 'data-tone': tone, title: t('boardTip', b.name, blocked, review, running), onClick: stop, onPointerDown: stop },
+          h('span', { className: 'sqh-bc-' + tone }, h('i', {}), label)
+        )
+      }),
+      jsx(DropdownMenuContent, {
+        align: 'end',
+        className: 'sqh-bellmenu',
+        children: [
+          h('div', { key: 'h', className: 'sqh-bellhead' }, h('span', {}, waiting.length ? t('chipHead', b.name) : b.name)),
+          ...waiting.slice(0, 10).map(x =>
+            jsx(DropdownMenuItem, {
+              onSelect: () => openCard(x.board, x.taskId),
+              children: h('span', { className: 'sqh-bellrow' }, jsx(Glyph, { name: 'clock', size: 13 }), h('span', { className: 'sqh-bellmain' }, h('span', { className: 'sqh-belltitle' }, String(x.title).slice(0, 70)), h('span', { className: 'sqh-hint' }, x.profile || '')), x.at ? h('span', { className: 'sqh-bellage' }, shortAge(x.at, now)) : null)
+            }, x.key)
+          ),
+          waiting.length > 10 ? h('div', { key: 'more', className: 'sqh-bellhead' }, t('bellMore', waiting.length - 10)) : null,
+          jsx(DropdownMenuSeparator, {}, 'sep'),
+          jsx(DropdownMenuItem, { onSelect: () => openTimeline(b.slug), children: t('chipTimeline') }, 'tl')
+        ].filter(Boolean)
+      })
+    ]
+  })
 }
 
 // ── the bell: approvals, questions and blocked cards across every bot ──
@@ -3179,6 +3302,10 @@ html[data-sqh-float] [data-sqh-side="right"]{right:0;transform:translateX(100%);
 html[data-sqh-float]{--sqh-in:.26s;--sqh-out:.17s;--sqh-ease-in:cubic-bezier(.22,1,.36,1);--sqh-ease-out:cubic-bezier(.4,0,.9,.6)}
 html[data-sqh-float] [data-sqh-side]:not([data-sqh-open]){visibility:hidden;opacity:.35;transition:transform var(--sqh-out) var(--sqh-ease-out),opacity var(--sqh-out) ease-in,visibility 0s linear var(--sqh-out)}
 html[data-sqh-float] [data-sqh-side][data-sqh-open]{transform:none;opacity:1}
+[data-sqh-edge]{position:fixed;top:40px;bottom:28px;width:4px;z-index:44;background:transparent}
+[data-sqh-edge=left]{left:0}
+[data-sqh-edge=right]{right:0}
+[data-sqh-edge][hidden]{display:none}
 @media (prefers-reduced-motion:reduce){html[data-sqh-float]{--sqh-in:.01s;--sqh-out:.01s}}
 .sqh-glyph{flex:none;opacity:.85}
 .sqh-wt{color:var(--midground,var(--ui-accent))}
@@ -3212,7 +3339,8 @@ html[data-sqh-float] [data-sqh-side][data-sqh-open]{transform:none;opacity:1}
 .sqh-bc-blocked i{background:var(--dt-destructive)}
 .sqh-bc-review i{background:var(--color-amber-500)}
 .sqh-bc-running i{background:var(--ui-accent,var(--primary))}
-.sqh-bot:hover .sqh-boardchip{display:none}
+.sqh-boardchip[data-tone=blocked]{color:var(--foreground);font-weight:500}
+.sqh-bc-seen i{background:var(--muted-foreground);opacity:.6}
 .sqh-lanechip{display:inline-flex;gap:6px;align-items:center;margin-left:auto;font-size:10.5px;color:var(--muted-foreground)}
 .sqh-lane:hover .sqh-lanechip{display:none}
 .sqh-pr{display:inline-flex;align-items:center;gap:2px;background:none;border:0;padding:0;color:inherit;cursor:pointer;font:inherit}
@@ -3426,6 +3554,32 @@ export default {
     // opening a chat marks it read in the backend: pick that up so its dot goes quiet here too
     ctx.onDispose(host.state.focusedStoredSessionId.listen(() => setTimeout(refreshSoon, 1200)))
     let shownChat = host.state.focusedStoredSessionId.get()
+    // the chat in view is read, whichever way it came to the front (a tab, Sessions, the bell) and whoever owns it
+    const ownerOf = id => host.state.focusedSessionProfile?.get?.() || (queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []).find(c => c.id === id)?.profile || ''
+    let refreshedFor = null
+    const readShown = () => {
+      const id = host.state.focusedStoredSessionId.get()
+      if (!id) return
+      const row = (queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []).find(c => c.id === id)
+      // a chat the list does not know yet: one fetch per chat, never one per unread change
+      if (!row && refreshedFor !== id) {
+        refreshedFor = id
+        refreshSoon()
+      }
+      const unread = unreadAtom.get()
+      if ((row ? chatIds(row) : [id]).some(x => unread.includes(x))) markRead(ownerOf(id), id).then(syncLive)
+    }
+    let readTimer = null
+    ctx.onDispose(host.state.focusedStoredSessionId.listen(() => {
+      clearTimeout(readTimer)
+      readTimer = setTimeout(readShown, 400)
+    }))
+    ctx.onDispose(() => clearTimeout(readTimer))
+    ctx.onDispose(unreadAtom.listen(readShown))
+    // the unread filters read the chat list: apply them again each time it arrives
+    ctx.onDispose(queryClient.getQueryCache().subscribe(e => {
+      if (e?.type === 'updated' && e.action?.type === 'success' && e.query?.queryKey?.[1] === SNAPSHOT_KEY[1] && e.query.queryKey[0] === SNAPSHOT_KEY[0]) syncLive()
+    }))
     ctx.onDispose(host.state.focusedStoredSessionId.listen(next => {
       if (next === shownChat) return
       onChatSwitch(next, shownChat)

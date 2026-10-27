@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals").split()
+           "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals workspaceGroup boardWaiting").split()
 
 
 def _model_source() -> str:
@@ -1015,3 +1015,45 @@ def test_clean_up_archives_idle_old_chats_and_the_chats_of_a_removed_worktree(mo
     assert by == {"old": True, "inwt": True}, "pinned, working, unread and chats used in the last 2 days stay"
     keep = model("cleanupPlan", _lane_project(model, chats, WT), {"/w/shop/.worktrees/done": _st("merged")}, {"live": ["inwt"]}, now)
     assert keep["worktrees"] == [], "a worktree with a chat that needs you is not offered"
+
+
+def test_prefs_from_1_3_bring_back_the_profile_selector_and_the_bots_tab(model):
+    """1.3.0 hid Desktop's profile selector and Bots tab by default, and the owner lost the bot picker in Sessions
+    without knowing why. Prefs saved by 1.3/1.4 (version 2, both on) get them back once; hiding them stays a choice."""
+    defaults = model("upgradePrefs", None, {"floatSides": True, "hideRail": False, "hideBotsTab": False, "prefsVersion": 3})
+    assert defaults["hideRail"] is False and defaults["hideBotsTab"] is False
+    saved_by_1_4 = {"floatSides": True, "hideBotsTab": True, "hideRail": True, "hiddenNav": ["kanban:nav"], "prefsVersion": 2}
+    up = model("upgradePrefs", saved_by_1_4, defaults)
+    assert up["hideRail"] is False and up["hideBotsTab"] is False and up["prefsVersion"] == 3
+    chosen = {**up, "hideRail": True}
+    assert model("upgradePrefs", chosen, defaults)["hideRail"] is True, "hiding it again after the upgrade is kept"
+
+
+def test_the_chat_zone_is_found_from_the_layout_even_with_its_tab_strip_off(model):
+    """The owner's real layout: the chat zone fronts a session tab and hides its strip, so no `workspace` tab is in
+    the DOM; floating sides found no chat zone and never started. The persisted tree still names it."""
+    tree = {"type": "split", "id": "s-root", "orientation": "row", "children": [
+        {"type": "group", "id": "g-left", "panes": ["sessions", "hermes-bots:pane", "squad-hub:pane"], "active": "squad-hub:pane"},
+        {"type": "group", "id": "g-main", "panes": ["workspace", "terminal", "session-tile:20261026_221647_7354c3"],
+         "active": "session-tile:20261026_221647_7354c3", "tabStrip": "never"},
+        {"type": "group", "id": "g-preview", "panes": ["preview-tile:url:browser-1"], "active": "preview-tile:url:browser-1"},
+        {"type": "split", "id": "s-right", "orientation": "column", "children": [
+            {"type": "group", "id": "g-files", "panes": ["files"], "active": "files"}]}]}
+    assert model("workspaceGroup", tree) == "g-main"
+    assert model("workspaceGroup", {"type": "group", "id": "g", "panes": ["files"]}) is None
+    assert model("workspaceGroup", None) is None
+
+
+def test_a_manager_row_counts_the_cards_waiting_on_you_not_every_blocked_card(model):
+    """The manager row showed a bare "8": every blocked card, even those cleared from the bell or blocked on another
+    card. It now counts what waits on your answer and is still in the bell; cleared ones stay listed, uncounted."""
+    b = board(task("t_aa01", "blocked", assignee="omni", block_kind="needs_input", started=100),
+              task("t_aa02", "blocked", assignee="omni-scout", block_kind="needs_input", started=200),
+              task("t_aa03", "blocked", assignee="omni", block_kind="dependency", started=300),
+              task("t_aa04", "running", assignee="omni-ops"))
+    entry = {"slug": "omnicommerce", "name": "Omnicommerce", "digest": model("boardDigest", b)}
+    waiting = model("boardWaiting", entry, {})
+    assert [x["taskId"] for x in waiting] == ["t_aa02", "t_aa01"], "newest first, the dependency wait is not yours"
+    cleared = {model("dismissKey", waiting[0]): 1}
+    assert [x["taskId"] for x in model("boardWaiting", entry, cleared)] == ["t_aa01"]
+    assert model("boardWaiting", None, {}) == []

@@ -3,6 +3,23 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.1 - 2026-10-26
+
+### Fixed
+
+- squad-hub 1.4.2: floating sides work in a layout whose chat zone hides its tab strip or fronts a chat tab (they never
+  started there), and the right side opens over a preview, which swallowed the pointer at that edge. A side that does
+  not float keeps Desktop's own title-bar toggle instead of a dead button.
+- squad-hub 1.4.2: opening a chat clears its "unread" mark whichever bot owns it and however it came to the front
+  (Desktop cleared it only for the window's own bot, so the status bar kept counting it); an unread mark older than 3
+  days no longer counts.
+- squad-hub 1.4.2: Desktop's profile selector and the Bots tab are visible again (1.3.0 hid them by default; hiding
+  them stays a setting).
+- squad-hub 1.4.2: a manager's row says what its board holds ("3 waiting on you", "8 waiting on you · seen") and a click lists those
+  cards, each one click from its question; it was a bare number that opened the timeline.
+- squad-hub 1.4.2: a chat brought to the front that the list does not know yet refreshes the list at once; Clean up
+  names why a step failed (git refuses a worktree with untracked files).
+
 ## 2.26.0 - 2026-10-26
 
 ### Changed

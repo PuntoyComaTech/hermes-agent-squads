@@ -30,6 +30,8 @@ Screenshots use invented projects and boards.
 
 - **One list, no profile switch.** A chat opens as a tab under its own bot, so several bots and projects stay open
   side by side. Opening one never reloads the window.
+- **Desktop's own controls stay.** The profile selector and the Bots tab are still there; hide them in the plugin
+  settings if Squads is all you use.
 - **Only the bots you talk to.** Default, the builder and squad managers; squad workers never show. A bot filed alone
   in its own Desktop section stands beside the managers; any other bot shows under "Other bots" only while it has chats. Hide or pin any of them in Settings > Plugins > Hermes Agent Squads Hub.
 - **Projects with several folders, each with its own worktrees.** "+" on a project, folder or worktree starts a chat
@@ -56,7 +58,8 @@ Screenshots use invented projects and boards.
 - **Floating sides (on by default).** The left list and the right
   files/terminal column take no width: bring the pointer within about 40 px of a screen edge and they slide over the chat like an
   auto-hiding dock, then hide a moment after it leaves (never while you type in them or a menu is open). The title-bar
-  side buttons, ⌘B and ⌘J pin or release a side; the chat keeps a small margin so the edges stay free.
+  side buttons, ⌘B and ⌘J pin or release a side; the chat keeps a small margin so the edges stay free. It works
+  over a preview too, and whatever your layout; a side that cannot float keeps Desktop's own button.
 - **Squads layout.** The **Squads** layout (Layout editor in the title bar) puts files over a short terminal on the right.
 - **Env files.** A project's `.env` files hold secrets, so Desktop's viewer refuses them. Double-click one in the file
   tree (a switch in the settings), or use "Env files…" on a folder or project, and it opens in your system editor; the
@@ -70,7 +73,9 @@ Screenshots use invented projects and boards.
   yet shows as one group, its bots under it. The plugin also ships the **Squads** theme (Catppuccin-inspired, low
   contrast, Inter), on every bot by default: Desktop keeps a theme per bot, so the plugin puts it back on each one;
   turn that off in the plugin settings to pick a theme per bot. Lucide's licence: `LICENSE-lucide.txt`.
-- **Squads at work.** A manager's row wears its board's count (blocked, in review, running); click it for the
+- **Squads at work.** A manager's row says what its board holds, in words: "3 waiting on you" (cards blocked for your answer that are
+  still in the bell), else "8 waiting on you · seen" (cleared from the bell, still unanswered), "2 running" or "1 in review". A click lists those cards, each opening with the
+  question it asks and a button to answer; "Open the timeline" at the bottom opens the
   **timeline**: one lane per bot over the last 6 h, 24 h, 3 days or a week. Bars use one legend, the same as the cards:
   queued, waiting on another card, in progress, blocked, in review (QA), done, failed, stopped; striped while a card
   waits, solid while a bot works. **What went wrong** sits beside it: Hermes' own Kanban diagnostics plus failed runs,
