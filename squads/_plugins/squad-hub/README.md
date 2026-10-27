@@ -36,9 +36,10 @@ Screenshots use invented projects and boards.
   in its own Desktop section stands beside the managers; any other bot shows under "Other bots" only while it has chats. Hide or pin any of them in Settings > Plugins > Hermes Agent Squads Hub.
 - **Projects with several folders, each with its own worktrees.** "+" on a project, folder or worktree starts a chat
   right there; "New worktree" makes a checkout under `.worktrees/` with its own branch.
-- **Previews you can bring back.** Every preview a chat opens is remembered; the status-bar chip lists them and a
-  click reopens one, no prompt to the bot. Coming back to a chat that was showing a preview puts it back on its own
-  when the Desktop lost it on the way (switching between bots can); a preview you closed before leaving stays closed.
+- **Previews you can bring back.** Every preview a chat opens is remembered (it follows the chat if it is compressed
+  into a new session); the status-bar chip, the chat's menu, the command palette and the shortcut list them and a click
+  reopens one, no prompt to the bot. Nothing reopens by itself: a preview you closed stays closed, and entering a chat
+  never adds a tab.
 - **Clean up a project.** "Clean up…" in a project's menu (and on its own view) lists what can go: worktrees with
   nothing to lose (no uncommitted files, nothing unpushed, no chat that needs you, no open or draft PR; kanban
   checkouts never), ticked when their PR is merged or closed or they were not used for 2 days, and chats not used for

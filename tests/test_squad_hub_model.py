@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewToRestore sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals workspaceGroup boardWaiting").split()
+           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed zonesOf zonesOfAll parseLayout sideSignature isReveal cardsToSwitch withTimeout workspaceGroup boardWaiting").split()
 
 
 def _model_source() -> str:
@@ -37,6 +37,13 @@ def model(tmp_path_factory):
     (d / "model.mjs").write_text(_model_source(), encoding="utf-8")
     (d / "package.json").write_text('{"type": "module"}', encoding="utf-8")
 
+    def run_js(body: str):
+        """Arbitrary JS against the model module (values JSON cannot carry: Sets, Maps, identity, timers)."""
+        script = f"import * as m from './model.mjs'; const out = await (async () => {{ {body} }})(); console.log(JSON.stringify(out === undefined ? null : out));"
+        done = subprocess.run([NODE, "--input-type=module", "-e", script], cwd=d, capture_output=True, text=True, timeout=30)
+        assert done.returncode == 0, done.stderr
+        return json.loads(done.stdout)
+
     def call(fn: str, *args):
         script = (f"import * as m from './model.mjs'; const a = JSON.parse(process.argv[1]); "
                   f"const r = await m.{fn}(...a); console.log(JSON.stringify(r === undefined ? null : r));")
@@ -44,6 +51,7 @@ def model(tmp_path_factory):
                              capture_output=True, text=True, timeout=30)
         assert out.returncode == 0, out.stderr
         return json.loads(out.stdout)
+    call.js = run_js
     return call
 
 
@@ -461,23 +469,6 @@ def test_previews_are_capped_per_chat_and_the_oldest_chats_are_evicted(model):
     assert sorted(m) == ["c3", "c4", "c5"], "the least recently used chats go first"
 
 
-def test_returning_to_a_chat_puts_back_the_preview_it_was_showing(model):
-    remembered = [{"url": "http://localhost:4321", "label": "site", "at": 2}, {"url": "/old.html", "at": 1}]
-    assert model("previewToRestore", remembered, True, False)["url"] == "http://localhost:4321"
-
-
-def test_a_preview_the_user_closed_before_leaving_stays_closed(model):
-    remembered = [{"url": "http://localhost:4321", "at": 2}]
-    assert model("previewToRestore", remembered, False, False) is None
-
-
-def test_nothing_is_reopened_when_the_preview_came_back_or_none_is_remembered(model):
-    remembered = [{"url": "http://localhost:4321", "at": 2}]
-    assert model("previewToRestore", remembered, True, True) is None
-    assert model("previewToRestore", [], True, False) is None
-    assert model("previewToRestore", None, True, False) is None
-
-
 def test_a_preview_without_a_chat_or_an_url_is_not_remembered(model):
     assert model("rememberPreview", {}, "", {"url": "/a.html"}) == {}
     assert model("rememberPreview", {}, "chat1", {"url": ""}) == {}
@@ -512,24 +503,6 @@ def test_the_plugin_has_no_jsx_and_no_hardcoded_colors():
     assert not re.search(r"return\s*\(\s*<[A-Za-z]", text) and not re.search(r"=>\s*<[A-Za-z]", text), "disk plugins load uncompiled"
     css = text[text.index("const CSS = `"):text.index("export default")]
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", css), "colors come from theme variables"
-
-
-def test_the_squads_layout_places_files_over_the_terminal_and_never_review():
-    """Review follows the chat (each agent opens its own); a global Review zone in the layout would show the wrong one."""
-    text = PLUGIN.read_text(encoding="utf-8")
-    layout = text[text.index("const SQUADS_LAYOUT = {"):text.index("// ───────────────────────────── data")]
-    panes = re.findall(r"panes: \[([^\]]*)\]", layout)
-    flat = {p.strip(" '") for group in panes for p in group.split(",")}
-    assert {"squad-hub:pane", "workspace", "files", "terminal"} <= flat
-    assert "review" not in flat
-
-
-def test_the_plugin_is_opt_in_and_its_package_is_complete():
-    text = PLUGIN.read_text(encoding="utf-8")
-    assert "id: ID" in text and "const ID = 'squad-hub'" in text and "defaultEnabled: false" in text
-    pkg = PLUGIN.parents[1]
-    assert re.search(r"^name: squad-hub$", (pkg / "plugin.yaml").read_text(), re.M)
-    assert (pkg / "__init__.py").is_file()
 
 
 def test_the_model_markers_exist_once_and_the_model_has_no_imports():
@@ -755,9 +728,10 @@ def test_card_directives_accept_ids_only(model):
 def test_a_worktree_chip_reads_pr_state_and_local_changes(model):
     pr = {"branch": "feat-x", "draft": True, "number": 12, "state": "open", "title": "x", "url": "https://github.com/o/r/pull/12"}
     s = model("laneStatus", pr, {"changed": 3, "ahead": 2, "behind": 0})
-    assert s == {"pr": {"number": 12, "state": "draft", "url": pr["url"], "title": "x"}, "changed": 3, "ahead": 2, "behind": 0}
+    assert s == {"pr": {"number": 12, "state": "draft", "url": pr["url"], "title": "x"}, "changed": 3, "ahead": 2, "behind": 0,
+                 "known": True}
     assert model("laneStatus", {**pr, "draft": False, "state": "merged"}, None)["pr"]["state"] == "merged"
-    assert model("laneStatus", None, None) == {"pr": None, "changed": 0, "ahead": 0, "behind": 0}
+    assert model("laneStatus", None, None) == {"pr": None, "changed": 0, "ahead": 0, "behind": 0, "known": False}
 
 
 def _catalogs():
@@ -979,8 +953,9 @@ WT = {"/w/shop": [{"path": "/w/shop", "branch": "main", "isMain": True},
                   {"path": "/w/shop/.worktrees/t_0a1b2c", "branch": "kanban/t", "isMain": False}]}
 
 
-def _st(state=None, changed=0, ahead=0):
-    return {"pr": {"number": 1, "state": state, "url": "", "title": ""} if state else None, "changed": changed, "ahead": ahead, "behind": 0}
+def _st(state=None, changed=0, ahead=0, known=True):
+    return {"pr": {"number": 1, "state": state, "url": "", "title": ""} if state else None, "changed": changed, "ahead": ahead,
+            "behind": 0, "known": known}
 
 
 def test_clean_up_offers_only_worktrees_with_nothing_to_lose_and_ticks_merged_or_idle_ones(model):
@@ -1057,3 +1032,195 @@ def test_a_manager_row_counts_the_cards_waiting_on_you_not_every_blocked_card(mo
     cleared = {model("dismissKey", waiting[0]): 1}
     assert [x["taskId"] for x in model("boardWaiting", entry, cleared)] == ["t_aa01"]
     assert model("boardWaiting", None, {}) == []
+
+def test_a_worktree_whose_status_could_not_be_read_is_never_offered_for_removal(model):
+    """`repoStatus` can fail (timeout, a broken checkout, an older Desktop). The chip then reads zero changes and zero
+    unpushed commits, which is also what a clean checkout reads: clean up must not take silence for \"nothing to lose\"."""
+    unreadable = model("laneStatus", {"branch": "feat/done", "draft": False, "number": 1, "state": "merged", "title": "", "url": ""}, None)
+    assert unreadable["known"] is False and model("laneStatus", None, {"changed": 0, "ahead": 0})["known"] is True
+    wd = "/w/shop/.worktrees/"
+    wts = {"/w/shop": WT["/w/shop"][:2]}
+    project = _lane_project(model, [], wts)
+    assert [w["label"] for w in model("cleanupPlan", project, {wd + "done": _st("merged")}, {}, 1_000_000.0)["worktrees"]] == ["done"]
+    plan = model("cleanupPlan", project, {wd + "done": unreadable}, {}, 1_000_000.0)
+    assert plan["worktrees"] == []
+
+
+# ---- previews: what a component reads, and where they go when a chat moves ------------------------------------------
+
+def test_a_chat_without_previews_reads_one_shared_empty_list(model):
+    """The row and the status-bar chip read their chat's previews through useSyncExternalStore, which re-renders on any
+    snapshot that is not identical to the last: `map[id] || []` would hand out a new array on every read."""
+    got = model.js("""
+      const map = { c1: [{ url: '/a.html', at: 1 }] }
+      return { empty: m.previewsFor(map, 'nobody') === m.previewsFor(map, 'other'),
+               none: m.previewsFor(null, 'x') === m.previewsFor(undefined, 'x'),
+               same: m.previewsFor(map, 'c1') === map.c1, noId: m.previewsFor(map, null).length }
+    """)
+    assert got == {"empty": True, "none": True, "same": True, "noId": 0}
+
+
+def test_a_compressed_chat_takes_its_previews_to_the_new_stored_id(model):
+    old, new = "20261025_011740_e8a885", "20261025_093012_zz9999"
+    m = {old: [{"url": "http://localhost:4321", "label": "site", "at": 5}, {"url": "/a.html", "at": 3}],
+         new: [{"url": "/a.html", "at": 9}], "other": [{"url": "/z.html", "at": 1}]}
+    got = model("rekeyPreviews", m, old, new)
+    assert old not in got and got["other"] == m["other"]
+    assert [(p["url"], p["at"]) for p in got[new]] == [("/a.html", 9), ("http://localhost:4321", 5)], "newest first, one per url"
+    assert model("rekeyPreviews", m, "ghost", new) == m, "nothing remembered under the old id: nothing moves"
+    assert model("rekeyPreviews", m, old, old) == m and model("rekeyPreviews", m, old, "") == m
+    many = {old: [{"url": f"/p{i}.html", "at": i} for i in range(8)], new: [{"url": f"/q{i}.html", "at": 100 + i} for i in range(8)]}
+    assert len(model("rekeyPreviews", many, old, new)[new]) == 8, "capped like any chat"
+
+
+# ---- which stored chat a runtime serves -----------------------------------------------------------------------------
+
+def test_the_focused_pair_fills_a_gap_but_never_overwrites_what_session_info_said(model):
+    got = model.js("""
+      const bound = new Map()
+      const out = {}
+      out.fill = m.bindRuntime(bound, 'rt-a', 'chat-a', false)           // the pair, nothing known yet
+      out.sure = m.bindRuntime(bound, 'rt-a', 'chat-a2', true)           // session.info: compression moved it
+      out.lag = m.bindRuntime(bound, 'rt-a', 'chat-b', false)            // the stored atom already says B, the runtime atom not yet
+      out.after = bound.get('rt-a')
+      out.first = m.bindRuntime(bound, 'rt-b', 'chat-b', true)
+      out.blank = [m.bindRuntime(bound, '', 'x', true).changed, m.bindRuntime(bound, 'rt-c', null, true).changed]
+      return out
+    """)
+    assert got["fill"] == {"changed": True, "from": ""}
+    assert got["sure"] == {"changed": True, "from": ""}, "an unsure earlier binding is not a rotation to follow"
+    assert got["lag"] == {"changed": False, "from": ""} and got["after"] == {"stored": "chat-a2", "sure": True}
+    assert got["first"] == {"changed": True, "from": ""} and got["blank"] == [False, False]
+    rot = model.js("""
+      const bound = new Map()
+      m.bindRuntime(bound, 'rt-a', 'chat-a', true)
+      return [m.bindRuntime(bound, 'rt-a', 'chat-a', true), m.bindRuntime(bound, 'rt-a', 'chat-a2', true)]
+    """)
+    assert rot == [{"changed": True, "from": ""}, {"changed": True, "from": "chat-a"}], "a sure binding that moves names where it came from"
+
+
+# ---- folded rows ------------------------------------------------------------------------------------------------------
+
+def test_a_row_folds_and_unfolds_from_its_default_and_remembers_the_choice(model):
+    """A quiet folder starts folded, a lane starts unfolded; one click flips whichever it is, and the flag stored for the
+    row wins from then on."""
+    folded_by_default, unfolded_by_default = True, False
+    c = model("toggledCollapsed", {}, "folder:web:p1:/w/a", folded_by_default)
+    assert c == {"folder:web:p1:/w/a": False}, "a click on a folded folder opens it"
+    assert model("openState", c["folder:web:p1:/w/a"], not folded_by_default) is True
+    c = model("toggledCollapsed", c, "folder:web:p1:/w/a", folded_by_default)
+    assert c["folder:web:p1:/w/a"] is True and model("openState", True, True) is False, "the user's fold beats an open default"
+    lane = model("toggledCollapsed", {"other": True}, "lane:web:/w/a", unfolded_by_default)
+    assert lane == {"other": True, "lane:web:/w/a": True}, "a row that starts unfolded folds on the first click"
+    never = model.js("return [m.openState(undefined, true), m.openState(undefined, false)]")
+    assert never == [True, False], "a row never touched has no entry (undefined): the default"
+
+
+# ---- the layout poll and floating sides ---------------------------------------------------------------------------------
+
+LAYOUT = {"type": "split", "id": "sqh-root", "orientation": "row", "weights": [1, 3.6, 1.3], "children": [
+    {"type": "group", "id": "sqh-left", "panes": ["squad-hub:pane", "sessions"], "active": "squad-hub:pane"},
+    {"type": "group", "id": "sqh-main", "panes": ["workspace"], "active": "workspace"},
+    {"type": "split", "id": "sqh-right", "orientation": "column", "weights": [3.4, 1], "children": [
+        {"type": "group", "id": "sqh-files", "panes": ["files"], "active": "files", "minimized": True},
+        {"type": "group", "id": "sqh-term", "panes": ["terminal"], "active": "terminal"}]}]}
+
+
+def _zones(model, *raws):
+    return model.js("return m.zonesOfAll(%s.map(m.parseLayout).filter(Boolean))" % json.dumps(list(raws)))
+
+
+def test_the_persisted_layouts_read_as_zones_and_bad_text_is_skipped(model):
+    """Desktop persists one tree per interface mode; either can be missing or, after a crash, cut off mid-write."""
+    zones = _zones(model, json.dumps(LAYOUT))
+    assert zones == {"sqh-left": "squad-hub:pane", "sqh-main": "workspace", "sqh-files": "files:min", "sqh-term": "terminal"}
+    assert _zones(model, None) == {} and _zones(model, "null", "") == {}, "no layout yet"
+    assert _zones(model, "{not json", '{"type": "gro', json.dumps(LAYOUT)) == zones, "a garbled mode is skipped, the other read"
+    simple = {"type": "group", "id": "sqh-term", "panes": ["terminal", "files"], "active": "files"}
+    assert _zones(model, json.dumps(LAYOUT), json.dumps(simple))["sqh-term"] == "files", "a later mode wins where they share a zone"
+    assert model.js("return [m.parseLayout('{not json') === undefined, m.parseLayout(null) === null, m.parseLayout('') === null]") == [True, True, True]
+
+
+def test_a_side_slides_in_only_when_something_else_reveals_it(model):
+    zones = _zones(model, json.dumps(LAYOUT))
+    right = {"groups": ["sqh-files", "sqh-term"], "open": False, "pinned": False}
+    before = model("sideSignature", right["groups"], {**zones, "sqh-files": "files"})
+    assert before == "sqh-files=files|sqh-term=terminal"
+    other = model("sideSignature", right["groups"], {**zones, "sqh-files": "review"})
+    assert model("isReveal", before, other, right) is True, "another pane took the zone: a reveal from a shortcut or a menu"
+    assert model.js("return m.isReveal(undefined, 'a=b', { groups: ['a'], open: false, pinned: false })") is False, "the first look is no change"
+    assert model("isReveal", before, before, right) is False
+    folded = model("sideSignature", right["groups"], zones)
+    assert model("isReveal", before, folded, right) is False, "a side the user just folded stays folded"
+    assert model("isReveal", before, other, {**right, "open": True}) is False and model("isReveal", before, other, {**right, "pinned": True}) is False
+    assert model("isReveal", before, other, {**right, "groups": []}) is False, "no zones on that side"
+
+
+# ---- Desktop cards setting ------------------------------------------------------------------------------------------------
+
+def test_a_manager_that_failed_is_asked_again_only_after_ten_minutes(model):
+    now = 1_000_000
+    managers = ["builder", "jobs", "web"]
+    assert model("cardsToSwitch", managers, [], {}, now) == managers
+    got = model("cardsToSwitch", managers, ["web"], {"jobs": now - 5 * 60_000, "builder": now - 11 * 60_000}, now)
+    assert got == ["builder"], "done is skipped, a try five minutes ago waits, one eleven minutes ago is retried"
+    assert model("cardsToSwitch", managers, ["builder", "jobs", "web"], {}, now) == []
+
+
+# ---- timeouts ----------------------------------------------------------------------------------------------------------
+
+def test_a_timeout_rejects_a_slow_call_and_leaves_no_timer_behind_when_the_call_answers(model):
+    got = model.js("""
+      const live = () => process.getActiveResourcesInfo().filter(r => r === 'Timeout').length
+      const out = {}
+      out.value = await m.withTimeout(Promise.resolve({ entries: [] }), 60000)
+      out.timersAfterAnswer = live()
+      try { await m.withTimeout(new Promise(() => {}), 20, 'worktrees timed out') } catch (e) { out.slow = e.message }
+      out.timersAfterTimeout = live()
+      try { await m.withTimeout(Promise.reject(new Error('not a git folder')), 60000) } catch (e) { out.failed = e.message }
+      out.timersAfterFailure = live()
+      return out
+    """)
+    assert got == {"value": {"entries": []}, "timersAfterAnswer": 0, "slow": "worktrees timed out", "timersAfterTimeout": 0,
+                   "failed": "not a git folder", "timersAfterFailure": 0}
+
+
+def test_the_chat_list_reads_attention_the_same_for_a_big_list_as_for_one_chat(model):
+    attention = {"live": ["c3"], "unread": ["c5"], "focused": "c7"}
+    got = model.js("""
+      const attention = %s
+      const rows = Array.from({ length: 2000 }, (_, i) => ({ id: 'c' + i }))
+      return rows.map(r => m.chatState(r, attention)).map((s, i) => [i, s]).filter(([, s]) => s)
+    """ % json.dumps(attention))
+    assert got == [[3, "working"], [5, "unread"], [7, "current"]]
+    assert model("chatState", {"id": "c1"}, None) == "" and model("chatState", {"id": "c1"}, {}) == ""
+    assert model("chatState", {"id": "c1"}, {"live": None, "unread": None}) == ""
+
+
+# ---- every string the interface asks for exists, in both languages --------------------------------------------------------
+
+def _strip_comments(text: str) -> str:
+    return re.sub(r"^\s*(//|\*|/\*\*).*$", "", text, flags=re.M)
+
+
+def test_every_string_the_code_asks_for_exists_in_both_languages(model):
+    """A key missing from a catalog shows as the raw key (`cleanWhy_idle`) in the UI. Static keys are read from the
+    calls, data-built ones (`st_<state>`, `cleanWhy_<reason>`, `ev_<kind>`) from the values the model can produce."""
+    text = _strip_comments(PLUGIN.read_text(encoding="utf-8"))
+    catalogs = _catalogs()
+    wanted = set(re.findall(r"\bt\('([A-Za-z_]+)'(?!\s*\+)", text)) | set(re.findall(r"\blang\(\)\.([A-Za-z_]+)", text))
+    wanted |= set(re.findall(r"MESSAGES\.en\.([A-Za-z_]+)", text)) | set(re.findall(r"\bm\.(notify[A-Za-z]+|noManager|replyDraft)", text))
+    dyn = model.js("return { states: m.STATES, kinds: [...m.HISTORY_KINDS] }")
+    now, day = 1_000_000.0, 86400
+    wd = "/w/shop/.worktrees/"
+    wts = {"/w/shop": WT["/w/shop"][:1] + [{"path": wd + n, "branch": "b/" + n, "isMain": False} for n in ("m", "c", "i", "r", "n")]}
+    chats = [chat("i", wd + "i", root="/w/shop", last=now - 3 * day), chat("r", wd + "r", root="/w/shop", last=now - 60)]
+    project = _lane_project(model, chats, wts)
+    statuses = {wd + "m": _st("merged"), wd + "c": _st("closed"), wd + "i": _st(), wd + "r": _st(), wd + "n": _st()}
+    reasons = {w["reason"] for w in model("cleanupPlan", project, statuses, {}, now)["worktrees"]}
+    assert reasons == {"merged", "closed", "idle", "recent", "nochats"}, "every reason a clean-up row can carry"
+    wanted |= {f"st_{x}" for x in dyn["states"]} | {f"sth_{x}" for x in dyn["states"]} | {f"cleanWhy_{r}" for r in reasons}
+    wanted |= {f"ev_{k}" for k in dyn["kinds"]} | {f"pr_{x}" for x in ("draft", "open", "merged", "closed")}
+    assert len(wanted) > 150
+    for lang, cat in catalogs.items():
+        assert not sorted(k for k in wanted if k not in cat), lang

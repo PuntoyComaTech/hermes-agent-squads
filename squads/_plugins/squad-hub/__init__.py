@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 SECTION_ID = "squad-hub.conversation"
 MAX_CARDS = 3
-_TASK_ID = re.compile(r"^t_[0-9a-f]{4,32}$")
-_SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+_TASK_ID = re.compile(r"t_[0-9a-f]{4,32}")
+_SLUG = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 _NO_HUMAN = {"cron", "subagent", "webhook", "msgraph_webhook", "api_server"}  # nobody reads a question there
 
 ASK = (
@@ -45,6 +45,15 @@ _lock = threading.Lock()
 _owed: dict[str, list[tuple[str, str]]] = {}  # turn id (else session id) -> [(board, task id)] filed this turn
 
 
+def valid_task_id(value) -> bool:
+    """The ids desktop/plugin.js `cardRef` accepts. Whole-string match: `$` would let a trailing newline through."""
+    return isinstance(value, str) and _TASK_ID.fullmatch(value) is not None
+
+
+def valid_board_slug(value) -> bool:
+    return isinstance(value, str) and _SLUG.fullmatch(value) is not None
+
+
 def _worker() -> bool:
     return bool(os.environ.get("HERMES_KANBAN_TASK"))
 
@@ -57,7 +66,7 @@ def prompt_section(info) -> str:
     return ASK + ("\n\n" + CARDS if platform == "desktop" and _cards_on() else "")
 
 
-_CLI_FILES = re.compile(r"(?:kanban\s+(?:--board\s+\S+\s+)?create|kanban_chain\.py|squadctl(?:\.py)?\s+chain)\b")
+_CLI_FILES = re.compile(r"(?:kanban\s+(?:--board[\s=]+\S+\s+)?create|kanban_chain\.py|squadctl(?:\.py)?\s+chain)\b")
 _CLI_CREATED = re.compile(r"(?:^|\n)\s*(?:Created|card)\s+(t_[0-9a-f]{4,32})\b")
 _CLI_JSON_ID = re.compile(r'"(?:id|task_id)"\s*:\s*"(t_[0-9a-f]{4,32})"')
 _CLI_BOARD = re.compile(r"--board[\s=]+([a-z0-9][a-z0-9_-]{0,63})\b")
@@ -101,10 +110,10 @@ def on_post_tool_call(tool_name="", args=None, result=None, session_id="", turn_
             _record(_key(turn_id, session_id), board, task_id)
         return None
     task_id = str((data or {}).get("task_id") or "")
-    if not (data or {}).get("ok") or not _TASK_ID.match(task_id):
+    if not (data or {}).get("ok") or not valid_task_id(task_id):
         return None
     board = str((args or {}).get("board") or "")  # none: the desktop card finds the board holding the id
-    if board and not _SLUG.match(board):
+    if board and not valid_board_slug(board):
         board = ""
     _record(_key(turn_id, session_id), board, task_id)
     return None

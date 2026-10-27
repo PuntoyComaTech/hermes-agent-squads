@@ -3,6 +3,33 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.2 - 2026-10-26
+
+### Fixed
+
+- squad-hub 1.4.3:
+  - Previews no longer come back on their own. Entering a chat that had shown a preview dispatched a `preview.open`
+    700 ms later. Desktop keeps a chat's preview tabs in the rail of the profile on screen when they were opened, so a
+    chat entered again could find its tab in a rail that is not in view; the restore then added a new tab to the rail
+    in view on every visit, which looked like the bot opening the preview again. A preview now reopens only on your
+    click (the status-bar chip, a chat's menu, the palette command or the shortcut); one you closed stays closed.
+  - A chat compressed into a new session id keeps its remembered previews.
+  - A preview a chat's turn opens is filed under that chat even while Desktop is moving focus to another one: the
+    focused chat pair read in between no longer overwrites what `session.info` said.
+  - Clean up no longer offers a worktree whose status could not be read (it read as "no changes, nothing to push").
+  - The Desktop-cards setting is asked of a bot that cannot take it once every ten minutes instead of at every refresh of
+    the list, and switching the plugin off and on again quickly leaves it on.
+  - Switching the plugin off leaves no timer behind, and switching it back on starts from a clean state (the layout the
+    plugin noted before no longer reads as a layout you just picked).
+  - Lighter: the layout, Squads-layout and floating-side polls pause while the window is hidden, the stored layout is
+    parsed only when it changes, a row re-renders only for its own fold state and its own previews, the trees are built
+    once per snapshot for the list, the counter, the intros and the shortcuts, the timeline bars are not rebuilt on
+    hover, and timeouts clear their timers. Unused icons and strings are gone.
+- The squad-hub agent half checks card ids and board names against the whole string (a board name ending in a line
+  break passed and split the card line) and sees `hermes kanban --board=<slug> create`.
+- Tests: squad-hub's Desktop half now runs through its real `register()` against a fake Desktop host
+  (`tests/test_squad_hub_host.py`); the textual checks and the tests that held the preview restore as the spec are gone.
+
 ## 2.26.1 - 2026-10-26
 
 ### Fixed

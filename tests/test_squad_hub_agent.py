@@ -7,6 +7,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -33,14 +35,13 @@ def info(platform):
     return {"session_id": "s1", "model": "m", "provider": "p", "platform": platform, "profile_name": "web", "cwd": "/x"}
 
 
-def test_a_manager_in_a_chat_asks_with_choices_and_desktop_also_gets_the_card_grammar(hub):
+def test_a_manager_in_a_chat_is_told_to_ask_through_clarify_and_only_desktop_is_taught_the_card_line(hub):
     desktop = hub.prompt_section(info("desktop"))
-    assert "`clarify`" in desktop and "choices" in desktop and '"ok"' in desktop and "yes or no" in desktop
-    assert "::squad-task{" in desktop and "blank line" in desktop
-    assert "independent questions in one call" in desktop, "Hermes' clarify takes several questions per call"
-    assert "do not write the question" in desktop
     telegram = hub.prompt_section(info("telegram"))
-    assert "`clarify`" in telegram and "::squad-task" not in telegram, "a channel would show the card line raw"
+    assert "`clarify`" in desktop and "`clarify`" in telegram, "the tool Hermes registers for asking with choices"
+    assert "::squad-task{" in desktop, "Desktop draws the card line"
+    assert "::squad-task" not in telegram and "::squad-board" not in telegram, "a channel would show the card line as raw text"
+    assert telegram == desktop.split("\n\n")[0], "the card grammar is a paragraph on top of the asking rule, not a replacement"
 
 
 def test_nobody_answers_a_cron_run_or_a_kanban_worker(hub, monkeypatch):
@@ -170,3 +171,53 @@ def test_the_cards_switch_is_the_plugin_setting_desktop_writes(hub):
     import yaml
     schema = yaml.safe_load((PKG / "plugin.yaml").read_text())["config_schema"]
     assert schema["desktop_cards"]["default"] is False
+
+
+def test_a_card_filed_with_the_board_flag_spelled_with_an_equals_sign_still_names_its_board(hub):
+    """argparse takes `--board web` and `--board=web` alike; the card line must name the board either way, or the
+    desktop card looks for the id on the current board."""
+    for flag in ("--board web", "--board=web"):
+        out = json.dumps({"output": "Created t_ab12cd34  (ready, assignee=web-frontend)\n", "exit_code": 0})
+        hub.on_post_tool_call(tool_name="terminal", result=out, session_id="s1",
+                              args={"command": f'hermes kanban {flag} create "Hero" --assignee web-frontend'})
+        reply = hub.on_transform_llm_output(response_text="Filed.", session_id="s1", platform="desktop")
+        assert reply == 'Filed.\n\n::squad-task{board="web" id="t_ab12cd34"}', flag
+
+
+def test_a_board_name_with_a_line_break_cannot_split_the_card_line(hub):
+    """The board comes from the model's own tool arguments. `$` matches before a trailing newline, so \"web\\n\" used to pass
+    as a slug and the line it was written into ended mid-attribute, which Desktop draws as plain text."""
+    hub.on_post_tool_call(tool_name="kanban_create", args={"board": "web\n"}, result=created("t_ab12"), session_id="s1")
+    out = hub.on_transform_llm_output(response_text="Filed.", session_id="s1", platform="desktop")
+    assert out == 'Filed.\n\n::squad-task{id="t_ab12"}'
+    assert out.count("\n") == 2
+
+
+NODE = shutil.which("node")
+PLUGIN_JS = PKG / "desktop" / "plugin.js"
+
+
+@pytest.mark.skipif(NODE is None, reason="node is needed to run the desktop model")
+def test_the_card_lines_the_agent_half_writes_are_the_ones_the_desktop_half_accepts(hub, tmp_path):
+    """The two halves share a grammar: ids and board slugs written by Python, read by `cardRef` in plugin.js. Both
+    must accept and reject the same ones, and a line the agent appends must parse to the ids it was built from."""
+    text = PLUGIN_JS.read_text(encoding="utf-8")
+    model = text[text.index("// ───────────────────────────── MODEL (pure)"):text.index("// ─────────────────────────── END MODEL (pure)")]
+    (tmp_path / "model.mjs").write_text(model + "\nexport { cardRef }\n", encoding="utf-8")
+    (tmp_path / "package.json").write_text('{"type": "module"}', encoding="utf-8")
+    ids = ["t_ab12", "t_0123456789abcdef", "t_" + "a" * 32, "t_" + "a" * 33, "t_abc", "t_AB12", "T_ab12", "ab12", "t_ab12 ", "t_ab12\n", "t_zz99", ""]
+    boards = ["", "web", "jobs-2", "a_b", "0shop", "-web", "Web", "web shop", "../etc", "a" * 64, "a" * 65, "web\n"]
+    cases = [(i, b) for i in ids for b in boards]
+    script = ("import { cardRef } from './model.mjs'; const cases = JSON.parse(process.argv[1]); "
+              "console.log(JSON.stringify(cases.map(([id, board]) => cardRef({ id, board }) !== null)))")
+    done = subprocess.run([NODE, "--input-type=module", "-e", script, json.dumps(cases)], cwd=tmp_path, capture_output=True, text=True,
+                          timeout=30)
+    assert done.returncode == 0, done.stderr
+    desktop = json.loads(done.stdout)
+    # the agent half drops a board it cannot write (the card still shows) and never writes an id it cannot
+    agent = [hub.valid_task_id(i) and (not b or hub.valid_board_slug(b)) for i, b in cases]
+    assert desktop == agent, [c for c, d, a in zip(cases, desktop, agent) if d != a]
+    for i, b in [("t_ab12cd34", "web"), ("t_ab12cd34", "")]:
+        line = hub.card_line(b, i)
+        attrs = dict(re.findall(r'(\w+)="([^"]*)"', line))
+        assert line.startswith("::squad-task{") and attrs == ({"board": b, "id": i} if b else {"id": i})
