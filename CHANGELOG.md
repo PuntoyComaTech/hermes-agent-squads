@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.3 - 2026-10-27
+
+### Fixed
+
+- squad-hub 1.4.4: the width you drag between the chat and a preview stays. With floating sides on, the plugin forced
+  the chat to fill the row, so every drag snapped back to the default split; it now fills the row only when no other
+  column shows.
+
 ## 2.26.2 - 2026-10-26
 
 ### Fixed

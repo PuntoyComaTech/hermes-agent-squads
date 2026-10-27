@@ -271,6 +271,11 @@ function workspaceGroup(node) {
   return null
 }
 
+/** Whether the chat takes the whole row while the sides float. `widths`: the widths of the row's other columns that
+ *  stay in the flow (sides excluded). Only when none shows: beside a preview both keep the split Desktop holds, so a
+ *  sash the user drags still decides it (forcing the chat to grow put it back on the default split). */
+const chatAlone = widths => !(widths || []).some(w => w > 0)
+
 /** The cards on a board that wait on you and were not cleared from the bell: what a manager's row counts. */
 const boardWaiting = (board, dismissed) => (board ? bellVisible(bellItems([], [], [board]), dismissed) : [])
 
@@ -1073,6 +1078,7 @@ function paintFloat() {
     delete el.dataset.sqhSide
     delete el.dataset.sqhOpen
     delete el.dataset.sqhMain
+    delete el.dataset.sqhSolo
     delete el.dataset.sqhFloatRoot
     el.style.removeProperty('--sqh-w')
   }
@@ -1084,6 +1090,10 @@ function paintFloat() {
   }
   root.dataset.sqhFloatRoot = ''
   main.dataset.sqhMain = ''
+  // The sides leave the flow, so the chat must take their room. Alone in the row it takes all of it; beside another
+  // column (a preview) both keep the widths Desktop holds for them, so a sash the user drags still decides the split.
+  if (chatAlone([...root.children].filter(k => k !== left && k !== right && k !== main).map(k => k.getBoundingClientRect().width))) main.dataset.sqhSolo = ''
+  else delete main.dataset.sqhSolo
   const rules = []
   for (const [side, el] of [['left', left], ['right', right]]) {
     const st = floatState[side]
@@ -1317,6 +1327,7 @@ function startFloat() {
     for (const k of Object.keys(floatNear)) delete floatNear[k]
     floatCss = ''
     for (const el of document.querySelectorAll('[data-sqh-main], [data-sqh-float-root]')) {
+      delete el.dataset.sqhSolo
       delete el.dataset.sqhMain
       delete el.dataset.sqhFloatRoot
     }
@@ -3398,7 +3409,8 @@ const CSS = `
 .sqh-status:hover{color:var(--foreground)}
 .sqh-caps{max-width:min(960px,92vw);height:min(720px,86vh)}
 html[data-sqh-float] [data-sqh-float-root]{position:relative}
-html[data-sqh-float] [data-sqh-main]{flex:1 1 0%!important;padding:0 calc(var(--sqh-gutter,40px) - 10px)}
+html[data-sqh-float] [data-sqh-main]{padding:0 calc(var(--sqh-gutter,40px) - 10px)}
+html[data-sqh-float] [data-sqh-main][data-sqh-solo]{flex:1 1 0%!important}
 html[data-sqh-float] [data-sqh-side]{position:absolute!important;top:0;bottom:0;z-index:45;width:var(--sqh-w)!important;min-width:0!important;max-width:min(var(--sqh-w),85vw)!important;flex:none!important;background:var(--sidebar,var(--ui-bg-chrome,var(--background)));transition:transform var(--sqh-in) var(--sqh-ease-in),opacity var(--sqh-in) ease;will-change:transform,opacity;box-shadow:0 18px 50px -12px color-mix(in srgb,black 45%,transparent)}
 html[data-sqh-float] [data-sqh-side="left"]{left:0;transform:translateX(-100%);border-right:1px solid var(--ui-stroke-secondary,var(--border))}
 html[data-sqh-float] [data-sqh-side="right"]{right:0;transform:translateX(100%);border-left:1px solid var(--ui-stroke-secondary,var(--border))}

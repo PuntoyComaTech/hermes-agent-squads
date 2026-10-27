@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed zonesOf zonesOfAll parseLayout sideSignature isReveal cardsToSwitch withTimeout workspaceGroup boardWaiting").split()
+           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed zonesOf zonesOfAll parseLayout sideSignature isReveal cardsToSwitch withTimeout workspaceGroup boardWaiting chatAlone").split()
 
 
 def _model_source() -> str:
@@ -1224,3 +1224,21 @@ def test_every_string_the_code_asks_for_exists_in_both_languages(model):
     assert len(wanted) > 150
     for lang, cat in catalogs.items():
         assert not sorted(k for k in wanted if k not in cat), lang
+
+
+def test_a_chat_beside_a_preview_keeps_the_width_the_user_dragged(model):
+    """The owner dragged the sash between the chat and a preview and it snapped back: the plugin forced the chat to
+    grow whenever the sides floated. The row read from his window (left list and files floating, two folded zones):
+    the preview shows, so the chat must not take the row; with no preview it takes the room the sides left."""
+    beside_preview = [1571, 0, 0]
+    assert model("chatAlone", beside_preview) is False
+    assert model("chatAlone", [0, 0]) is True, "only folded zones: the chat fills the row"
+    assert model("chatAlone", []) is True
+
+
+def test_the_plugin_never_forces_the_chat_width_outside_the_lone_chat_case():
+    """The stylesheet rule that made every drag snap back. The chat may be forced to fill the row only when it is alone."""
+    css = PLUGIN.read_text(encoding="utf-8")
+    forced = re.findall(r"([^\n{}]*\[data-sqh-main\][^{]*)\{[^}]*flex:[^};]*!important", css)
+    assert forced, "the lone-chat rule exists"
+    assert all("[data-sqh-solo]" in sel for sel in forced), forced
