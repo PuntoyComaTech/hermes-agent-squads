@@ -54,23 +54,28 @@ typed from memory:
 
 ## 2. What the gate enforces
 
-`pnpm quality` runs these steps in order. lefthook runs Biome on every commit (each progress save included) and the
-whole gate before every push; every builder runs the whole gate when its card's work is complete:
+`pnpm quality` runs these steps in order (the only rule exceptions, each with its reason, are in
+`references/rule-exceptions.md`). lefthook runs Biome and the per-file ratchet on every commit (each progress save
+included), plus the related tests and the regression check, and the whole gate before every push; every builder runs
+the whole gate when its card's work is complete:
 
 | Step | Tool | Blocks |
 |---|---|---|
-| `quality:types` | TypeScript strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, ...) | type errors, implicit `any` |
-| `quality:lint` | Biome | `any`, `@ts-ignore`, `!` assertions, `console`, import cycles, barrel files, cognitive complexity > 10, functions > 60 lines, files > 300 lines, > 3 parameters, formatting |
-| `quality:sonar` | ESLint with SonarJS, `eslint-plugin-security`, `no-unsanitized` and typed TypeScript rules (the Sonar rules, local and free) | code smells, bug patterns, weak hashes and random, command injection, unsanitized DOM writes, duplicated strings, nesting > 3, unsafe `any` flows, floating promises, non-exhaustive switches |
-| `quality:arch` | dependency-cruiser | cycles, logic (`src/lib`, `src/domain`, `src/server`) importing UI, `src/domain` importing a framework, components importing pages, client code importing server code, dev dependencies in shipped code |
-| `quality:dupes` | jscpd | copy-paste blocks (4+ lines) |
-| `quality:unused` | knip | dead files, unused exports and dependencies |
+| `quality:types` | TypeScript strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `erasableSyntaxOnly`, ...) | type errors, implicit `any` |
+| `quality:lint` | Biome (every rule of every group, render complexity 1) | `any`, `@ts-ignore`, `!` assertions, `console`, import cycles, barrel files, cognitive complexity > 10 (a render > 1), functions > 50 lines, files > 300 lines, > 3 parameters, unsorted keys, formatting |
+| `quality:oxlint` | oxlint (`--deny-warnings`), all categories, type-aware | everything the Biome and Sonar layers do not see: pedantic and restriction rules, `max-depth` > 3, nested callbacks > 3, `id-length`, `func-style`, magic numbers, readonly parameter types, unsorted test style, `useMemo`/`useCallback`/`memo` imports (the React Compiler), render-testing imports |
+| `quality:sonar` | ESLint with every SonarJS rule, `eslint-plugin-security`, `no-unsanitized` and typed TypeScript rules (the Sonar rules, local and free) | code smells, bug patterns, weak hashes and random, command injection, unsanitized DOM writes, duplicated strings (2+), nesting > 3, switch cases > 10, unsafe `any` flows, floating promises, non-exhaustive switches, `memo()` and render-testing |
+| `quality:arch` | dependency-cruiser | cycles, orphans, unresolvable imports, the Atomic Design levels, logic (`src/lib`, `src/domain`, `src/server`, `src/utils`, `src/hooks`) importing UI, `src/domain` importing a framework, components importing pages, pages composing below templates, tests importing renders, client code importing server code, dev dependencies in shipped code |
+| `quality:dupes` | jscpd (code 3 lines / 25 tokens, CSS 3 lines / 50 tokens) | copy-paste blocks |
+| `quality:unused` | knip (every rule, entry exports included, config hints are errors) | dead files, unused exports and dependencies |
 | `quality:typecov` | type-coverage (strict) | any identifier whose type resolves to `any`, including through a library: 100 % required |
 | `quality:secrets` | gitleaks | a key or token in the files or in any commit of the history |
 | `quality:licenses` | `pnpm licenses` | GPL, AGPL, SSPL, BUSL, non-commercial or unknown licenses in what ships (LGPL and MPL pass) |
 | `quality:deps` | osv-scanner on the lockfile, `pnpm audit` | a package with a known vulnerability or a malicious-package advisory |
 | `quality:fresh` | `tools/quality/fresh.mjs` | a version typed from memory: a dependency pnpm never resolved (package.json and lockfile disagree), an exact pin, a major behind the newest one old enough to install; exceptions only in `tools/quality/fresh-allow.json`, each with its reason |
-| `quality:test` | Vitest with coverage | failing tests; < 80 % coverage on `src/lib`, `src/domain`, `src/server` |
+| `quality:ratchet` | `tools/quality/ratchet.mjs` (per-file counts: types, Biome, oxlint, SonarJS, comments) | a new file with any finding or any comment (zero comments in code), a touched file above `tools/quality/baseline.json`; a cleanup lowers the baseline with `quality:baseline` |
+| `quality:regressions` | `tools/quality/regressions.mjs` | clones, architecture violations or unused-code findings above `tools/quality/regression-baseline.json`: an adopting repo records its debt once and blocks regressions; a new repo starts at zero (`quality:regressions:record` re-records only on purpose) |
+| `quality:test` | Vitest with coverage | failing tests; < 100 % lines, branches, functions or statements on logic (`src/lib`, `src/domain`, `src/server`, `src/hooks`, `src/utils`). Only logic is tested; renders are excluded from tests and coverage |
 
 Slow scanners do not run on every edit: Semgrep (SAST) and nuclei (DAST, against the deployed preview) run once per
 review in `code_audit.py`, which installs them on first use. `security_tools.py` installs osv-scanner, gitleaks, nuclei

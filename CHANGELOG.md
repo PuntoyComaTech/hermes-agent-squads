@@ -3,6 +3,18 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.28.0 - 2026-10-28
+
+### Changed
+
+- web 3.9.0: every new site starts on a stricter base, because AI-written code needs hard limits. Biome turns every
+  rule of every group into an error. A new oxlint layer runs all categories, type-aware. ESLint now runs every
+  SonarJS rule. jscpd flags 3-line clones, knip runs every rule, and logic is 100 % covered. Renders are never
+  tested, and `useMemo`/`useCallback`/`memo` are banned (the React Compiler memoizes). dependency-cruiser enforces
+  Atomic Design levels. A per-file ratchet allows zero findings and zero comments in a new file, and a repo-wide
+  regression baseline means an adopted repo's debt never grows. The only exceptions, each with its reason, are in
+  `site-contract/references/rule-exceptions.md`.
+
 ## 2.27.1 - 2026-10-28
 
 ### Fixed

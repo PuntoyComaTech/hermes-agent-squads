@@ -158,7 +158,9 @@ def test_the_projects_biome_config_extends_the_squad_rules(tmp_path):
     theirs = {"$schema": "https://biomejs.dev/schemas/2.4.2/schema.json",
               "files": {"includes": ["**", "!node_modules"]}, "formatter": {"indentStyle": "tab"}}
     out = json.loads(site_base.biome_extends(json.dumps(theirs)))
-    assert out["extends"] == [site_base.BIOME_POLICY] and out["formatter"] == {"indentStyle": "tab"}
+    # the project's own formatter block would override the policy's: it is normalized to the squad's
+    assert out["extends"] == [site_base.BIOME_POLICY]
+    assert out["formatter"] == {"indentStyle": "space", "indentWidth": 2, "lineWidth": 100}
     assert out["$schema"] == theirs["$schema"] and "!!**/public" in out["files"]["includes"]
     assert out["files"]["includes"][:2] == ["**", "!node_modules"]
     assert site_base.biome_extends(json.dumps(out)) is None, "already extended: left alone"
@@ -629,6 +631,21 @@ VIOLATIONS = {
 }
 
 
+CLONE = ('  const filled = items.filter((item) => item.length > 0);\n'
+         '  const joined = filled.map((item) => item.trim()).join("-");\n  return joined.toLowerCase();\n}\n')
+STRICT_VIOLATIONS = {
+    "src/lib/noted.ts": "export const NOTED = 1;\n\n// a comment in code\n",
+    "src/components/atoms/counter.tsx": ('import { useMemo } from "react";\n\nexport function Counter(): number {\n'
+                                         '  return useMemo(() => 1, []);\n}\n'),
+    "src/lib/alpha.ts": f"export function alpha(items: string[]): string {{\n{CLONE}",
+    "src/lib/beta.ts": f"export function beta(items: string[]): string {{\n{CLONE}",
+    "src/lib/size.ts": 'export function size(n: number): string {\n  if (n > 10) {\n    return "big";\n  }\n'
+                       '  return "small";\n}\n',
+    "src/lib/size.test.ts": ('import { expect, it } from "vitest";\nimport { size } from "./size.ts";\n\n'
+                             'it("is small", () => {\n  expect(size(1)).toBe("small");\n});\n'),
+}
+
+
 @pytest.fixture(scope="session")
 def scanner_env(tmp_path_factory):
     """One scanner folder shared by the real tests: osv-scanner and gitleaks download once, not per test."""
@@ -640,12 +657,8 @@ def scanner_env(tmp_path_factory):
 @pytest.mark.real_toolchain
 @real_toolchain
 def test_the_gate_passes_a_fresh_base_and_rejects_each_bad_practice(tmp_path, scanner_env):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    done = run("site_base.py", "--repo", str(repo), "--stack", "astro", "--name", "gate-demo", "--install", "--json", env=scanner_env)
-    result = json.loads(done.stdout)
-    assert done.returncode == 0, [s for s in result["steps"] if not s["ok"]]
-    assert result["steps"][0]["step"] == "create (official CLI)" and "create-astro@latest" in result["steps"][0]["argv"]
+    repo, result = green_base(tmp_path, "astro", scanner_env)
+    assert result["created"]["step"] == "create (official CLI)" and "create-astro@latest" in result["created"]["argv"]
     assert git(repo, "log", "--format=%s").splitlines() == ["chore: strict project base"]
     assert (repo / ".git" / "hooks" / "pre-commit").is_file()  # lefthook installed
 
@@ -667,20 +680,51 @@ def test_the_gate_passes_a_fresh_base_and_rejects_each_bad_practice(tmp_path, sc
     assert caught["typecov"][0] and "src/lib/parse.ts" in caught["typecov"][1]  # an `any` held in a variable
     assert "src/lib/raw.ts" in caught["sonar"][1] and "no-unsafe-return" in caught["sonar"][1]  # an `any` returned
 
+    for rel in VIOLATIONS:
+        (repo / rel).unlink()
+    for rel, text in STRICT_VIOLATIONS.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    strict = {}
+    for step in ("ratchet", "oxlint", "sonar", "dupes", "test"):
+        out = subprocess.run(["pnpm", "run", "-s", f"quality:{step}"], cwd=repo, capture_output=True, text=True,
+                             timeout=600, env=scanner_env)
+        strict[step] = (out.returncode, out.stdout + out.stderr)
+    assert strict["ratchet"][0] and "comments 1 > 0" in strict["ratchet"][1]  # zero comments in code
+    assert strict["oxlint"][0] and "useMemo" in strict["oxlint"][1]  # the React Compiler memoizes
+    assert strict["sonar"][0] and "useMemo" in strict["sonar"][1]
+    assert strict["dupes"][0] and "clone" in strict["dupes"][1].lower()  # 3 lines are a clone
+    assert strict["test"][0] and "does not meet global threshold (100%)" in strict["test"][1]  # 100 % on logic
 
-def readonly_props(repo: Path, tail: str) -> int:
-    """What the manager does with a `prefer-read-only-props` finding in the template's code: mark the props
-    read-only. Returns how many places it fixed."""
-    import re
-    fixed = 0
-    for path, line in re.findall(r"^(/\S+\.tsx)$\n\s+(\d+):\d+\s+error\s+.*sonarjs/prefer-read-only-props", tail, re.M):
-        src = Path(path)
-        text = src.read_text()
-        new = re.sub(r"\}: (\{ [^}]+ \})\)", r"}: Readonly<\1>)", text, count=1)
-        if new != text:
-            src.write_text(new)
-            fixed += 1
-    return fixed
+
+TEMPLATE_FIXES = Path(__file__).resolve().parent / "fixtures" / "web-template-fixes"
+
+
+def green_base(tmp_path: Path, stack: str, env: dict) -> tuple[Path, dict]:
+    """The manager's path to a green base: one command; when the gate stops on the create CLI's own code (`next`),
+    that code is fixed the way the rules ask (comments out, copy as data, explicit return types, Atomic Design
+    templates; never a rule) and the same command finishes. The fixes are the files a real run settled on."""
+    site = tmp_path / f"{stack}-demo"
+    site.mkdir()
+    (site / "site.yaml").write_text(f"slug: {stack}-demo\nstack: {stack}\nprovider: cloudflare\nrepo:\n  path: repo\n")
+    repo = site / "repo"
+    argv = ("site_base.py", "--site", str(site), "--json")
+    done = run(*argv, env=env)
+    result = json.loads(done.stdout)
+    created = result["steps"][0]  # the first run starts from the create CLI; a second run keeps the files
+    failed = [s for s in result["steps"] if not s["ok"]]
+    if failed:
+        assert [s["step"] for s in failed] == ["pnpm quality"] and result["next"], [
+            (s["step"], s["tail"][-800:]) for s in failed]
+        shutil.copytree(TEMPLATE_FIXES / stack, repo, dirs_exist_ok=True)
+        for doc in repo.glob("*.md"):  # a markdown file the CLI wrote opens with its title (`next dev` writes AGENTS.md)
+            text = doc.read_text()
+            if not text.startswith("# "):
+                doc.write_text(f"# {doc.stem}\n\n{text}")
+        done = run(*argv, env=env)
+        result = json.loads(done.stdout)
+    assert done.returncode == 0, [(s["step"], s["tail"][-1500:]) for s in result["steps"] if not s["ok"]]
+    return repo, {**result, "created": created}
 
 
 @pytest.mark.real_toolchain
@@ -689,21 +733,7 @@ def readonly_props(repo: Path, tail: str) -> int:
 def test_every_stack_starts_green(tmp_path, stack, scanner_env):
     """Each stack from its own create CLI ends on a green gate and one commit. When the template's code itself
     breaks a rule, the base stops with `next`; the code is fixed (never the rule) and the same command finishes."""
-    site = tmp_path / f"{stack}-demo"
-    site.mkdir()
-    (site / "site.yaml").write_text(f"slug: {stack}-demo\nstack: {stack}\nprovider: cloudflare\nrepo:\n  path: repo\n")
-    repo = site / "repo"
-    argv = ("site_base.py", "--site", str(site), "--json")  # the manager's one command
-    done = run(*argv, env=scanner_env)
-    result = json.loads(done.stdout)
-    failed = [s for s in result["steps"] if not s["ok"]]
-    if failed:
-        assert [s["step"] for s in failed] == ["pnpm quality"] and result["next"], [
-            (s["step"], s["tail"][-800:]) for s in failed]
-        assert readonly_props(repo, failed[0]["tail"]), failed[0]["tail"][-1500:]
-        done = run(*argv, env=scanner_env)
-        result = json.loads(done.stdout)
-    assert done.returncode == 0, [(s["step"], s["tail"][-800:]) for s in result["steps"] if not s["ok"]]
+    repo, result = green_base(tmp_path, stack, scanner_env)
     assert git(repo, "log", "--format=%s").splitlines() == ["chore: strict project base"]
     assert git(repo, "status", "--porcelain") == ""
     pkg = json.loads((repo / "package.json").read_text())
@@ -722,11 +752,7 @@ def test_every_stack_starts_green(tmp_path, stack, scanner_env):
 @real_toolchain
 def test_the_dependency_gate_catches_a_package_with_a_known_vulnerability(tmp_path, scanner_env):
     """A site depending on an old lodash must not pass: osv-scanner reads the real lockfile against real advisories."""
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    done = run("site_base.py", "--repo", str(repo), "--stack", "astro", "--name", "dep-demo", "--install", "--json",
-               env=scanner_env)
-    assert done.returncode == 0, done.stdout[-800:]
+    repo, _ = green_base(tmp_path, "astro", scanner_env)
     clean = subprocess.run(["pnpm", "run", "-s", "quality:deps"], cwd=repo, capture_output=True, text=True, timeout=300,
                            env=scanner_env)
     assert clean.returncode == 0, clean.stderr[-600:]

@@ -1,10 +1,22 @@
 {
   // The squad's strict rules. The project's own biome.json (from the stack's create CLI or `biome init`) extends
   // this file, so Biome's version and schema stay the installer's. Workers never relax it: a rule that blocks real
-  // work goes to the manager.
+  // work goes to the manager. Every rule of every group is an error; the per-rule options
+  // below are the tighter thresholds and the `overrides` the documented exceptions.
   "files": {
     "includes": [
-      "**",
+      "src/**",
+      "e2e/**",
+      "tests/**",
+      "scripts/**",
+      "workers/**",
+      "tools/quality/*.mjs",
+      "tools/quality/*.cjs",
+      "*.config.ts",
+      "*.config.mjs",
+      "*.config.cjs",
+      "next.config.ts",
+      "postcss.config.mjs",
       "!!**/node_modules",
       "!!**/dist",
       "!!**/.next",
@@ -12,52 +24,224 @@
       "!!**/.wrangler",
       "!!**/coverage",
       "!!**/playwright-report",
+      "!!**/test-results",
       "!!**/public",
       "!!**/.hermes-live",
       "!!src/routeTree.gen.ts",
-      "!!tools/quality/node_modules"
+      "!!src/paraglide"
     ]
+  },
+  "assist": {
+    "actions": {
+      "source": { "organizeImports": "on", "useSortedKeys": "on", "useSortedAttributes": "on" }
+    }
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "javascript": {
     "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
+    "domains": {
+      "astro": "all",
+      "drizzle": "all",
+      "next": "all",
+      "playwright": "none",
+      "project": "all",
+      "qwik": "none",
+      "react": "all",
+      "reactNative": "none",
+      "solid": "none",
+      "svelte": "none",
+      "tailwind": "none",
+      "test": "all",
+      "turborepo": "none",
+      "vue": "none"
+    },
     "rules": {
       "preset": "recommended",
-      "complexity": {
-        "noExcessiveCognitiveComplexity": {
-          "level": "error",
-          "options": { "maxAllowedComplexity": 10 }
-        },
-        "noExcessiveLinesPerFunction": { "level": "error", "options": { "maxLines": 60 } },
-        "useMaxParams": { "level": "error", "options": { "max": 3 } },
-        "noUselessUndefinedInitialization": "error",
-        // TypeScript's noPropertyAccessFromIndexSignature wants env["X"]: the stricter type rule wins
-        "useLiteralKeys": "off"
-      },
-      "suspicious": {
-        "noExplicitAny": "error",
-        "noTsIgnore": "error",
-        "noConsole": "error",
-        "noImportCycles": "error",
-        "noEvolvingTypes": "error",
-        "noImplicitAnyLet": "error"
-      },
-      "style": {
-        "noNonNullAssertion": "error",
-        "noExcessiveLinesPerFile": { "level": "error", "options": { "maxLines": 300 } },
-        "noParameterAssign": "error",
-        "useBlockStatements": "error"
-      },
-      "performance": {
-        "noBarrelFile": "error",
-        "noReExportAll": "error",
-        "noNamespaceImport": "error"
-      }
+      "a11y": "error",
+      "complexity": "error",
+      "correctness": "error",
+      "nursery": "error",
+      "performance": "error",
+      "security": "error",
+      "style": "error",
+      "suspicious": "error"
     }
   },
+  "overrides": [
+    {
+      "includes": ["**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 10 } },
+            "noExcessiveLinesPerFunction": {
+              "level": "error",
+              "options": { "maxLines": 50, "skipBlankLines": false }
+            },
+            "useMaxParams": { "level": "error", "options": { "max": 3 } },
+            // TypeScript's noPropertyAccessFromIndexSignature wants env["X"]: the stricter type rule wins
+            "useLiteralKeys": "off"
+          },
+          "correctness": {
+            "noUnresolvedImports": "off"
+          },
+          "nursery": {
+            "useConsistentFunctionStyle": {
+              "level": "error",
+              "options": { "allowArrowFunctions": false, "style": "declaration" }
+            }
+          },
+          "style": {
+            "noExcessiveLinesPerFile": { "level": "error", "options": { "maxLines": 300 } },
+            "noImplicitBoolean": "off",
+            "noTernary": "off",
+            "useConsistentTestIt": { "level": "error", "options": { "function": "it", "withinDescribe": "it" } },
+            "useImportType": { "level": "error", "options": { "style": "separatedType" } }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/components/**/*.tsx", "src/pages/**/*.tsx", "src/routes/**/*.tsx", "src/app/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 1 } }
+          }
+        }
+      }
+    },
+    {
+      // Exception, with its reason: noSecrets' high-entropy heuristic flags path regexes and policy strings; real
+      // secret detection is gitleaks (quality:secrets), which scans files and history.
+      "includes": ["tools/**", "*.config.ts", "*.config.mjs", "*.config.cjs", "next.config.ts"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    },
+    {
+      // Exception: third-party API names (Playwright's baseURL) carry consecutive uppercase and Playwright's test
+      // function is named `test`; strictCase and `it` stay on everywhere else.
+      "includes": ["playwright.config.ts", "e2e/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off",
+            "useConsistentTestIt": "off",
+            "useNamingConvention": { "level": "error", "options": { "strictCase": false } }
+          }
+        }
+      }
+    },
+    {
+      // Exception: useLayeredStyles fires on Tailwind 4's canonical `@import "tailwindcss"`, which the framework's
+      // own installer writes; layering that import changes utility precedence.
+      "includes": ["**/*.css"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "useLayeredStyles": "off"
+          }
+        }
+      }
+    },
+    {
+      // Exception family: the Tailwind nursery rules (declared-classes discipline, no raw palette colors, no
+      // arbitrary values, static class strings) contradict the create CLIs' official templates and next/font's
+      // runtime variable injection, and their class-sort fix is unsafe (the pre-commit hook cannot apply it).
+      // noHexColors goes with them: a design pass writes hex values; tokens arrive with the design system.
+      "includes": ["**/*.tsx", "**/*.css"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "useTailwindStaticClassStrings": "off",
+            "useTailwindSortedClasses": "off",
+            "noTailwindRawColors": "off",
+            "noTailwindArbitraryValue": "off",
+            "noTailwindRestyledComponents": "off",
+            "noUndeclaredClasses": "off",
+            "noUndeclaredCustomProperties": "off"
+          },
+          "style": {
+            "noHexColors": "off"
+          }
+        }
+      }
+    },
+    {
+      // Exception: the document shell of a server-rendered app must render <head> (TanStack Start's root route,
+      // Next's root layout). The stricter reference tolerates the same rule hit as baseline debt; here the base
+      // starts green instead.
+      "includes": ["src/routes/__root.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noHeadElement": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/routes/**", "src/app/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off",
+            "useComponentExportOnlyModules": "off",
+            "useFilenamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "vite.config.ts",
+        "vitest.config.ts",
+        "playwright.config.ts",
+        "next.config.ts",
+        "postcss.config.mjs",
+        "tailwind.config.ts",
+        "tailwind.config.mjs",
+        "astro.config.mjs",
+        "src/server.ts",
+        "workers/*/src/index.ts",
+        "tools/**"
+      ],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    },
+    {
+      "includes": [
+        "e2e/**",
+        "scripts/**",
+        "tools/**",
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "playwright.config.ts",
+        "next.config.ts",
+        "postcss.config.mjs",
+        "tailwind.config.ts",
+        "tailwind.config.mjs",
+        "astro.config.mjs"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": { "noNodejsModules": "off", "noProcessGlobal": "off" },
+          "style": { "noMagicNumbers": "off", "noProcessEnv": "off" }
+        }
+      }
+    }
+  ],
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "defaultBranch": "main" }
 }

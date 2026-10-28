@@ -1,0 +1,189 @@
+{
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "react",
+    "react-perf",
+    "oxc",
+    "import",
+    "jsdoc",
+    "jsx-a11y",
+    "node",
+    "promise",
+    "vitest"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "error",
+    "nursery": "error"
+  },
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "rules": {
+    "complexity": ["error", 10],
+    "max-depth": ["error", 3],
+    "max-lines": ["error", 300],
+    "max-lines-per-function": ["error", 50],
+    "max-nested-callbacks": ["error", 3],
+    "max-params": ["error", 3],
+    "func-style": ["error", "declaration"],
+    "id-length": ["error", { "min": 2, "exceptions": ["x", "y", "z"] }],
+    "no-magic-numbers": ["error", { "ignore": [0, 1], "ignoreArrayIndexes": true, "enforceConst": true }],
+    "capitalized-comments": ["error", "always", { "ignoreConsecutiveComments": true }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "react",
+            "importNames": ["useCallback", "useMemo", "memo"],
+            "message": "The React Compiler memoizes; write plain code."
+          },
+          {
+            "name": "@testing-library/react",
+            "importNames": ["render", "screen", "fireEvent", "within", "cleanup", "waitFor"],
+            "message": "Only logic is tested: test a hook with renderHook; renders are never tested."
+          },
+          {
+            "name": "@testing-library/dom",
+            "message": "Only logic is tested; renders are never tested."
+          }
+        ]
+      }
+    ],
+    "typescript/prefer-readonly-parameter-types": ["error", { "treatMethodsAsReadonly": true }],
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+    "import/no-relative-parent-imports": "off",
+    "import/no-unassigned-import": "off",
+    "vitest/consistent-test-it": ["error", { "fn": "it", "withinDescribe": "it" }],
+    "react/jsx-filename-extension": ["error", { "extensions": [".tsx"] }],
+    "sort-keys": "off",
+    "sort-imports": "off",
+    "no-ternary": "off",
+    "one-var": "off",
+    "no-undefined": "off",
+    "no-undef": "off",
+    "no-duplicate-imports": "off",
+    "unicorn/no-null": "off",
+    "unicorn/number-literal-case": "off",
+    "oxc/no-rest-spread-properties": "off",
+    "oxc/no-async-await": "off",
+    "oxc/no-optional-chaining": "off",
+    "react/react-in-jsx-scope": "off",
+    "import/prefer-default-export": "off",
+    "import/no-named-export": "off",
+    "jest/consistent-test-it": "off",
+    "vitest/no-importing-vitest-globals": "off",
+    "vitest/prefer-called-once": "off",
+    "vitest/prefer-to-be-truthy": "off",
+    "vitest/prefer-to-be-falsy": "off",
+    "node/no-top-level-await": "off",
+    "jsdoc/require-param": "off",
+    "jsdoc/require-param-description": "off",
+    "jsdoc/require-param-name": "off",
+    "jsdoc/require-param-type": "off",
+    "jsdoc/require-property": "off",
+    "jsdoc/require-property-description": "off",
+    "jsdoc/require-property-name": "off",
+    "jsdoc/require-property-type": "off",
+    "jsdoc/require-returns": "off",
+    "jsdoc/require-returns-description": "off",
+    "jsdoc/require-returns-type": "off",
+    "jsdoc/require-throws-description": "off",
+    "jsdoc/require-throws-type": "off",
+    "jsdoc/require-yields": "off",
+    "jsdoc/require-yields-description": "off",
+    "jsdoc/require-yields-type": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/src/routes/**", "**/src/app/**"],
+      "rules": { "unicorn/filename-case": "off", "import/no-default-export": "off", "typescript/only-throw-error": "off" }
+    },
+    {
+      "files": [
+        "**/vite.config.ts",
+        "**/vitest.config.ts",
+        "**/playwright.config.ts",
+        "**/next.config.ts",
+        "**/postcss.config.mjs",
+        "**/tailwind.config.ts",
+        "**/tailwind.config.mjs",
+        "**/astro.config.mjs",
+        "**/src/server.ts",
+        "**/workers/*/src/index.ts",
+        "**/tools/**"
+      ],
+      "rules": { "import/no-default-export": "off" }
+    },
+    {
+      "files": [
+        "**/e2e/**",
+        "**/scripts/**",
+        "**/tools/**",
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/vite.config.ts",
+        "**/vitest.config.ts",
+        "**/playwright.config.ts",
+        "**/next.config.ts",
+        "**/postcss.config.mjs",
+        "**/tailwind.config.ts",
+        "**/tailwind.config.mjs",
+        "**/astro.config.mjs"
+      ],
+      "rules": {
+        "node/no-process-env": "off",
+        "import/no-nodejs-modules": "off",
+        "eslint/no-magic-numbers": "off"
+      }
+    },
+    {
+      "files": ["**/e2e/**"],
+      "rules": { "vitest/prefer-importing-vitest-globals": "off", "vitest/require-test-timeout": "off" }
+    },
+    {
+      "files": ["**/*.tsx"],
+      "rules": {
+        "react/forbid-component-props": "off",
+        "react/jsx-max-depth": "off",
+        "react/only-export-components": "off",
+        "react-perf/jsx-no-new-array-as-prop": "off",
+        "react-perf/jsx-no-new-object-as-prop": "off"
+      }
+    },
+    {
+      "files": ["**/src/components/**", "**/src/pages/**", "**/src/routes/**", "**/src/app/**"],
+      "rules": { "typescript/prefer-readonly-parameter-types": "off" }
+    },
+    {
+      "files": ["**/src/hooks/**", "**/e2e/**"],
+      "rules": { "typescript/prefer-readonly-parameter-types": "off" }
+    }
+  ],
+  "ignorePatterns": [
+    "**/tools/**",
+    "**/*.astro",
+    "**/*.d.ts",
+    "**/src/routeTree.gen.ts",
+    "**/src/paraglide/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/.astro/**",
+    "**/.wrangler/**",
+    "**/coverage/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "**/public/**"
+  ]
+}

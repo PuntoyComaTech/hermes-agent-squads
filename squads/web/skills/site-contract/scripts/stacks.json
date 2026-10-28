@@ -14,16 +14,19 @@
     "@biomejs/biome",
     "vitest",
     "@vitest/coverage-v8",
+    "happy-dom",
     "@playwright/test",
     "jscpd",
     "knip",
     "lefthook",
+    "oxlint",
+    "oxlint-tsgolint",
     "lighthouse",
     "axe-core",
     "@types/node"
   ],
   "quality_tools": {
-    "_comment": "tools/quality: SonarJS and dependency-cruiser need the TypeScript JavaScript API, which TypeScript 7 does not ship, so this folder installs TypeScript 6 (a constraint, not a pin).",
+    "_comment": "tools/quality: SonarJS and dependency-cruiser need the TypeScript JavaScript API, which TypeScript 7 does not ship, so this folder installs TypeScript 6 (a constraint, not a pin). @babel/parser counts code comments for the per-file ratchet.",
     "packages": [
       "eslint",
       "eslint-plugin-sonarjs",
@@ -34,7 +37,8 @@
       "eslint-plugin-security",
       "eslint-plugin-no-unsanitized",
       "type-coverage",
-      "typescript@6"
+      "typescript@6",
+      "@babel/parser"
     ]
   },
   "cloudflare": {

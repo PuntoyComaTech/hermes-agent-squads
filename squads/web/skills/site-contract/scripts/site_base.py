@@ -10,8 +10,10 @@ scripts, the strict rule files (Biome's is extended, not copied), the pnpm suppl
 TypeScript options, the security headers and one seed test.
 
 The gate (`pnpm quality`) is the bar every bot's code must pass from the first commit: strict TypeScript, type
-coverage, Biome, SonarJS and security lint, dependency-cruiser, jscpd, knip, gitleaks, licenses, osv-scanner and
-pnpm audit, Vitest coverage on logic. lefthook runs Biome on every commit and the whole gate before every push.
+coverage, Biome, oxlint, SonarJS and security lint, dependency-cruiser, jscpd, knip, gitleaks, licenses, osv-scanner
+and pnpm audit, the per-file ratchet (zero findings and zero comments on a new file) and the repo-wide regression
+baseline, Vitest at 100 % coverage on logic. lefthook runs Biome and the ratchet on every commit and the whole gate
+before every push.
 
 An existing repo keeps every file it has (listed under `kept`); a weaker pnpm supply-chain setting is raised to the
 base's (`strengthened`). Exit 0 base ready (or dry run), 1 a step failed (the JSON names it and its output tail) or a
@@ -42,12 +44,14 @@ BIOME_POLICY = "./tools/quality/biome.strict.jsonc"
 QUALITY_PACKAGE = '{\n  "name": "site-quality",\n  "private": true,\n  "type": "module"\n}\n'
 
 SEED_TEST = {
-    "src/lib/slug.ts": 'export function slugify(text: string): string {\n'
-                       '  const words = text.toLowerCase().split(/[^a-z0-9]/);\n'
+    "src/lib/slug.ts": 'const NON_WORD = /[^a-z0-9]/u;\n\n'
+                       'export function slugify(text: string): string {\n'
+                       '  const words = text.toLowerCase().split(NON_WORD);\n'
                        '  return words.filter((word) => word.length > 0).join("-");\n}\n',
-    "src/lib/slug.test.ts": 'import { describe, expect, it } from "vitest";\nimport { slugify } from "./slug";\n\n'
-                            'describe("slugify", () => {\n  it("makes a url-safe slug", () => {\n'
-                            '    expect(slugify("  Hola Mundo! ")).toBe("hola-mundo");\n  });\n});\n',
+    "src/lib/slug.test.ts": 'import { describe, expect, it } from "vitest";\nimport { slugify } from "./slug.ts";\n\n'
+                            'describe("a url-safe slug", () => {\n  it("makes a url-safe slug", () => {\n'
+                            '    expect.hasAssertions();\n'
+                            '    expect(slugify("  Hola Mundo! ")).toBe("hola-mundo");\n  }, 5000);\n});\n',
 }
 
 STRICT_TS = {
@@ -56,8 +60,10 @@ STRICT_TS = {
     "noUnusedLocals": True, "noUnusedParameters": True, "noPropertyAccessFromIndexSignature": True,
     "useUnknownInCatchVariables": True, "allowUnreachableCode": False, "allowUnusedLabels": False,
     "forceConsistentCasingInFileNames": True, "isolatedModules": True, "verbatimModuleSyntax": True,
+    "erasableSyntaxOnly": True, "noUncheckedSideEffectImports": True, "allowImportingTsExtensions": True,
 }
-GATE = ("types", "lint", "sonar", "arch", "dupes", "unused", "typecov", "secrets", "licenses", "deps", "fresh", "test")
+GATE = ("types", "lint", "oxlint", "sonar", "arch", "dupes", "unused", "typecov", "secrets", "licenses", "deps",
+        "fresh", "ratchet", "regressions", "test")
 SCRIPTS = {
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -65,17 +71,25 @@ SCRIPTS = {
     "e2e": "playwright test",
     "quality": " && ".join(f"pnpm run quality:{step}" for step in GATE),
     "quality:lint": "biome ci --error-on-warnings .",
+    "quality:oxlint": "node_modules/.bin/oxlint --deny-warnings --config tools/quality/oxlintrc.json "
+                      "--ignore-pattern \"**/*.gen.ts\" --ignore-pattern \"src/paraglide/**\" src e2e",
     "quality:sonar": "tools/quality/node_modules/.bin/eslint --config tools/quality/eslint.config.mjs "
                      "--max-warnings=0 .",
     "quality:arch": "tools/quality/node_modules/.bin/depcruise src --config tools/quality/dependency-cruiser.cjs",
-    "quality:dupes": "jscpd --config .jscpd.json",
+    "quality:dupes": "jscpd --config .jscpd.json && jscpd --config .jscpd-css.json",
     "quality:unused": "knip",
     "quality:secrets": "node tools/quality/security.mjs secrets",
     "quality:licenses": "node tools/quality/security.mjs licenses",
     "quality:deps": "node tools/quality/security.mjs deps",
     "quality:fresh": "node tools/quality/fresh.mjs",
+    "quality:ratchet": "node tools/quality/ratchet.mjs check",
+    "quality:regressions": "node tools/quality/regressions.mjs check",
+    "quality:baseline": "node tools/quality/ratchet.mjs record",
+    "quality:regressions:record": "node tools/quality/regressions.mjs record",
     "quality:test": "vitest run --coverage",
 }
+ZERO_RATCHET = "{}\n"
+ZERO_REGRESSIONS = '{\n  "clones": 0,\n  "depcruise": 0,\n  "knip": 0\n}\n'
 TAIL = 1500
 
 
@@ -88,16 +102,37 @@ def typecov_command(stack: dict) -> str:
             + "".join(f" --ignore-files '{path}'" for path in ignore))
 
 
-def knip_config(stack: dict, provider: str) -> str:
+def knip_config(stack: dict, provider: str, repo: Path | None = None) -> str:
     """knip.json for the stack: its entry files and source tree (CSS included, so `@import "tailwindcss"` counts as
-    a use). Lighthouse and axe-core are run by the QA script through npx, wrangler by the deployer: never imported."""
+    a use). Every rule is an error, entry exports included and configuration hints too.
+    Lighthouse and axe-core are run by the QA script through npx, wrangler by the deployer: never imported. A
+    package the create CLI declared itself (wrangler on a Cloudflare TanStack site) is not ignored: knip's
+    configuration-hint check fails an ignore it does not need."""
+    pkg_path = (repo / "package.json") if repo else None
+    pkg = json.loads(pkg_path.read_text(encoding="utf-8")) if pkg_path and pkg_path.is_file() else {}
+    scripts = " ".join((pkg.get("scripts") or {}).values())
+    ignored = ["lighthouse", "axe-core", "@babel/parser"]
+    if provider == "cloudflare" and "wrangler" not in scripts:
+        ignored.append("wrangler")
     doc = {
         "$schema": "https://unpkg.com/knip@6/schema.json",
-        "entry": stack.get("entry") or [],
-        "project": [f"src/**/*.{{ts,tsx,{'astro,' if stack.get('type') == 'static' else ''}css}}"],
-        "ignoreDependencies": ["lighthouse", "axe-core"] + (["wrangler"] if provider == "cloudflare" else []),
-        "rules": {"files": "error", "dependencies": "error", "devDependencies": "error", "exports": "error",
-                  "types": "error", "duplicates": "error", "unlisted": "error", "unresolved": "error"},
+        "entry": [*(stack.get("entry") or []), "e2e/**/*.e2e.ts"],
+        "project": [f"src/**/*.{{ts,tsx,{'astro,' if stack.get('type') == 'static' else ''}css}}", "e2e/**/*.ts"],
+        "ignoreDependencies": ignored,
+        "ignoreExportsUsedInFile": False,
+        "includeEntryExports": True,
+        "treatConfigHintsAsErrors": True,
+        "ignoreIssues": {
+            "src/app/**": ["exports"],
+            "src/routes/**": ["exports"],
+            "src/pages/**": ["exports"],
+            "src/router.tsx": ["exports"],
+        },
+        "rules": {"binaries": "error", "catalog": "error", "catalogReferences": "error", "cycles": "error",
+                  "dependencies": "error", "devDependencies": "error", "duplicates": "error", "enumMembers": "error",
+                  "exports": "error", "files": "error", "namespaceMembers": "error", "nsExports": "error",
+                  "nsTypes": "error", "optionalPeerDependencies": "error", "types": "error", "unlisted": "error",
+                  "unresolved": "error"},
     }
     return json.dumps(doc, indent=2) + "\n"
 
@@ -282,10 +317,13 @@ def plan_files(repo: Path, stacks: dict, stack_key: str, name: str, provider: st
         files.update(SEED_TEST)
         files["playwright.config.ts"] = sc.PLAYWRIGHT
         files["e2e/home.e2e.ts"] = sc.TEST_SPEC
+        # a new repo starts at zero: no baseline debt, zero comments allowed anywhere
+        files["tools/quality/baseline.json"] = ZERO_RATCHET
+        files["tools/quality/regression-baseline.json"] = ZERO_REGRESSIONS
     files.update(sc.header_files(stack_key, provider, repo))
     for src in sorted(p for p in TEMPLATES.rglob("*") if p.is_file()):
         files[str(src.relative_to(TEMPLATES))] = src.read_text(encoding="utf-8")
-    files["knip.json"] = knip_config(stacks["stacks"][stack_key], provider)
+    files["knip.json"] = knip_config(stacks["stacks"][stack_key], provider, repo)
     files["tools/quality/package.json"] = QUALITY_PACKAGE
     kept = []
     for rel in list(files):
@@ -338,7 +376,8 @@ def _has_headers(path: Path) -> bool:
 def biome_extends(text: str) -> str | None:
     """The project's biome.json extending the squad's strict rules; None when nothing changes. A project file with
     its own `files.includes` replaces the policy's list, so the policy's exclusions (dependencies, build output,
-    static assets, generated routes) are added to it."""
+    static assets, generated routes) are added to it. The formatter is the squad's too: `biome init` and the create
+    CLIs default to tabs and the project's own formatter block would override the policy's spaces."""
     doc = json.loads(strip_jsonc(text))
     before = json.dumps(doc)
     extends = doc.get("extends") or []
@@ -350,6 +389,10 @@ def biome_extends(text: str) -> str | None:
         policy = json.loads(strip_jsonc((TEMPLATES / BIOME_POLICY).read_text(encoding="utf-8")))
         excluded = [p for p in policy["files"]["includes"] if p.startswith("!")]
         doc["files"]["includes"] = [*includes, *(p for p in excluded if p not in includes)]
+    formatter = doc.setdefault("formatter", {})
+    for key, value in (("indentStyle", "space"), ("indentWidth", 2), ("lineWidth", 100)):
+        if formatter.get(key) != value:
+            formatter[key] = value
     return None if json.dumps(doc) == before else json.dumps(doc, indent=2) + "\n"
 
 
@@ -576,6 +619,21 @@ def biome_setup(repo: Path, pnpm: list[str]) -> list[dict]:
     return steps
 
 
+def record_baselines(repo: Path) -> list[dict]:
+    """The ratchet and regression baselines of a repo adopting the base, recorded once from its current totals: old
+    debt is tolerated, a regression is not. A new repo starts at zero (plan_files writes the zero baselines) and a
+    later run never re-records (a baseline is lowered by a cleanup round, never raised by a rerun)."""
+    out = []
+    for script, name in (("ratchet.mjs", "tools/quality/baseline.json"),
+                         ("regressions.mjs", "tools/quality/regression-baseline.json")):
+        if (repo / name).is_file():
+            continue
+        out.append(run(["node", f"tools/quality/{script}", "record"], repo, f"record {name}"))
+        if not out[-1]["ok"]:
+            break
+    return out
+
+
 def install(repo: Path, stacks: dict, stack: str, provider: str, created: bool, fresh_git: bool,
             pin: str | None = None) -> list[dict]:
     pnpm = pnpm_argv()
@@ -617,12 +675,18 @@ def install(repo: Path, stacks: dict, stack: str, provider: str, created: bool, 
         steps.append(fresh_allow(repo, stacks, stack, majors, [h for s in steps for h in s.get("held", [])]))
     if all(s["ok"] for s in steps):
         steps += biome_setup(repo, pnpm)
+    if all(s["ok"] for s in steps):
+        steps += record_baselines(repo)
     for argv, step in ((pnpm + ["exec", "lefthook", "install"], "lefthook install"),
                        (pnpm + ["exec", "biome", "check", "--write", "."], "format the base"),
                        (pnpm + ["run", "quality"], "pnpm quality")):
         if not all(s["ok"] for s in steps):
             break
         steps.append(run(argv, repo, step))
+        if step == "format the base" and not steps[-1]["ok"]:
+            # the safe fixes landed; what Biome cannot fix in the template's code is the gate's to report, with
+            # `next`, so the manager fixes that code
+            steps[-1].update(ok=True, note="findings left for the gate")
     # the first commit lands once the gate is green, also on a second run after the template's code was fixed
     if all(s["ok"] for s in steps) and not has_commits(repo):
         steps.append(run(["git", "add", "-A"], repo, "git add"))

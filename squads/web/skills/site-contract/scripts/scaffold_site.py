@@ -17,8 +17,8 @@ STACKS_FILE = HERE / "stacks.json"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 
 # lines the squad needs ignored; appended to the create CLI's own .gitignore when missing
-GITIGNORE_EXTRA = ("coverage/", "playwright-report/", "test-results/", ".env*", ".dev.vars", ".wrangler/",
-                   ".hermes-live/", ".DS_Store")
+GITIGNORE_EXTRA = ("node_modules/", "coverage/", "dist/", ".next/", ".astro/", "playwright-report/",
+                   "test-results/", ".env*", ".dev.vars", ".wrangler/", ".hermes-live/", ".DS_Store")
 
 PLAYWRIGHT = """import { defineConfig } from "@playwright/test";
 
@@ -32,10 +32,13 @@ export default defineConfig({
 
 TEST_SPEC = """import { expect, test } from "@playwright/test";
 
+const ANY_TITLE = /.+/u;
+const STATUS_OK = 200;
+
 test("home page answers with a title", async ({ page }) => {
   const response = await page.goto("/");
-  expect(response?.status()).toBe(200);
-  await expect(page).toHaveTitle(/.+/);
+  expect(response?.status()).toBe(STATUS_OK);
+  await expect(page).toHaveTitle(ANY_TITLE);
 });
 """
 
@@ -82,13 +85,18 @@ def create_argv(stacks: dict, stack: str, target: str, name: str, provider: str)
 
 def next_headers(config: str) -> str | None:
     """next.config.ts with the security headers added to the config object the create CLI wrote; None when that
-    object is not where the CLI puts it (the manager adds them by hand then)."""
-    if "async headers()" in config:
+    object is not where the CLI puts it (the manager adds them by hand then). The comment the create CLI leaves in
+    the config object goes too: the gate's zero-comments ratchet counts it."""
+    if "headers()" in config:
         return config
+    config = config.replace("/* config options here */", "")
     rows = "".join(f'          {{ key: "{k}", value: "{v}" }},\n' for k, v in SECURITY_HEADERS.items())
-    block = ("\n  async headers() {\n    return [\n      {\n        source: \"/:path*\",\n        headers: [\n"
-             f"{rows}        ],\n      }},\n    ];\n  }},")
-    new, count = NEXT_CONFIG_OPEN.subn(lambda m: m.group(1) + block, config, count=1)
+    rows = rows.replace('value: "same-origin"', "value: SAME_ORIGIN")
+    block = ("\n  headers(): Promise<Array<{ source: string; headers: Array<{ key: string; value: string }> }>> {\n"
+             "    return Promise.resolve([\n      {\n        source: \"/:path*\",\n        headers: [\n"
+             f"{rows}        ],\n      }},\n    ]);\n  }},")
+    new, count = NEXT_CONFIG_OPEN.subn(lambda m: 'const SAME_ORIGIN = "same-origin";\n\n' + m.group(1) + block,
+                                       config, count=1)
     return new if count else None
 
 

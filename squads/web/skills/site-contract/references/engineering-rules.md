@@ -10,7 +10,8 @@ measurable part; the rest is judgment, and review reads the diff for it.
 3. Scalability
 4. Security coding
 5. Errors and tests
-6. Gate and review
+6. Code rules
+7. Gate and review
 
 ## 1. Layers
 
@@ -24,6 +25,12 @@ measurable part; the rest is judgment, and review reads the diff for it.
 
 The direction is one way, from the edges inward. `dependency-cruiser` fails any other direction and any cycle. A rule
 the stack needs to bend is a `decisions.md` line from the manager, never an inline exception.
+
+Components follow the Atomic Design tree: `src/components/atoms/`, `src/components/molecules/`,
+`src/components/organisms/` and `src/components/templates/`; a page is a route file in `src/pages/`, `src/routes/`
+or `src/app/` and renders a template. Each level composes only the levels below it (an atom nothing, a molecule
+atoms, an organism molecules and atoms, a template organisms and below, a page a template). `dependency-cruiser`
+fails any other direction.
 
 ## 2. SOLID in this stack
 
@@ -67,10 +74,35 @@ the stack needs to bend is a `decisions.md` line from the manager, never an inli
   every caught error is logged with context but without personal data.
 - Each acceptance criterion has a test that fails when the feature breaks: real inputs, the edge (empty, huge,
   malformed, repeated) and the failure path. A test asserting what the code merely returns is no test.
-- Logic in `domain`, `lib` and `server` stays covered at 80 % or more; UI is covered by the end-to-end flow of the
-  criteria. Tests do not depend on order, the clock or the network.
+- **Only logic is tested.** Logic lives in `src/lib`, `src/domain`, `src/server`, `src/hooks` and `src/utils`, and
+  it stays covered at 100 % of lines, branches, functions and statements. **Renders are never tested and never
+  count toward coverage**: no test imports a component or a page (`dependency-cruiser` and the lint rules fail it);
+  a hook is tested with `renderHook`, never with `render` or `screen`. UI correctness is covered by the end-to-end
+  flow of the criteria. Tests do not depend on order, the clock or the network.
 
-## 6. Gate and review
+## 6. Code rules
+
+- **Zero comments in code.** Code explains itself through names, types and small functions; comments and docstrings
+  are forbidden. The per-file ratchet counts them (`tools/quality/ratchet.mjs`) and a file may never exceed its
+  baseline count; a new file starts at zero.
+- **Copy is data.** A render never carries its text as a JSX literal: the words come from props, a constant beside
+  the component or a message catalog (`noJsxLiterals` fails a text literal in JSX). This keeps copy reviewable in
+  one place and makes a later translation trivial.
+- **Functions carry an explicit return type.** A named function states what it returns (`: string`,
+  `: React.JSX.Element`, `: Promise<void>`); the lint rules fail an untyped one. The arrow callbacks of tests and
+  library APIs are exempt.
+- **A render holds no logic.** A component (a render) calls hooks and returns markup. Logic lives in custom hooks
+  (`src/hooks/`), pure utilities (`src/utils/`) and the `domain`/`lib`/`server` layers. A render's cognitive
+  complexity is 1 in Biome and 0 in SonarJS: branching beyond a simple conditional means the branch is a hook or a
+  helper, not JSX.
+- **The React Compiler memoizes.** `useMemo`, `useCallback` and `memo` are never written (the lint rules fail
+  their import). Derived values are calculated from their sources; effects connect to external systems and clean
+  up, they are not transformation pipelines.
+- **Only logic is tested** (section 5). Test files end in `.test.ts` or `.test.tsx`.
+- **Atomic Design tree** (section 1): components live in `atoms/`, `molecules/`, `organisms/`, `templates/`; each
+  level composes only the levels below it and a page renders a template.
+
+## 7. Gate and review
 
 | The gate fails it | Review judges it |
 |---|---|

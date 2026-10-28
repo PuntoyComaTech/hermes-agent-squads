@@ -28,7 +28,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 - Assets through `useLoader`/`useGLTF` inside `<Suspense fallback={...}>` with a real placeholder, never a blank box.
 - `useFrame` for per-frame work; keep the callback trivial (a few property writes) and read scroll progress from a shared ref, not from React state.
 - drei helpers (`Environment`, `useTexture`, `ScrollControls`, `OrbitControls`, `AdaptiveDpr`) are preferred over hand-written equivalents.
-- Dispose: drei handles loaded assets, but a manually created geometry/material in a `useMemo` must be disposed in `useEffect` cleanup.
+- Dispose: drei handles loaded assets; a geometry or material a component creates (the React Compiler memoizes it, never `useMemo`) is disposed in `useEffect` cleanup.
 
 ## Scroll-driven scenes
 

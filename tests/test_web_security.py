@@ -268,8 +268,9 @@ def test_the_base_carries_every_security_setting_and_header(tmp_path):
     create_cli_output(tmp_path / "n", "nextjs")
     nxt, _ = site_base.plan_files(tmp_path / "n", stacks, "nextjs", "acme", "cloudflare", created=True)
     config = nxt["next.config.ts"]
-    assert "async headers()" in config and "Content-Security-Policy" in config
-    assert "/* config options here */" in config and config.count("const nextConfig") == 1  # the CLI's file, extended
+    assert "headers(): Promise<" in config and "Content-Security-Policy" in config
+    # the CLI's file, extended; its comment goes because the zero-comments ratchet counts it
+    assert "/* config options here */" not in config and config.count("const nextConfig") == 1
 
 
 def test_an_existing_repo_cannot_keep_weaker_supply_chain_settings(tmp_path):

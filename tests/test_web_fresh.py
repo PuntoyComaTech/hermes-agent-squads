@@ -35,7 +35,8 @@ def lockfile(quote: str) -> str:
 def run_gate(tmp_path: Path, lock: str) -> tuple[int, list]:
     site = tmp_path / "site"
     (site / "tools" / "quality").mkdir(parents=True)
-    shutil.copy(FRESH, site / "tools" / "quality" / "fresh.mjs")
+    for name in ("fresh.mjs", "toolkit.mjs"):  # fresh.mjs imports the shared helpers beside it
+        shutil.copy(FRESH.with_name(name), site / "tools" / "quality" / name)
     (site / "package.json").write_text(json.dumps(PACKAGE))
     (site / "pnpm-lock.yaml").write_text(lock)
     bin_dir = tmp_path / "bin"

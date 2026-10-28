@@ -1,11 +1,11 @@
 {
   "threshold": 0,
   "mode": "strict",
-  "minLines": 4,
-  "minTokens": 40,
-  "format": ["typescript", "tsx", "javascript", "jsx", "css", "astro"],
-  "path": ["src"],
-  "ignore": ["**/node_modules/**", "src/routeTree.gen.ts", "**/*.d.ts"],
+  "minLines": 3,
+  "minTokens": 25,
+  "format": ["typescript", "tsx", "javascript", "jsx", "astro"],
+  "path": ["src", "e2e", "tools/quality"],
+  "ignore": ["**/node_modules/**", "src/routeTree.gen.ts", "src/paraglide/**", "**/*.d.ts"],
   "gitignore": true,
   "reporters": ["console"],
   "exitCode": 1
