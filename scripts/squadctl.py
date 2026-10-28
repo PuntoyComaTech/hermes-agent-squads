@@ -700,7 +700,8 @@ def fallback_rows(rows) -> list[dict]:
     out = []
     for row in rows if isinstance(rows, list) else []:
         if isinstance(row, dict) and row.get("provider") and row.get("model"):
-            out.append({k: str(row[k]) for k in ("provider", "model", "reasoning") if row.get(k)})
+            out.append({k: row[k] if isinstance(row[k], dict) else str(row[k])
+                        for k in ("provider", "model", "reasoning") if row.get(k)})
     return out
 
 
@@ -1206,7 +1207,7 @@ class Applier:
         # writes Hermes's default back, so a budget removed from squad.yaml does not stay in the profile.
         budget = (bot.get("delegation") or {}).get("max_children")
         plan.append(["delegation.oneshot_max_children", int(budget) if deleg and budget else ONESHOT_DEFAULT, False])
-        plan += self.fallback_plan()
+        plan += self.fallback_plan(m)
         plan += [["platform_toolsets.cli", sorted(toolsets), False],  # hermes tools enable stores sorted(union)
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],
                  ["agent.disabled_toolsets", sorted(set(self.always) | (MANAGED - set(toolsets))), False]]
@@ -1259,18 +1260,28 @@ class Applier:
             plan.append(["browser.cdp_url", "", False])  # the manifest dropped shared_browser
         return plan
 
-    def fallback_plan(self) -> list:
+    def fallback_plan(self, primary: dict | None = None) -> list:
         """The install's fallback chain, the same for every bot: `fallback_providers` for the bot,
         `delegation.fallback_providers` for its children (a child pinned to a delegation lane gets no fallback
         unless this key declares one) and one `agent.reasoning_overrides` entry per fallback model (Hermes
-        re-resolves the effort from it when it switches). No `fallback:` in the models: the keys stay as they are;
-        `fallback: []` clears them."""
+        re-resolves the effort from it when it switches). A row's `reasoning` is one effort or a map from the
+        bot's primary model to an effort, with `default` for the rest. A fallback model that is the bot's own
+        primary gets no override: the bot keeps its own `agent.reasoning_effort`. No `fallback:` in the models:
+        the keys stay as they are; `fallback: []` clears them."""
         rows = self.models.get("fallback")
         if rows is None:
             return []
         chain = [{"provider": r["provider"], "model": r["model"]} for r in rows]
+        own = (primary or {}).get("model")
+        overrides = {}
+        for r in rows:
+            effort = r.get("reasoning")
+            if isinstance(effort, dict):
+                effort = effort.get(own) or effort.get("default")
+            if effort and r["model"] != own:
+                overrides[r["model"]] = str(effort)
         return [["fallback_providers", chain, False], ["delegation.fallback_providers", chain, False],
-                ["agent.reasoning_overrides", {r["model"]: r["reasoning"] for r in rows if r.get("reasoning")}, False]]
+                ["agent.reasoning_overrides", overrides, False]]
 
     def missing_models(self, name: str) -> list[str]:
         """Lanes without a model for this bot (its own, delegation, aux, vision, agent cron jobs)."""

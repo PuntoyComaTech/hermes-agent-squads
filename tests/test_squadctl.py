@@ -725,6 +725,26 @@ def test_fallback_chain_reaches_every_bot_its_children_and_installed_yaml(env, c
     assert "fallback" not in yaml.safe_load((env.local / "installed.yaml").read_text())
 
 
+def test_fallback_effort_follows_the_primary_and_spares_a_bot_already_on_the_fallback_model(env, capsys):
+    """The owner's rule: the fallback runs at max for bots whose primary is the strong model, high for the rest,
+    and a bot whose primary IS the fallback model keeps its own effort (no override that would change it)."""
+    env.squad("web")
+    doc = models_doc()
+    doc["lanes"]["manager"] = {"provider": "subs", "model": "strong", "reasoning": "medium"}
+    doc["lanes"]["code-routine"] = {"provider": "go", "model": "flash", "reasoning": "high"}
+    doc["fallback"] = [{"provider": "go", "model": "flash", "reasoning": {"strong": "max", "default": "high"}}]
+    env.models.write_text(yaml.safe_dump(doc))
+    env.run("apply", "web", capsys=capsys)
+    assert env.config("web")["agent"]["reasoning_overrides"] == {"flash": "max"}
+    assert env.config("web-qa")["agent"]["reasoning_overrides"] == {"flash": "high"}
+    backend = env.config("web-backend")
+    assert backend["agent"]["reasoning_overrides"] == {}
+    assert backend["agent"]["reasoning_effort"] == "high"
+    assert backend["fallback_providers"] == [{"provider": "go", "model": "flash"}]
+    saved = yaml.safe_load((env.local / "installed.yaml").read_text())
+    assert saved["fallback"][0]["reasoning"] == {"strong": "max", "default": "high"}
+
+
 def test_models_file_accepts_model_advisor_json(env, capsys):
     env.squad("web")
     rows = [{"bot": b, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low", "extras": []}
