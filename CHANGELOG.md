@@ -3,15 +3,36 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
-## 2.26.9 - 2026-10-28
+## 2.27.1 - 2026-10-28
 
 ### Fixed
 
 - squadctl: a fallback row's `reasoning` can map the bot's primary model to an effort (`{<model>: max, default:
-  high}`), so a fallback runs harder for bots whose primary is the strong model. A bot whose primary is the
-  fallback model no longer gets a `reasoning_overrides` entry that silently replaced its own effort.
+  high}`). A bot whose primary is the fallback model no longer gets a `reasoning_overrides` entry that silently
+  replaced its own effort.
 - squadctl: a models file's `retries:` sets `agent.api_max_retries` on every bot, so a dropped connection gets
-  more tries on the primary before the fallback chain takes over; the value is kept in `local/installed.yaml`.
+  more tries on the primary before the fallback chain (or, with `fallback: []`, the pause) takes over; the value
+  is kept in `local/installed.yaml`.
+
+## 2.27.0 - 2026-10-28
+
+### Added
+
+- Builder maintainer mode: `watch_upstream.py --docs-ref origin/main` digests Hermes docs changes on `main` before they
+  ship in a release. A maintainer turns it on in the builder overlay (`cron.builder-watch.args`).
+- Upstream changes become proposals: digest items carry `status: open | applied | declined`, the builder offers open
+  ones at the start of a chat, and the digest reply names the installed squad each change touches.
+- squad-hub 1.5.0: Desktop's own Kanban sidebar row shows again (prefs saved by 1.3-1.4 bring it back once), and on a
+  Hermes with the card badge slot a card that waits on you wears a red "Needs you" badge on the official board.
+
+### Fixed
+
+- Ready for Hermes config v52 (after 0.22.5): squadctl installs the managed Chromium with post-setup key `chromium`
+  and falls back to `agent_browser` on older Hermes; before, every browsing bot would have ended without a browser.
+- `builder-update` prunes automatic backups under `local/backups/` older than 14 days (newest 3 of each kind stay;
+  hand exports are never touched), so every builder stops growing with each update.
+- hermes-platform references: Warm Bot Backends is gone (one gateway serves every bot); `browser_exec` needs the
+  `terminal` toolset; config v52 browser keys; gateway-run group chats and `hosted_rooms`.
 
 ## 2.26.8 - 2026-10-28
 

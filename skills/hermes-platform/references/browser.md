@@ -6,6 +6,11 @@
   `goto_url`, `js`, `page_info`, `cdp`), driven by a `browser_harness` daemon per `session` name.
 - Precedence: a cloud provider, Camofox, `browser.cdp_url` (or `BROWSER_CDP_URL`), then `browser.use_real_profile`,
   then the local engine (Hermes's managed Chrome for Testing through agent-browser, or Lightpanda).
+- `browser_exec` is offered only to a session that also has `terminal` (`model_tools._rewrite_browser_exec`): a bot
+  with `browser` and no `terminal` has no browser.
+- Config v52 (after 0.22.5) drops `browser.backend` and agent-browser: the `AGENT_BROWSER_*` env settings move to
+  `browser.executable_path`, `user_data_dir`, `chromium_args`, `headed`, `engine`, and the post-setup key
+  `agent_browser` becomes `chromium` (squadctl tries both).
 - Without a session name every call shares the `default` daemon. With `browser.cdp_url`, a named session is moved to
   a tab it creates; a private browser per name skips that.
 - Hermes never stops the harness daemons of a CDP override and never closes their tabs: on a shared browser they

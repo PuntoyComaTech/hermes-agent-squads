@@ -92,7 +92,8 @@ def chromium() -> str:
     except Exception as exc:  # noqa: BLE001 - outside the Hermes runtime
         raise SystemExit(f"run under the Hermes runtime (scripts/hpy shared_browser.py): {exc}")
     if not exe:
-        raise SystemExit("Hermes's Chromium is not installed: run `hermes tools post-setup agent_browser`")
+        raise SystemExit("Hermes's Chromium is not installed: run `hermes tools post-setup chromium` "
+                         "(`agent_browser` on a Hermes before config v52)")
     return exe
 
 

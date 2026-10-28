@@ -1860,8 +1860,20 @@ def test_doctor_fails_a_bot_whose_web_search_is_disabled(web, capsys):
     assert rows["web-qa:web"]["status"] == "fail" and rows["web:web"]["status"] == "ok"
 
 
-def test_apply_installs_the_managed_browser_once_a_bot_has_browser(web):
+def test_apply_installs_the_managed_browser_once_a_bot_has_browser(web, capsys):
+    # a Hermes before config v52 knows only agent_browser: the new key is refused, the old one installs
     assert any(c["args"][:3] == ["tools", "post-setup", "agent_browser"] for c in web.calls())
+    _, out = web.run("apply", "web", capsys=capsys)
+    assert out["browser"] == "ready"
+
+
+def test_apply_installs_the_managed_browser_on_a_hermes_without_agent_browser(env, monkeypatch, capsys):
+    # config v52 renamed the key to chromium and dropped agent_browser
+    monkeypatch.setenv("FAKE_POST_SETUP_KEYS", "chromium,lightpanda")
+    env.squad("web")
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["browser"] == "ready"
+    assert any(c["args"][:3] == ["tools", "post-setup", "chromium"] for c in env.calls())
 
 
 # --- projects ---------------------------------------------------------------------------------------------------

@@ -2397,13 +2397,22 @@ def check(name: str, status: str, detail: str) -> dict:
 KANBAN_CAP_KEY = "kanban.max_in_progress_per_profile"
 
 
+# Hermes's post-setup key for its managed Chromium: `chromium` from config v52, `agent_browser` before it.
+BROWSER_POST_SETUP = ("chromium", "agent_browser")
+
+
 def ensure_browser(ctx: Ctx, dry: bool) -> str:
-    """The browser tools appear only once Hermes's managed agent-browser and Chromium exist. Hermes's own post-setup
-    hook installs them (idempotent, a no-op when present); without it a bot with `browser` silently has no browser."""
+    """The browser tools appear only once Hermes's managed Chromium exists. Hermes's own post-setup hook installs it
+    (idempotent, a no-op when present); without it a bot with `browser` silently has no browser. The key is the
+    first one this Hermes knows: an unknown key only prints the valid ones."""
     if dry:
-        return "would run `hermes tools post-setup agent_browser` (managed agent-browser + Chromium)"
-    out = ctx.hermes("tools", "post-setup", "agent_browser", check=False)
-    return "ready" if "complete" in out else f"not ready: run `hermes tools post-setup agent_browser` ({out.strip()[-160:]})"
+        return f"would run `hermes tools post-setup {BROWSER_POST_SETUP[0]}` (managed Chromium)"
+    out, key = "", BROWSER_POST_SETUP[0]
+    for key in BROWSER_POST_SETUP:
+        out = ctx.hermes("tools", "post-setup", key, check=False)
+        if "Unknown post-setup key" not in out:
+            break
+    return "ready" if "complete" in out else f"not ready: run `hermes tools post-setup {key}` ({out.strip()[-160:]})"
 
 
 def shared_browser_cmd(ctx: Ctx, *args: str) -> list[str]:

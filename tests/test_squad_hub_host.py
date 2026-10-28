@@ -35,7 +35,7 @@ def desk(tmp_path_factory):
     text = PLUGIN.read_text(encoding="utf-8")
     wiring = text[text.index("// ───────────────────────────── host wiring"):]
     sdk_names = re.search(r"const \{([^}]*)\} = sdk", wiring).group(1)
-    names = [n.strip() for n in sdk_names.split(",") if n.strip()] + ["TITLEBAR_AREAS"]
+    names = [n.strip() for n in sdk_names.split(",") if n.strip()] + ["TITLEBAR_AREAS", "KANBAN_CARD_AREAS"]
     (d / "plugin.mjs").write_text(text, encoding="utf-8")
     (d / "package.json").write_text('{"type": "module"}', encoding="utf-8")
     stubs = {
@@ -653,3 +653,27 @@ out.bars = bars.map(b => [b['data-kind'], b['data-state'], b['data-open'], parse
 """)
     assert got["lanes"] == ["web-frontend", "web-qa"]
     assert got["bars"] == [["wait", "queued", "false", True, True], ["run", "done", "false", True, True], ["run", "run", "true", True, True]]
+
+
+# ---- Desktop's own Kanban board ---------------------------------------------------------------------------------------
+
+def test_a_card_blocked_for_the_user_wears_a_badge_on_desktops_kanban_board(desk):
+    """The official board stays Hermes's (its fixes arrive with Hermes updates); squad-hub only paints a badge on the
+    cards that wait on the user, through the SDK slot, never DOM edits."""
+    got = desk("""
+w.queries.set(JSON.stringify(['squad-hub', 'boards']), [{ slug: 'web', digest: { needsYou: [{ id: 't_ask' }] } }])
+w.register()
+const c = w.contribution('card-badges')
+out.area = c && c.area
+out.ask = c.data.decorate({ id: 't_ask', status: 'blocked', tenant: null, assignee: 'web' })
+out.running = c.data.decorate({ id: 't_run', status: 'running', tenant: null, assignee: 'web' })
+out.unblocked = c.data.decorate({ id: 't_ask', status: 'ready', tenant: null, assignee: 'web' })
+""")
+    assert got["area"] == "kanban.card.badges"
+    assert got["ask"]["tone"] == "red" and got["ask"]["label"]
+    assert got["running"] is None and got["unblocked"] is None
+
+
+def test_prefs_default_shows_desktops_kanban_row(desk):
+    got = desk("w.register(); out.prefs = JSON.parse(w.store.get('prefs'))")
+    assert "kanban:nav" not in got["prefs"]["hiddenNav"]

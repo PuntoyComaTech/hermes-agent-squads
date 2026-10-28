@@ -238,9 +238,9 @@ function bellGroups(items) {
   return [...(chats.length ? [{ key: 'chats', board: '', items: chats }] : []), ...boards]
 }
 
-/** Prefs saved by an older version, brought once to this version's defaults: floating sides on, the Kanban sidebar
- *  row hidden (squads read their boards here), the Squads theme on every bot. A choice made after that is kept. */
-const PREFS_VERSION = 3
+/** Prefs saved by an older version, brought once to this version's defaults: floating sides on, the Squads theme on
+ *  every bot, Desktop's own Kanban row shown. A choice made after that is kept. */
+const PREFS_VERSION = 4
 function upgradePrefs(stored, defaults) {
   const p = { ...defaults, ...(stored || {}) }
   // the version saved with the prefs, never the defaults' own: prefs from before versioning have none
@@ -248,13 +248,14 @@ function upgradePrefs(stored, defaults) {
   if (from < 2) {
     p.floatSides = true
     p.squadsTheme = true
-    p.hiddenNav = [...new Set([...(p.hiddenNav || []), 'kanban:nav'])]
   }
   // 1.3.0 hid Desktop's own profile selector and Bots tab by default: they come back, hiding them is a choice
   if (from < 3) {
     p.hideRail = false
     p.hideBotsTab = false
   }
+  // 1.3.0 also hid Desktop's own Kanban row: the official board comes back, with squad-hub's badges on its cards
+  if (from < 4) p.hiddenNav = (p.hiddenNav || []).filter(id => id !== 'kanban:nav')
   p.prefsVersion = PREFS_VERSION
   return p
 }
@@ -510,6 +511,13 @@ function boardDigest(board) {
     done: n.done || 0,
     needsYou
   }
+}
+
+/** Badges for Desktop's own Kanban board (SDK `KANBAN_CARD_AREAS.badges`): a card blocked for a human answer says so.
+ *  `boards`: loadBoards() rows. Returns a pure lookup `decorate(card)`; the board passes only id/status/tenant/assignee. */
+function cardBadges(boards, label = 'Needs you') {
+  const ids = new Set((boards || []).flatMap(b => (b.digest?.needsYou || []).map(t => t.id)))
+  return card => (card && card.status === 'blocked' && ids.has(card.id) ? { label, tone: 'red', tooltip: label } : null)
 }
 
 /** The bots that actually took cards on a board. The board payload's own `assignees` lists every profile on disk
@@ -912,7 +920,7 @@ const patchSession = (bot, id, body) =>
   window.hermesDesktop.api({ path: `/api/sessions/${encodeURIComponent(id)}`, method: 'PATCH', profile: bot.name, body: { ...body, profile: bot.name } })
 
 // ───────────────────────────── state ─────────────────────────────
-const DEFAULT_PREFS = { notifyAway: true, envDoubleClick: true, floatSides: true, squadsTheme: true, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: false, hideRail: false, hiddenNav: ['kanban:nav'], prefsVersion: PREFS_VERSION }
+const DEFAULT_PREFS = { notifyAway: true, envDoubleClick: true, floatSides: true, squadsTheme: true, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: false, hideRail: false, hiddenNav: [], prefsVersion: PREFS_VERSION }
 let storage = null
 let ctxRef = null
 const prefsAtom = atom({ ...DEFAULT_PREFS })
@@ -3825,7 +3833,20 @@ export default {
     // the unread filters read the chat list: apply them again each time it arrives
     ctx.onDispose(queryClient.getQueryCache().subscribe(e => {
       if (e?.type === 'updated' && e.action?.type === 'success' && e.query?.queryKey?.[1] === SNAPSHOT_KEY[1] && e.query.queryKey[0] === SNAPSHOT_KEY[0]) syncLive()
+      if (e?.type === 'updated' && e.action?.type === 'success' && e.query?.queryKey?.[1] === BOARDS_KEY[1] && e.query.queryKey[0] === BOARDS_KEY[0]) syncBadges()
     }))
+    // Desktop's Kanban card badge slot (Hermes after 0.22.5); an older Desktop has no such area and gets none
+    let badgeIds = null
+    const syncBadges = () => {
+      const area = sdk.KANBAN_CARD_AREAS?.badges
+      if (!area || !ctxRef) return
+      const boards = queryClient.getQueryData(BOARDS_KEY) || []
+      const ids = boards.flatMap(b => (b.digest?.needsYou || []).map(t => t.id)).sort().join(',')
+      if (ids === badgeIds) return
+      badgeIds = ids
+      ctx.register({ id: 'card-badges', area, data: { decorate: cardBadges(boards, lang().cardNeedsYou) } })
+    }
+    syncBadges()
     syncLive()
     ctx.onEvent('preview.open', e => {
       if (reopening) return

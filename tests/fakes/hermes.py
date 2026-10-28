@@ -424,8 +424,12 @@ def main():
             cfg.setdefault("plugins", {}).setdefault("enabled", [])
             cfg["plugins"]["enabled"] = [p for p in cfg["plugins"]["enabled"] if p != args[0]]
             save(HOME / "config.yaml", cfg)
-    elif cmd == "tools" and rest[:2] == ["post-setup", "agent_browser"]:
-        print("✓ Post-setup 'agent_browser' complete")
+    elif cmd == "tools" and rest[:1] == ["post-setup"]:
+        # real behavior: an unknown key prints the valid ones and exits 0; v52 renamed agent_browser to chromium
+        valid = (os.environ.get("FAKE_POST_SETUP_KEYS") or "agent_browser").split(",")
+        key = rest[1] if len(rest) > 1 else ""
+        print(f"✓ Post-setup '{key}' complete" if key in valid
+              else f"✗ Unknown post-setup key: {key!r}. Valid keys: {', '.join(sorted(valid))}")
     elif cmd == "tools":
         need_profile()
         # Mirror hermes_cli.tools_config._save_platform_tools: platform_toolsets.cli becomes sorted(union).
