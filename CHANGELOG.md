@@ -3,6 +3,20 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.6 - 2026-10-27
+
+### Fixed
+
+- jobs 4.12.2: residence wording that names a region holding the candidate's country ("based in Europe or Latin
+  America" for a candidate in Colombia) passes the eligibility gate instead of asking the owner.
+- jobs: an employer's regional Teamtailor board (`<board>.na.teamtailor.com`) is an official ATS link; an unknown
+  second label is still refused.
+- jobs: the filter and the manager read meaning, not keywords: a role that offers remote as an option is remote, and a
+  worker question a stated rule already answers is settled by the manager, not asked.
+- Messaging channels carry less noise: a card-finished wake that needs nothing from the owner stays silent, replies
+  use a short Discord format, questions with likely answers use buttons (`clarify`), a filed search posts nothing,
+  and application notices open with a bold title and a link without a preview card.
+
 ## 2.26.5 - 2026-10-27
 
 ### Fixed

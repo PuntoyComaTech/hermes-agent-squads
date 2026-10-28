@@ -582,3 +582,16 @@ def test_kit_only_path_is_accepted_by_the_validator(tmp_path):
     proc = subprocess.run([sys.executable, str(CHECK), str(path)], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     assert "valid: NOT_POSSIBLE" in proc.stdout
+
+
+# A real case (2026-10-27): the employer's own Teamtailor board sits under a region label (<board>.na.teamtailor.com);
+# the review gate refused the only working URL and the application stalled.
+def test_a_regional_teamtailor_board_is_the_employers_ats():
+    result = classify("https://acme.na.teamtailor.com/jobs/724352-full-stack-software-engineer", company="Acme")
+    assert result["verdict"] == "official_ats", result
+    assert (result["ats"], result["owner"]) == ("teamtailor", "acme")
+
+
+def test_an_invented_second_label_on_teamtailor_is_still_refused():
+    result = classify("https://acme.zz.teamtailor.com/jobs/1-engineer", company="Acme")
+    assert result["verdict"] != "official_ats", result

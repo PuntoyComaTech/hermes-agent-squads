@@ -87,10 +87,10 @@ def test_a_sent_application_is_posted_once_with_its_cv_attached(tmp_path):
     first = run(env)
     assert first.returncode == 0, first.stderr
     lines = first.stdout.strip().splitlines()
-    assert lines[0] == "Postulé: Senior Backend Engineer - Acme"
+    assert lines[0] == "**Postulé: Senior Backend Engineer - Acme**"
     assert lines[1].startswith("81/100 · remoto CO · publicada 2026-10-20 · enviada 20")
     assert lines[2] == "Backend de pedidos con IA para distribuidores; Node/AWS"
-    assert lines[3] == "https://jobs.lever.co/acme/1/apply"
+    assert lines[3] == "<https://jobs.lever.co/acme/1/apply>"
     # the delivery uploads this file: an absolute path the owner never has to type on a phone
     assert lines[4] == f"MEDIA:{d / 'application' / 'cv_ats.pdf'}"
     assert run(env).stdout == "", "posted once"
@@ -132,7 +132,7 @@ def test_the_first_run_after_an_install_does_not_replay_old_applications(tmp_pat
     status(fresh, "applied")
     submitted(fresh)
     out = run(env).stdout
-    assert out.startswith("Postulé: Senior Backend Engineer - New")
+    assert out.startswith("**Postulé: Senior Backend Engineer - New")
     assert run(env).stdout == "", "the September application was history, not news"
 
 
@@ -228,5 +228,5 @@ def test_an_hours_sends_each_arrive_in_their_own_message_with_their_own_cv(tmp_p
     assert [s["to"] for s in sent] == ["discord:777", "discord:777"]
     assert ["Alfa" in sent[0]["text"], "Beta" in sent[1]["text"]] == [True, True]
     assert all(s["text"].count("MEDIA:") == 1 for s in sent)
-    assert out.stdout.startswith("Postulé: Senior Backend Engineer - Gamma") and out.stdout.count("MEDIA:") == 1
+    assert out.stdout.startswith("**Postulé: Senior Backend Engineer - Gamma") and out.stdout.count("MEDIA:") == 1
     assert run(env).stdout == "" and len((root / "sent.jsonl").read_text().splitlines()) == 2, "each one once"

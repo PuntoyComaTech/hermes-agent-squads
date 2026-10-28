@@ -17,9 +17,9 @@ The card is filed with `hermes -p <manager> kanban --board <board> create` and t
 `jobs:search:<project>:<YYYY-MM-DD-HH>`, where HH is the slot hour, not the hour the run started.
 
 stdout is what the cron delivers, so the owner can always tell a quiet day from a broken one. The hourly runs between
-slots print nothing. Each day's decision prints one line, in the profile's user_language, at the first run of that
-day's first slot hour: the search card filed (once per slot, a catch-up rerun of the same slot stays quiet), "no search
-today" on a weekend, "search paused". A project whose folder or `profile.md` is missing prints its setup line once a
+slots print nothing, and so does a filed search card: it is routine. Each day's exception prints one line, in the
+profile's user_language, at the first run of that day's first slot hour: "no search today" on a weekend, "search
+paused". A project whose folder or `profile.md` is missing prints its setup line once a
 day at the same hour; a manager with no project at all prints nothing (`squadctl doctor` reports it). A hermes failure, a broken `profile.md` or an unknown search value prints the error at every run and exits 1.
 """
 from __future__ import annotations
@@ -66,7 +66,6 @@ MESSAGES = {
         "no_front": "profile.md: no front matter between --- lines. The search did not run.",
         "times": "profile.md: search_times must list 1 to 4 distinct local times like \"12:00\", got {value!r}. "
                  "The search did not run.",
-        "filed": "Search {slot} filed for {project}: postings since {since}.",
         "weekend": "No search today ({day}): searches run Monday to Friday. Next: {next}.",
         "paused": "Search paused for {project} (profile.md search: paused). Nothing runs until you resume it.",
         "setup": "jobs-search: {message}",
@@ -79,7 +78,6 @@ MESSAGES = {
         "no_front": "profile.md: falta el front matter entre líneas ---. La búsqueda no se ejecutó.",
         "times": "profile.md: search_times debe listar de 1 a 4 horas locales distintas como \"12:00\", no {value!r}. "
                  "La búsqueda no se ejecutó.",
-        "filed": "Búsqueda {slot} lanzada para {project}: ofertas desde {since}.",
         "weekend": "Hoy no hay búsqueda ({day}): las búsquedas corren de lunes a viernes. Próxima: {next}.",
         "paused": "Búsqueda en pausa para {project} (profile.md search: paused). No corre hasta que la reanudes.",
         "setup": "jobs-search: {message}",
@@ -469,10 +467,8 @@ def notice_of(result: dict, lang: str, seen: dict) -> str:
     words = MESSAGES.get(lang, MESSAGES["en"])
     reason = result.get("reason")
     if result.get("filed"):
-        if seen.get("slot") == result["slot"]:
-            return ""
         seen["slot"] = result["slot"]
-        return words["filed"].format(slot=result["slot"], project=result["project"], since=result["since"])
+        return ""  # a filed search is routine: the owner hears about its applications, not the search itself
     if not result.get("report") or seen.get("day") == result.get("today"):
         return ""
     seen["day"] = result.get("today")

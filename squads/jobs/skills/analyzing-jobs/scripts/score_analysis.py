@@ -272,6 +272,16 @@ REGION_ALIASES = {
 }
 WORLDWIDE = {"global", "worldwide", "anywhere", "world", "international", "mundo", "cualquier lugar"}
 ISO2_RE = re.compile(r"^[A-Z]{2}$")
+REGION_NAME_RE = re.compile(r"\b(" + "|".join(sorted((re.escape(k).replace(r"\ ", r"\s+") for k in REGION_ALIASES
+                                                      if "_" not in k), key=len, reverse=True)) + r")\b")
+
+
+def _region_countries(folded: str) -> set:
+    """Every country of every region the folded text names ("europe or latin america")."""
+    found = set()
+    for match in REGION_NAME_RE.finditer(folded):
+        found |= set(REGIONS[REGION_ALIASES[re.sub(r"\s+", " ", match.group(1))]])
+    return found
 
 
 def hiring_scope(opening_fm: dict):
@@ -486,10 +496,14 @@ def eligibility_gate(profile: dict, opening_fm: dict, body: str):
 def eligibility_wording(profile: dict, opening_fm: dict, body: str):
     """eligibility_gate without the hiring scope: the posting's wording against the eligibility table."""
     raw_clauses, instructions = _clauses(body)
+    market = profile_market(profile)
     clauses = []
     for raw, addressed in raw_clauses:
         folded = ss.fold(raw)
         countries = _countries_in(folded) | ({"US"} if H1B_RE.search(folded) else set())
+        if not countries and market and market in _region_countries(folded):
+            # "based in Europe or Latin America": a region that holds the candidate's country names that country.
+            countries = {market}
         kinds = _classify(folded, addressed, bool(countries)) if folded else {}
         if kinds:
             clauses.append((ss.clip(raw, CLIP), kinds, countries))
@@ -512,7 +526,6 @@ def eligibility_wording(profile: dict, opening_fm: dict, body: str):
             bucket = found.setdefault(code, {})
             for kind in kinds:
                 bucket.setdefault(kind, quote)
-    market = profile_market(profile)
     relocate = profile.get("plans_to_relocate") is True
     workable = sorted(code for code, status in statuses.items() if status in WORKABLE_STATUSES)
     worst, notes = "PASS", []

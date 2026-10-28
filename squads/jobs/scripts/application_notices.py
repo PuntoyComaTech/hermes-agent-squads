@@ -12,10 +12,10 @@ no home channel (Bot Chat only) or a failed send, the rest wait for the next run
 
 The notice is read on a phone, in the profile's `user_language`:
 
-    Applied: <role> - <company>
+    **Applied: <role> - <company>**
     <score>/100 · <work mode> · posted <date> · sent <date>
     <analysis.json brief: one line on what the job is>
-    <apply link>
+    <<apply link>> (angle brackets: no preview card)
     MEDIA:<absolute path of application/cv_ats.pdf>
 
 The attached file is `CV_<Name>_<Surname>.pdf` (render_cv.py's byte copy of cv_ats.pdf, the one the applier uploaded),
@@ -141,13 +141,13 @@ def notice(opening: Path, line: dict, lang: str) -> str:
     if posted:
         facts.append(words["posted"].format(d=posted))
     facts.append(words["sent"].format(d=day_of(line.get("date"))))
-    out = [words["head"].format(role=role, company=company).rstrip(" -"), " · ".join(facts)]
+    out = ["**" + words["head"].format(role=role, company=company).rstrip(" -") + "**", " · ".join(facts)]
     brief = brief_of(analysis)
     if brief:
         out.append(brief)
     link = apply_link(meta, analysis)
     if link:
-        out.append(link)
+        out.append(f"<{link}>")  # angle brackets: Discord shows the link without a preview card
     cv = ss.jc.cv_upload_path(opening / "application")  # the named copy the applier uploaded, else cv_ats.pdf
     out.append(f"MEDIA:{cv}" if cv.is_file() else words["no_cv"].format(path=cv.name))
     return "\n".join(out)

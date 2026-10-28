@@ -56,6 +56,7 @@ SCHEME_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*):")
 CONTROL_RE = re.compile(r"[\s\x00-\x1f\x7f]")
 NUMERIC_HOST_RE = re.compile(r"^(?:[0-9.]+|(?:0x[0-9a-f]+\.?)+)$")
 HOST_RE = re.compile(r"^[a-z0-9-]+(?:\.[a-z0-9-]+)+$")
+REGION_CODES = {"na", "eu", "apac", "us", "uk", "latam", "ca", "au", "sa", "me", "asia", "af", "jp"}
 BOARD_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$")
 WORKDAY_LABEL_RE = re.compile(r"^([a-z0-9][a-z0-9-]{0,62})(?:\.wd[0-9]{1,3})?$")
 LOCALE_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
@@ -269,8 +270,13 @@ def _ats_board(st, entry, suffix, host, path):
         board = owner = label
         board_url = f"https://{host}{prefix}"
         if "." in label:
-            problem = "host_shape"
-        elif prefix and lowered != prefix and not lowered.startswith(prefix + "/"):
+            # A regional board (<board>.na.teamtailor.com): the board is the first label; only known regions pass.
+            parts = label.split(".")
+            if len(parts) == 2 and parts[1].lower() in REGION_CODES and BOARD_RE.match(parts[0]):
+                board = owner = parts[0]
+            else:
+                problem = "host_shape"
+        if problem is None and prefix and lowered != prefix and not lowered.startswith(prefix + "/"):
             problem = "no_board_path"
     else:  # workday: <tenant>[.wdN].myworkdayjobs.com/[<locale>/]<site>/...
         found = WORKDAY_LABEL_RE.match(host[: -(len(suffix) + 1)])

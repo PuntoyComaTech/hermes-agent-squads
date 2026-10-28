@@ -92,6 +92,8 @@ def test_connect_creates_the_channel_moves_owner_crons_and_sends_a_test(jobs, mo
     prompt = cfg["platforms"]["discord"]["channel_overrides"][CHANNEL]["system_prompt"]
     assert "mention-free" in prompt
     assert "MEDIA:<absolute path>" in prompt, "a CV sent as a bare path cannot be opened on the owner's phone"
+    # 2026-10-27: every card-finished wake became a channel message and buried the few the owner had to answer.
+    assert "exactly [SILENT]" in prompt and "clarify" in prompt, prompt
     assert cfg["cron"]["wrap_response"] is False, "a notice is the script's text, without the cron header and footer"
     assert cfg["discord"]["free_response_channels"] == CHANNEL  # a string: a list would become one bogus id
     sent = [json.loads(ln) for ln in (jobs.root / "sent.jsonl").read_text().splitlines()]

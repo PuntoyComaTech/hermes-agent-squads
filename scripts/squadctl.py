@@ -1105,10 +1105,14 @@ def squad_of(ctx: "Ctx", bot: str) -> dict:
 def channel_prompt(spec: dict, bot: str) -> str:
     b = spec["bots"][bot]
     return (f"Messaging surface of {b['title']} (profile {bot}, squad {spec.get('name') or spec['key']}). The owner "
-            "reads this channel from a phone: short replies, answer first, no wide tables, the owner's language. "
-            "This channel is mention-free: every message here is addressed to you. Squad notices for the owner "
-            "(digests, blocked cards, alerts) land here; handle a reply to one exactly as in Bot Chat. A file goes as "
-            "a line `MEDIA:<absolute path>` (it uploads); never send a bare local path, the phone cannot open it.")
+            "reads this channel from a phone, in the owner's language. Post only what the owner must decide, a real "
+            "blocker, or a finished result no notice already posts: a card-finished wake that needs none of these is "
+            "answered with exactly [SILENT]. Discord format: one bold first line saying what happened, then at most "
+            "four short lines or bullets; no tables or headings; no card ids, file names, scores breakdowns or tool "
+            "names unless the owner needs them; links as <url> so they do not unfurl. A question with likely answers "
+            "goes through clarify (it shows buttons). This channel is mention-free: every message here is addressed "
+            "to you; handle a reply to a notice exactly as in Bot Chat. A file goes as a line "
+            "`MEDIA:<absolute path>` (it uploads); never send a bare local path, the phone cannot open it.")
 
 
 class Applier:

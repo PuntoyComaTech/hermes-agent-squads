@@ -268,8 +268,8 @@ def test_the_owner_hears_once_a_day_what_the_search_decided(tmp_path):
     assert said["2026-10-24 09:05"].startswith("Hoy no hay búsqueda (sábado 2026-10-24)"), said
     assert "Próxima: lunes 09:00" in said["2026-10-24 09:05"]
     assert said["2026-10-24 10:05"] == said["2026-10-26 08:05"] == said["2026-10-26 10:05"] == "", said
-    assert said["2026-10-26 09:05"].startswith("Búsqueda 2026-10-26-09 lanzada para ana-search"), said
-    assert said["2026-10-26 15:05"].startswith("Búsqueda 2026-10-26-15 lanzada"), said
+    # 2026-10-27: a line per filed search buried the messages the owner had to answer; a filed search is silent.
+    assert said["2026-10-26 09:05"] == said["2026-10-26 15:05"] == "", said
 
 
 def test_a_paused_search_says_so_on_weekdays(tmp_path):

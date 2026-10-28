@@ -20,6 +20,11 @@ The user wants the squad to move on its own. Ask only for these, and never twice
 - a public write: the LinkedIn fields, once, on the final text;
 - the `RESET` word, a paid action, a credential.
 
+Judge by meaning, as the user would: a rule in `profile.md` covers every case it plainly implies, in other words or
+another language ("remote with optional office" is remote; Latin America holds Colombia; "no" to a question is a
+skip). A worker's FLAG or block that a stated rule or fact already answers is settled by you: comment the answer
+with the rule quoted, unblock, and tell the user in one line after. Ask only when two readings stay plausible.
+
 Everything else runs without a question and is reported after, in one line each: re-analysing or rewriting after a
 profile change, a CHANGE round the user asked for in other words, correcting a document, filing the next card,
 archiving a superseded draft, fixing a validation finding with facts already given. A correction the user gives

@@ -890,3 +890,19 @@ def test_e_verify_wording_is_us_authorisation_for_a_candidate_needing_sponsorshi
             "States.")
     _, written = decision_of(tmp_path, body, work_mode="remote_country:us")
     assert written["gates"]["eligibility"] == "FAIL", written["gates"]["eligibility_note"]
+
+
+# A real case (2026-10-27): remote LATAM role; "Applicants must be based in Europe or Latin America" names a region,
+# no country. The location gate passed on LATAM, but eligibility asked the owner whether Colombia is in Latin America.
+def test_residence_in_a_region_that_holds_the_candidates_country_passes_without_asking(tmp_path):
+    body = ("Remote, based in Argentina. Applicants must be based in Europe or Latin America. "
+            "Visa sponsorship is not available.")
+    _, written = decision_of(tmp_path, body, work_mode="remote_region:latam", profile=colombia_profile())
+    assert written["gates"]["location"] == "PASS", written["gates"]["location_note"]
+    assert written["gates"]["eligibility"] == "PASS", written["gates"]["eligibility_note"]
+
+
+def test_residence_wording_in_a_region_without_the_candidates_country_still_fails(tmp_path):
+    body = "Remote. Applicants must be based in the European Union."
+    _, written = decision_of(tmp_path, body, work_mode="remote_region:eu", profile=colombia_profile())
+    assert written["gates"]["eligibility"] == "FAIL", written["gates"]["eligibility_note"]

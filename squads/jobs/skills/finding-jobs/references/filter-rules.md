@@ -86,12 +86,16 @@ Gap = posting CEFR minus declared CEFR, in steps.
 | Posting written in a language the user has `undeclared`, no requirement stated | FLAG, label `language_not_stated`, reason "interview probably in <language>" |
 | Posting written in a declared language, no requirement stated | PASS |
 
-When the wording is unclear, choose FLAG over a silent PASS. The user is the tiebreaker, not the gate.
+Read meaning, not keywords: a synonym, a paraphrase or a plain implication settles a gate (Latin America holds
+Colombia; "remote, hybrid or in-office" offers remote). FLAG only when two readings stay plausible after reading the
+whole posting and `profile.md`; the user is the tiebreaker for those, never for what the profile already answers.
 
 ## Gate 4: geography, work mode and timezone
 
 Compare the posting's work mode with `work_mode` and `cities` in the profile.
 
+- A role that offers remote work as an option (remote-first with offices, "remote or hybrid", an optional office) is
+  remote: judge it by its remote scope below, never as onsite or hybrid.
 - Onsite or hybrid in a city outside `cities`, with no relocation stated as acceptable: DISCARD, quote the place.
 - Remote restricted to countries that exclude `market.country`: DISCARD, quote the restriction. Record every
   country the posting hires in as `hiring_countries` (ISO codes, primary first), body included: the analysis gates
