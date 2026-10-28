@@ -38,6 +38,7 @@ description: "Assigns a model per bot from connected providers. Use when a squad
    and to their children. The user may edit, drop (`fallback: []`) or keep it.
    A row's `reasoning` may map primary models to efforts (`{<model>: max,
    default: high}`); a bot already on the fallback model keeps its own effort.
+   `retries: <n>` sets the tries on the primary before the chain.
 6. On OK run `scripts/hpy squadctl.py apply <key> --models local/models-<key>.json`
    (`--self` instead of `<key>` for the builder). `apply` saves the choice in
    `local/installed.yaml` and gives every bot every provider the user

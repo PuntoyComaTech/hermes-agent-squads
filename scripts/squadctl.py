@@ -3,7 +3,8 @@
 
 Reads squads/<key>/squad.yaml (builder.yaml for --self), the overlay local/squads/<key>/squad.yaml and the models
 in local/installed.yaml (bots: and lanes: maps of provider/model/reasoning, plus an optional `fallback:` list of
-provider/model/reasoning tried in order by every bot and its children). --models <file> merges the same shape
+provider/model/reasoning tried in order by every bot and its children, and `retries:`, the tries on the primary
+before it). --models <file> merges the same shape
 or `scripts/hpy model_advisor.py --json` output, and a real apply saves it. Licence or disclosure items stay pending
 until `--confirm <id>`. Output is TOON, JSON with --json. Config writes go through Hermes's own writer, one process
 per profile (_profile_apply.py). Never prints secret values: `apply --yes` copies a provider key into the bot's env
@@ -691,6 +692,8 @@ def load_installed(ctx: Ctx) -> dict:
     out = {"schema": 1, **{k: d.get(k) or {} for k in ("bots", "lanes", "squads", "projects")}}
     if d.get("fallback"):
         out["fallback"] = fallback_rows(d["fallback"])
+    if d.get("retries") is not None:
+        out["retries"] = int(d["retries"])
     return out
 
 
@@ -711,6 +714,7 @@ def models_from(doc: dict) -> dict:
     def pick(row: dict) -> dict:
         return {k: row[k] for k in ("provider", "model", "reasoning") if row.get(k)}
     fallback = fallback_rows(doc["fallback"]) if "fallback" in doc else None
+    retries = int(doc["retries"]) if doc.get("retries") is not None else None
     if isinstance(doc.get("squads"), list):  # model_advisor --json: {squads: [{key, bots, shared}], lanes: [...]}
         doc = {"bots": [b for s in doc["squads"] for b in s.get("bots") or []],
                "shared": [x for s in doc["squads"] for x in s.get("shared") or []], "lanes": doc.get("lanes")}
@@ -723,8 +727,8 @@ def models_from(doc: dict) -> dict:
                 lanes.setdefault(row["lane"], pick(row))
             for ex in row.get("extras") or []:
                 lanes.setdefault(ex["lane"], pick(ex))
-        return {"bots": bots, "lanes": lanes, "fallback": fallback}
-    return {"bots": doc.get("bots") or {}, "lanes": doc.get("lanes") or {}, "fallback": fallback}
+        return {"bots": bots, "lanes": lanes, "fallback": fallback, "retries": retries}
+    return {"bots": doc.get("bots") or {}, "lanes": doc.get("lanes") or {}, "fallback": fallback, "retries": retries}
 
 
 def model_for(models: dict, lane: str, bot: str | None = None) -> dict | None:
@@ -1270,7 +1274,7 @@ class Applier:
         the keys stay as they are; `fallback: []` clears them."""
         rows = self.models.get("fallback")
         if rows is None:
-            return []
+            return [["agent.api_max_retries", self.models["retries"], False]] if self.models.get("retries") is not None else []
         chain = [{"provider": r["provider"], "model": r["model"]} for r in rows]
         own = (primary or {}).get("model")
         overrides = {}
@@ -1280,8 +1284,11 @@ class Applier:
                 effort = effort.get(own) or effort.get("default")
             if effort and r["model"] != own:
                 overrides[r["model"]] = str(effort)
-        return [["fallback_providers", chain, False], ["delegation.fallback_providers", chain, False],
+        plan = [["fallback_providers", chain, False], ["delegation.fallback_providers", chain, False],
                 ["agent.reasoning_overrides", overrides, False]]
+        if self.models.get("retries") is not None:  # tries on the primary before the chain takes over
+            plan.append(["agent.api_max_retries", self.models["retries"], False])
+        return plan
 
     def missing_models(self, name: str) -> list[str]:
         """Lanes without a model for this bot (its own, delegation, aux, vision, agent cron jobs)."""
@@ -2056,16 +2063,20 @@ def effective_models(ctx: Ctx, models_file: str | None) -> tuple[dict, dict]:
     if models_file:
         extra = models_from(read_yaml(Path(models_file)) or {})
         models = {"bots": {**models["bots"], **extra["bots"]}, "lanes": {**models["lanes"], **extra["lanes"]},
-                  "fallback": models["fallback"] if extra["fallback"] is None else extra["fallback"]}
+                  "fallback": models["fallback"] if extra["fallback"] is None else extra["fallback"],
+                  "retries": models["retries"] if extra["retries"] is None else extra["retries"]}
     return installed, models
 
 
 def save_models(installed: dict, models: dict) -> dict:
-    """installed.yaml with the effective models: bots, lanes and the fallback chain (dropped when empty)."""
+    """installed.yaml with the effective models: bots, lanes, the fallback chain (dropped when empty) and retries."""
     out = {**installed, "bots": models["bots"], "lanes": models["lanes"]}
     out.pop("fallback", None)
+    out.pop("retries", None)
     if models.get("fallback"):
         out["fallback"] = models["fallback"]
+    if models.get("retries") is not None:
+        out["retries"] = models["retries"]
     return out
 
 

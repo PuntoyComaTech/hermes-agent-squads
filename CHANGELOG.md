@@ -10,6 +10,8 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 - squadctl: a fallback row's `reasoning` can map the bot's primary model to an effort (`{<model>: max, default:
   high}`), so a fallback runs harder for bots whose primary is the strong model. A bot whose primary is the
   fallback model no longer gets a `reasoning_overrides` entry that silently replaced its own effort.
+- squadctl: a models file's `retries:` sets `agent.api_max_retries` on every bot, so a dropped connection gets
+  more tries on the primary before the fallback chain takes over; the value is kept in `local/installed.yaml`.
 
 ## 2.26.8 - 2026-10-28
 

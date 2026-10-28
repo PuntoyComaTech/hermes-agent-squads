@@ -745,6 +745,19 @@ def test_fallback_effort_follows_the_primary_and_spares_a_bot_already_on_the_fal
     assert saved["fallback"][0]["reasoning"] == {"strong": "max", "default": "high"}
 
 
+def test_retries_on_the_primary_reach_every_bot_and_survive_a_later_models_file(env, capsys):
+    """A dropped connection should not hand the work to the fallback after three quick tries."""
+    env.squad("web")
+    env.models.write_text(yaml.safe_dump({**models_doc(), "retries": 6}))
+    env.run("apply", "web", capsys=capsys)
+    for bot in WEB_BOTS:
+        assert env.config(bot)["agent"]["api_max_retries"] == 6, bot
+    env.models.write_text(yaml.safe_dump(models_doc()))
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert out["summary"] == {"unchanged": 5}
+    assert yaml.safe_load((env.local / "installed.yaml").read_text())["retries"] == 6
+
+
 def test_models_file_accepts_model_advisor_json(env, capsys):
     env.squad("web")
     rows = [{"bot": b, "lane": l, "model": f"adv-{l}", "provider": "adv", "reasoning": "low", "extras": []}
