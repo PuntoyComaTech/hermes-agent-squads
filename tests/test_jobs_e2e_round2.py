@@ -306,16 +306,17 @@ def test_a_kit_for_an_emailed_code_is_refused_until_jobs_inbox_was_asked(tmp_pat
 @needs_hermes
 def test_code_wait_files_the_inbox_card_and_returns_the_code_it_completes_with(tmp_path):
     """The real kanban: code_wait files the Mode: CODE card for jobs-inbox, and the code jobs-inbox completes it with
-    comes back to the applier. Gmail is checked first, so a fake connector answers that one call."""
+    comes back to the applier. The mail login is checked first, so the installed mail.py answers that one call."""
     root = temp_root(tmp_path)
-    (root / "profiles" / "jobs-inbox").mkdir(parents=True)
+    mail = root / "profiles" / "jobs-inbox" / "skills" / "squad-jobs" / "triaging-inbox" / "scripts" / "mail.py"
+    mail.parent.mkdir(parents=True)
+    mail.write_text("print('{\"configured\": true, \"login\": \"ok\"}')\n")
     env = env_for(root)
     assert subprocess.run([HERMES, "kanban", "boards", "create", "jobs"], env=env, capture_output=True,
                           text=True, timeout=120).returncode == 0
     shim = tmp_path / "bin" / "hermes"
     shim.parent.mkdir()
-    shim.write_text(f"#!/bin/sh\nif [ \"$3\" = connectors ]; then echo 'gmail  work  active'; exit 0; fi\n"
-                    f"exec {HERMES} \"$@\"\n")
+    shim.write_text(f"#!/bin/sh\nexec \"{HERMES}\" \"$@\"\n")
     shim.chmod(0o755)
     folder = tmp_path / "project"
     folder.mkdir()

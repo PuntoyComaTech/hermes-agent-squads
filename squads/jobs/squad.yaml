@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.12.2
+version: 4.13.0
 
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
@@ -82,14 +82,13 @@ bots:
   jobs-inbox:
     role: worker
     title: Jobs inbox
-    description: "Reads job mail through the Gmail connector: replies, follow-up drafts and verification codes; no web, no browser"
+    description: "Reads job mail over IMAP, read-only: replies, follow-up drafts and verification codes; no web, no browser"
     lane: digest
-    optional: true   # needs a Gmail connector account: squadctl apply jobs --with jobs-inbox
-    toolsets: [file, skills, kanban, todo, terminal, connections]
+    optional: true   # reads mail over IMAP (app password in the Keychain): squadctl apply jobs --with jobs-inbox
+    toolsets: [file, skills, kanban, todo, terminal]
     withhold: [web, delegation, code_execution]
     skills: {squad: [triaging-inbox, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
-    connectors: {enabled: true, suggest: [gmail]}
 chains:
   application:
     - {stage: analyze, assignee: jobs-scout, skill: analyzing-jobs, lane: review}

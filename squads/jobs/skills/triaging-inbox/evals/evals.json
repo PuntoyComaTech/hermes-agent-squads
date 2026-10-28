@@ -15,8 +15,8 @@
     },
     {
       "id": 3,
-      "prompt": "A rejection email arrives for an opening already recorded as offer, and the connector has two accounts with no alias set.",
-      "expected_output": "The account question is raised with needs_input rather than guessing an alias; once answered, the rejection goes under review with both dates and is not proposed.",
+      "prompt": "A rejection email arrives for an opening already recorded as offer, and mail.py status reports login refused.",
+      "expected_output": "The card blocks as capability quoting the login error; once mail is reconnected, the rejection goes under review with both dates and is not proposed.",
       "files": []
     }
   ]

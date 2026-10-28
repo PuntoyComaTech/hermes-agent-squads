@@ -54,13 +54,13 @@ Read `references/autonomy.md` before asking anything, writing an outward text or
    | pause, resume | step 7 |
 
 3. **Inbox card.** The manager never reads mail. File a jobs-inbox card (optional bot; when it is missing say the
-   builder adds it with `squadctl apply jobs --with jobs-inbox` and connects Gmail): `kanban_create` with
+   builder adds it with `squadctl apply jobs --with jobs-inbox`): `kanban_create` with
    `board: "jobs"`, `assignee: "jobs-inbox"`, `skills: ["triaging-inbox"]`, `parents: [your card]`, `workspace_kind: dir`,
    `workspace_path: <P>`, `idempotency_key: jobs:inbox:<project>:<YYYY-MM-DD>`. Body: `Mode: INBOX`, the project
    path, the `since` date when the user gave one, and the instruction to file the result back to the manager with
    skill `tracking-outcomes`, body `Mode: INBOX` plus the path `<P>/reports/inbox-YYYY-MM-DD.json`. A second ask on the
    same day returns the same card. Tell the user: "Checking your inbox; you will get a list of proposed updates to
-   approve."
+   approve." "connect my mail", or an inbox card blocked on `not connected`/`login refused`: `references/connecting-mail.md`.
 
 4. **Search.** The `jobs-search` cron runs hourly; `start_search.py` files one search card per active project per slot
    (the project's `search_times` on weekdays, default 12:00, in its `timezone`; each card reads only postings since

@@ -10,13 +10,13 @@ Mode: CODE). This files that card (key `jobs:code:<ID>:<attempt>`, the sender's 
 waits for jobs-inbox to complete it, and prints the code on stdout for the applier to type into the open form. Nothing
 is written to disk: the code lives only in the card result and in this process's output.
 
-Before filing it checks that jobs-inbox is installed and has a Gmail account (`hermes -p jobs-inbox connectors
-accounts gmail`), so a missing mailbox costs seconds, not the code's lifetime.
+Before filing it checks that jobs-inbox is installed and its mail is connected (`mail.py status` in jobs-inbox's
+profile: the IMAP login works), so a missing mailbox costs seconds, not the code's lifetime.
 
 Output (--json): {"outcome", "card", "code"?, "link"?, "reason"?}. outcome is
   code         the code (or the one confirm link) is here: type it, submit again
   no_code      jobs-inbox read the window and found none (or two different codes): request a new code once, then kit
-  unavailable  jobs-inbox is not installed, has no Gmail account, or blocked: kit, and the reason says what to connect
+  unavailable  jobs-inbox is not installed, its mail is not connected, or blocked: kit, and the reason says what to connect
   timeout      the card did not finish within --timeout seconds: kit
 The applier records the card and the outcome in submission.json `code_request` {card, outcome}: a NOT_POSSIBLE that
 names an e-mailed code is refused by check_submission.py without it.
@@ -59,13 +59,21 @@ def inbox_ready(bin_name: str) -> str:
     """"" when jobs-inbox can read mail, else why not."""
     if not (hermes_root() / "profiles" / INBOX).is_dir():
         return f"{INBOX} is not installed: squadctl apply jobs --with {INBOX}"
+    home = hermes_root() / "profiles" / INBOX
+    mail = home / "skills" / "squad-jobs" / "triaging-inbox" / "scripts" / "mail.py"
+    if not mail.is_file():
+        return f"{INBOX} has no mail reader installed: squadctl apply jobs --with {INBOX}"
     try:
-        done = run(bin_name, "-p", INBOX, "connectors", "accounts", "gmail")
+        done = subprocess.run([sys.executable, "-I", str(mail), "status", "--json"], capture_output=True, text=True,
+                              timeout=60, env={**os.environ, "HERMES_HOME": str(home)}, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError) as exc:
         return f"cannot ask {INBOX} for its mail account: {exc}"
-    rows = [ln for ln in done.stdout.splitlines() if ln.strip().lower().startswith("gmail") and "retired" not in ln]
-    if done.returncode != 0 or not rows:
-        return f"{INBOX} has no Gmail account: hermes -p {INBOX} connectors connect gmail"
+    if done.returncode != 0:
+        try:
+            why = json.loads(done.stdout).get("error") or ""
+        except ValueError:
+            why = (done.stdout or done.stderr).strip()[:200]
+        return f"{INBOX}: {why or 'mail is not connected'}"
     return ""
 
 

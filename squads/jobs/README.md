@@ -81,9 +81,9 @@ and no deal-breaker. The score weights are yours to change in `profile.md`.
 | `jobs-writer` | CV, letter, answers and interview prep from verified achievements; renders PDF, DOCX and ATS text; optimises your own LinkedIn profile |
 | `jobs-reviewer` | Lenses for truthfulness, ATS, recruiter, hiring manager and writing, plus market and language checks |
 | `jobs-applier` | Submits within your apply mode and daily caps, LinkedIn Easy Apply included; otherwise writes a manual kit |
-| `jobs-inbox` (optional) | Reads job mail through Gmail: replies, follow-up drafts, verification codes. No web, no browser, never sends |
+| `jobs-inbox` (optional) | Reads job mail over IMAP, read-only: replies, follow-up drafts, verification codes. No web, no browser, never sends |
 
-`contact.yaml` is used by `jobs-writer` (documents) and `jobs-applier` (forms). Gmail is connected to `jobs-inbox` only,
+`contact.yaml` is used by `jobs-writer` (documents) and `jobs-applier` (forms). Mail is connected to `jobs-inbox` only,
 the bot with no web and no browser; it reads and drafts, and never sends. `jobs-inbox` is optional:
 `squadctl apply jobs --with jobs-inbox`.
 
@@ -95,7 +95,9 @@ the bot with no web and no browser; it reads and drafts, and never sends. `jobs-
   poppler (`pdftotext`, `pdfinfo`). Without them the writer says what is missing; nothing is installed for you.
 - The shared browser: `squadctl apply` installs it as a background service; you sign in once in the window the
   builder opens on request (`scripts/hpy shared_browser.py login <url>`).
-- Mail: `hermes connectors connect gmail`, once, if you want reply tracking (`jobs-inbox`).
+- Mail (optional, `jobs-inbox`): macOS and a Google app password (2-step verification on). Tell the manager "connect my
+  mail": a dialog asks for your address, Google's App passwords page opens, and a hidden dialog takes the password,
+  which is checked and stored in the Keychain. Nous Portal's connector catalog has no Gmail.
 - One search is one Hermes Project, in a folder you choose. In the Desktop app: Sessions, pick `jobs` in the bottom
   selector, then "+" (New project), and start the search in a chat inside it.
 

@@ -3,6 +3,17 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.29.0 - 2026-10-28
+
+### Fixed
+
+- jobs 4.13.0: jobs-inbox reads job mail over IMAP (`triaging-inbox/scripts/mail.py`), read-only (EXAMINE, BODY.PEEK,
+  All Mail, the user's own mail left out), with a Google app password stored in the macOS Keychain. The squad relied on
+  a Gmail connector that Nous Portal's connector catalog does not have, so `hermes connectors connect gmail` could
+  never work. The user connects mail by telling the manager "connect my mail": two macOS dialogs, no terminal
+  (`leading-job-search/references/connecting-mail.md`). `code_wait.py` checks the IMAP login instead of a connector
+  account; jobs-inbox drops the `connections` toolset.
+
 ## 2.28.1 - 2026-10-28
 
 ### Fixed
