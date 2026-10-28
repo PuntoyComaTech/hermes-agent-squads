@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.28.1 - 2026-10-28
+
+### Fixed
+
+- model_advisor: a squad installed with an owner overlay (`local/squads/<key>/squad.yaml`) is advised on the repo
+  manifest with the overlay merged over it, as squadctl reads it; it no longer read the overlay alone and stopped on
+  `KeyError: 'lane'`.
+
 ## 2.28.0 - 2026-10-28
 
 ### Changed

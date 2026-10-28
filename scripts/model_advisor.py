@@ -444,17 +444,20 @@ def slim(pick: dict, use: str | None = None) -> dict:
 
 # --- squads -----------------------------------------------------------------------------------------------------
 
-def find_squad(ref: str) -> Path:
+def load_squad(ref: str) -> dict:
+    """A manifest path as given, or squad <ref>: the repo manifest with the local overlay merged over it, as squadctl
+    reads it. An overlay alone is partial (owner extras only); a local squad with no repo manifest is whole."""
     path = Path(ref)
     if path.is_file():
-        return path
-    candidates = [BUILDER / "local" / "squads" / ref / "squad.yaml", BUILDER / "squads" / ref / "squad.yaml"]
-    if ref == "builder":
-        candidates.append(BUILDER / "builder.yaml")
-    for c in candidates:
-        if c.is_file():
-            return c
-    raise AdvisorError(f"squad not found: {ref}")
+        return load_yaml(path)
+    repo = BUILDER / "builder.yaml" if ref == "builder" else BUILDER / "squads" / ref / "squad.yaml"
+    local = BUILDER / "local" / "squads" / ref / "squad.yaml"
+    if not (repo.is_file() or local.is_file()):
+        raise AdvisorError(f"squad not found: {ref}")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from squadctl import deep_merge
+    return deep_merge(deep_merge(None, load_yaml(repo) if repo.is_file() else {}),
+                      load_yaml(local) if local.is_file() else {})
 
 
 # Same default as squadctl.DEFAULT_DELEGATION_LANE: delegate_task children run on a cheap lane unless the manifest
@@ -582,7 +585,7 @@ def run(args: argparse.Namespace) -> dict:
                                         for p in found["providers"]],
                       "families": adv.present_families(), "source": found["source"], "stale": found["stale"],
                       "report": report, "excluded": [s for s in slugs if s in excluded]},
-        "squads": [advise_squad(adv, load_yaml(find_squad(ref))) for ref in args.squads],
+        "squads": [advise_squad(adv, load_squad(ref)) for ref in args.squads],
     }
     lanes = args.lane or ([] if args.squads else list(adv.lanes))
     avoid = None

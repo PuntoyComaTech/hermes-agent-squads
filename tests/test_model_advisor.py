@@ -431,3 +431,21 @@ def test_the_jobs_squad_runs_cheap_where_it_can_and_strong_only_on_review(capsys
     for name in ("jobs", "jobs-writer", "jobs-applier"):
         assert jobs[name]["cost"] != "high", jobs[name]
     assert jobs["jobs-reviewer"]["lane"] == "review"
+
+
+def test_an_installed_squad_with_an_owner_overlay_is_advised_on_the_whole_manifest(tmp_path, monkeypatch, capsys):
+    """An overlay holds only the owner's extras (no lanes); the advisor merges it over the repo manifest, as
+    squadctl does, instead of reading it alone and failing on the first bot without a lane."""
+    builder = tmp_path / "builder"
+    (builder / "squads" / "web").mkdir(parents=True)
+    (builder / "squads" / "web" / "squad.yaml").write_text((REPO / "squads" / "web" / "squad.yaml").read_text())
+    (builder / "local" / "squads" / "web").mkdir(parents=True)
+    (builder / "local" / "squads" / "web" / "squad.yaml").write_text("bots:\n  web:\n    shared_browser: true\n")
+    monkeypatch.setattr(ma, "BUILDER", builder)
+    args = ["web", "--json", "--now", str(NOW), "--providers", "cache", "--local-roles", str(FIX / "nonexistent.yaml"),
+            "--exclude-file", str(FIX / "nonexistent-exclude.txt"),
+            "--cache", str(FIX / "caches" / "copilot-opencode-go.json")]
+    assert ma.main(args) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert {b["bot"] for b in out["squads"][0]["bots"]} == {"web", "web-frontend", "web-backend", "web-qa",
+                                                            "web-deployer", "web-frontend-pro"}
