@@ -424,6 +424,22 @@ def test_a_vulnerable_transitive_package_is_fixed_with_an_override(tmp_path):
     assert "add " not in (tmp_path / "pnpm.log").read_text(), "a transitive package is never made a direct one"
 
 
+def test_a_vulnerable_dependency_moves_to_its_newest_mature_release_even_across_a_major(tmp_path):
+    """The owner's rule: the newest release 3 days old that clears the advisory, not the lowest patch; a major is
+    reported for the release-notes review."""
+    repo, env = fix_fixture(tmp_path)
+    pkg = repo / "package.json"
+    fake_bin(tmp_path / "bin", "pnpm", f'echo "$@" >> "{tmp_path}/pnpm.log"\n'
+                                       f'if [ "$*" = "add next" ]; then echo \'{{"name": "acme", "dependencies": '
+                                       f'{{"next": "^17.2.0"}}}}\' > "{pkg}"; touch "{tmp_path}/fixed"; fi\n')
+    code, out = run_fix(repo, env)
+    assert code == 0 and out["ok"], out
+    assert out["fixed"][0]["fixed"] == "17.2.0" and out["fixed"][0]["how"] == "newest"
+    assert out["majors"] == [{"name": "next", "from": "16.4.0", "to": "17.2.0"}]
+    assert "next@^16.4.1" not in (tmp_path / "pnpm.log").read_text(), "never pinned back to the lowest fix"
+    assert "release notes reviewed" in (repo.parent / "decisions.md").read_text()
+
+
 def test_a_scan_that_cannot_run_is_not_clean(tmp_path):
     repo, env = fix_fixture(tmp_path)
     (tmp_path / "bin" / "osv-scanner").unlink()

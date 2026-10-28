@@ -25,7 +25,7 @@ description: "Builds APIs, data, auth and tests in the site repo. Use when a mil
 
 ## Pitfalls
 
-- Add a package only with `pnpm add <name>`, never by editing `package.json` or with a version from memory. A `quality:deps` failure: run site-contract `scripts/security_fix.py --repo <repo>`.
+- Add a package only with `pnpm add <name>`, never by editing `package.json` or with a version from memory. A `quality:deps` failure: run site-contract `scripts/security_fix.py --repo <repo>`; review each major it reports (site-contract `references/project-base.md`, section 2).
 - Never log request bodies, tokens, cookies or personal data; log ids and outcomes.
 - Compare secrets with the platform's constant-time helper, never `==`.
 - Never add a service, queue or database the spec did not choose.
