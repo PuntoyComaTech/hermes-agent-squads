@@ -3,6 +3,16 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.8 - 2026-10-28
+
+### Fixed
+
+- squad-hub 1.4.6: a floating side can be resized again. It left the flow, so Desktop's sash moved a track the side
+  no longer read; each shown side now has its own grip on its inner edge (double-click resets it), the width is kept
+  across restarts and a docked side's room in the row follows it.
+- squad-hub: a plain click on a chat in the list opens it where you are, like Desktop's own list, instead of stacking
+  a new tab every time; ⌘/Ctrl-click or the row menu opens a new tab.
+
 ## 2.26.7 - 2026-10-28
 
 ### Fixed

@@ -853,7 +853,7 @@ const MESSAGES = {
     removeWorktree: 'Remove worktree', renameProject: 'Rename project…', removeProject: 'Remove project (keeps the folders)',
     scheduled: 'Scheduled jobs', messaging: 'Messaging', capabilities: 'Capabilities…', kanban: 'Kanban board', pinTop: 'Pin to top',
     unpin: 'Unpin', hideBot: 'Hide from Squads', copyPath: 'Copy path', reveal: 'Reveal in Finder', 
-    openWindow: 'Open in a new window', rename: 'Rename…', archive: 'Archive', previews: 'Previews', 
+    openTab: 'Open in a new tab (⌘-click)', openWindow: 'Open in a new window', rename: 'Rename…', archive: 'Archive', previews: 'Previews', 
     noPreviews: 'No previews saved for this chat', primary: 'primary', name: 'Name', folders: 'Folders', none: 'None yet',
     cancel: 'Cancel', create: 'Create', creating: 'Creating…', save: 'Save', remove: 'Remove', projectIn: 'New project in {0}',
     projectHelp: 'A project groups one or more folders. Each folder can get its own worktrees.', projectName: 'e.g. Website redesign',
@@ -880,7 +880,7 @@ const MESSAGES = {
     removeWorktree: 'Quitar worktree', renameProject: 'Renombrar proyecto…', removeProject: 'Quitar proyecto (conserva las carpetas)',
     scheduled: 'Tareas programadas', messaging: 'Mensajería', capabilities: 'Capacidades…', kanban: 'Tablero Kanban', pinTop: 'Fijar arriba',
     unpin: 'Desfijar', hideBot: 'Ocultar de Squads', copyPath: 'Copiar ruta', reveal: 'Mostrar en Finder', 
-    openWindow: 'Abrir en otra ventana', rename: 'Renombrar…', archive: 'Archivar', previews: 'Previews', 
+    openTab: 'Abrir en otra pestaña (⌘-clic)', openWindow: 'Abrir en otra ventana', rename: 'Renombrar…', archive: 'Archivar', previews: 'Previews', 
     noPreviews: 'No hay previews guardadas de este chat', primary: 'principal', name: 'Nombre', folders: 'Carpetas', none: 'Ninguna aún',
     cancel: 'Cancelar', create: 'Crear', creating: 'Creando…', save: 'Guardar', remove: 'Quitar', projectIn: 'Nuevo proyecto en {0}',
     projectHelp: 'Un proyecto agrupa una o varias carpetas. Cada carpeta puede tener sus propios worktrees.', projectName: 'p. ej. Rediseño web',
@@ -1068,6 +1068,74 @@ function sideWrappers() {
   return { root, main: kids[mainAt], left: mainAt > 0 ? kids[0] : null, right: mainAt < kids.length - 1 ? kids[kids.length - 1] : null }
 }
 
+/** A floating side leaves the flow, so Desktop's own sash resizes a track the side no longer reads. Each shown side
+ *  gets its own grip on its inner edge instead: dragging it sets the side's width (and a docked side's room in the
+ *  row), kept across restarts. The grip is placed from the row's edge, never the panel's, so a slide in progress never
+ *  misplaces it. */
+const SIDE_MIN = 220
+const clampSide = w => Math.round(Math.min(Math.max(w, SIDE_MIN), Math.min(900, (window.innerWidth || 1200) * 0.85)))
+const grips = {}
+let gripDrag = null
+function placeGrip(side, el, root) {
+  const grip = grips[side]
+  if (!grip) return
+  if (!el || !root) {
+    if (!gripDrag || gripDrag.side !== side) grip.hidden = true
+    return
+  }
+  const r = root.getBoundingClientRect()
+  const w = parseFloat(el.style.getPropertyValue('--sqh-w')) || el.getBoundingClientRect().width
+  grip.hidden = false
+  grip.style.top = r.top + 'px'
+  grip.style.height = (r.bottom - r.top) + 'px'
+  grip.style.left = (side === 'left' ? r.left + w - 3 : r.right - w - 3) + 'px'
+}
+function makeGrip(side) {
+  const grip = document.createElement('div')
+  grip.dataset.sqhGrip = side
+  grip.hidden = true
+  grip.addEventListener('pointerdown', e => {
+    if (e.button) return
+    const el = document.querySelector(`[data-sqh-side="${side}"]`)
+    const root = document.querySelector('[data-sqh-float-root]')
+    if (!el || !root) return
+    e.preventDefault()
+    grip.setPointerCapture?.(e.pointerId)
+    gripDrag = { side, el, root }
+    document.documentElement.dataset.sqhResizing = ''
+  })
+  grip.addEventListener('pointermove', e => {
+    if (gripDrag?.side !== side) return
+    const r = gripDrag.root.getBoundingClientRect()
+    const w = clampSide(side === 'left' ? e.clientX - r.left : r.right - e.clientX)
+    gripDrag.el.style.setProperty('--sqh-w', w + 'px')
+    if (floatState[side].pinned) gripDrag.root.style.setProperty(`--sqh-dock-${side}`, w + 'px')
+    placeGrip(side, gripDrag.el, gripDrag.root)
+  })
+  const end = () => {
+    if (gripDrag?.side !== side) return
+    const w = parseFloat(gripDrag.el.style.getPropertyValue('--sqh-w'))
+    if (w) storage?.set('sideWidths', { ...(storage?.get('sideWidths', {}) || {}), [side]: w })
+    gripDrag = null
+    delete document.documentElement.dataset.sqhResizing
+    paintFloat()
+  }
+  grip.addEventListener('pointerup', end)
+  grip.addEventListener('pointercancel', end)
+  grip.addEventListener('dblclick', () => {
+    // a double-click, like Desktop's sash, goes back to the default width
+    const rest = { ...(storage?.get('sideWidths', {}) || {}) }
+    delete rest[side]
+    storage?.set('sideWidths', rest)
+    const el = document.querySelector(`[data-sqh-side="${side}"]`)
+    if (el) delete el.dataset.sqhSide // re-measured on the next paint
+    paintFloat()
+  })
+  document.body.append(grip)
+  grips[side] = grip
+  return grip
+}
+
 /** Takes the docked widths off a row that no longer floats its sides. */
 function undock(el) {
   delete el.dataset.sqhDockLeft
@@ -1109,7 +1177,8 @@ function paintFloat() {
     const groups = el ? [...el.querySelectorAll('[data-tree-group]')].map(g => g.getAttribute('data-tree-group')) : []
     // a pinned side is docked: the row gives it its width, so it sits beside the chat instead of over it
     const docked = Boolean(el && groups.length && st.pinned)
-    root.style.setProperty(`--sqh-dock-${side}`, docked ? Math.round(el.getBoundingClientRect().width) + 'px' : '0px')
+    if (!el || !groups.length) placeGrip(side, null, root)
+    if (!docked) root.style.setProperty(`--sqh-dock-${side}`, '0px')
     if (docked) root.dataset[side === 'left' ? 'sqhDockLeft' : 'sqhDockRight'] = ''
     else delete root.dataset[side === 'left' ? 'sqhDockLeft' : 'sqhDockRight']
     if (!el || !groups.length) {
@@ -1119,17 +1188,20 @@ function paintFloat() {
       continue
     }
     if (el.dataset.sqhSide !== side) {
-      const w = Math.round(el.getBoundingClientRect().width)
-      el.style.setProperty('--sqh-w', Math.max(side === 'left' ? 260 : 300, w || 0) + 'px')
+      const w = storage?.get('sideWidths', {})?.[side] || Math.round(el.getBoundingClientRect().width)
+      el.style.setProperty('--sqh-w', clampSide(Math.max(SIDE_MIN, w || 0)) + 'px')
       el.dataset.sqhSide = side
     }
     st.groups = groups
+    // the docked room is the side's own width, never a measure taken while it slides
+    if (docked) root.style.setProperty(`--sqh-dock-${side}`, el.style.getPropertyValue('--sqh-w') || Math.round(el.getBoundingClientRect().width) + 'px')
     const show = st.open || st.pinned
     if (show) el.dataset.sqhOpen = ''
     else delete el.dataset.sqhOpen
     // the edge strip only where this side floats hidden: never a dead band over a side that is shown or absent
     const edge = document.querySelector(`[data-sqh-edge="${side}"]`)
     if (edge) edge.hidden = show
+    placeGrip(side, show ? el : null, root)
     // pane hosts sit outside the split tree: lift them with their side, and hide them with it so a closed side
     // can neither be focused off-screen nor shift the window
     for (const id of groups) rules.push(`[data-pane-host][data-tree-group="${cssEscape(id)}"]{z-index:46!important;background:var(--sidebar,var(--ui-bg-chrome,var(--background)));${show ? 'opacity:1;transition:opacity var(--sqh-in) ease!important;' : 'opacity:.35;visibility:hidden!important;transition:opacity var(--sqh-out) ease-in,visibility 0s linear var(--sqh-out)!important;'}}`)
@@ -1196,6 +1268,7 @@ function setSide(side, open) {
 function onFloatPointer(e) {
   const x = e.clientX
   const y = e.clientY
+  if (gripDrag) return
   for (const side of ['left', 'right']) {
     const st = floatState[side]
     if (!st.groups.length || st.pinned) continue
@@ -1223,7 +1296,7 @@ function onFloatPointer(e) {
       floatNear[side] = !far
       floatTimers[side] = setTimeout(() => {
         floatTimers[side] = null
-        if (focusInSide(side) || menuOpen()) return
+        if (focusInSide(side) || menuOpen() || gripDrag) return
         setSide(side, false)
       }, far ? FLOAT_HIDE_FAR_MS : FLOAT_HIDE_MS)
     }
@@ -1316,6 +1389,7 @@ function startFloat() {
     document.body.append(el)
     return el
   })
+  const gripEls = ['left', 'right'].map(makeGrip)
   const timer = setInterval(whileVisible(paintFloat), 1200)
   const revealTimer = setInterval(whileVisible(watchReveals), 250)
   document.addEventListener('pointermove', onFloatPointer, { passive: true })
@@ -1330,6 +1404,10 @@ function startFloat() {
   floatOff = () => {
     clearTimeout(unfoldTimer)
     for (const el of catchers) el.remove()
+    for (const el of gripEls) el.remove()
+    for (const k of Object.keys(grips)) delete grips[k]
+    gripDrag = null
+    delete document.documentElement.dataset.sqhResizing
     clearInterval(timer)
     clearInterval(revealTimer)
     for (const k of Object.keys(sideSig)) delete sideSig[k]
@@ -1629,7 +1707,10 @@ async function loadLaneStatus(repo, lanes) {
 }
 
 // ───────────────────────────── actions ─────────────────────────────
-async function openChat(bot, id, intent = 'tab') {
+/** A plain click opens the chat where you are, like Desktop's own list; ⌘/Ctrl-click opens it in a new tab. Every
+ *  click used to stack a tab, so the strip filled with chats nobody closed. */
+const intentOf = e => (e && (e.metaKey || e.ctrlKey) ? 'tab' : 'in-place')
+async function openChat(bot, id, intent = 'in-place') {
   try {
     await host.openSession(id, { profile: bot, intent })
     markRead(bot, id).then(refreshSoon)
@@ -1812,6 +1893,7 @@ function ChatRow({ bot, session, depth, activeId, ctl, hint }) {
     ...previews.slice(0, 5).map(p => ({ label: '↗ ' + (p.label || p.url).slice(0, 48), run: () => reopenPreview(p) })),
     previews.length ? 'sep' : null,
     { label: t('rename'), run: () => ctl.renameChat(bot, session) },
+    { label: t('openTab'), run: () => openChat(bot.name, session.id, 'tab') },
     { label: t('openWindow'), run: () => openChat(bot.name, session.id, 'window') },
     session.cwd ? { label: t('copyPath'), run: () => ctxRef?.os?.writeClipboard?.(session.cwd) } : null,
     'sep',
@@ -1819,7 +1901,7 @@ function ChatRow({ bot, session, depth, activeId, ctl, hint }) {
   ]
   return h(
     Row,
-    { depth, active: activeId === session.id, onClick: () => openChat(bot.name, session.id) },
+    { depth, active: activeId === session.id, onClick: e => openChat(bot.name, session.id, intentOf(e)) },
     jsx(SessionStatusDot, { storedSessionId: session.id, session }),
     h('span', { className: 'sqh-label', title: session.title || '' }, session.title || session.preview || 'New chat'),
     hint ? h('span', { className: 'sqh-where', title: hint }, hint.split(' · ').pop()) : null,
@@ -3440,6 +3522,11 @@ html[data-sqh-float] [data-sqh-side="right"]{right:0;transform:translateX(100%);
 html[data-sqh-float]{--sqh-in:.26s;--sqh-out:.17s;--sqh-ease-in:cubic-bezier(.22,1,.36,1);--sqh-ease-out:cubic-bezier(.4,0,.9,.6)}
 html[data-sqh-float] [data-sqh-side]:not([data-sqh-open]){visibility:hidden;opacity:.35;transition:transform var(--sqh-out) var(--sqh-ease-out),opacity var(--sqh-out) ease-in,visibility 0s linear var(--sqh-out)}
 html[data-sqh-float] [data-sqh-side][data-sqh-open]{transform:none;opacity:1}
+[data-sqh-grip]{position:fixed;width:6px;z-index:47;cursor:col-resize;background:transparent;transition:background .15s}
+[data-sqh-grip]:hover,html[data-sqh-resizing] [data-sqh-grip]{background:color-mix(in srgb,var(--ui-accent,currentColor) 35%,transparent)}
+[data-sqh-grip][hidden]{display:none}
+html[data-sqh-resizing],html[data-sqh-resizing] *{cursor:col-resize!important;user-select:none!important}
+html[data-sqh-resizing] [data-sqh-side],html[data-sqh-resizing] [data-sqh-float-root]{transition:none!important}
 [data-sqh-edge]{position:fixed;top:40px;bottom:28px;width:4px;z-index:44;background:transparent}
 [data-sqh-edge=left]{left:0}
 [data-sqh-edge=right]{right:0}
@@ -3755,7 +3842,7 @@ export default {
     })
     ctx.registerSettingsPage?.({ id: 'settings', title: 'Hermes Agent Squads Hub', icon: 'organization', render: () => jsx(SettingsPage, {}) })
 
-    window.__squadHub = { syncCards, treesOf, useOpen, usePreviews, Dialogs, TimelinePage, openCard, dismissBell, bellDismissedAtom, openTimeline, loadBoards, loadTimeline, setSide, newChat, atFolders, savePrefs, floatState, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadWorktrees, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview }
+    window.__squadHub = { openChat, intentOf, syncCards, treesOf, useOpen, usePreviews, Dialogs, TimelinePage, openCard, dismissBell, bellDismissedAtom, openTimeline, loadBoards, loadTimeline, setSide, newChat, atFolders, savePrefs, floatState, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadWorktrees, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview }
     ctx.onDispose(() => {
       delete window.__squadHub
     })

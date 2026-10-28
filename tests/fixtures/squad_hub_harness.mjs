@@ -77,11 +77,20 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
   const dom = { preview: false, root: '', hidden }
   const docListeners = []
   const styles = []
+  const created = []
   const doc = {
     get hidden() { return dom.hidden },
     documentElement: { dataset: {} },
     head: { append: (...els) => els.forEach(el => ((el.attached = true), styles.push(el))) },
-    createElement: tag => ({ tag, dataset: {}, style: { removeProperty() {} }, textContent: '', attached: false, hidden: false, remove() { this.attached = false }, addEventListener() {} }),
+    createElement: tag => {
+      const el = { tag, dataset: {}, style: { removeProperty() {} }, textContent: '', attached: false, hidden: false, on: {}, remove() { this.attached = false },
+        addEventListener(type, fn) { (el.on[type] ||= []).push(fn) },
+        setPointerCapture() {},
+        fire(type, e = {}) { for (const fn of el.on[type] || []) fn({ type, ...e }) } }
+      el.style = { removeProperty() {} }
+      created.push(el)
+      return el
+    },
     addEventListener: (type, fn, capture) => docListeners.push({ target: 'document', type, fn, capture: capturing(capture) }),
     removeEventListener(type, fn, capture) {
       const i = docListeners.findIndex(l => l.target === 'document' && l.type === type && l.fn === fn && l.capture === capturing(capture))
@@ -231,6 +240,8 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     },
     /** A registered contribution by its plugin-local id (palette command, keybinding, pane…). */
     contribution: id => registered.find(c => c.id === id),
+    /** The resize grips the plugin placed on the page, attached ones only. */
+    grips: () => created.filter(el => el.attached && 'sqhGrip' in el.dataset),
     /** A DOM event as the document hears it, capture listeners first; returns whether a listener stopped it. */
     fire(type, event) {
       let stopped = false

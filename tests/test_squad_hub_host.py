@@ -252,7 +252,7 @@ out.revealed = w.revealed
 ROW = r"""
 const el = (attrs = {}, kids = [], width = 0) => {
   const node = { attrs, children: kids, dataset: {}, vars: {}, parentElement: null,
-    style: { setProperty: (k, v) => (node.vars[k] = v), removeProperty: k => delete node.vars[k] },
+    style: { setProperty: (k, v) => (node.vars[k] = v), removeProperty: k => delete node.vars[k], getPropertyValue: k => node.vars[k] || '' },
     getAttribute: k => attrs[k] ?? null,
     getBoundingClientRect: () => ({ width, left: 0, right: 1400, top: 0, bottom: 900 }),
     contains: x => x === node || kids.some(k => k.contains(x)),
@@ -271,7 +271,13 @@ const chat = el({ 'data-tree-group': 'sqh-main' }, [tab], 800)
 const left = el({}, [el({ 'data-tree-group': 'sqh-left' })], 280)
 const right = el({}, [el({ 'data-tree-group': 'sqh-files' }), el({ 'data-tree-group': 'sqh-term' })], 340)
 const row = el({ 'data-tree-split': 'sqh-root' }, [left, chat, right])
-document.querySelector = sel => (sel === '[data-tree-tab="workspace"]' ? tab : null)
+document.querySelector = sel => {
+  if (sel === '[data-tree-tab="workspace"]') return tab
+  const side = sel.match(/^\[data-sqh-side="(\w+)"\]$/)
+  if (side) return row.all().find(n => n.dataset.sqhSide === side[1]) || null
+  if (sel === '[data-sqh-float-root]') return 'sqhFloatRoot' in row.dataset ? row : null
+  return null
+}
 // the plugin finds what it marked through its own data-sqh-* attributes
 const camel = a => a.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase())
 document.querySelectorAll = sel => row.all().filter(n => [...sel.matchAll(/\[(data-sqh-[a-z-]+)\]/g)].some(m => camel(m[1]) in n.dataset))
@@ -314,6 +320,60 @@ out.restarted = docked()
 """)
     assert got["afterDispose"]["flag"] is False, "switching the plugin off must hand the row back to Desktop"
     assert got["restarted"] == {"dock": "340px", "flag": True, "shown": True}
+
+
+# A grip on the side's inner edge: what the user drags to widen or narrow a floating side.
+GRIP = """
+const grip = side => w.grips().find(g => g.dataset.sqhGrip === side)
+const drag = (side, x) => {
+  const g = grip(side)
+  g.fire('pointerdown', { button: 0, pointerId: 1, clientX: 1060, preventDefault() {} })
+  g.fire('pointermove', { clientX: x })
+  g.fire('pointerup', {})
+}
+"""
+
+
+def test_dragging_a_floating_sides_grip_changes_its_width_and_keeps_it(desk):
+    got = desk(ROW + GRIP + """
+w.register()
+w.time.advance(1300)
+press()                                   // dock the right side: its grip shows
+out.gripShown = !grip('right').hidden
+drag('right', 1400 - 500)                 // the pointer 500 px from the row's right edge
+out.width = right.vars['--sqh-w']
+out.dock = row.vars['--sqh-dock-right']
+w.dispose()
+delete right.dataset.sqhSide
+w.register()                              // restart
+w.time.advance(1300)
+out.restarted = right.vars['--sqh-w']
+""")
+    assert got["gripShown"], "a shown side must offer a grip: Desktop's sash cannot resize a side out of the flow"
+    assert got["width"] == "500px", "the drag must set the side's width"
+    assert got["dock"] == "500px", "a docked side's room in the row follows the drag"
+    assert got["restarted"] == "500px", "the width dragged is kept across restarts"
+
+
+def test_a_hidden_side_offers_no_grip(desk):
+    got = desk(ROW + GRIP + """
+w.register()
+w.time.advance(1300)
+out.hidden = grip('right').hidden
+""")
+    assert got["hidden"] is True, "a grip over a hidden side would be a dead strip over the chat"
+
+
+def test_a_plain_click_on_a_chat_opens_it_in_place_and_cmd_click_in_a_new_tab(desk):
+    got = desk("""
+const opened = []
+w.host.openSession = async (id, o) => void opened.push(o.intent)
+w.register()
+await w.exports().openChat('jobs', 's1', w.exports().intentOf({}))
+await w.exports().openChat('jobs', 's2', w.exports().intentOf({ metaKey: true }))
+out.opened = opened
+""")
+    assert got["opened"] == ["in-place", "tab"], "every plain click used to stack a new tab"
 
 
 def test_polling_pauses_while_the_window_is_hidden(desk):
