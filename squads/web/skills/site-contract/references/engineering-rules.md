@@ -83,7 +83,7 @@ fails any other direction.
 ## 6. Code rules
 
 - **Zero comments in code.** Code explains itself through names, types and small functions; comments and docstrings
-  are forbidden. The per-file ratchet counts them (`tools/quality/ratchet.mjs`) and a file may never exceed its
+  are forbidden. The per-file ratchet, `tools/quality/ratchet.mjs`, counts them and a file may never exceed its
   baseline count; a new file starts at zero.
 - **Copy is data.** A render never carries its text as a JSX literal: the words come from props, a constant beside
   the component or a message catalog (`noJsxLiterals` fails a text literal in JSX). This keeps copy reviewable in

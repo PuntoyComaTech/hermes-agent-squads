@@ -1,8 +1,7 @@
 # Rule exceptions of the strict base
 
-Every rule of Biome, oxlint and SonarJS is an error. These are the only exceptions, each in the config file
-(`tools/quality/biome.strict.jsonc`, `tools/quality/oxlintrc.json`, `tools/quality/eslint.config.mjs`) with its
-reason. A new exception is a manager decision in `decisions.md`, never an inline disable.
+Every rule of Biome, oxlint and SonarJS is an error. These are the only exceptions, each with its reason in its
+config file: `tools/quality/biome.strict.jsonc`, `tools/quality/oxlintrc.json` or `tools/quality/eslint.config.mjs`. A new exception is a manager decision in `decisions.md`, never an inline disable.
 
 | Rule | Scope | Reason |
 |---|---|---|
