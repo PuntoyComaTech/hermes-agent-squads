@@ -30,7 +30,7 @@ description: "Builds the UI, motion and 3D of a site milestone. Use when a card 
 - Never hard-code text that belongs in `spec.md` or `DESIGN.md`.
 - Never import server-only modules or secrets into a client bundle.
 - Never load a font or library from a third-party CDN; use the stack's own pipeline.
-- Never add a dependency for something twenty lines of code can do. Add a package only with `pnpm add <name>` (or the framework's own `add` command), never by editing `package.json` or with a version typed from memory; pnpm picks the newest release 3 days old. A `quality:deps` failure: run site-contract `scripts/security_fix.py --repo <repo>`, never pin a version yourself.
+- Never add a dependency for something twenty lines of code can do. Add a package only with `pnpm add <name>` (or the framework's own `add` command), never by editing `package.json` or with a version typed from memory; pnpm picks the newest release 3 days old. A `quality:deps` failure: run site-contract `scripts/security_fix.py --repo <repo>`, never pin a version yourself; review each major it reports (site-contract `references/project-base.md`, section 2).
 - Never add `// biome-ignore`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error` or `any`, and never edit `biome.jsonc`, `tsconfig.json`, `knip.json`, `.jscpd*.json` or `tools/quality/` (baselines included): split the function, type the value, extract the shared code.
 
 ## Verification

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Install the fix of every known vulnerability in a site repo, without waiting for the release-age rule.
 
-osv-scanner reads the lockfile. For each vulnerable package the fixed release is the lowest one that clears every
-advisory on the installed line. A direct dependency gets `pnpm add <name>@^<fixed>`; a transitive one an override
-in pnpm-workspace.yaml. When the fix is younger than the repo's minimumReleaseAge, that exact release, and the
+osv-scanner reads the lockfile. A vulnerable direct dependency first moves to its newest release old enough for the
+repo's minimumReleaseAge (`pnpm add <name>`, no version), even across a major: a major bump is listed under `majors`
+for the release-notes review in project-base.md. Whatever is still vulnerable after that gets the lowest release that
+clears every advisory on its installed line: a direct dependency `pnpm add <name>@^<fixed>`, a transitive one an
+override in pnpm-workspace.yaml. When the fix is younger than the repo's minimumReleaseAge, that exact release, and the
 packages released with it under the same version (next@16.4.1 brings @next/env@16.4.1 and its @next/swc-*
 binaries), go under minimumReleaseAgeExclude. Never a package name alone, never an unrelated young package: that
 would open the door the rule exists to close. Exceptions whose release has aged past the rule are removed. Each
@@ -178,6 +180,28 @@ def direct_group(repo: Path, name: str) -> str | None:
     return None
 
 
+def declared(repo: Path, name: str) -> str:
+    group = direct_group(repo, name)
+    spec = (json.loads((repo / "package.json").read_text(encoding="utf-8")).get(group) or {}).get(name, "")
+    return spec.lstrip("^~=v") if group else ""
+
+
+def newest(repo: Path, fixes: list[dict], held: list[str]) -> list[dict]:
+    """Move each vulnerable direct dependency to its newest release old enough to install; a release already let in
+    early (held under minimumReleaseAgeExclude) is never pulled back to an older one."""
+    moved = []
+    for fix in fixes:
+        group = direct_group(repo, fix["name"])
+        if not group or f"{fix['name']}@{fix['installed']}" in held:
+            continue
+        code, _ = run(["pnpm", "add", *(["-D"] if group == "devDependencies" else []), fix["name"]], repo)
+        now = declared(repo, fix["name"])
+        if code == 0 and now and vkey(now) > vkey(fix["installed"]):
+            moved.append({**fix, "fixed": now, "ok": True, "how": "newest", "excepted": [],
+                          "major": vkey(now)[:1] != vkey(fix["installed"])[:1]})
+    return moved
+
+
 def apply_fix(repo: Path, fix: dict, ws: Path) -> dict:
     """Install one fix; young releases of its own family go under minimumReleaseAgeExclude, retried until pnpm
     accepts or names a young release outside the family."""
@@ -231,6 +255,7 @@ def log_decisions(repo: Path, rows: list[dict]) -> Path | None:
     for row in rows:
         early = (f"; installed before the release-age rule as {', '.join(row['excepted'])} (exact releases, removed "
                  "once old enough)") if row["excepted"] else ""
+        early += "; major bump, release notes reviewed per project-base.md before the card closes" if row.get("major") else ""
         text = text.rstrip("\n") + (f"\n- {date.today().isoformat()} security fix: {row['name']} {row['installed']} -> "
                                     f"{row['fixed']} ({', '.join(row['advisories'])}){early}.\n")
     path.write_text(text, encoding="utf-8")
@@ -249,13 +274,20 @@ def fix_repo(repo: Path) -> dict:
     if osv is None:
         return {"ok": False, "exit": 2, "error": error, "pruned": pruned}
     fixes, unfixable = plan_fixes(osv)
-    done = [apply_fix(repo, fix, ws) for fix in fixes]
+    moved = newest(repo, fixes, excluded(ws.read_text(encoding="utf-8").splitlines()))
+    if moved:
+        osv, error = scan(repo)
+        if osv is None:
+            return {"ok": False, "exit": 2, "error": error, "fixed": moved, "pruned": pruned}
+        fixes, unfixable = plan_fixes(osv)
+    done = [*moved, *(apply_fix(repo, fix, ws) for fix in fixes)]
     log = log_decisions(repo, [d for d in done if d["ok"]])
-    after, error = scan(repo) if fixes else (osv, "")
+    after, error = scan(repo) if fixes or moved else (osv, "")
     left = plan_fixes(after)[0] + plan_fixes(after)[1] if after is not None else []
     ok = after is not None and not left
     return {"ok": ok, "exit": 0 if ok else (2 if after is None else 1), "fixed": [d for d in done if d["ok"]],
             "failed": [d for d in done if not d["ok"]], "unfixable": unfixable, "left": left, "pruned": pruned,
+            "majors": [{"name": d["name"], "from": d["installed"], "to": d["fixed"]} for d in done if d.get("major")],
             "decisions": str(log) if log else None, **({"error": error} if error else {})}
 
 

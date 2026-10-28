@@ -96,11 +96,18 @@ A security fix never waits. A `quality:deps` failure is fixed with one command, 
 python3 "$HERMES_HOME/skills/squad-web/site-contract/scripts/security_fix.py" --repo <repo>
 ```
 
-It installs the lowest release that clears every advisory (`pnpm add` for a direct dependency, an override for a
-transitive one). When that release is younger than 3 days, that exact release and the packages released with it at
+A vulnerable direct dependency moves to its newest release 3 days old, even across a major (`pnpm add <name>`, no
+version); whatever is still vulnerable gets the lowest release that clears every advisory (`pnpm add` for a direct
+dependency, an override for a transitive one). When that release is younger than 3 days, that exact release and the packages released with it at
 the same version (its own scope) go under `minimumReleaseAgeExclude`, and nothing else; the exception is removed once
 the release is old enough. Each fix is a line in the site's `decisions.md`. `site_base.py` runs it before the first
 gate. An `osv-scanner.toml` ignore is the manager's, with a reason and an expiry date.
+
+Every major the script reports under `majors` (or any major a card upgrades) is reviewed before the card closes:
+read that release's notes, migration guide and announcement post; fix in code every breaking change that touches the
+repo (removed or renamed APIs, new defaults, peer and runtime requirements), then the gates and the page load must pass.
+Note in the card each new feature that can replace code we wrote or improve what we have; a change in product
+behavior becomes a proposal card for the lead, not an edit in the upgrade.
 
 Response headers (CSP, HSTS, framing, referrer, permissions, cross-origin) ship from the first commit: Astro in
 `public/_headers` (or `vercel.json`), Next in `next.config.ts`. A TanStack Start site renders on the server, so its

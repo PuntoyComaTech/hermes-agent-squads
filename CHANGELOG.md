@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.28.2 - 2026-10-28
+
+### Changed
+
+- web 3.9.1: a vulnerable dependency moves to its newest release at least 3 days old, even across a major,
+  instead of the lowest patch. Before a card closes, each major `security_fix.py` reports under `majors` is reviewed
+  against its release notes and migration guide: breaking changes are fixed, and useful new features are noted.
+
 ## 2.28.1 - 2026-10-28
 
 ### Fixed
