@@ -392,3 +392,23 @@ def test_a_paused_project_does_not_stop_the_other_projects_card(tmp_path):
     by_project = {r["project"]: r for r in json.loads(gate(env, "--json").stdout)["results"]}
     assert by_project["search"] == {"project": "search", "filed": False, "reason": "paused"}, by_project
     assert by_project["beta"]["filed"] is True, by_project
+
+
+def test_the_scheduled_mail_check_files_a_card_each_slot_even_with_nothing_due(tmp_path):
+    """--check-mail (cron Mon-Sat 9:00 and 17:00): new mail is read on schedule, not only when a follow-up is due."""
+    env, _ = env_with_project(tmp_path, rows=[])
+    inbox = Path(env["HERMES_HOME"]) / "profiles" / "jobs-inbox"
+    off = one(gate(env, "--json", "--check-mail", "--hour", "09"))
+    assert off == {"project": "search", "filed": False, "reason": "mail not connected"}
+    assert "connect my mail" in gate(env, "--check-mail", "--hour", "09").stdout
+    (inbox / "mail.json").write_text('{"email": "cand@example.com"}')
+    morning = one(gate(env, "--json", "--check-mail", "--hour", "09"))
+    assert morning["filed"] is True and morning["key"] == "jobs:inbox:search:2026-10-20T09"
+    again = one(gate(env, "--json", "--check-mail", "--hour", "09"))
+    assert again["id"] == morning["id"], "a rerun of the same slot reuses its card"
+    evening = one(gate(env, "--json", "--check-mail", "--hour", "17"))
+    assert evening["filed"] is True and evening["id"] != morning["id"]
+    body = one(gate(env, "--json", "--check-mail", "--hour", "17", "--dry-run"))["body"]
+    assert "Mode: INBOX" in body and "since: 2026-10-19" in body
+    assert (gate(env, "--check-mail", "--hour", "17").stdout) == "", "a filed check posts nothing to the channel"
+    assert one(gate(env, "--json"))["reason"] == "nothing due", "without --check-mail the gate is unchanged"

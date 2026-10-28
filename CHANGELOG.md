@@ -3,6 +3,15 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.30.0 - 2026-10-28
+
+### Added
+
+- jobs 4.14.0: scheduled mail check. `jobs-followups` runs Mon-Sat at 9:00 and 17:00 with `followup_gate.py
+  --check-mail`, which files a jobs-inbox card every slot (key `jobs:inbox:<project>:<date>T<HH>`, `since` yesterday),
+  not only when a follow-up is due; a jobs-inbox without connected mail gets none and one line says so. jobs-inbox
+  files no manager card when it finds nothing new, so a quiet check sends nothing.
+
 ## 2.29.0 - 2026-10-28
 
 ### Fixed

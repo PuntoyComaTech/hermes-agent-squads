@@ -42,9 +42,12 @@ Set `S` to `$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts` and `T` to
    already states (`application/cover_letter.md`, `application/cv_content.json`).
 7. **Write the proposal** `reports/inbox-YYYY-MM-DD.json`: `{"rows": [{id, company, role, signal, current,
    proposed, email_date, quote, followup_draft}], "unmatched": [], "review": [], "stale": []}`; `followup_draft` is a
-   path or null, `review` holds conflicts with both dates.
-8. **Hand off** to the manager: `kanban_create` assignee `jobs`, `skills: [tracking-outcomes]`, `parents: [<your
-   card id>]`, `idempotency_key` `jobs:inbox-review:<project>:<YYYY-MM-DD>`, body `Mode: INBOX` plus the proposal
+   path or null, `review` holds conflicts with both dates. A second check that day merges into the same file.
+8. **Nothing new**: no rows, no `review` and no follow-up draft: write no proposal, file no manager card, and
+   `kanban_complete` with the counts; the scheduled checks stay silent. A message dated on or before its row's
+   `last_contact` is already known: skip it.
+9. **Hand off** to the manager: `kanban_create` assignee `jobs`, `skills: [tracking-outcomes]`, `parents: [<your
+   card id>]`, `idempotency_key` `jobs:inbox-review:<your card id>`, body `Mode: INBOX` plus the proposal
    path. Then `kanban_complete` with the counts: read, matched, proposed, drafts, unmatched.
 
 ### Mode: CODE

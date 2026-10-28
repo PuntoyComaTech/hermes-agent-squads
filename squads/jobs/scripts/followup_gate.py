@@ -13,6 +13,10 @@ A due day files one jobs-inbox card per project (skill triaging-inbox, body `Mod
 `jobs:inbox:<project>:<YYYY-MM-DD>`, so a project never gets two cards on one day. Nothing due means nothing is filed.
 `profile.md -> search: paused` pauses that project too.
 
+--check-mail (the scheduled mail check): every run files the card, due or not, so new mail is read on schedule; the
+key carries the hour (`jobs:inbox:<project>:<YYYY-MM-DD>T<HH>`), so a morning and an evening check are two cards. A
+jobs-inbox whose mail is not connected (no `mail.json` in its profile) gets no card, and one line says so.
+
 stdout is what the cron delivers. Nothing is printed when a card is filed, nothing is due, the search is paused,
 or the project has no profile.md; `--json` prints {"results": [one decision per project]} (reason "no tracker yet"
 for a project without tracker.csv). A missing inbox profile is a setup gap, not an error: nothing is filed, no
@@ -26,7 +30,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -80,9 +84,9 @@ def label(item: dict) -> str:
     return str(item.get("id") or item.get("company") or "?")
 
 
-def card_body(slug: str, folder: str, chase: list, fresh: list, today: str) -> str:
+def card_body(slug: str, folder: str, chase: list, fresh: list, today: str, since: str = "") -> str:
     lines = [
-        "Mode: INBOX", f"Date: {today}.", f"Project: {slug} ({folder})",
+        "Mode: INBOX", f"Date: {today}.", *([f"since: {since}"] if since else []), f"Project: {slug} ({folder})",
         f"Follow-ups due: {', '.join(label(i) for i in chase) or 'none'}.",
         f"Quiet past stale_days, first report: {', '.join(label(i) for i in fresh) or 'none'}.",
         "Read job mail since the last inbox report, draft the due follow-ups, then hand the proposal to the "
@@ -93,15 +97,19 @@ def card_body(slug: str, folder: str, chase: list, fresh: list, today: str) -> s
 
 
 def file_card(args, slug: str, folder: str, chase: list, fresh: list, today: str) -> dict:
+    since = ""
     key = f"jobs:inbox:{slug}:{today}"
+    if args.check_mail:
+        key += f"T{args.hour or datetime.now().strftime('%H')}"
+        since = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
     title = f"Inbox and follow-ups {today}"
     argv = ["-p", args.manager, "kanban", "--board", args.board, "create", title,
             "--assignee", args.writer, "--created-by", args.manager, "--skill", "triaging-inbox",
             "--project", slug, "--workspace", f"dir:{folder}", "--idempotency-key", key,
-            "--body", card_body(slug, folder, chase, fresh, today), "--json"]
+            "--body", card_body(slug, folder, chase, fresh, today, since), "--json"]
     result = {"key": key, "title": title, "assignee": args.writer, "board": args.board, "project": slug}
     if args.dry_run:
-        return {**result, "body": card_body(slug, folder, chase, fresh, today)}
+        return {**result, "body": card_body(slug, folder, chase, fresh, today, since)}
     stdout = ss.hermes(args.hermes_bin, *argv)
     try:
         result["id"] = str((json.loads(stdout.strip()) or {}).get("id") or "")
@@ -137,13 +145,15 @@ def project_decision(args, slug: str, folder: str, today: str) -> dict:
         return {"project": slug, "filed": False, "reason": "no tracker yet"}
     tracker = tracker_script(args.manager, args.tracker)
     chase, fresh = decide(due(tracker, folder, today))
-    if not chase and not fresh:
+    if not chase and not fresh and not args.check_mail:
         return {"project": slug, "filed": False, "reason": "nothing due"}
     missing = inbox_missing(args.writer)
     if missing:
         # Nothing to file with, so nothing is filed and no row is marked: the stale rows must be reported by the
         # first run after jobs-inbox is installed.
         return {"project": slug, "filed": False, "reason": f"inbox not installed: {missing}"}
+    if args.check_mail and not (ss.hermes_root() / "profiles" / args.writer / "mail.json").is_file():
+        return {"project": slug, "filed": False, "reason": "mail not connected"}
     card = file_card(args, slug, folder, chase, fresh, today)
     if not args.dry_run:
         mark_reported(tracker, folder, fresh, today)
@@ -164,6 +174,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tracker", type=Path, help="tracker.py to run (default: the installed squad copy)")
     parser.add_argument("--hermes-bin", default=os.environ.get("HERMES_BIN", "hermes"), help="hermes executable")
     parser.add_argument("--today", help="YYYY-MM-DD in place of the local date (tests and replays)")
+    parser.add_argument("--check-mail", action="store_true",
+                        help="file the inbox card on every run (scheduled mail check), due or not")
+    parser.add_argument("--hour", help="HH in place of the local hour in the --check-mail key (tests)")
     parser.add_argument("--dry-run", action="store_true", help="print the card, create nothing, mark nothing")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     return parser
@@ -207,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
     if missing and not args.json:
         # One line, whatever the number of projects: the cron delivers stdout, and this is a setup gap, not work.
         print(f"jobs-followups: {missing}; nothing filed. Install it: squadctl apply jobs --with {args.writer}")
+    if not args.json and any(r.get("reason") == "mail not connected" for r in results):
+        print(f"jobs-followups: {args.writer} mail is not connected; tell the manager \"connect my mail\".")
     if args.json:
         print(json.dumps({"results": results}, indent=2, ensure_ascii=False))
     return 1 if failed else 0
