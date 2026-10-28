@@ -16,6 +16,8 @@ The one update path: cron `builder-update` runs it daily with --no-agent, and th
      memories, the user's model choices and SOUL edits, fills only lanes the new version added, and skips a squad
      whose board has running cards (retried on the next run).
   5. Print a short list: version change, what changed (CHANGELOG), new squads, anything waiting for the user.
+  6. Prune the automatic backups under local/backups/ (edits-*, skill-edits-*, <bot>-SOUL-*.md, desktop-*-stale-*)
+     older than 14 days, keeping the newest 3 of each kind. A backup the user made by hand is never touched.
 
 Never runs `hermes update` (Hermes itself) and never installs a squad the user did not choose.
 Stdlib only. Exit 0 on success or nothing to do, 1 on failure (cron then alerts once).
@@ -200,6 +202,29 @@ def changelog(h: Path, old: str | None, new: str, limit: int = 8) -> list[str]:
     return out[:limit] + ([f"... and {len(out) - limit} more in CHANGELOG.md"] if len(out) > limit else [])
 
 
+AUTO_BACKUP = re.compile(r"^(edits|skill-edits(?:-pre-[\d.]+)?|desktop-[\w-]+-stale|[\w-]+-SOUL)-\d{8}")
+BACKUP_DAYS, BACKUP_KEEP = 14, 3
+
+
+def prune_backups(h: Path, now: float | None = None) -> list[str]:
+    """Remove automatic backups older than BACKUP_DAYS, keeping the newest BACKUP_KEEP of each kind. Returns the
+    names removed. Anything that does not look like an automatic backup (a hand export) stays."""
+    root = h / "local" / "backups"
+    now = time.time() if now is None else now
+    kinds: dict[str, list[Path]] = {}
+    for p in root.iterdir() if root.is_dir() else []:
+        m = AUTO_BACKUP.match(p.name)
+        if m:
+            kinds.setdefault(re.sub(r"-pre-[\d.]+$", "", m.group(1)), []).append(p)
+    gone = []
+    for items in kinds.values():
+        for p in sorted(items, key=lambda q: q.stat().st_mtime, reverse=True)[BACKUP_KEEP:]:
+            if now - p.stat().st_mtime > BACKUP_DAYS * 86400:
+                shutil.rmtree(p) if p.is_dir() else p.unlink()
+                gone.append(p.name)
+    return sorted(gone)
+
+
 def run(argv: list[str], root: Path, timeout: int = 900) -> subprocess.CompletedProcess:
     """A hermes or squadctl run against this install's root (never a profile home: `hermes profile` resolves
     profiles under HERMES_HOME)."""
@@ -264,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         if not lag.get("applied") and not lag.get("lanes_added"):
             if not (state / SHAS).is_file():
                 write_snapshot(h, state)
+            prune_backups(h)  # silent: housekeeping is no news
             return 0
 
     edits = edited_files(h, state)
@@ -317,6 +343,9 @@ def main(argv: list[str] | None = None) -> int:
     lines += [f"- Needs you: {x}" for x in rep.get("pending") or []]
     lines += [f"- {n}" for n in notes]
     lines += [f"- Error: {e}" for e in rep.get("errors") or []]
+    pruned = prune_backups(h)
+    if pruned:
+        lines.append(f"- Removed {len(pruned)} automatic backup(s) older than {BACKUP_DAYS} days")
     print("\n".join(lines))
     return 1 if rep.get("errors") else 0
 

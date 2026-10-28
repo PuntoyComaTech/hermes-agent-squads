@@ -98,8 +98,9 @@ Screenshots use invented projects and boards.
   pick one instead of typing "ok": buttons in Desktop and Discord, numbered buttons in Telegram. It reaches new chats
   (a chat keeps the prompt it started with); off for scheduled runs, webhooks and squad workers. A manager opts out
   with `plugins: {disable: [squad-hub]}` in its squad.yaml.
-- **A quieter window.** The plugin hides the Bots tab, the profile selector and the Kanban sidebar row (each switchable
-  in its settings) and can hide other sidebar rows.
+- **Desktop's own Kanban board stays.** Its sidebar row shows (Hermes keeps improving that board), and on a Hermes with
+  the card badge slot (after 0.22.5) a card that waits on you wears a red **Needs you** badge there.
+- **A quieter window.** Any sidebar row can be hidden in the plugin's settings.
 
 Every change to Desktop's own window (floating sides, hidden Bots tab and profile selector, hidden sidebar rows, the
 `.env` double-click) is a switch in **Settings > Plugins > Hermes Agent Squads Hub**.

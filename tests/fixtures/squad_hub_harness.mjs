@@ -64,7 +64,7 @@ function clock() {
   }
 }
 
-export async function boot({ pluginPath, stored = {}, local = {}, hidden = false } = {}) {
+export async function boot({ pluginPath, stored = {}, local = {}, hidden = false, kanbanBadges = true } = {}) {
   const time = clock()
   const realNow = Date.now()
   Date.now = () => realNow + time.elapsed()
@@ -178,6 +178,7 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     TRANSCRIPT_DIRECTIVE_AREA: 'directive',
     CHAT_EMPTY_AREA: 'empty',
     TITLEBAR_AREAS: { right: 'titleBar.right' },
+    ...(!kanbanBadges ? {} : { KANBAN_CARD_AREAS: { badges: 'kanban.card.badges' } }),
     requestTheme: () => {}
   }
   globalThis.__SQH_SDK__ = sdk
@@ -221,7 +222,7 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
   }
   const mod = await import(pathToFileURL(pluginPath).href)
   const world = {
-    messages: null, host, ctx, state, dom, revealed, dispatched, calls, notices, store, localStorage: ls, failProfile: new Set(), time,
+    messages: null, host, ctx, state, dom, queries, revealed, dispatched, calls, notices, store, localStorage: ls, failProfile: new Set(), time,
     plugin: mod.default,
     register() {
       mod.default.register(ctx)

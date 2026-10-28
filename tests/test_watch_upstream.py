@@ -495,3 +495,31 @@ def test_shipped_doc_map_points_at_real_docs_and_every_reference():
     if docs.is_dir():
         missing = [p for paths in data["references"].values() for p in paths if not (docs / p).is_file()]
         assert not missing, f"doc-sources.json names docs this Hermes does not have: {missing}"
+
+
+def test_maintainer_mode_digests_a_docs_change_on_main_before_it_is_installed(up, home, src, capsys):
+    """The owner's builder watches Hermes main: a docs change committed upstream (and not in the installed tree)
+    wakes the digest with the affected reference; the installed tree alone stays silent."""
+    import subprocess as sp
+    git = lambda *a: sp.run(["git", "-C", str(src), *a], check=True, capture_output=True)
+    git("init", "-q", "-b", "main"); git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base")
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys, "--docs-ref", "main")  # baseline
+    assert docs_gate(up, home, src, capsys, "--docs-ref", "main")["wakeAgent"] is False
+    git("checkout", "-q", "-b", "next")
+    (src / "website/docs/user-guide/features/kanban.md").write_text("# Kanban\n- cards show plugin badges\n")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "upstream change")
+    git("checkout", "-q", "main")  # the installed tree keeps the old text
+    out = docs_gate(up, home, src, capsys, "--docs-ref", "next")
+    assert out["wakeAgent"] is True and out["context"]["docs"]["references"] == ["kanban.md"]
+    assert "plugin badges" in Path(out["context"]["docs"]["diff"]).read_text()
+
+
+def test_a_bad_docs_ref_keeps_the_reviewed_docs_and_reports_the_error(up, home, src, capsys):
+    seed(home, release="v0.22.1", hermes=LOCAL)
+    docs_gate(up, home, src, capsys)
+    before = state(home)["reviewed"]["docs"]
+    out = docs_gate(up, home, src, capsys, "--docs-ref", "no-such-ref", "--json")
+    assert out["wakeAgent"] is False and any(e.startswith("docs-ref") for e in out["report"]["errors"])
+    assert state(home)["reviewed"]["docs"] == before

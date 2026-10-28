@@ -26,9 +26,9 @@
   bots to Unassigned and deletes none.
 - Squad tooling writes `title`, `hidden` and the section from the manifest's `section:`. How it
   writes: `soul-and-context-files.md` -> profile.yaml and ui_meta.
-- Warm Bot Backends (Settings -> Advanced, default 3) caps how many local bots run at once; idle ones
-  are reaped after 10 minutes, and a bot opened while every slot is busy fails after 30 s. Raise it
-  for squads with many bots active at the same time.
+- Desktop runs no backend per bot and has no bot cap (Warm Bot Backends is gone): one gateway per host
+  serves every local profile, and opening a bot runs `hermes gateway ensure --json` for it. Closing
+  Desktop never stops the gateway; `hermes gateway stop` does.
 
 ## Routines
 

@@ -3,6 +3,26 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.27.0 - 2026-10-28
+
+### Added
+
+- Builder maintainer mode: `watch_upstream.py --docs-ref origin/main` digests Hermes docs changes on `main` before they
+  ship in a release. A maintainer turns it on in the builder overlay (`cron.builder-watch.args`).
+- Upstream changes become proposals: digest items carry `status: open | applied | declined`, the builder offers open
+  ones at the start of a chat, and the digest reply names the installed squad each change touches.
+- squad-hub 1.5.0: Desktop's own Kanban sidebar row shows again (prefs saved by 1.3-1.4 bring it back once), and on a
+  Hermes with the card badge slot a card that waits on you wears a red "Needs you" badge on the official board.
+
+### Fixed
+
+- Ready for Hermes config v52 (after 0.22.5): squadctl installs the managed Chromium with post-setup key `chromium`
+  and falls back to `agent_browser` on older Hermes; before, every browsing bot would have ended without a browser.
+- `builder-update` prunes automatic backups under `local/backups/` older than 14 days (newest 3 of each kind stay;
+  hand exports are never touched), so every builder stops growing with each update.
+- hermes-platform references: Warm Bot Backends is gone (one gateway serves every bot); `browser_exec` needs the
+  `terminal` toolset; config v52 browser keys; gateway-run group chats and `hosted_rooms`.
+
 ## 2.26.8 - 2026-10-28
 
 ### Fixed
