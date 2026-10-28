@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.26.7 - 2026-10-28
+
+### Fixed
+
+- squad-hub 1.4.5: Desktop's side buttons (and ⌘B, ⌘J) dock a floating side: the chat narrows smoothly to make room
+  instead of the side floating over it, and the docked side stays docked across restarts until the same button
+  releases it to float and auto-hide again.
+
 ## 2.26.6 - 2026-10-27
 
 ### Fixed

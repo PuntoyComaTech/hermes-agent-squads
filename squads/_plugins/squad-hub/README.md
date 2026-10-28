@@ -59,7 +59,8 @@ Screenshots use invented projects and boards.
 - **Floating sides (on by default).** The left list and the right
   files/terminal column take no width: bring the pointer within about 40 px of a screen edge and they slide over the chat like an
   auto-hiding dock, then hide a moment after it leaves (never while you type in them or a menu is open). The title-bar
-  side buttons, ⌘B and ⌘J pin or release a side; the chat keeps a small margin so the edges stay free. The width you drag
+  side buttons, ⌘B and ⌘J dock a side (the chat narrows to make room, and it stays docked after a restart) or release
+  it to float again; the chat keeps a small margin so the edges stay free. The width you drag
   between the chat and a preview is kept. It works over a preview too, and whatever your layout; a side that cannot float keeps Desktop's own button.
 - **Squads layout.** The **Squads** layout (Layout editor in the title bar) puts files over a short terminal on the right.
 - **Env files.** A project's `.env` files hold secrets, so Desktop's viewer refuses them. Double-click one in the file

@@ -246,6 +246,76 @@ out.revealed = w.revealed
     assert got["revealed"] == ["files", "terminal"]
 
 
+# ---- Desktop's side buttons dock a floating side ----------------------------------------------------------------
+
+# A row as Desktop renders it: the Squads list, the chat, then files over the terminal; the right title-bar button.
+ROW = r"""
+const el = (attrs = {}, kids = [], width = 0) => {
+  const node = { attrs, children: kids, dataset: {}, vars: {}, parentElement: null,
+    style: { setProperty: (k, v) => (node.vars[k] = v), removeProperty: k => delete node.vars[k] },
+    getAttribute: k => attrs[k] ?? null,
+    getBoundingClientRect: () => ({ width, left: 0, right: 1400, top: 0, bottom: 900 }),
+    contains: x => x === node || kids.some(k => k.contains(x)),
+    all: () => [node, ...kids.flatMap(k => k.all())],
+    querySelectorAll: sel => (sel === '[data-tree-group]' ? node.all().slice(1).filter(n => 'data-tree-group' in n.attrs) : []),
+    closest(sel) {
+      const key = sel.match(/\[([a-z-]+)/)[1]
+      for (let n = node; n; n = n.parentElement) if (key in n.attrs) return n
+      return null
+    } }
+  for (const k of kids) k.parentElement = node
+  return node
+}
+const tab = el({ 'data-tree-tab': 'workspace' })
+const chat = el({ 'data-tree-group': 'sqh-main' }, [tab], 800)
+const left = el({}, [el({ 'data-tree-group': 'sqh-left' })], 280)
+const right = el({}, [el({ 'data-tree-group': 'sqh-files' }), el({ 'data-tree-group': 'sqh-term' })], 340)
+const row = el({ 'data-tree-split': 'sqh-root' }, [left, chat, right])
+document.querySelector = sel => (sel === '[data-tree-tab="workspace"]' ? tab : null)
+// the plugin finds what it marked through its own data-sqh-* attributes
+const camel = a => a.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase())
+document.querySelectorAll = sel => row.all().filter(n => [...sel.matchAll(/\[(data-sqh-[a-z-]+)\]/g)].some(m => camel(m[1]) in n.dataset))
+const icon = { querySelector: sel => (sel === '.codicon-layout-sidebar-right' ? {} : null) }
+const button = { closest: sel => (sel === '[data-titlebar-cluster] button' ? icon : null) }
+const press = () => w.fire('click', { target: button })
+const docked = () => ({ dock: row.vars['--sqh-dock-right'] || '0px', flag: 'sqhDockRight' in row.dataset, shown: 'sqhOpen' in right.dataset })
+"""
+
+
+def test_desktops_right_button_docks_the_side_beside_the_chat_and_releases_it(desk):
+    got = desk(ROW + """
+w.register()
+w.time.advance(1300)
+out.floating = docked()
+out.swallowed = press()
+out.pinned = docked()
+w.time.advance(1300)                      // the repaint poll keeps it docked
+out.still = docked()
+press()
+out.released = docked()
+""")
+    assert got["floating"] == {"dock": "0px", "flag": False, "shown": False}, "a floating side takes no width until pinned"
+    assert got["swallowed"], "Desktop's own toggle would fold the floating side to its rail"
+    assert got["pinned"] == {"dock": "340px", "flag": True, "shown": True}, "the button must give the side its width in the row"
+    assert got["still"] == got["pinned"]
+    assert got["released"] == {"dock": "0px", "flag": False, "shown": False}, "a second press lets the side float and hide again"
+
+
+def test_a_docked_side_is_still_docked_after_a_restart(desk):
+    got = desk(ROW + """
+w.register()
+w.time.advance(1300)
+press()
+w.dispose()
+out.afterDispose = docked()
+w.register()                              // the app starting again: same stored prefs
+w.time.advance(1300)
+out.restarted = docked()
+""")
+    assert got["afterDispose"]["flag"] is False, "switching the plugin off must hand the row back to Desktop"
+    assert got["restarted"] == {"dock": "340px", "flag": True, "shown": True}
+
+
 def test_polling_pauses_while_the_window_is_hidden(desk):
     got = desk("""
 w.dom.root = 'default-layout'

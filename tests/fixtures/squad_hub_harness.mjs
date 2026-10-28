@@ -231,6 +231,17 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     },
     /** A registered contribution by its plugin-local id (palette command, keybinding, pane…). */
     contribution: id => registered.find(c => c.id === id),
+    /** A DOM event as the document hears it, capture listeners first; returns whether a listener stopped it. */
+    fire(type, event) {
+      let stopped = false
+      const e = { type, ...event, stopPropagation: () => (stopped = true), preventDefault() {} }
+      for (const l of [...docListeners].sort((x, y) => y.capture - x.capture)) {
+        if (l.type !== type) continue
+        if (stopped) break
+        l.fn(e)
+      }
+      return stopped
+    },
     previews: () => JSON.parse(store.get('previews') || '{}'),
     leftBehind: () => ({
       listeners: docListeners.map(l => `${l.target}:${l.type}${l.capture ? ':capture' : ''}`),
