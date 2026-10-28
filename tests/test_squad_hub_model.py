@@ -892,7 +892,7 @@ def test_prefs_saved_by_an_older_version_get_the_new_defaults_once(model):
     old = {"floatSides": False, "hiddenNav": ["cron"], "hidden": ["web"]}
     up = model("upgradePrefs", old, defaults)
     assert up["floatSides"] is True and up["squadsTheme"] is True
-    assert set(up["hiddenNav"]) == {"cron", "kanban:nav"} and up["hidden"] == ["web"]
+    assert up["hiddenNav"] == ["cron"] and up["hidden"] == ["web"], "Desktop's own Kanban row comes back"
     chosen = {**up, "floatSides": False, "hiddenNav": []}
     again = model("upgradePrefs", chosen, defaults)
     assert again["floatSides"] is False and again["hiddenNav"] == [], "a choice made after the upgrade is kept"
@@ -999,7 +999,7 @@ def test_prefs_from_1_3_bring_back_the_profile_selector_and_the_bots_tab(model):
     assert defaults["hideRail"] is False and defaults["hideBotsTab"] is False
     saved_by_1_4 = {"floatSides": True, "hideBotsTab": True, "hideRail": True, "hiddenNav": ["kanban:nav"], "prefsVersion": 2}
     up = model("upgradePrefs", saved_by_1_4, defaults)
-    assert up["hideRail"] is False and up["hideBotsTab"] is False and up["prefsVersion"] == 3
+    assert up["hideRail"] is False and up["hideBotsTab"] is False and up["prefsVersion"] == 4
     chosen = {**up, "hideRail": True}
     assert model("upgradePrefs", chosen, defaults)["hideRail"] is True, "hiding it again after the upgrade is kept"
 
@@ -1242,3 +1242,13 @@ def test_the_plugin_never_forces_the_chat_width_outside_the_lone_chat_case():
     forced = re.findall(r"([^\n{}]*\[data-sqh-main\][^{]*)\{[^}]*flex:[^};]*!important", css)
     assert forced, "the lone-chat rule exists"
     assert all("[data-sqh-solo]" in sel for sel in forced), forced
+
+
+def test_prefs_saved_with_the_kanban_row_hidden_show_it_again_once(model):
+    """1.3.0 hid Desktop's Kanban row, so the owner stopped seeing the official cards. Prefs from before version 4
+    show it again once; hiding it after that is a choice that stays."""
+    up = model("upgradePrefs", {"hiddenNav": ["kanban:nav", "cron"], "prefsVersion": 3}, {"hiddenNav": [], "prefsVersion": 4})
+    assert up["hiddenNav"] == ["cron"] and up["prefsVersion"] == 4
+    chosen = {**up, "hiddenNav": ["kanban:nav"]}
+    assert model("upgradePrefs", chosen, {"hiddenNav": [], "prefsVersion": 4})["hiddenNav"] == ["kanban:nav"]
+

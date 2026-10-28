@@ -16,6 +16,8 @@ Signals:
      unified diff against the reviewed copy to <state>/docs/<date>.diff.md (capped at --max-chars; the rest goes
      to <date>.overflow.md, never dropped). Reviewed copies live content-addressed in <state>/docs/blobs/.
      The first run seeds the baseline silently.
+Maintainer mode (`--docs-ref origin/main`): the docs signal reads the docs at that git ref of the source root (after a
+`git fetch`) instead of the installed tree, so a change on Hermes main is digested before it ships in a release.
 The squads repo is not watched here: cron builder-update (scripts/auto_update.py) applies it with no agent.
 
 On a change the full release bodies go to <state>/releases/<tag>.md and a keyword-filtered copy
@@ -403,6 +405,27 @@ def base_version(version: str | None) -> str | None:
     return version.split("+")[0] if version else version
 
 
+def export_docs(src: Path, ref: str, dest: Path) -> Path:
+    """`website/docs` at git `ref` of the source root, exported to `dest` (replaced whole). Fetches the ref's remote
+    first; a failed fetch keeps the last fetched ref."""
+    remote = ref.split("/", 1)[0] if "/" in ref else None
+    if remote:
+        subprocess.run(["git", "-C", str(src), "fetch", "-q", remote], capture_output=True, timeout=120)
+    tar = subprocess.run(["git", "-C", str(src), "archive", "--format=tar", ref, "website/docs"],
+                         capture_output=True, timeout=120)
+    if tar.returncode != 0:
+        raise RuntimeError(f"git archive {ref}: {tar.stderr.decode(errors='replace').strip()[-200:]}")
+    import io
+    import shutil
+    import tarfile
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    with tarfile.open(fileobj=io.BytesIO(tar.stdout)) as t:
+        t.extractall(dest, filter="data")
+    return dest / "website" / "docs"
+
+
 # --- run --------------------------------------------------------------------------------------------------------
 
 def digest_written_since(sdir: Path, since: float) -> bool:
@@ -426,6 +449,12 @@ def run(opts) -> dict:
         local, install_dir = hermes_version_info(opts.hermes_bin)
     src = opts.hermes_src or install_dir
     docs_dir = Path(src).expanduser() / "website" / "docs" if src else None
+    if src and opts.docs_ref:
+        try:
+            docs_dir = export_docs(Path(src).expanduser(), opts.docs_ref, sdir / "docs" / "ref")
+        except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+            errors.append(f"docs-ref: {exc}"[:300])
+            docs_dir = None
     snap = doc_map = None
     if docs_dir and docs_dir.is_dir():
         try:
@@ -575,6 +604,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--hermes-version", help="use this local version instead of running `hermes --version`")
     ap.add_argument("--hermes-src", help="Hermes source root for the docs signal (default: the `Install directory:` "
                     "line of `hermes --version`; with --hermes-version and no --hermes-src the docs signal is off)")
+    ap.add_argument("--docs-ref", help="maintainer mode: read the docs at this git ref of the source root "
+                    "(e.g. origin/main) instead of the installed tree")
     ap.add_argument("--doc-map", default=str(DOC_MAP), help="reference -> docs map (default scripts/data/doc-sources.json)")
     ap.add_argument("--releases-url", default=RELEASES_URL, help="GitHub releases API URL (tests)")
     ap.add_argument("--atom-url", default=ATOM_URL, help="releases.atom fallback URL (tests)")

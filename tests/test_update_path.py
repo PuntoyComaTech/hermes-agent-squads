@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -549,3 +550,24 @@ def test_upgrade_reports_a_conflicting_bot_edit_and_keeps_a_copy(installed, caps
     src.write_text(src.read_text() + "UPSTREAM FOOTER\n")  # a later, non-clashing upstream change still merges in
     upgrade(installed, capsys)
     assert dest.read_text().startswith("LOCAL TITLE\n") and dest.read_text().endswith("UPSTREAM FOOTER\n")
+
+
+def test_auto_update_prunes_old_automatic_backups_and_never_a_hand_export(upd, capsys):
+    """Each update leaves edits-*/skill-edits-* backups; without pruning they pile up in every builder. Old automatic
+    ones go (the newest three of each kind stay); a hand export such as a profile tarball is never touched."""
+    b = upd.home / "local" / "backups"
+    old = time.time() - 30 * 86400
+    names = [f"edits-202609{d:02d}-010101" for d in range(1, 6)] + ["skill-edits-pre-2.19.0-20260901-010101",
+             "web-SOUL-20260901-010101.md", "infracode-20260901.tar.gz", "notes"]
+    for i, n in enumerate(names):
+        p = b / n
+        p.parent.mkdir(parents=True, exist_ok=True)
+        (p.mkdir() if "." not in n.split("-")[-1] and not n.endswith(".md") else p.write_text("x"))
+        os.utime(p, (old + i, old + i))
+    fresh = b / "edits-20261028-010101"
+    fresh.mkdir()
+    assert upd.run(capsys) == (0, "", ""), "a quiet tick stays quiet"
+    left = sorted(p.name for p in b.iterdir())
+    assert left == sorted(["edits-20260904-010101", "edits-20260905-010101",
+                           "edits-20261028-010101", "skill-edits-pre-2.19.0-20260901-010101",
+                           "web-SOUL-20260901-010101.md", "infracode-20260901.tar.gz", "notes"])

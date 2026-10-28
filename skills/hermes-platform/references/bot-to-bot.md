@@ -30,6 +30,12 @@
   per send, 3 rounds) keep rooms from spinning. `@all` / `@everyone` address the whole room; "stop"
   next to a member's @mention holds that member.
 - Each member keeps its own room session; group settings can compress one member's history at a time.
+- A room whose members all live on one gateway keeps running with Desktop closed (`groups.capabilities`
+  -> `driver: true`); room state is in the root `shared-state.db`.
+- After 0.22.5 (`main`): rooms can be renamed and disbanded, take @mentions and pasted attachments, and
+  their discussion budgets are configurable (`hosted_rooms`); a gateway-run room seats only bots of the
+  active connection. A profile another local gateway owns joins only through
+  `hosted_rooms.profiles: {<name>: <home>}` (docs `developer-guide/hosted-profile-owners.md`).
 
 ## Across machines
 
