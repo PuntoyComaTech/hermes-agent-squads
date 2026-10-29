@@ -257,6 +257,27 @@ out.opened = opened
     assert got["opened"] == ["in-place", "tab"], "every plain click used to stack a new tab"
 
 
+def test_a_new_chat_opens_in_place_and_shows_its_auto_title_at_once(desk):
+    """Every "+" stacked a session tab (they piled up and came back on restart), and the row read "New chat" until
+    the next list refetch although Hermes had already named it (`session.title`)."""
+    got = desk("""
+const opened = []
+w.host.openSession = async (id, o) => void opened.push([id, o.intent])
+w.host.requestProfile = async (bot, method) => method === 'session.create'
+  ? { session_id: 'rt-n', stored_session_id: 'local-new', info: {} } : { projects: [] }
+w.host.listPersistedSessions = async () => ({ sessions: [] })
+w.host.request = async () => ({ profiles: [{ name: 'default', is_default: true }] })
+w.register()
+await w.exports().newChat('default')
+w.emit('session.title', 'rt-n', { session_id: 'local-new', title: 'Fix the side panels' })
+const snap = await w.exports().loadSnapshot()
+out.opened = opened
+out.title = snap.chats.find(c => c.id === 'local-new')?.title
+""")
+    assert got["opened"] == [["local-new", "in-place"]]
+    assert got["title"] == "Fix the side panels"
+
+
 # ---- the Desktop-cards switch the agent half reads ------------------------------------------------------------------
 
 PROFILES = """[{ name: 'default', is_default: true }, { name: 'builder' }, { name: 'web-frontend' },

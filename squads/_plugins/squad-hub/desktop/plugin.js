@@ -1249,7 +1249,8 @@ async function newChat(bot, cwd) {
       git_branch: created.info?.branch || ''
     })
     refresh()
-    await host.openSession(created.stored_session_id, { profile: bot, intent: 'tab' })
+    // in place, like Desktop's own "New session": a tab per "+" piled up in the strip and stayed across restarts
+    await host.openSession(created.stored_session_id, { profile: bot, intent: 'in-place' })
     haptic?.('tap')
     return created.stored_session_id
   } catch (e) {
@@ -3284,7 +3285,13 @@ export default {
       if (!url || !owner) return
       rememberPreviews(rememberPreview(previewsAtom.get(), owner, { url, label: String(e.payload?.label || '').trim(), at: Date.now() }))
     })
-    for (const type of ['session.title', 'sessions.changed']) ctx.onEvent(type, () => refreshSoon())
+    // the auto-title lands on a just-started chat at once; the list refetch follows
+    ctx.onEvent('session.title', e => {
+      const chat = pendingChats.get(e.payload?.session_id)
+      if (chat && e.payload?.title) chat.title = e.payload.title
+      refresh()
+    })
+    ctx.onEvent('sessions.changed', () => refreshSoon())
     ctx.onDispose(() => {
       clearTimeout(refreshTimer)
       refreshTimer = null

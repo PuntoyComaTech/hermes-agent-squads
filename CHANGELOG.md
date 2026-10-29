@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.35.2 - 2026-10-29
+
+### Fixed
+
+- squad-hub 2.1.2: "+" opens the new chat in place, like Desktop's own "New session". It opened a session tab each
+  time, so the strip filled with chats nobody closed and Desktop restored them all on the next launch. A just-started
+  chat takes its auto-title from `session.title` at once instead of reading "New chat" until the next list refetch.
+
 ## 2.35.1 - 2026-10-29
 
 ### Fixed
