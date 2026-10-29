@@ -17,6 +17,11 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
   pauses or resumes a job on its bot. The Squads layout has three columns: the crons are a tab beside the files over
   the terminal, so the chat keeps about 600 px at Desktop's first-launch window.
 
+### Fixed
+
+- Shared browser: closing a run's tabs waits until Chrome has really destroyed them, so the next read never sees a
+  tab it just closed (the release gate failed on this now and then).
+
 ### Removed
 
 - Hiding the Bots tab and the profile selector, the `.env` double-click and the worktree PR chips: they changed

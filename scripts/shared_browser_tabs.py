@@ -160,17 +160,24 @@ def close_targets(port: int, ids) -> int:
     if not ids:
         return 0
     cdp = Cdp(port)
-    closed = 0
+    closed = []
     try:
         for tid in ids:
             try:
                 cdp.send("Target.closeTarget", targetId=tid)
-                closed += 1
+                closed.append(tid)
             except (RuntimeError, OSError):
                 pass  # already gone
+        # Chrome answers closeTarget before the page is destroyed: wait (bounded) until the pages are gone, so a caller
+        # that reads the tabs next never sees one it just closed.
+        deadline = time.monotonic() + 2.0
+        while closed and time.monotonic() < deadline:
+            if not set(closed) & {t["targetId"] for t in cdp.pages()}:
+                break
+            time.sleep(0.05)
     finally:
         cdp.close()
-    return closed
+    return len(closed)
 
 
 # --- session names and leases ------------------------------------------------------------------------------------
