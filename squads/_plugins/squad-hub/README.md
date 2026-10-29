@@ -3,7 +3,7 @@
 Catalog key: `squad-hub` (`hermes plugins install squad-hub`).
 
 A Hermes Desktop plugin for the squads way of working, part of
-[Hermes Agent Squads](https://github.com/PuntoyComaTech/hermes-agent-squads). The Desktop list, bell and timeline
+[Hermes Agent Squads](https://github.com/PuntoyComaTech/hermes-agent-squads). The Desktop list, bell and crons pane
 are off until you turn the plugin on in **Capabilities > Plugins**; the agent half (questions with buttons, cards in
 replies) runs on every squad manager once `squadctl apply` installs it.
 
@@ -21,8 +21,6 @@ flowchart TD
 
 
 ![The empty chat names the squad and the project it works in](docs/empty-chat.png)
-
-![Squads timeline: each bot's runs, the shared legend and what went wrong](docs/timeline.png)
 
 ![The bell lists what waits on you; a card opens with the question it asks](docs/card.png)
 
@@ -45,8 +43,9 @@ Screenshots use invented projects and boards.
   checkouts never), ticked when their PR is merged or closed or they were not used for 2 days, and chats not used for
   2 days, plus the idle chats of a worktree that goes. You see every row, untick what you want to keep, and one button
   does it. Chats are archived; a removed worktree frees its disk space and keeps its branch, so no commit is lost.
-  Working, unread, in-view and pinned chats stay.
-- **A bot's own pages in one click.** Scheduled jobs, messaging, Kanban and capabilities (capabilities open in a
+  Working, unread, in-view and pinned chats stay. "Clean up…" on a bot does the same for every project of that bot and
+  its chats outside any project.
+- **A bot's own pages in one click.** Scheduled jobs, messaging, its squad's Kanban board and capabilities (capabilities open in a
   dialog pinned to that bot, with a picker for the other bots of its squad, so a connector or skill of any of them is
   one click away).
 - **Quiet big projects.** A closed project lists the chats that are working, unread or open right under its own row,
@@ -62,7 +61,11 @@ Screenshots use invented projects and boards.
   side buttons, ⌘B and ⌘J dock a side (the chat narrows to make room, and it stays docked after a restart) or release
   it to float again. Drag a shown side's inner edge to resize it (double-click resets); the width is kept. The chat keeps a small margin so the edges stay free. The width you drag
   between the chat and a preview is kept. It works over a preview too, and whatever your layout; a side that cannot float keeps Desktop's own button.
-- **Squads layout.** The **Squads** layout (Layout editor in the title bar) puts files over a short terminal on the right.
+- **Squads layout.** The **Squads** layout (Layout editor in the title bar) puts files over a short terminal on the right,
+  and the squad's crons beside them. The terminal takes typing while its side is shown, floating or docked.
+- **The squad's crons.** A **Crons** pane (right of the files) lists every scheduled job of the squad of the chat in
+  view: its name, the bot that runs it, what it does, its schedule in words, when it runs next and whether its last run
+  failed. Paused jobs go last; a click opens that bot's Scheduled jobs page.
 - **Env files.** A project's `.env` files hold secrets, so Desktop's viewer refuses them. Double-click one in the file
   tree (a switch in the settings), or use "Env files…" on a folder or project, and it opens in your system editor; the
   plugin never reads it.
@@ -76,13 +79,10 @@ Screenshots use invented projects and boards.
   contrast, Inter), on every bot by default: Desktop keeps a theme per bot, so the plugin puts it back on each one;
   turn that off in the plugin settings to pick a theme per bot. Lucide's licence: `LICENSE-lucide.txt`.
 - **Squads at work.** A manager's row says what its board holds, in words: "3 waiting on you" (cards blocked for your answer that are
-  still in the bell), else "8 waiting on you · seen" (cleared from the bell, still unanswered), "2 running" or "1 in review". A click lists those cards, each opening with the
-  question it asks and a button to answer; "Open the timeline" at the bottom opens the
-  **timeline**: one lane per bot over the last 6 h, 24 h, 3 days or a week. Bars use one legend, the same as the cards:
-  queued, waiting on another card, in progress, blocked, in review (QA), done, failed, stopped; striped while a card
-  waits, solid while a bot works. **What went wrong** sits beside it: Hermes' own Kanban diagnostics plus failed runs,
-  long waits and cards waiting on you. A click on a bar or an issue opens the card. Read-only; "Squads: open the
-  timeline" in the command palette opens it too.
+  still in the bell), else "8 waiting on you · seen" (cleared from the bell, still unanswered), "2 running" or "1 in review". A click lists the cards the count
+  names, then the cleared ones under their own heading, each opening with the question it asks and a button to answer;
+  "Open the board" at the bottom opens Desktop's Kanban page on that squad's board. "Squads: open this squad's Kanban
+  board" in the command palette does the same for the chat in view.
 - **The bell.** A bell in the status bar counts what waits on you: cards blocked for your answer on every board, and
   chats asking a question or an approval in every bot with a chat open. Grouped by board, newest first, with its age. A click opens the
   chat, or the card's detail: what it asks you, its history, and **Answer in a chat** (a new chat with the board's
@@ -92,21 +92,24 @@ Screenshots use invented projects and boards.
 - **Pull requests per worktree.** An open folder's main checkout and worktrees show their PR (open, draft, merged) and
   uncommitted changes; a click opens the PR.
 - **Cards in the chat.** A manager that files or reports a Kanban card shows it as a live card (state, assignee,
-  summary, details and the timeline). The agent half of the plugin adds the card when the reply forgot it, in Desktop
-  chats only. The Kanban page link shows only when Desktop's Kanban plugin is on.
+  summary, details and its board). The agent half of the plugin adds the card when the reply forgot it, in Desktop
+  chats only. With Desktop's Kanban plugin off, a board link opens Capabilities > Plugins to turn it on.
 - **Questions you click.** The agent half tells every manager to ask with suggested answers (Hermes' `clarify`), so you
   pick one instead of typing "ok": buttons in Desktop and Discord, numbered buttons in Telegram. It reaches new chats
   (a chat keeps the prompt it started with); off for scheduled runs, webhooks and squad workers. A manager opts out
   with `plugins: {disable: [squad-hub]}` in its squad.yaml.
-- **Desktop's own Kanban board stays.** Its sidebar row shows (Hermes keeps improving that board), and on a Hermes with
-  the card badge slot (after 0.22.5) a card that waits on you wears a red **Needs you** badge there.
+- **Desktop's own Kanban board.** Every board link opens it on the squad's board, picked through the page's own board
+  menu (never the server's current board, which the `hermes kanban` CLI follows). On a Hermes with the card badge slot
+  (after 0.22.5) a card that waits on you wears a red **Needs you** badge there.
+- **Read means read.** Opening another bot's chat clears its unread dot in that bot's own bucket and in the list in
+  memory, so a chat opened as a tab no longer stays pending.
 - **A quieter window.** Any sidebar row can be hidden in the plugin's settings.
 
 Every change to Desktop's own window (floating sides, hidden Bots tab and profile selector, hidden sidebar rows, the
 `.env` double-click) is a switch in **Settings > Plugins > Hermes Agent Squads Hub**.
 
 Not changed by the plugin: the Sessions tab, Files, Review, Terminal, artifacts, cron and the Kanban board itself (the
-plugin only reads it).
+plugin only reads them, and picks the board the Kanban page shows).
 
 Two halves. The desktop half is one file (`desktop/plugin.js`): a disk plugin loads uncompiled and resolves only
 `@hermes/plugin-sdk`, `react` and `react/jsx-runtime`. The agent half (`__init__.py`) is a prompt section and two hooks

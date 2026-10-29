@@ -3,6 +3,24 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.33.0 - 2026-10-29
+
+### Changed
+
+- Squads Hub 2.0. The timeline is gone: every board link (the manager's menu and chip, cards, the palette) opens
+  Desktop's own Kanban page on that squad's board. A **Crons** pane right of the files lists the scheduled jobs of the
+  squad in view: name, the bot that runs it, what it does, its schedule in words, next run and a failed last run.
+- Managers get Nous's official Advanced Delegation plugin on Hermes 0.22.5+, with a profile route to each bot of
+  their squad; the delegation mode stays the user's (`/delegation profiles`).
+- `auto_update.py` says when a release needs a newer Hermes, before touching any bot, and asks to restart Desktop
+  (and turn the plugin on the first time) when Squads Hub changed.
+
+### Fixed
+
+- Squads Hub: the terminal in the floating right side takes typing (Desktop's terminal overlay sat under the lifted
+  pane host); a chat of another bot opened as a tab no longer stays pending; a manager's chip and its menu count the
+  same cards; "Clean up…" on a bot reaches its chats outside any project.
+
 ## 2.32.0 - 2026-10-28
 
 ### Changed

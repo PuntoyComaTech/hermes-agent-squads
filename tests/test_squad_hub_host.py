@@ -472,12 +472,16 @@ const walk = n => n.type === 'group' ? panes.push(...n.panes) : n.children.forEa
 const layout = w.contribution('layout')
 walk(layout.data)
 out.panes = panes; out.area = layout.area
-const files = w.contribution('layout').data.children[2]
-out.rightColumn = files.children.map(g => g.panes[0])
+const right = w.contribution('layout').data.children[2]
+out.rightColumn = right.children[0].children.map(g => g.panes[0])
+out.farRight = right.children[1].panes
+out.cronPane = w.contribution('crons')?.data
 """)
     assert got["area"] == "layouts"
     assert {"squad-hub:pane", "workspace", "files", "terminal"} <= set(got["panes"]) and "review" not in got["panes"]
     assert got["rightColumn"] == ["files", "terminal"], "files over the terminal"
+    assert got["farRight"] == ["squad-hub:crons"], "the squad's crons sit right of the files"
+    assert got["cronPane"]["dock"] == {"pane": "files", "pos": "right"}, "outside the Squads layout too, beside the files"
 
 
 def test_every_command_and_keybinding_it_registers_runs_without_a_chat_open(desk):
@@ -486,7 +490,7 @@ def test_every_command_and_keybinding_it_registers_runs_without_a_chat_open(desk
 w.register()
 const failed = []
 const ids = []
-for (const id of ['cmd-open', 'cmd-preview', 'key-preview', 'cmd-pin-left', 'key-pin-left', 'cmd-pin-right', 'key-pin-right', 'cmd-float', 'cmd-layout', 'cmd-next', 'key-next', 'cmd-theme', 'cmd-timeline', 'cmd-new-project']) {
+for (const id of ['cmd-open', 'cmd-preview', 'key-preview', 'cmd-pin-left', 'key-pin-left', 'cmd-pin-right', 'key-pin-right', 'cmd-float', 'cmd-layout', 'cmd-next', 'key-next', 'cmd-theme', 'cmd-board', 'cmd-new-project']) {
   const c = w.contribution(id)
   if (!c) { failed.push(id + ': not registered'); continue }
   ids.push(c.data.id)
@@ -624,35 +628,53 @@ out.kinds = ['project', 'worktree', 'text', 'confirm', 'caps', 'clean', 'look', 
     assert got["kinds"] == [1] * 8, "each kind opens exactly one dialog"
 
 
-def test_the_timeline_draws_one_bar_per_run_in_its_bots_lane(desk):
-    """Payload shaped like loadTimeline() returns: lanes of bars, times in unix seconds."""
-    now = 1_793_000_000
-    data = {"now": now, "from": now - 86400, "tasks": 2, "skipped": 0, "issues": [],
-            "timeline": {"from": now - 86400, "to": now, "lanes": [
-                {"name": "web-frontend", "bars": [
-                    {"taskId": "t_aa01", "title": "hero", "status": "done", "kind": "wait", "state": "queued", "start": now - 9000, "end": now - 8000, "open": False},
-                    {"taskId": "t_aa01", "title": "hero", "status": "done", "kind": "run", "state": "done", "tone": "done", "start": now - 8000, "end": now - 6000, "open": False, "outcome": "completed", "summary": ""}]},
-                {"name": "web-qa", "bars": [
-                    {"taskId": "t_aa02", "title": "qa", "status": "running", "kind": "run", "state": "run", "tone": "run", "start": now - 3000, "end": now, "open": True, "outcome": "running", "summary": ""}]}]}}
+def test_the_cron_pane_lists_the_squads_jobs_with_their_bot_and_what_they_do(desk):
+    """Payloads shaped like `cron.manage list` (tools/cronjob_job_args.py _format_job): one list per bot of the squad
+    of the chat in view, each row naming the job, the bot that runs it and what it does, next run first."""
+    jobs = {
+        "jobs": {"jobs": [{"job_id": "a1", "name": "jobs-watch", "script": "board_watch.py", "no_agent": True, "enabled": True,
+                           "state": "scheduled", "schedule": "*/30 * * * *", "next_run_at": "2099-01-01T10:30:00+00:00"}]},
+        "jobs-scout": {"jobs": [{"job_id": "b1", "name": "scout-digest", "skill": "finding-jobs", "prompt_preview": "",
+                                 "enabled": True, "state": "scheduled", "schedule": "0 9 * * *", "next_run_at": "2099-01-01T09:00:00+00:00"}]},
+        "jobs-writer": {"jobs": [{"job_id": "c1", "name": "old-one", "script": "x.py", "no_agent": True, "enabled": False,
+                                  "state": "paused", "schedule": "0 8 * * *"}]},
+    }
     got = desk(WALK + f"""
+const snap = {{ profiles: [
+  {{ name: 'jobs', ui_meta: {{ 'hermes-bots': {{ squadName: 'Jobs', sectionName: 'Managers', title: 'Jobs manager' }} }} }},
+  {{ name: 'jobs-scout', ui_meta: {{ 'hermes-bots': {{ squadName: 'Jobs', sectionName: 'Jobs', title: 'Jobs scout' }} }} }},
+  {{ name: 'jobs-writer', ui_meta: {{ 'hermes-bots': {{ squadName: 'Jobs', sectionName: 'Jobs', title: 'Jobs writer' }} }} }},
+  {{ name: 'web', ui_meta: {{ 'hermes-bots': {{ squadName: 'Web', sectionName: 'Managers' }} }} }}],
+  chats: [{{ id: 'c1', profile: 'jobs-scout' }}] }}
+w.queries.set(JSON.stringify(['squad-hub', 'snapshot']), snap)
 w.register()
+w.translate('en')
+w.focus('c1')
+const asked = []
 globalThis.__SQH_QUERIES__ = options => {{
-  const key = options.queryKey?.[1]
-  if (key === 'boards') return {{ data: [{{ slug: 'web', name: 'Web', digest: {{ blocked: 0 }} }}] }}
-  if (key === 'timeline') return {{ data: {json.dumps(data)}, isLoading: false, refetch() {{}} }}
+  if (options.queryKey?.[1] === 'snapshot') return {{ data: snap }}
+  if (options.queryKey?.[1] === 'crons') {{ asked.push(options.queryKey[2]); return {{ data: {json.dumps(jobs)} }} }}
   return {{}}
 }}
-const {{ TimelinePage }} = w.exports()
-const bars = []; const lanes = []
-walk(TimelinePage(), n => {{
-  if (n.props?.className === 'sqh-tl-bar') bars.push(n.props)
-  if (n.props?.className === 'sqh-tl-lane') lanes.push(n.key)
+const pane = w.contribution('crons')
+const rows = []
+walk(pane.render(), n => {{
+  if (typeof n.type === 'function') walk(n.type(n.props), v => v.props?.className === 'sqh-cron' && rows.push(v))
+  if (n.props?.className === 'sqh-cron') rows.push(n)
 }})
-out.lanes = lanes
-out.bars = bars.map(b => [b['data-kind'], b['data-state'], b['data-open'], parseFloat(b.style.left) >= 0, parseFloat(b.style.left) + parseFloat(b.style.width) <= 100.001])
+const text = n => {{ const out = []; walk(n, v => typeof v.props?.children === 'string' && out.push(v.props.children)); walk(n.props.children, v => {{}}); return out }}
+const flat = n => JSON.stringify(n.props.children)
+out.asked = asked
+out.rows = rows.map(r => [r.props['data-state'], flat(r)])
 """)
-    assert got["lanes"] == ["web-frontend", "web-qa"]
-    assert got["bars"] == [["wait", "queued", "false", True, True], ["run", "done", "false", True, True], ["run", "run", "true", True, True]]
+    assert got["asked"] == ["jobs,jobs-scout,jobs-writer"], "the squad of the chat in view, manager first, never another squad"
+    names = [next(n for n in ("jobs-watch", "scout-digest", "old-one") if n in row) for _, row in got["rows"]]
+    assert names == ["scout-digest", "jobs-watch", "old-one"], "next run first, paused last"
+    by = {n: row for n, (_, row) in zip(names, got["rows"])}
+    assert "Jobs manager" in by["jobs-watch"] and "cards that wait on your answer" in by["jobs-watch"], "the bot and what the job does"
+    assert "Jobs scout" in by["scout-digest"] and "Runs the finding-jobs skill" in by["scout-digest"], "an agent job says which skill it runs"
+    assert "every 30 min" in by["jobs-watch"] and "daily 09:00" in by["scout-digest"], "the schedule in words"
+    assert [s for s, _ in got["rows"]] == ["ok", "ok", "paused"]
 
 
 # ---- Desktop's own Kanban board ---------------------------------------------------------------------------------------
@@ -677,3 +699,72 @@ out.unblocked = c.data.decorate({ id: 't_ask', status: 'ready', tenant: null, as
 def test_prefs_default_shows_desktops_kanban_row(desk):
     got = desk("w.register(); out.prefs = JSON.parse(w.store.get('prefs'))")
     assert "kanban:nav" not in got["prefs"]["hiddenNav"]
+
+
+def test_the_terminal_rises_and_hides_with_the_floating_side_that_holds_it(desk):
+    """User report: the terminal at the bottom right showed but took no typing. Desktop draws it in one fixed overlay
+    (`[data-persistent-terminal]`, z-index 4) outside every pane host; floating lifted the side's pane hosts to 46 over
+    it. The overlay must rise with its side while shown and hide with it, and the window is told to re-measure it."""
+    got = desk(ROW + r"""
+w.localStorage.set('hermes.desktop.layoutTree.v2', JSON.stringify({ type: 'split', id: 'sqh-root', children: [
+  { type: 'group', id: 'sqh-left', panes: ['squad-hub:pane'], active: 'squad-hub:pane' },
+  { type: 'group', id: 'sqh-main', panes: ['workspace'], active: 'workspace' },
+  { type: 'split', id: 'r', children: [{ type: 'group', id: 'sqh-files', panes: ['files'], active: 'files' },
+                                       { type: 'group', id: 'sqh-term', panes: ['terminal'], active: 'terminal' }] }] }))
+const resized = []
+window.dispatchEvent = e => resized.push(e.type)
+globalThis.Event = class { constructor(type) { this.type = type } }
+w.register()
+w.time.advance(1300)
+const rule = () => (w.styles().map(s => s.textContent).join('\n').match(/\[data-persistent-terminal\]\{[^}]*\}/) || [''])[0]
+out.hidden = rule()
+w.exports().setSide('right', true)
+out.shown = rule()
+w.time.advance(400)
+out.resized = resized.length
+""")
+    assert "visibility:hidden" in got["hidden"] and "pointer-events:none" in got["hidden"], "a hidden side hides the terminal too"
+    assert "z-index:47" in got["shown"] and "visibility:hidden" not in got["shown"], "a shown side lifts it above its own host"
+    assert got["resized"] >= 2, "the overlay re-measures its slot after the slide"
+
+
+def test_opening_another_bots_chat_clears_its_pending_mark_in_that_bots_bucket(desk):
+    """User report: "I open one of our tabs and it keeps its pending state". Desktop's dot reads a persisted marker per
+    profile and an in-memory unread list; ack only retired the marker, and a chat of another bot (no row loaded in this
+    window) stayed in the list. Opening it must clear both, in the owner's bucket, and tell the backend."""
+    got = desk("""
+globalThis.__SQH_API__ = []
+const snap = { profiles: [], chats: [{ id: 'c9', profile: 'jobs', unread: true }] }
+w.queries.set(JSON.stringify(['squad-hub', 'snapshot']), snap)
+w.register()
+await w.exports().openChat('jobs', 'c9', 'tab')
+await new Promise(r => setImmediate(r))
+out.unread = w.calls.filter(c => c.via === 'unread').map(c => [c.method, c.params[0], c.params[1]])
+out.patch = globalThis.__SQH_API__.filter(r => r.method === 'PATCH').map(r => [r.path, r.profile, r.body.unread])
+""")
+    assert ["forget", ["c9"], "jobs"] in got["unread"], "the in-memory unread list, in the owner's bucket"
+    assert ["ack", "c9", "jobs"] in got["unread"]
+    assert got["patch"] == [["/api/sessions/c9", "jobs", False]], "the backend watermark of the owner"
+
+
+def test_the_kanban_button_opens_desktops_board_on_the_squads_board_and_never_moves_the_current_board(desk):
+    """The board button picks the board the Kanban page itself shows (its stored slug and its own switcher), never the
+    server's `current` board, which every `hermes kanban` command without --board follows."""
+    got = desk("""
+w.register()
+w.host.pluginDecisions.set({ kanban: true })
+// openBoard waits for the page's switcher on the (virtual) clock: let it run out, no switcher in this DOM
+const settle = async p => { for (let i = 0; i < 40; i++) { await new Promise(r => setImmediate(r)); w.time.advance(100) } await p }
+await settle(w.exports().openBoard('jobs'))
+out.slug = w.localStorage.get('hermes.plugin.kanban.boardSlug')
+out.nav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
+out.server = w.calls.filter(c => String(c.method).includes('switch'))
+w.calls.length = 0
+w.host.pluginDecisions.set({})
+await settle(w.exports().openBoard('jobs'))
+out.offNav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
+out.offNotice = w.notices.length
+""")
+    assert got["slug"] == '"jobs"' and got["nav"] == ["/kanban"]
+    assert got["server"] == [], "no /boards/<slug>/switch: that would retarget the CLI"
+    assert got["offNav"] == ["/capabilities?tab=plugins"] and got["offNotice"] == 1, "Kanban off: say where to turn it on"

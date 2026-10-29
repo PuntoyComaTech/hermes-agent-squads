@@ -2185,3 +2185,31 @@ def test_doctor_finds_bun_where_its_installer_puts_it(tmp_path, monkeypatch):
     assert squadctl.app_launcher("bun") == [str(bun)]
     assert squadctl.app_problem("bun") is None
 
+
+def test_a_manager_on_hermes_0_22_5_gets_advanced_delegation_with_routes_to_its_own_squad(env, capsys, monkeypatch):
+    """The manager can run a subagent as one of its squad's bots (Nous's Advanced Delegation, profile_routes). Only the
+    routes are written: the delegation mode stays the user's, so an unrouted subagent keeps the delegation lane."""
+    monkeypatch.setenv("FAKE_HERMES_VERSION", "0.22.5")
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    installs = [c["args"] for c in env.calls() if c["args"][:2] == ["plugins", "install"] and c.get("profile") == "web"]
+    assert ["plugins", "install", "advanced-delegation", "--enable", "--yes-deps"] in installs
+    cfg = env.config("web")
+    routes = cfg["delegation"]["backends"]["profile_routes"]["profiles"]
+    assert [r["name"] for r in routes] == ["web-frontend", "web-backend", "web-qa", "web-deployer"], "its own required bots"
+    assert all(r["description"] for r in routes), "the model reads what each bot does"
+    assert "backend" not in cfg["delegation"], "the mode is the user's choice (/delegation)"
+    for worker in ("web-qa", "web-frontend"):
+        assert "backends" not in (env.config(worker).get("delegation") or {}), worker
+        assert not [c for c in env.calls() if c.get("profile") == worker and "advanced-delegation" in c["args"]], worker
+    n = len(env.calls())
+    _, again = env.run("apply", "web", capsys=capsys)
+    assert not [c for c in env.calls()[n:] if "advanced-delegation" in c["args"]], "a second apply installs nothing"
+
+
+def test_a_hermes_older_than_0_22_5_gets_no_delegation_routes(env, capsys):
+    """Hermes 0.22.0 to 0.22.4 refuses the plugin (requires_hermes): no install attempt, no routes nobody reads."""
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    assert not [c for c in env.calls() if "advanced-delegation" in c["args"]]
+    assert "backends" not in (env.config("web").get("delegation") or {})

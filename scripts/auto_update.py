@@ -66,11 +66,36 @@ def vtuple(v: str | None) -> tuple:
     return tuple(int(x) for x in v.split(".")) if v else ()
 
 
-def remote_version(raw: str, timeout: int) -> str | None:
+def remote_manifest(raw: str, timeout: int) -> str:
     req = urllib.request.Request(f"{raw.rstrip('/')}/distribution.yaml",
                                  headers={"User-Agent": "hermes-squads-auto-update"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return version_of(r.read().decode("utf-8", "replace"))
+        return r.read().decode("utf-8", "replace")
+
+
+def remote_version(raw: str, timeout: int) -> str | None:
+    return version_of(remote_manifest(raw, timeout))
+
+
+def hermes_gap(manifest: str) -> str | None:
+    """Why this Hermes cannot take the new release (`hermes_requires` of its distribution.yaml), else None. An
+    older Hermes refuses `hermes profile update` with a bare error and nothing reaches the bots, so it is said first."""
+    m = re.search(r"^hermes_requires:\s*[\"']?\s*>=\s*(\d+(?:\.\d+)*)", manifest, re.M)
+    if not m:
+        return None
+    try:
+        out = subprocess.run(["hermes", "--version"], capture_output=True, text=True, timeout=60,
+                             stdin=subprocess.DEVNULL).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    have = re.search(r"v(\d+\.\d+\.\d+)", out)
+    if not have or vtuple(have.group(1)) >= vtuple(m.group(1)):
+        return None
+    return (f"needs Hermes {m.group(1)} or newer, this computer runs {have.group(1)}: run `hermes update`, "
+            f"then update the squads again")
+
+
+HUB_JS = Path("plugins") / "squad-hub" / "desktop" / "plugin.js"
 
 
 def shipped_files(h: Path) -> dict[str, str]:
@@ -269,7 +294,8 @@ def main(argv: list[str] | None = None) -> int:
     dist = h / "distribution.yaml"
     old = version_of(dist.read_text()) if dist.is_file() else None
     try:
-        new = remote_version(a.raw_url, a.timeout)
+        manifest = remote_manifest(a.raw_url, a.timeout)
+        new = version_of(manifest)
     except OSError as exc:
         print(f"Squads update check failed: {exc}", file=sys.stderr)
         return 1
@@ -292,6 +318,11 @@ def main(argv: list[str] | None = None) -> int:
             prune_backups(h)  # silent: housekeeping is no news
             return 0
 
+    gap = hermes_gap(manifest) if rose else None
+    if gap:
+        print(f"Squads update {old or '?'} -> {new} {gap}")
+        return 1
+    hub_before = sha((h / HUB_JS).read_bytes()) if (h / HUB_JS).is_file() else None
     edits = edited_files(h, state)
     backup = save_local_edits(h, edits) if rose else None  # only `hermes profile update` replaces files
     before = squads_in(h)
@@ -343,6 +374,10 @@ def main(argv: list[str] | None = None) -> int:
     lines += [f"- Needs you: {x}" for x in rep.get("pending") or []]
     lines += [f"- {n}" for n in notes]
     lines += [f"- Error: {e}" for e in rep.get("errors") or []]
+    hub_after = sha((h / HUB_JS).read_bytes()) if (h / HUB_JS).is_file() else None
+    if hub_after and hub_after != hub_before:
+        lines.append("- Squads Hub changed: restart Hermes Desktop to load it (the first time, turn on "
+                     "\"Hermes Agent Squads Hub\" in Capabilities > Plugins)")
     pruned = prune_backups(h)
     if pruned:
         lines.append(f"- Removed {len(pruned)} automatic backup(s) older than {BACKUP_DAYS} days")

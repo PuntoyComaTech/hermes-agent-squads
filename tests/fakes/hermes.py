@@ -89,7 +89,7 @@ def config_add(path, section, key, value):
 def main():
     if argv == ["--version"]:
         # one line, with the +build suffix a git install reports
-        print("Hermes Agent v0.22.0+2.gd97007c (fake)")
+        print(f"Hermes Agent v{os.environ.get('FAKE_HERMES_VERSION', '0.22.0')}+2.gd97007c (fake)")
         return
     if argv == ["--print-runtime-command"]:
         boot = (f"import sys; sys.path.insert(0, '{FAKE_ROOT}'); sys._hermes_pin_default_home = True; "

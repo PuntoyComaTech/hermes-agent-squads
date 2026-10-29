@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees timelineOf issuesOf bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards windowTasks boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed zonesOf zonesOfAll parseLayout sideSignature isReveal cardsToSwitch withTimeout workspaceGroup boardWaiting chatAlone").split()
+           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed zonesOf zonesOfAll parseLayout sideSignature isReveal cardsToSwitch withTimeout workspaceGroup boardWaiting chatAlone boardChipView botCleanupProject cronRows cronEvery cronKey untilAge").split()
 
 
 def _model_source() -> str:
@@ -570,60 +570,8 @@ def test_a_board_belongs_to_the_bots_that_took_its_cards_not_to_every_profile(mo
     assert model("boardForBot", "shop", boards)["slug"] == "shopfront"
 
 
-def test_the_timeline_draws_each_run_in_its_bots_lane_and_the_wait_before_it(model):
-    t1 = task("t_bb01", "done", assignee="web-frontend", created=NOW - 9000,
-              runs=[run("web-frontend", NOW - 8000, NOW - 7000, "crashed"),
-                    run("web-frontend", NOW - 6900, NOW - 6000, "completed")])
-    t2 = task("t_bb02", "review", assignee="web-qa", created=NOW - 5000,
-              runs=[run("web-qa", NOW - 4000, None, None)])
-    t3 = task("t_bb03", "todo", assignee="web-frontend", created=NOW - 3000, runs=[])
-    tl = model("timelineOf", [t1, t2, t3], NOW, NOW - 86400)
-    lanes = {l["name"]: l["bars"] for l in tl["lanes"]}
-    assert set(lanes) == {"web-frontend", "web-qa"}
-    fe = lanes["web-frontend"]
-    assert [b["kind"] for b in fe] == ["wait", "run", "run", "wait"]
-    assert fe[0] == {**fe[0], "start": NOW - 9000, "end": NOW - 8000}
-    assert [b.get("tone") for b in fe if b["kind"] == "run"] == ["fail", "done"]
-    assert fe[-1]["open"] and fe[-1]["end"] == NOW  # never picked up yet: waits until now
-    qa = lanes["web-qa"]
-    assert qa[-1]["open"] and qa[-1]["end"] == NOW and qa[-1]["tone"] == "run"
 
 
-def test_the_timeline_keeps_only_what_touches_the_window(model):
-    old = task("t_cc01", "done", created=NOW - 900_000, runs=[run("web-qa", NOW - 800_000, NOW - 799_000, "completed")])
-    tl = model("timelineOf", [old], NOW, NOW - 86400)
-    assert tl["lanes"] == []
-
-
-def test_issues_put_core_diagnostics_first_and_add_only_what_timing_shows(model):
-    crashy = task("t_dd01", "blocked", assignee="jobs-writer", block_kind="needs_input",
-                  runs=[run("jobs-writer", NOW - 9000, NOW - 8900, "crashed"),
-                        run("jobs-writer", NOW - 8000, NOW - 7900, "crashed")])
-    slow = task("t_dd02", "done", assignee="jobs-scout", created=NOW - 20000,
-                runs=[run("jobs-scout", NOW - 10000, NOW - 9000, "completed")])
-    gated = task("t_dd03", "done", assignee="jobs-scout", created=NOW - 20000, parents=1,
-                 runs=[run("jobs-scout", NOW - 10000, NOW - 9000, "completed")])
-    forgotten = task("t_dd04", "blocked", assignee="jobs", block_kind="needs_input", created=NOW - 200000,
-                     runs=[run("jobs", NOW - 100000, NOW - 99000, "blocked")])
-    diags = [{"task_id": "t_dd01", "task_title": "Apply LinkedIn", "task_assignee": "jobs-writer",
-              "diagnostics": [{"kind": "repeated_failures", "severity": "error", "title": "Agent crash x2",
-                               "last_seen_at": NOW - 7900, "count": 2}]}]
-    issues = model("issuesOf", [crashy, slow, gated, forgotten], diags, NOW)
-    kinds = [(i["kind"], i["taskId"]) for i in issues]
-    assert kinds[0] == ("repeated_failures", "t_dd01")
-    # the crash core already reported is not reported twice
-    assert ("run_failed", "t_dd01") not in kinds
-    assert ("slow_start", "t_dd02") in kinds
-    # a card that waited for its parent was not slow to start
-    assert ("slow_start", "t_dd03") not in kinds
-    assert ("waiting_on_you", "t_dd04") in kinds
-
-
-def test_a_failed_run_core_did_not_flag_is_an_issue(model):
-    t = task("t_ee01", "done", runs=[run("web-qa", NOW - 900, NOW - 800, "timed_out"),
-                                      run("web-qa", NOW - 700, NOW - 600, "completed")])
-    issues = model("issuesOf", [t], [], NOW)
-    assert [(i["kind"], i["severity"], i["text"]) for i in issues] == [("run_failed", "warning", "timed_out")]
 
 
 def test_the_bell_lists_parked_chats_then_cards_waiting_on_you(model):
@@ -649,22 +597,6 @@ def test_the_notification_skips_what_was_already_waiting_and_names_each_new_card
     assert model("bellFresh", ["card:jobs:t_aa01"], [old, new, chat]) == [new]
     assert model("bellFresh", ["card:jobs:t_aa01", "card:jobs:t_aa02"], [old, new]) == []
 
-
-def test_the_timeline_names_what_a_card_waited_for_and_where_it_sits_now(model):
-    """A card gated on a parent waited on another card, not on a bot; a card blocked after its run sits blocked up to
-    now in that bot's lane; a card sent back to the queue waits again."""
-    gated = task("t_gg01", "done", assignee="web-qa", created=NOW - 9000, parents=1,
-                 runs=[run("web-qa", NOW - 5000, NOW - 4000, "completed")])
-    asks = task("t_gg02", "blocked", assignee="jobs", block_kind="needs_input", created=NOW - 2910,
-                runs=[run("jobs", NOW - 2900, NOW - 2800, "blocked")])
-    review = task("t_gg03", "review", assignee="web-frontend", created=NOW - 1995,
-                  runs=[run("web-frontend", NOW - 1990, NOW - 1000, "review_requested")])
-    tl = model("timelineOf", [gated, asks, review], NOW, NOW - 86400)
-    lanes = {l["name"]: l["bars"] for l in tl["lanes"]}
-    assert [(b["kind"], b["state"]) for b in lanes["web-qa"]] == [("wait", "dep"), ("run", "done")]
-    assert [(b["kind"], b["state"]) for b in lanes["jobs"]] == [("run", "block"), ("state", "block")]
-    assert lanes["jobs"][-1]["start"] == NOW - 2800 and lanes["jobs"][-1]["end"] == NOW and lanes["jobs"][-1]["open"]
-    assert [(b["kind"], b["state"]) for b in lanes["web-frontend"]] == [("run", "review"), ("state", "review")]
 
 
 def test_a_card_reads_as_one_of_the_legend_states(model):
@@ -755,25 +687,6 @@ def test_the_spanish_interface_has_every_string_the_english_one_has():
     assert all(str(v).strip() for v in m["es"].values())
 
 
-def test_every_run_outcome_and_diagnostic_hermes_writes_has_a_label():
-    """Outcomes from hermes_cli/kanban_db.py and diagnostic kinds from kanban_diagnostics.py (Hermes 0.22.2): a
-    missing one shows as raw English in a Spanish app."""
-    outcomes = ["blocked", "changes_requested", "completed", "crashed", "gave_up", "reclaimed", "review_requested",
-                "scheduled", "spawn_failed", "stale", "timed_out"]
-    kinds = ["block_unblock_cycling", "hallucinated_cards", "prose_phantom_refs", "repeated_crashes", "repeated_failures",
-             "review_dependency_deadlock", "running_with_open_parents", "stranded_in_ready", "stuck_in_blocked",
-             "triage_aux_unavailable"]
-    for lang, cat in _catalogs().items():
-        missing = [k for k in [f"out_{o}" for o in outcomes] + [f"iss_{k}" for k in kinds] if k not in cat]
-        assert not missing, (lang, missing)
-
-
-def test_a_run_that_never_started_reads_as_failed(model):
-    t = task("t_kk01", "ready", runs=[run("web-qa", NOW - 900, NOW - 899, "spawn_failed")])
-    lanes = model("timelineOf", [t], NOW, NOW - 86400)["lanes"]
-    runs = [b for lane in lanes for b in lane["bars"] if b["kind"] == "run"]
-    assert [b["state"] for b in runs] == ["fail"], lanes
-
 
 def test_a_chat_waiting_in_any_bots_backend_is_listed_once(model):
     """A shared backend answers for several bots, so the primary and a bot's own route can report the same chat; the
@@ -794,13 +707,6 @@ def test_a_board_that_failed_to_load_keeps_its_cards_so_nothing_renotifies(model
     # a board that is gone from the list is not kept
     assert [b["slug"] for b in model("keepLastBoards", now, ["web"], before)] == ["web"]
 
-
-def test_the_timeline_reads_open_cards_and_cards_that_ended_in_the_window_newest_first(model):
-    tasks = [task("t_ll01", "done", completed=NOW - 900_000), task("t_ll02", "done", completed=NOW - 100),
-             task("t_ll03", "blocked", block_kind="needs_input", created=NOW - 500_000),
-             {**task("t_ll04", "archived"), "completed_at": None}, task("t_ll05", "running", started=NOW - 50)]
-    got = [t["id"] for t in model("windowTasks", tasks, NOW, NOW - 86400)]
-    assert got == ["t_ll03", "t_ll05", "t_ll02"], "blocked first, then newest activity"
 
 
 def test_a_pr_link_opens_only_over_https(model):
@@ -836,11 +742,6 @@ def test_a_cleared_chat_question_rings_again_only_after_it_stopped_waiting(model
     assert model("staleChatDismissals", reopened, dismissed) == []
     assert model("staleChatDismissals", [], dismissed) == ["chat:s1@"]
 
-
-def test_a_stuck_card_survives_the_timeline_cap_ahead_of_newer_work(model):
-    tasks = [task("t_nn01", "running", started=NOW - 10), task("t_nn02", "blocked", block_kind="needs_input", created=NOW - 900_000),
-             task("t_nn03", "done", completed=NOW - 20)]
-    assert [t["id"] for t in model("windowTasks", tasks, NOW, NOW - 86400)][:1] == ["t_nn02"]
 
 
 def test_the_empty_chat_names_the_squad_from_the_bot_the_pane_builds(model):
@@ -1252,3 +1153,78 @@ def test_prefs_saved_with_the_kanban_row_hidden_show_it_again_once(model):
     chosen = {**up, "hiddenNav": ["kanban:nav"]}
     assert model("upgradePrefs", chosen, {"hiddenNav": [], "prefsVersion": 4})["hiddenNav"] == ["kanban:nav"]
 
+
+def test_a_manager_chip_counts_what_its_menu_lists_first_and_files_cleared_cards_apart(model):
+    """User report: the bell over a project said "1" and its list showed the rest. The chip counted the cards still in
+    the bell while its menu listed every waiting card under one heading."""
+    b = board(task("t_cc01", "blocked", assignee="shop", block_kind="needs_input", started=100),
+              task("t_cc02", "blocked", assignee="shop-scout", block_kind="needs_input", started=200),
+              task("t_cc03", "blocked", assignee="shop-ops", block_kind="capability", started=300))
+    entry = {"slug": "shop", "name": "Shop", "digest": model("boardDigest", b)}
+    all_waiting = model("boardWaiting", entry, {})
+    cleared = {model("dismissKey", x): 1 for x in all_waiting if x["taskId"] != "t_cc03"}
+    view = model("boardChipView", entry, cleared)
+    assert [x["taskId"] for x in view["fresh"]] == ["t_cc03"], "the count is the cards still in the bell"
+    assert [x["taskId"] for x in view["seen"]] == ["t_cc02", "t_cc01"], "cleared ones are listed apart, newest first"
+    assert not {x["key"] for x in view["fresh"]} & {x["key"] for x in view["seen"]}, "no card under both headings"
+
+
+def test_bot_clean_up_reaches_the_chats_outside_every_project(model):
+    """User report: session clean-up did not work. Clean up lived only on a project, so a bot without projects (the
+    builder) or the chats outside any project were never offered: they piled up for weeks."""
+    now, day = 1_000_000.0, 86400
+    tree = model("buildBotTree", {"name": "builder", "title": "Builder"}, [],
+                 [chat("old1", "/x/a", profile_name="builder", last=now - 9 * day),
+                  chat("old2", "/x/b", profile_name="builder", last=now - 3 * day),
+                  chat("new", "/x/c", profile_name="builder", last=now - 3600),
+                  chat("pin", "/x/d", profile_name="builder", last=now - 30 * day, pinned=True)], {})
+    project = model("botCleanupProject", tree, "Outside")
+    plan = model("cleanupPlan", project, {}, {}, now)
+    assert sorted(c["session"]["id"] for c in plan["chats"]) == ["old1", "old2"], "old loose chats go; recent and pinned stay"
+    assert plan["worktrees"] == [], "the loose chats are no worktree"
+
+
+def test_a_bots_clean_up_names_each_project_folder_when_it_has_several(model):
+    tree = model("buildBotTree", {"name": "web"}, [
+        {"id": "p1", "name": "Shop", "folders": [{"path": "/w/shop", "is_primary": True}]},
+        {"id": "p2", "name": "Blog", "folders": [{"path": "/w/blog", "is_primary": True}]}],
+        [chat("a", "/w/shop", last=10.0), chat("b", "/w/blog", last=20.0)], {})
+    labels = [f["label"] for f in model("botCleanupProject", tree, "Outside")["folders"]]
+    assert sorted(labels) == ["Blog · blog", "Shop · shop"]
+
+
+def test_cron_rows_put_the_next_run_first_and_paused_jobs_last_with_their_bot(model):
+    lists = {"web": {"jobs": [
+        {"job_id": "1", "name": "web-awake", "script": "keep_awake.py", "no_agent": True, "next_run_at": "2099-01-01T10:04:00+00:00"},
+        {"job_id": "2", "name": "web-old", "script": "x.py", "enabled": False, "state": "paused", "next_run_at": "2099-01-01T00:00:00+00:00"}]},
+        "web-qa": {"jobs": [{"job_id": "3", "name": "qa-sweep", "skill": "reviewing", "next_run_at": "2099-01-01T09:00:00+00:00",
+                             "last_status": "error", "last_error": "boom"}]}}
+    rows = model("cronRows", lists, {"web": "Web manager", "web-qa": "Web QA"})
+    assert [(r["name"], r["botTitle"], r["paused"]) for r in rows] == [
+        ("qa-sweep", "Web QA", False), ("web-awake", "Web manager", False), ("web-old", "Web manager", True)]
+    assert rows[0]["agent"] and rows[0]["error"] == "boom" and not rows[1]["agent"]
+    assert [r["key"] for r in rows] == ["", "cron_keep_awake", "cron_x"]
+
+
+def test_every_cron_a_shipped_squad_runs_has_a_description_in_both_languages(model):
+    """A squad cron with no catalog entry shows only its name: the right pane must say what each job does."""
+    import yaml
+    scripts = {"shared_browser_sweep.py"}
+    for path in [REPO / "builder.yaml", *sorted((REPO / "squads").glob("*/squad.yaml"))]:
+        spec = yaml.safe_load(path.read_text())
+        for bot in spec["bots"].values():
+            for name, job in (bot.get("cron") or {}).items():
+                scripts.add(job["script"])
+                if job.get("args"):
+                    scripts.add(name + ".sh")
+    keys = {model("cronKey", {"script": s}) for s in scripts}
+    for lang, cat in _catalogs().items():
+        assert not sorted(k for k in keys if k not in cat), lang
+
+
+@pytest.mark.parametrize("expr,expected", [("*/30 * * * *", "everyMin(30)"), ("15 * * * *", "everyHour(15)"),
+                                           ("0 */3 * * *", "everyHours(3)"), ("30 6 * * *", "dailyAt(06:30)"),
+                                           ("0 9,17 * * 1-6", "daysAt(1-6,09:00, 17:00)"), ("0 8 1 * *", "0 8 1 * *")])
+def test_a_cron_schedule_reads_in_words(model, expr, expected):
+    got = model.js(f"return m.cronEvery({json.dumps(expr)}, (k, ...a) => k + '(' + a.join(',') + ')')")
+    assert got == expected

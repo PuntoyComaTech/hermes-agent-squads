@@ -571,3 +571,35 @@ def test_auto_update_prunes_old_automatic_backups_and_never_a_hand_export(upd, c
     assert left == sorted(["edits-20260904-010101", "edits-20260905-010101",
                            "edits-20261028-010101", "skill-edits-pre-2.19.0-20260901-010101",
                            "web-SOUL-20260901-010101.md", "myprofile-20260901.tar.gz", "notes"])
+
+
+def test_an_update_that_needs_a_newer_hermes_says_so_before_touching_any_bot(upd, capsys):
+    """Field report: on a computer with an old Hermes, "update" installed nothing on any bot and said nothing useful
+    (`hermes profile update` refuses the new release's hermes_requires). The update now names the fix first."""
+    upd.versions("2.1.0", "2.2.0")
+    (upd.repo / "distribution.yaml").write_text('name: builder\nversion: "2.2.0"\nhermes_requires: ">=0.22.5"\n')
+    hermes = upd.log.parent / "bin" / "hermes"
+    hermes.write_text(HERMES_STUB.format(log=upd.log) + 'case "$*" in --version) echo "Hermes Agent v0.22.1 (2026.9.1)";; esac\n')
+    code, out, _ = upd.run(capsys)
+    assert code == 1
+    assert out.strip() == ("Squads update 2.1.0 -> 2.2.0 needs Hermes 0.22.5 or newer, this computer runs 0.22.1: "
+                           "run `hermes update`, then update the squads again")
+    assert [c for c in upd.hermes_calls() if "profile update" in c] == [] and not upd.hpy_calls(), "no bot touched"
+    hermes.write_text(HERMES_STUB.format(log=upd.log) + 'case "$*" in --version) echo "Hermes Agent v0.22.5 (2026.9.24)";; esac\n')
+    code, out, _ = upd.run(capsys)
+    assert code == 0 and out.startswith("Squads updated 2.1.0 -> 2.2.0")
+
+
+def test_an_update_that_changed_squad_hub_says_to_restart_desktop(upd, capsys):
+    """Desktop loads a desktop plugin at start and ships it off: a new Squads Hub does nothing until Desktop restarts,
+    and the first time until it is turned on. The report says both, only when the plugin changed."""
+    js = upd.home / "plugins" / "squad-hub" / "desktop" / "plugin.js"
+    js.parent.mkdir(parents=True)
+    js.write_text("v1")
+    stub = upd.home / "scripts" / "hpy"
+    stub.write_text(HPY_STUB.replace('cat "$(dirname "$0")/../real.json"',
+                                     'echo v2 > "$(dirname "$0")/../plugins/squad-hub/desktop/plugin.js"; cat "$(dirname "$0")/../real.json"'))
+    code, out, _ = upd.run(capsys, "--force")
+    assert code == 0 and "restart Hermes Desktop" in out and "Capabilities > Plugins" in out
+    code, out, _ = upd.run(capsys, "--force")
+    assert "restart Hermes Desktop" not in out, "same plugin: nothing to say"

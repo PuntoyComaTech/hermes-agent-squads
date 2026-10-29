@@ -123,7 +123,7 @@ flowchart TD
     N -->|"working or unread"| S(["A dot on the row, a count<br/>below; ⌘⇧U jumps there"]):::done
     N -->|"a preview was open"| V(["Reopen it in one click"]):::done
     N -->|"a question or a blocked card"| Q(["The bell; a click answers"]):::done
-    N -->|"how did the squad do?"| T(["Timeline: runs per bot,<br/>what went wrong"]):::done
+    N -->|"what runs on its own?"| T(["Crons pane: each job,<br/>its bot, what it does"]):::done
 
     classDef you fill:#ede9fe,stroke:#7c3aed,color:#1e1b4b
     classDef lead fill:#fce7f3,stroke:#db2777,color:#831843
@@ -134,8 +134,8 @@ flowchart TD
 
 - Several bots and projects open side by side; squad workers stay out of sight.
 - Big projects stay quiet: the chats that need you show under the project, the rest fold away.
-- Squads at work: each manager's board count, a timeline of every run with what went wrong, a bell for whatever
-  waits on you, the PR of each worktree, and live Kanban cards in the chat.
+- Squads at work: each manager's board count and its Kanban board in one click, the squad's crons beside the files, a
+  bell for whatever waits on you, the PR of each worktree, and live Kanban cards in the chat.
 - Managers ask with buttons (suggested answers), with buttons instead of "reply ok".
 - Optional, each a switch in its settings: floating side panels that slide in near the screen edge, a calm
   Catppuccin-style theme, a layout with files over a small terminal, and `.env` files that open in your editor.

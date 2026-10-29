@@ -115,7 +115,7 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
       const i = docListeners.findIndex(l => l.target === 'window' && l.type === type && l.fn === fn && l.capture === capturing(capture))
       if (i >= 0) docListeners.splice(i, 1)
     },
-    hermesDesktop: { git: null, api: async () => ({}) }
+    hermesDesktop: { git: null, api: async req => ((globalThis.__SQH_API__ || []).push(req), {}) }
   }
   const ls = new Map(Object.entries(local))
   globalThis.document = doc
@@ -150,7 +150,7 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     notifyError: e => notices.push({ kind: 'error', message: String(e?.message || e) }),
     openSession: async () => {},
     revealPane: pane => revealed.push(pane),
-    navigate: () => {},
+    navigate: path => calls.push({ via: 'navigate', method: path }),
     ensureAgent: async () => {},
     pluginDecisions: atom({})
   }
@@ -168,7 +168,8 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
       getQueryCache: () => ({ subscribe: () => () => {} }),
       fetchQuery: async () => ({})
     },
-    usePluginI18n: () => k => k,
+    // keys by default; a test that reads the words sets globalThis.__SQH_T__ (see world.translate)
+    usePluginI18n: () => k => (globalThis.__SQH_T__ ? globalThis.__SQH_T__(k) : k),
     STATUSBAR_AREAS: { left: 'statusbar.left', right: 'statusbar.right' },
     PALETTE_AREA: 'palette',
     KEYBINDS_AREA: 'keybinds',
@@ -179,7 +180,10 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     CHAT_EMPTY_AREA: 'empty',
     TITLEBAR_AREAS: { right: 'titleBar.right' },
     ...(!kanbanBadges ? {} : { KANBAN_CARD_AREAS: { badges: 'kanban.card.badges' } }),
-    requestTheme: () => {}
+    requestTheme: () => {},
+    // Desktop's unread store (store/session-unread.ts): what the plugin asked it to clear, per profile bucket
+    ackStoredSessionId: (id, profile) => calls.push({ via: 'unread', method: 'ack', params: [id, profile] }),
+    forgetSessionUnread: (ids, profile) => calls.push({ via: 'unread', method: 'forget', params: [ids, profile] })
   }
   globalThis.__SQH_SDK__ = sdk
 
@@ -243,6 +247,8 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     contribution: id => registered.find(c => c.id === id),
     /** The resize grips the plugin placed on the page, attached ones only. */
     grips: () => created.filter(el => el.attached && 'sqhGrip' in el.dataset),
+    /** The <style> tags the plugin has on the page now. */
+    styles: () => styles.filter(s => s.attached),
     /** A DOM event as the document hears it, capture listeners first; returns whether a listener stopped it. */
     fire(type, event) {
       let stopped = false
@@ -264,7 +270,11 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
       atomListeners: Object.values(state).reduce((n, a) => n + (a.listeners?.() || 0), 0),
       global: Boolean(win.__squadHub)
     }),
-    exports: () => win.__squadHub
+    exports: () => win.__squadHub,
+    /** Render strings in a language of the plugin's own catalogs instead of as keys. */
+    translate(lang = 'en') {
+      globalThis.__SQH_T__ = k => world.messages?.[lang]?.[k] ?? k
+    }
   }
   return world
 }

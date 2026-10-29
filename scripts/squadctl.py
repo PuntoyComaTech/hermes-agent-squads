@@ -66,6 +66,10 @@ PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
 SHARED_BROWSER_URL = "http://127.0.0.1:9333"
 SHARED_BROWSER_PLUGIN = "shared-browser-tabs"
 SQUAD_HUB_PLUGIN = "squad-hub"
+# Nous's official Advanced Delegation (catalog key, MIT): a manager's delegate_task may run a subagent as one of its
+# squad's bots (`delegation.backend: profile_routes`). Needs the pluggable delegation providers of Hermes 0.22.5.
+ADVANCED_DELEGATION = "advanced-delegation"
+ADVANCED_DELEGATION_HERMES = ">=0.22.5"
 # Every squad bot runs squad-kanban: a manager's CLI-filed cards notify its chat, a worker is reminded to save.
 SQUAD_KANBAN_PLUGIN = "squad-kanban"
 SHARED_BROWSER_SWEEP = {"schedule": "0 */3 * * *", "script": "shared_browser_sweep.py", "agent": False}
@@ -806,8 +810,10 @@ def version_ok(req: str, have: str) -> bool:
 
 
 def hermes_version(ctx: Ctx) -> str | None:
-    m = re.search(r"v(\d+\.\d+\.\d+)", ctx.hermes("--version", check=False))
-    return m.group(1) if m else None
+    if not hasattr(ctx, "_hermes_version"):
+        m = re.search(r"v(\d+\.\d+\.\d+)", ctx.hermes("--version", check=False))
+        ctx._hermes_version = m.group(1) if m else None
+    return ctx._hermes_version
 
 
 # --- one bot ----------------------------------------------------------------------------------------------------------
@@ -1211,6 +1217,11 @@ class Applier:
         # writes Hermes's default back, so a budget removed from squad.yaml does not stay in the profile.
         budget = (bot.get("delegation") or {}).get("max_children")
         plan.append(["delegation.oneshot_max_children", int(budget) if deleg and budget else ONESHOT_DEFAULT, False])
+        routes = self.delegation_routes(name, bot)
+        if routes:
+            # the routes only: the mode stays the user's (`/delegation profiles` in a chat), so a subagent with no
+            # route keeps running on the delegation lane, not on the manager's own model
+            plan.append(["delegation.backends.profile_routes.profiles", routes, False])
         plan += self.fallback_plan(m)
         plan += [["platform_toolsets.cli", sorted(toolsets), False],  # hermes tools enable stores sorted(union)
                  ["platform_toolsets.cron", d.get("cron_toolsets") or CRON_TOOLSETS, False],
@@ -1263,6 +1274,17 @@ class Applier:
         elif (live or {}).get("browser", {}).get("cdp_url") == SHARED_BROWSER_URL:
             plan.append(["browser.cdp_url", "", False])  # the manifest dropped shared_browser
         return plan
+
+    def delegation_routes(self, name: str, bot: dict) -> list[dict]:
+        """A manager's profile routes: every other bot of its squad, described by its manifest. None for a worker, a
+        squad of one (the builder) or a Hermes without pluggable delegation providers."""
+        if bot.get("role") != "manager":
+            return []
+        workers = [b for b in live_bots(self.ctx, self.spec) if b != name]
+        ver = hermes_version(self.ctx) if workers else None
+        if not ver or not version_ok(ADVANCED_DELEGATION_HERMES, ver):
+            return []
+        return [{"name": b, "description": self.spec["bots"][b]["description"]} for b in workers]
 
     def fallback_plan(self, primary: dict | None = None) -> list:
         """The install's fallback chain, the same for every bot: `fallback_providers` for the bot,
@@ -1639,7 +1661,23 @@ class Applier:
         acts += self.shared_browser_plugin(name, bot)
         acts += self.squad_hub_plugin(name, bot)
         acts += self.squad_kanban_plugin(name)
+        acts += self.advanced_delegation_plugin(name, bot, enabled)
         return acts
+
+    def advanced_delegation_plugin(self, name: str, bot: dict, enabled: set) -> list[str]:
+        """A manager whose squad has other bots gets Nous's Advanced Delegation from the plugin catalog, enabled, so
+        its routes (config_plan) can be picked with `/delegation`. An opt-out under `plugins.disable` wins."""
+        if not self.delegation_routes(name, bot) or ADVANCED_DELEGATION in ((bot.get("plugins") or {}).get("disable") or []):
+            return []
+        installed = (self.ctx.home(name) / "plugins" / ADVANCED_DELEGATION).is_dir()
+        if installed and ADVANCED_DELEGATION in enabled:
+            return []
+        if not self.dry:
+            if installed:
+                self.ctx.hermes("plugins", "enable", ADVANCED_DELEGATION, "--no-allow-tool-override", profile=name)
+            else:
+                self.ctx.hermes("plugins", "install", ADVANCED_DELEGATION, "--enable", "--yes-deps", profile=name)
+        return [f"plugins {'enable' if installed else 'install --enable'} {ADVANCED_DELEGATION}"]
 
     def squad_kanban_plugin(self, name: str) -> list[str]:
         """Every squad bot (never the builder) gets the repo's squad-kanban plugin, installed and enabled."""
