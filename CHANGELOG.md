@@ -3,6 +3,19 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.35.0 - 2026-10-29
+
+### Added
+
+- jobs 4.17.0: Upwork in `optimizing-profiles` as a **paste-kit** platform. Upwork's terms ban scripts acting on an
+  account, so the writer never opens upwork.com: it drafts within Upwork's limits, now built into
+  `check_profile_copy.py` (title 70, overview 5,000, 20 skills, portfolio title 70 / description 600, each with its
+  help page), and `profile_diff.py verify-paste` judges the profile page text the user copies back (a cut overview,
+  an old title and a skill named only in prose fail). New card `Mode: PROFILE-VERIFY`.
+- `shared_browser.py install --visible` runs the shared service as a normal window on the same profile and loopback
+  port, for a site whose bot check refuses a headless browser; only the headless flag changes. `--headless` goes back,
+  and a plain `install` (squadctl, auto-update) keeps the owner's choice.
+
 ## 2.34.0 - 2026-10-29
 
 ### Changed

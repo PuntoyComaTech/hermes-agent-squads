@@ -18,14 +18,16 @@ prove they landed. Photo, banner, custom URL, Featured and Open to Work are neve
 - A card with body `Mode: PROFILE`, optionally naming a platform. Without one: LinkedIn plus every `recommended`
   platform in the newest `reports/platforms-*.json`, at most three.
 - A card with body `Mode: PROFILE-APPLY` and the path of the fields the user approved. Nothing else is edited.
+- `Mode: PROFILE-VERIFY` (approved file, page text): `profile_diff.py verify-paste`, then complete with each field.
 - The user pastes a profile text and asks for a better one: same audit, no browser.
+- Upwork (never driven): paste-kit mode, `references/platform-adapters.md`; no steps 2-4, no PROFILE-APPLY.
 
 ## Procedure
 
 1. Read the card, `profile.md`, `achievements.yaml` (verified items only), the newest `reports/platforms-*.json`, the
    newest `reports/market-*.json` (older than 30 days: ask the manager for a new MARKET card), and
    `documents/linkedin/current.json` if it exists. Never read `contact.yaml`.
-2. **Sign-in.** LinkedIn only: the browser is the shared signed-in one. `python3 "$T/own_profile.py" check
+2. **Sign-in.** LinkedIn only (never open upwork.com): the browser is the shared signed-in one. `python3 "$T/own_profile.py" check
    https://www.linkedin.com/in/me/ --own me` exits 0 or the page may not be opened. A sign-in page, a checkpoint, a
    CAPTCHA or a restriction notice stops the card: type no credential, solve nothing, and
    `kanban_block(kind="needs_input", reason="LinkedIn is not signed in for jobs-writer: see the jobs README, LinkedIn

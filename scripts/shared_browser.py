@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The shared signed-in browser every squad bot with `shared_browser: true` drives.
 
-One headless Chromium (Hermes's managed Chrome for Testing) on one profile directory, listening on a loopback CDP
-port. Bots reach it through `browser.cdp_url`; each bot run works in its own tab (plugin shared-browser-tabs).
+One Chromium (Hermes's managed Chrome for Testing), headless unless installed `--visible`, on one profile directory,
+listening on a loopback CDP port. Bots reach it through `browser.cdp_url`; each bot run works in its own tab (plugin
+shared-browser-tabs).
 The owner signs in once per site in a normal, visible window on the same directory: no debugging port and no
 headless flag there, so sites that refuse automated sign-in (Google) accept it.
 
@@ -10,7 +11,11 @@ The service browser reaches every site; nothing is blocked at the browser.
 
 Commands:
   status            is the service installed, is the browser listening, how many pages
-  install           write and load the login service (macOS launchd; restarts the browser if it exits)
+  install [--visible | --headless]
+                    write and load the login service (macOS launchd; restarts the browser if it exits).
+                    --visible runs the service as a normal window (same profile, same loopback port) for sites
+                    whose bot check refuses a headless browser; --headless goes back. Without either flag the
+                    current mode is kept. Headless is the default: a visible service puts a window on the desktop.
   uninstall         unload and remove the service
   start | stop      start or stop the service (stop frees the profile directory)
   login [URL ...]   stop the service, open a visible window on the profile (default: accounts.google.com),
@@ -58,9 +63,23 @@ def chromium() -> str:
     return exe
 
 
-def service_argv(exe: str, profile: Path | None = None, port: int | None = None) -> list[str]:
-    """The service browser's command line: headless, its own profile, a loopback debugging port."""
-    return [exe, "--headless=new", f"--remote-debugging-port={port or PORT}",
+def visible_flag() -> Path:
+    """Present: the service runs as a normal window (`install --visible`). Kept beside the profile, not in the plist,
+    so `install` without a flag (squadctl, auto_update) keeps the owner's choice."""
+    return ROOT / "visible"
+
+
+def visible() -> bool:
+    return visible_flag().is_file()
+
+
+def service_argv(exe: str, profile: Path | None = None, port: int | None = None,
+                 headed: bool | None = None) -> list[str]:
+    """The service browser's command line: headless unless `install --visible`, its own profile, a loopback port.
+
+    The two modes differ by the headless flag alone: nothing else about the browser is changed or disguised."""
+    headed = visible() if headed is None else headed
+    return [exe, *([] if headed else ["--headless=new"]), f"--remote-debugging-port={port or PORT}",
             "--remote-debugging-address=127.0.0.1", f"--user-data-dir={profile or PROFILE_DIR}", *COMMON,
             "about:blank"]
 
@@ -151,16 +170,20 @@ def cmd_status(_a) -> int:
               "service_loaded": platform.system() == "Darwin" and loaded(),
               # False: the installed job predates a change to the service command line; `install` rewrites it.
               "plist_current": None if wanted is None else (PLIST.is_file() and PLIST.read_bytes() == wanted),
-              "listening": listening()}
+              "visible": visible(), "listening": listening()}
     print(json.dumps(report))
     return 0
 
 
-def cmd_install(_a) -> int:
+def cmd_install(a) -> int:
     require_macos()
     exe = chromium()
     ROOT.mkdir(parents=True, exist_ok=True)
     os.chmod(ROOT, 0o700)
+    if getattr(a, "visible", False):
+        visible_flag().touch()
+    elif getattr(a, "headless", False):
+        visible_flag().unlink(missing_ok=True)
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     os.chmod(PROFILE_DIR, 0o700)
     PLIST.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +200,7 @@ def cmd_install(_a) -> int:
             raise SystemExit(f"another browser holds {PROFILE_DIR}: quit it (Cmd+Q) and run install again")
         launchctl("bootstrap", domain(), str(PLIST), check=True)
     ok = wait_for(lambda: listening() is not None, 20)
-    print(json.dumps({"installed": str(PLIST), "listening": listening() if ok else None}))
+    print(json.dumps({"installed": str(PLIST), "visible": visible(), "listening": listening() if ok else None}))
     return 0 if ok else 1
 
 
@@ -240,8 +263,11 @@ def main(argv: list[str] | None = None) -> int:
                                 formatter_class=argparse.RawDescriptionHelpFormatter,
                                 epilog=(__doc__ or "").split("\n\n", 2)[-1])
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("status", "install", "uninstall", "start", "stop"):
+    for name in ("status", "uninstall", "start", "stop"):
         sub.add_parser(name)
+    ip = sub.add_parser("install").add_mutually_exclusive_group()
+    ip.add_argument("--visible", action="store_true", help="run the service as a normal window")
+    ip.add_argument("--headless", action="store_true", help="run the service headless (the default)")
     lp = sub.add_parser("login")
     lp.add_argument("url", nargs="*", help="pages to open (default: accounts.google.com)")
     a = p.parse_args(argv)

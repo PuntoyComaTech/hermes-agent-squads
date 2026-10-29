@@ -9,6 +9,13 @@ the profile: the writer edits, this tool judges.
 Usage:
   profile_diff.py diff   CURRENT.json DRAFT.json [--json]
   profile_diff.py verify APPROVED.json CURRENT.json [CURRENT.en.json ...] [--json]
+  profile_diff.py verify-paste APPROVED.json PASTED.txt [--json]
+
+`verify-paste` is the check of the paste-kit mode (a platform the writer never opens, Upwork): PASTED.txt is the text
+of the user's own profile page as they copied it (select all, copy) after pasting the approved fields. A text field
+passes when its whole approved text appears in the page; a field whose opening is there but not the rest fails as
+cut ("expand 'more' and copy the page again"). A skill passes when a line of the page is its name (a tag pastes as
+its own line), so a skill named only inside the overview still fails.
 
 A profile with two languages holds two texts per field. Each CURRENT file is one language's capture (`language` in
 the file); an approved row with `language` is checked against the capture of that language, and a row whose language
@@ -402,6 +409,38 @@ def verify(approved: dict, current: dict | list) -> dict:
             "counts": {"approved": total, "verified": total - len(failures)}}
 
 
+def verify_paste(approved: dict, page: str) -> dict:
+    rows = approved.get("fields")
+    if not isinstance(rows, list) or not rows:
+        raise UsageError("APPROVED.json needs a `fields` list")
+    text = norm(page).casefold()
+    lines = {norm(line).casefold() for line in page.splitlines() if norm(line)}
+    if not text:
+        raise UsageError("PASTED.txt is empty: copy the profile page again")
+    results, failures = [], []
+    for row in rows:
+        if not isinstance(row, dict) or not str(row.get("field") or "").strip():
+            raise UsageError("every approved row needs a `field`")
+        field = str(row["field"]).strip()
+        want = row["after"] if "after" in row else row.get("text")
+        if want is None:
+            raise UsageError(f"approved row {field!r} has no `after` text")
+        if isinstance(want, list):
+            missing = [norm(x) for x in want if norm(x) and norm(x).casefold() not in lines]
+            why = f"not on the page: {', '.join(missing)}" if missing else ""
+        else:
+            target = norm(want).casefold()
+            why = ""
+            if target not in text:
+                why = ("cut: the page shows the opening only; expand 'more' and copy the page again"
+                       if target[:60] in text else "the page does not hold the approved text")
+        results.append({"field": field, "ok": not why})
+        if why:
+            failures.append({"field": field, "reason": why})
+    return {"ok": not failures, "fields": results, "failures": failures,
+            "counts": {"approved": len(rows), "verified": len(rows) - len(failures)}}
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -413,9 +452,19 @@ def main(argv=None) -> int:
     v.add_argument("approved")
     v.add_argument("current", nargs="+", help="one capture per profile language")
     v.add_argument("--json", action="store_true")
+    vp = sub.add_parser("verify-paste", help="did every approved field land? (paste-kit platforms)")
+    vp.add_argument("approved")
+    vp.add_argument("pasted", help="the profile page's text as the user copied it")
+    vp.add_argument("--json", action="store_true")
     ns = p.parse_args(argv)
     try:
-        if ns.cmd == "diff":
+        if ns.cmd == "verify-paste":
+            try:
+                page = Path(ns.pasted).read_text(encoding="utf-8")
+            except OSError as exc:
+                raise UsageError(f"cannot read PASTED.txt: {exc}") from exc
+            out = verify_paste(load(ns.approved, "APPROVED.json"), page)
+        elif ns.cmd == "diff":
             out = diff(load(ns.current, "CURRENT.json"), load(ns.draft, "DRAFT.json"))
         else:
             out = verify(load(ns.approved, "APPROVED.json"), [load(c, "CURRENT.json") for c in ns.current])

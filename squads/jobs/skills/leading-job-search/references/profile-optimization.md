@@ -64,5 +64,10 @@ Then file a jobs-writer card (`skills: [optimizing-profiles]`, body `Mode: PROFI
 failed with the reason. The top-skill pins follow the approved `skills` list. Photo, banner, custom URL, Featured
 and Open to Work are the user's to set.
 
+A paste-kit platform (Upwork: its terms ban bots on an account) has no apply card. After the user's yes, write
+`<P>/profiles/approved-<platform>.json` and ask the user to paste the fields, then to open the profile, expand every
+"more", copy the whole page and paste it into the chat. Save it as `<P>/profiles/<platform>-page-<YYYY-MM-DD>.txt`
+and file a jobs-writer card (`Mode: PROFILE-VERIFY`, both paths) that runs `profile_diff.py verify-paste`.
+
 The copy check runs with `--structure` whenever the structure file exists: without it a right draft for a role those
 rows rename or create fails as `role_not_covered` / `unknown_role` and reads as a bad draft.

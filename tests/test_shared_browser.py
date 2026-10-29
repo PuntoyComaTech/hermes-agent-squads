@@ -8,6 +8,7 @@ touches the real shared browser, its port or the owner's profile.
 import importlib.util
 import json
 import os
+import plistlib
 import shutil
 import socket
 import subprocess
@@ -122,7 +123,7 @@ def _service_args(profile: Path, port: int) -> list[str]:
     Built from `service_argv` by substitution, so the args under test are the ones the launchd job carries, and the
     owner's profile directory (the module default) is provably never launched.
     """
-    args = sb.service_argv(CHROMIUM)
+    args = sb.service_argv(CHROMIUM, headed=False)
     out, seen_dir, seen_port = [], False, False
     for arg in args:
         if arg.startswith("--user-data-dir="):
@@ -629,3 +630,41 @@ def test_sweep_stops_a_copy_browser_only_when_its_profile_turned_real_profile_of
     finally:
         for p in procs.values():
             p.kill()
+
+
+# --- `install --visible`: a site that refuses headless browsers gets a window, nothing else changes ---------------
+
+def test_install_visible_drops_only_the_headless_flag_and_survives_a_plain_reinstall(tmp_path, monkeypatch):
+    """Upwork's Cloudflare check blocks the headless service but passes a visible window on the same profile and IP.
+    `install --visible` must run the service as that window with the same profile and loopback port (so bots still
+    drive it), change nothing else (no UA or fingerprint flag), and a later plain `install` (squadctl apply,
+    auto_update) must keep the owner's choice until `install --headless`."""
+    jobs = []
+
+    def launchctl(*args, check=False):
+        if args[0] == "bootstrap":
+            state["loaded"] = True
+        if args[0] == "bootout":
+            state["loaded"] = False
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    state = {"loaded": False}
+    monkeypatch.setattr(sb.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(sb, "ROOT", tmp_path / "sessions")
+    monkeypatch.setattr(sb, "PROFILE_DIR", tmp_path / "sessions" / "hermes")
+    monkeypatch.setattr(sb, "PLIST", tmp_path / "ai.hermes.shared-browser.plist")
+    monkeypatch.setattr(sb, "chromium", lambda: "/opt/chrome")
+    monkeypatch.setattr(sb, "launchctl", launchctl)
+    monkeypatch.setattr(sb, "loaded", lambda: state["loaded"])
+    monkeypatch.setattr(sb, "profile_in_use", lambda: False)
+    monkeypatch.setattr(sb, "listening", lambda: {"browser": "x", "pages": 1})
+    for argv in (["install"], ["install", "--visible"], ["install"], ["install", "--headless"]):
+        assert sb.main(argv) == 0
+        jobs.append(plistlib.loads(sb.PLIST.read_bytes())["ProgramArguments"])
+    headless, visible, kept, back = jobs
+    assert "--headless=new" in headless and headless == back
+    assert visible == kept, "a plain install dropped the owner's --visible choice"
+    assert [a for a in headless if a not in visible] == ["--headless=new"] and len(visible) == len(headless) - 1
+    assert f"--remote-debugging-port={sb.PORT}" in visible and "--remote-debugging-address=127.0.0.1" in visible
+    assert f"--user-data-dir={tmp_path / 'sessions' / 'hermes'}" in visible
+    assert not any(a.startswith(("--user-agent", "--disable-blink-features")) for a in visible)

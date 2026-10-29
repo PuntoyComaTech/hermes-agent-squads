@@ -12,7 +12,7 @@ Usage:
 
 COPY.json:
   {"platform": "linkedin", "language": "en",
-   "limits": {"headline": 220, "about": 2600},            # section -> max characters; LinkedIn's are built in
+   "limits": {"headline": 220, "about": 2600},            # section -> max characters; LinkedIn's and Upwork's are built in
    "blocks": [{"section": "headline|about|experience|education|...", "label": "optional", "text": "...",
                "achievements": ["ACH-007"], "no_claim": false}],
    "skills": ["SQL", "Power BI"], "top_skills": ["SQL"], "custom_url": "firstname-lastname"}
@@ -55,6 +55,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LINKEDIN_LIMITS = {"headline": 220, "about": 2600, "experience": 2000, "experience_title": 100, "recommendation": 3000,
                    "education": 1000, "skill": 80, "skills_count": 100, "role_skills": 5, "top_skills": 5}
+# Upwork's help pages: title 70, overview 5,000 (support 360016252373, resources/how-to-market-your-freelance-business),
+# up to 20 skills (resources/freelancer-profile-tips), portfolio title 70 and description 600 (support 360016144974).
+UPWORK_LIMITS = {"headline": 70, "about": 5000, "skills_count": 20, "portfolio_title": 70, "portfolio": 600}
+BUILT_IN_LIMITS = {"linkedin": LINKEDIN_LIMITS, "upwork": UPWORK_LIMITS}
 # Readable-at-a-glance caps, below the platform limits: the first ~265 characters of the About show before "see more".
 CONCISE = {"about": 1500, "experience": 600, "education": 400}
 BANNED = ("passionate", "results-oriented", "results oriented", "results-driven", "results driven", "thought leader",
@@ -148,7 +152,7 @@ def check(copy: dict, project: dict, market: dict | None) -> tuple[list, list]:
         defects.append({"defect": code, "where": where, "detail": detail})
 
     platform = str(copy.get("platform") or "").strip().lower()
-    limits = dict(LINKEDIN_LIMITS) if platform == "linkedin" else {}
+    limits = dict(BUILT_IN_LIMITS.get(platform) or {})
     limits.update({k: v for k, v in (copy.get("limits") or {}).items() if isinstance(v, int) and v > 0})
     blocks = copy.get("blocks")
     if not isinstance(blocks, list) or not blocks:

@@ -7,6 +7,8 @@ the writer maps the same material onto that platform's fields, using only what t
 
 - The common model
 - Mapping to a platform
+- Paste-kit mode
+- Upwork
 - Unknown limits
 - Typical platform shapes
 
@@ -26,6 +28,28 @@ feed all of them.
    `title_max` becomes `experience_title`). The checker does not know any other platform's limits.
 4. Keywords: the same market terms apply; a national board often searches in the local language, so use the terms of
    that language from `search_keywords` and the market file's matching titles.
+
+## Paste-kit mode
+
+A supported mode, not a fallback, for a platform the writer must not drive (Upwork) or has no form script for. The
+writer drafts and checks the copy as usual and renders `<P>/profiles/<platform>.md`; the user pastes each field. After
+the user approves, the manager writes `<P>/profiles/approved-<platform>.json` (`fields` rows only, no `structure`).
+To verify, the user opens their own profile, expands every "more", selects all, copies, and pastes the text into the
+chat; the manager saves it as `<P>/profiles/<platform>-page-<YYYY-MM-DD>.txt` and the writer runs
+`profile_diff.py verify-paste <approved> <page.txt>`. A field that fails is reported with its reason; nothing is
+pasted for the user.
+
+## Upwork
+
+Paste-kit only. Upwork's terms ban any script that acts on an account without an API key, with warnings and bans
+(https://support.upwork.com/hc/en-us/articles/43342677368467), and its bot check refuses a headless browser: the
+writer never opens upwork.com, visible window or not, and never tries to get past the check.
+
+Limits are built into `check_profile_copy.py` for `"platform": "upwork"` (sources: support articles 360016252373 and
+360016144974, resources/freelancer-profile-tips): `headline` (title) 70, `about` (overview) 5,000 of which ~250 show
+in search, `skills_count` 20, `portfolio_title` 70, `portfolio` (description) 600. The employment description limit
+is not stated: keep it at the concise 600 like `experience`. Sections: `headline`, `about`, `experience` (one per
+employment entry), `portfolio` (label = project title). Hourly rate, categories, photo and video are the user's.
 
 ## Unknown limits
 
