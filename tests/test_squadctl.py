@@ -1182,24 +1182,36 @@ def _hub_enables(env, name):
     return [c["args"] for c in env.calls() if c["args"][:3] == ["plugins", "enable", "squad-hub"] and c.get("profile") == name]
 
 
-def test_every_manager_carries_squad_hub_and_runs_its_agent_half(env, capsys):
-    """A manager talks to the user: it gets the package (the desktop half rides along, opt-in in Desktop) and its
-    agent half enabled, so it asks with suggested answers. A worker never does: nobody answers a worker."""
+def _plus_enables(env, name):
+    return [c["args"] for c in env.calls() if c["args"][:3] == ["plugins", "enable", "squad-hub-plus"] and c.get("profile") == name]
+
+
+def test_every_manager_carries_squad_hub_and_its_companion_and_runs_the_agent_half(env, capsys):
+    """A manager talks to the user: it gets squad-hub (its agent half enabled, so it asks with suggested answers) and
+    squad-hub-plus beside it (the Desktop features the catalog's SDK cannot express, repo-only). A worker gets neither:
+    nobody answers a worker, and a worker's Desktop list is not its job."""
     env.squad("builder", lambda s: s["bots"]["builder"]["cron"]["builder-watch"].update(script="watch_upstream.py"))
     env.seed_builder()
     env.run("apply", "--self", capsys=capsys)
-    pkg = REPO / "squads" / "_plugins" / "squad-hub"
     home = env.root / "profiles" / "builder"
-    for rel in ("plugin.yaml", "__init__.py", "desktop/plugin.js"):
-        assert (home / "plugins" / "squad-hub" / rel).read_text() == (pkg / rel).read_text(), rel
+    for plugin in ("squad-hub", "squad-hub-plus"):
+        pkg = REPO / "squads" / "_plugins" / plugin
+        files = sorted(f for f in pkg.rglob("*") if f.is_file() and f.suffix in (".py", ".yaml", ".js", ".json"))
+        assert files, plugin
+        for f in files:
+            assert (home / "plugins" / plugin / f.relative_to(pkg)).read_text() == f.read_text(), (plugin, f.name)
+    assert (home / "plugins" / "squad-hub" / "dashboard" / "plugin_api.py").is_file(), "the boards backend rides along"
     assert _hub_enables(env, "builder"), "the builder's agent half is enabled"
+    assert _plus_enables(env, "builder"), "and the companion's Desktop half is on"
     env.squad("web")
     env.run("apply", "web", capsys=capsys)
     assert (env.root / "profiles" / "web" / "plugins" / "squad-hub" / "__init__.py").is_file()
-    assert _hub_enables(env, "web")
+    assert (env.root / "profiles" / "web" / "plugins" / "squad-hub-plus" / "desktop" / "plugin.js").is_file()
+    assert _hub_enables(env, "web") and _plus_enables(env, "web")
     for worker in ("web-qa", "web-frontend"):
         assert not (env.root / "profiles" / worker / "plugins" / "squad-hub").exists(), worker
-        assert not _hub_enables(env, worker), worker
+        assert not (env.root / "profiles" / worker / "plugins" / "squad-hub-plus").exists(), worker
+        assert not _hub_enables(env, worker) and not _plus_enables(env, worker), worker
 
 
 def test_squad_hub_apply_restores_an_edit_and_a_second_apply_changes_nothing(env, capsys):
@@ -1218,27 +1230,28 @@ def test_squad_hub_apply_restores_an_edit_and_a_second_apply_changes_nothing(env
     assert not [c for c in env.calls()[n:] if c["args"][:2] == ["plugins", "enable"]]
 
 
-def test_a_stale_unstamped_desktop_copy_of_squad_hub_is_removed_so_desktop_recopies_it(env, capsys):
+def test_a_stale_unstamped_desktop_copy_of_either_plugin_is_removed_so_desktop_recopies_it(env, capsys):
     """Desktop never refreshes a desktop-plugins folder with no `.hermes-package.json` whose plugin.js differs from the
-    package (it reads as a hand install), so the window ran an old squad-hub forever. apply removes our own stale
-    copy; a stamped copy, a current one and somebody else's plugin of the same name are left alone."""
+    package (it reads as a hand install), so the window ran an old squad-hub (or squad-hub-plus) forever. apply removes
+    our own stale copy of either; a stamped copy, a current one and somebody else's plugin of the same name stay."""
     env.squad("web")
-    app = env.root / "desktop-plugins" / "squad-hub"
-    app.mkdir(parents=True)
-    (app / "plugin.js").write_text("// Hermes Agent Squads Hub (key `squad-hub`) old build\n")
-    env.run("apply", "web", capsys=capsys)
-    assert not app.exists(), "the stale copy is gone, Desktop copies the current half on restart"
-
-    current = (REPO / "squads" / "_plugins" / "squad-hub" / "desktop" / "plugin.js").read_text()
-    for label, files in (("current copy", {"plugin.js": current}),
-                         ("stamped copy", {"plugin.js": "// Hermes Agent Squads Hub old\n", ".hermes-package.json": "{}"}),
-                         ("someone else's plugin", {"plugin.js": "// another plugin named squad-hub\n"})):
+    for plugin, marker in (("squad-hub", "Hermes Agent Squads Hub"), ("squad-hub-plus", "Squads Hub Plus")):
+        app = env.root / "desktop-plugins" / plugin
         app.mkdir(parents=True)
-        for name, text in files.items():
-            (app / name).write_text(text)
+        (app / "plugin.js").write_text(f"// {marker} (key `{plugin}`) old build\n")
         env.run("apply", "web", capsys=capsys)
-        assert (app / "plugin.js").read_text() == files["plugin.js"], label
-        shutil.rmtree(app)
+        assert not app.exists(), plugin
+
+        current = (REPO / "squads" / "_plugins" / plugin / "desktop" / "plugin.js").read_text()
+        for label, files in (("current copy", {"plugin.js": current}),
+                             ("stamped copy", {"plugin.js": f"// {marker} old\n", ".hermes-package.json": "{}"}),
+                             ("someone else's plugin", {"plugin.js": f"// another plugin named {plugin}\n"})):
+            app.mkdir(parents=True)
+            for name, text in files.items():
+                (app / name).write_text(text)
+            env.run("apply", "web", capsys=capsys)
+            assert (app / "plugin.js").read_text() == files["plugin.js"], (plugin, label)
+            shutil.rmtree(app)
 
 
 def test_a_manager_that_opts_out_of_squad_hub_stays_off(env, capsys):
@@ -1255,6 +1268,7 @@ def test_a_manager_that_opts_out_of_squad_hub_stays_off(env, capsys):
     calls = [c["args"] for c in env.calls()[n:] if c.get("profile") == "web"]
     assert ["plugins", "disable", "squad-hub"] in calls
     assert not [c for c in calls if c[:3] == ["plugins", "enable", "squad-hub"]]
+    assert not [c for c in calls if c[:3] == ["plugins", "enable", "squad-hub-plus"]], "the companion follows the opt-out"
     n = len(env.calls())
     env.run("apply", "web", capsys=capsys)
     assert not [c["args"] for c in env.calls()[n:] if c.get("profile") == "web" and c["args"][:3] == ["plugins", "enable", "squad-hub"]], \

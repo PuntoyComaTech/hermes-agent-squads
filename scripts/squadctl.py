@@ -66,6 +66,10 @@ PLUGIN_MANIFESTS = ("plugin.yaml", "plugin.yml")
 SHARED_BROWSER_URL = "http://127.0.0.1:9333"
 SHARED_BROWSER_PLUGIN = "shared-browser-tabs"
 SQUAD_HUB_PLUGIN = "squad-hub"
+# The repo-only companion of squad-hub: the Desktop features the catalog's plugin SDK cannot express (floating sides,
+# hiding the rail and the Bots tab, .env files, git worktrees, the native folder picker). Never in the catalog; the
+# managers that carry squad-hub carry it too.
+SQUAD_HUB_PLUS_PLUGIN = "squad-hub-plus"
 # Nous's official Advanced Delegation (catalog key, MIT): a manager's delegate_task may run a subagent as one of its
 # squad's bots (`delegation.backend: profile_routes`). Needs the pluggable delegation providers of Hermes 0.22.5.
 ADVANCED_DELEGATION = "advanced-delegation"
@@ -1716,40 +1720,60 @@ class Applier:
                     self.ctx.hermes("plugins", "disable", SQUAD_HUB_PLUGIN, profile=name)
                 return [f"plugins disable {SQUAD_HUB_PLUGIN}"]
             return []
-        rel = Path("squads") / "_plugins" / SQUAD_HUB_PLUGIN
-        src = next((d / rel for d in (self.ctx.src, SRC) if (d / rel).is_dir()), SRC / rel)
-        files = {"plugin.yaml": src / "plugin.yaml", "__init__.py": src / "__init__.py", "desktop/plugin.js": src / "desktop" / "plugin.js"}
-        dest = home / "plugins" / SQUAD_HUB_PLUGIN
-        fresh = {rel_path: _read(path) for rel_path, path in files.items()}
-        stale = [rel_path for rel_path, text in fresh.items() if text and _read(dest / rel_path) != text]
         acts: list[str] = []
-        if stale:
-            acts.append(f"plugin {'~' if dest.is_dir() else '+'} {SQUAD_HUB_PLUGIN} (agent half on, desktop half opt-in)")
-            if not self.dry:
-                for rel_path in stale:
-                    write_text(dest / rel_path, fresh[rel_path])
-        if SQUAD_HUB_PLUGIN not in enabled:
-            acts.append(f"plugins enable {SQUAD_HUB_PLUGIN}")
-            if not self.dry:
-                self.ctx.hermes("plugins", "enable", SQUAD_HUB_PLUGIN, "--no-allow-tool-override", profile=name)
+        disabled = set((bot.get("plugins") or {}).get("disable") or [])
+        for plugin in (SQUAD_HUB_PLUGIN, SQUAD_HUB_PLUS_PLUGIN):
+            # the manager-wide opt-out is squad-hub; a bot may also turn off only the companion
+            if plugin not in disabled:
+                acts += self.install_repo_plugin(name, bot, plugin, enabled)
         acts += self.stale_desktop_half()
         return acts
 
+    def install_repo_plugin(self, name: str, bot: dict, plugin: str, enabled: list) -> list[str]:
+        """Copy one of the repo's Desktop plugins into the bot's home and enable it. Every file the package ships goes
+        along — `plugin.yaml`, `__init__.py`, `desktop/plugin.js` and, for squad-hub, its `dashboard/` backend that the
+        Desktop half reads boards through."""
+        home = self.ctx.home(name)
+        rel = Path("squads") / "_plugins" / plugin
+        src = next((d / rel for d in (self.ctx.src, SRC) if (d / rel).is_dir()), SRC / rel)
+        if not src.is_dir():
+            return []
+        files = sorted(f for f in src.rglob("*") if f.is_file() and "__pycache__" not in f.parts
+                       and f.suffix in (".py", ".yaml", ".js", ".json"))
+        dest = home / "plugins" / plugin
+        fresh = {str(f.relative_to(src)): _read(f) for f in files}
+        stale = [rel_path for rel_path, text in fresh.items() if text and _read(dest / rel_path) != text]
+        acts: list[str] = []
+        if stale:
+            label = "agent half on, desktop half opt-in" if plugin == SQUAD_HUB_PLUGIN else "desktop half, repo only"
+            acts.append(f"plugin {'~' if dest.is_dir() else '+'} {plugin} ({label})")
+            if not self.dry:
+                for rel_path in stale:
+                    write_text(dest / rel_path, fresh[rel_path])
+        if plugin not in enabled:
+            acts.append(f"plugins enable {plugin}")
+            if not self.dry:
+                self.ctx.hermes("plugins", "enable", plugin, "--no-allow-tool-override", profile=name)
+        return acts
+
     def stale_desktop_half(self) -> list[str]:
-        """Desktop copies the desktop half to `<root>/desktop-plugins/squad-hub/` and stamps it `.hermes-package.json`.
+        """Desktop copies each desktop half to `<root>/desktop-plugins/<plugin>/` and stamps it `.hermes-package.json`.
         A copy with no stamp and a different `plugin.js` reads to Desktop as a plugin the user installed by hand, so it
-        is never refreshed again and the window keeps running an old version. Such a copy of our own plugin (its
-        source names it) is removed; Desktop copies the current half, stamped, on the next start or Rescan."""
-        app = self.ctx.root / "desktop-plugins" / SQUAD_HUB_PLUGIN
-        entry = app / "plugin.js"
-        if (app / ".hermes-package.json").exists() or not entry.is_file():
-            return []
-        text = _read(entry)
-        if "Hermes Agent Squads Hub" not in text or text == _read(SRC / "squads" / "_plugins" / SQUAD_HUB_PLUGIN / "desktop" / "plugin.js"):
-            return []
-        if not self.dry:
-            shutil.rmtree(app)
-        return [f"desktop-plugins/{SQUAD_HUB_PLUGIN} - stale unstamped copy (Desktop re-copies it on restart)"]
+        is never refreshed again and the window keeps running an old version. Such a copy of one of our own plugins
+        (its source names it) is removed; Desktop copies the current half, stamped, on the next start or Rescan."""
+        acts: list[str] = []
+        for plugin, marker in ((SQUAD_HUB_PLUGIN, "Hermes Agent Squads Hub"), (SQUAD_HUB_PLUS_PLUGIN, "Squads Hub Plus")):
+            app = self.ctx.root / "desktop-plugins" / plugin
+            entry = app / "plugin.js"
+            if (app / ".hermes-package.json").exists() or not entry.is_file():
+                continue
+            text = _read(entry)
+            if marker not in text or text == _read(SRC / "squads" / "_plugins" / plugin / "desktop" / "plugin.js"):
+                continue
+            if not self.dry:
+                shutil.rmtree(app)
+            acts.append(f"desktop-plugins/{plugin} - stale unstamped copy (Desktop re-copies it on restart)")
+        return acts
 
     def shared_browser_plugin(self, name: str, bot: dict) -> list[str]:
         """`shared_browser: true`: install the repo's shared-browser-tabs plugin into the bot's home and enable it;
@@ -2327,7 +2351,7 @@ def cmd_upgrade(ctx: Ctx, a: argparse.Namespace) -> int:
     return 1 if report["errors"] else 0
 
 
-SHIPPED_PLUGINS = (SQUAD_HUB_PLUGIN, SHARED_BROWSER_PLUGIN)
+SHIPPED_PLUGINS = (SQUAD_HUB_PLUGIN, SQUAD_HUB_PLUS_PLUGIN, SHARED_BROWSER_PLUGIN)
 
 
 def refresh_foreign_plugins(ctx: Ctx, managed: set[str], dry: bool) -> list[str]:
@@ -2345,7 +2369,7 @@ def refresh_foreign_plugins(ctx: Ctx, managed: set[str], dry: bool) -> list[str]
             if not dest.is_dir() or not src.is_dir():
                 continue
             files = [f for f in sorted(src.rglob("*")) if f.is_file() and "__pycache__" not in f.parts
-                     and f.suffix in (".py", ".yaml", ".js")]
+                     and f.suffix in (".py", ".yaml", ".js", ".json")]
             stale = [f for f in files if _read(dest / f.relative_to(src)) != _read(f)]
             if not stale:
                 continue

@@ -7,6 +7,14 @@ A Hermes Desktop plugin for the squads way of working, part of
 are off until you turn the plugin on in **Capabilities > Plugins**; the agent half (questions with buttons, cards in
 replies) runs on every squad manager once `squadctl apply` installs it.
 
+This package is the **catalog copy**: everything it does runs on the Desktop plugin SDK (host doors, `ctx.os`,
+`ctx.storage`, `ctx.rest`, slots and areas, gateway RPC). The features that need more than the SDK offers — floating
+sides, hiding Desktop's profile rail and Bots tab, the `.env` double-click, git worktrees, the native folder picker —
+live in the repo-only companion **`squad-hub-plus`** (`squads/_plugins/squad-hub-plus`), which `squadctl apply`
+installs beside this plugin on the same managers. With it installed nothing is missing; without it the list still
+works, and the actions it cannot perform copy the exact command instead. The two talk through DOM events
+(`squad-hub:<action>`), documented at the top of both `plugin.js` files.
+
 ```mermaid
 flowchart TD
     B(["Bot"]):::lead --> P["Project"]:::bot
@@ -28,8 +36,8 @@ Screenshots use invented projects and boards.
 
 - **One list, no profile switch.** A chat opens as a tab under its own bot, so several bots and projects stay open
   side by side. Opening one never reloads the window.
-- **Desktop's own controls stay.** The profile selector and the Bots tab are still there; hide them in the plugin
-  settings if Squads is all you use.
+- **Desktop's own controls stay.** The profile selector and the Bots tab are still there; `squad-hub-plus` can hide
+  them if Squads is all you use.
 - **Only the bots you talk to.** Default, the builder and squad managers; squad workers never show. A bot filed alone
   in its own Desktop section stands beside the managers; any other bot shows under "Other bots" only while it has chats. Hide or pin any of them in Settings > Plugins > Hermes Agent Squads Hub.
 - **Projects with several folders, each with its own worktrees.** "+" on a project, folder or worktree starts a chat
@@ -55,7 +63,7 @@ Screenshots use invented projects and boards.
   folders opens in the list's own view instead, with a back button. Single-folder projects open whole. A bot without
   projects lists what needs you and its three newest chats; the rest fold under "Older chats". Fold a whole bot or squad and its pending chats stay listed under it, each tagged with the worktree, folder
   or project it lives in (the full path on hover). Your own open/closed choice always wins.
-- **Floating sides (on by default).** The left list and the right
+- **Floating sides (on by default, in `squad-hub-plus`).** The left list and the right
   files/terminal column take no width: bring the pointer within about 40 px of a screen edge and they slide over the chat like an
   auto-hiding dock, then hide a moment after it leaves (never while you type in them or a menu is open). The title-bar
   side buttons, ⌘B and ⌘J dock a side (the chat narrows to make room, and it stays docked after a restart) or release
@@ -66,9 +74,10 @@ Screenshots use invented projects and boards.
 - **The squad's crons.** A **Crons** pane (right of the files) lists every scheduled job of the squad of the chat in
   view: its name, the bot that runs it, what it does, its schedule in words, when it runs next and whether its last run
   failed. Paused jobs go last; a click opens that bot's Scheduled jobs page.
-- **Env files.** A project's `.env` files hold secrets, so Desktop's viewer refuses them. Double-click one in the file
-  tree (a switch in the settings), or use "Env files…" on a folder or project, and it opens in your system editor; the
-  plugin never reads it.
+- **Env files.** A project's `.env` files hold secrets, so Desktop's viewer refuses them. "Env files…" on a folder or
+  project reveals the folder in the file manager; `squad-hub-plus` lists the files and opens one in your editor (and
+  offers the double-click in the file tree, a switch in its settings). A name an OS could run (`.env.bat`,
+  `.env.command`, `.env.sh`) is never taken for an env file. The plugin never reads a file.
 - **Everything that needs you, one key away.** The status bar counts chats working or unread across every bot (click
   for the list); `⌘⇧U` jumps to the next one. A new chat shows whose it is and where it works. `@` in the composer
   offers the project's folders and worktrees. A project's menu opens the browser and sets the project's icon and
@@ -105,18 +114,23 @@ Screenshots use invented projects and boards.
   memory, so a chat opened as a tab no longer stays pending.
 - **A quieter window.** Any sidebar row can be hidden in the plugin's settings.
 
-Every change to Desktop's own window (floating sides, hidden Bots tab and profile selector, hidden sidebar rows, the
-`.env` double-click) is a switch in **Settings > Plugins > Hermes Agent Squads Hub**.
+Every change to Desktop's own window that the SDK allows (hidden sidebar rows, the Squads theme, the layout) is a
+switch in **Settings > Plugins > Hermes Agent Squads Hub**; the rest (floating sides, hidden Bots tab and profile
+selector, the `.env` double-click) is in **Settings > Plugins > Squads Hub Plus**.
 
 Not changed by the plugin: the Sessions tab, Files, Review, Terminal, artifacts, cron and the Kanban board itself (the
 plugin only reads them, and picks the board the Kanban page shows).
 
-Two halves. The desktop half is one file (`desktop/plugin.js`): a disk plugin loads uncompiled and resolves only
+Three parts. The desktop half is one file (`desktop/plugin.js`): a disk plugin loads uncompiled and resolves only
 `@hermes/plugin-sdk`, `react` and `react/jsx-runtime`. The agent half (`__init__.py`) is a prompt section and two hooks
-(`post_tool_call`, `transform_llm_output`). `squadctl apply` copies the package into every manager and enables the
-agent half (a bot that stops being a manager gets it disabled); Desktop copies the desktop half to its own plugins
-folder, off until you turn it on.
-`tests/test_squad_hub_model.py` runs the desktop model under node; `tests/test_squad_hub_agent.py` the agent half.
+(`post_tool_call`, `transform_llm_output`). The backend (`dashboard/plugin_api.py`, no tab of its own) is the three
+GET reads the panes need from `hermes_cli.kanban_db` — the board list, one board and one card — because the SDK has no
+door to another plugin's REST. `squadctl apply` copies the package into every manager and enables the agent half (a
+bot that stops being a manager gets it disabled); Desktop copies the desktop half to its own plugins folder, off until
+you turn it on.
+`tests/test_squad_hub_model.py` runs the desktop model under node, `tests/test_squad_hub_host.py` the register()
+wiring and the catalog gate (no `window.hermesDesktop`, no private localStorage, no selectors on core markup),
+`tests/test_squad_hub_plus_host.py` the companion, `tests/test_squad_hub_agent.py` the agent half.
 
 ## Credits
 

@@ -7,6 +7,24 @@
 // reloads the window. Each folder of a project can hold its own worktrees; "+" starts a chat in one.
 // Previews a chat opened are remembered, so a closed one is one click to reopen.
 //
+// This is the catalog copy: it uses the Desktop plugin SDK only (host doors, ctx.os / ctx.storage / ctx.rest,
+// slots, areas, gateway RPC through `host.request` / `host.requestProfile`). Features the SDK cannot express live
+// in the repo-only companion `squad-hub-plus`, which `squadctl` installs beside this plugin:
+//
+// Handshake (plain DOM events, no shared module). For each action squad-hub cannot finish alone it dispatches
+// `squad-hub:<action>` with a mutable `detail` and `cancelable: true`; a listener that took the action calls
+// `preventDefault()`, and squad-hub then skips its SDK fallback.
+//   squad-hub:pick-folders    { id, title, defaultPath }      -> plus answers `squad-hub:folders-picked`
+//   squad-hub:worktree-add    { folder, name, branch, base }  -> plus runs `git worktree add`
+//   squad-hub:worktree-remove { folder, path }                -> plus runs `git worktree remove`
+//   squad-hub:open-board      { slug, name }                  -> plus preselects the board on Desktop's page
+//   squad-hub:env-files       { folder }                      -> plus lists and opens the folder's env files
+//   squad-hub:lane-chips      { folder, lanes }               -> plus answers with `squad-hub:lane-status`
+// squad-hub listens for what plus sends back:
+//   squad-hub:folders-picked  { id, paths }                   -> the folders the user chose
+//   squad-hub:lane-status     { folder, statuses }            -> the PR/dirty chips this list renders
+//   squad-hub:lanes-changed   {}                              -> refetch the lanes
+//
 // Single file by design: a disk plugin loads uncompiled and only resolves `@hermes/plugin-sdk`, `react` and
 // `react/jsx-runtime`. The pure model between the MODEL markers is extracted and tested by
 // tests/test_squad_hub_model.py, which runs it under node.
@@ -245,37 +263,12 @@ function upgradePrefs(stored, defaults) {
   const p = { ...defaults, ...(stored || {}) }
   // the version saved with the prefs, never the defaults' own: prefs from before versioning have none
   const from = stored ? Number(stored.prefsVersion) || 0 : PREFS_VERSION
-  if (from < 2) {
-    p.floatSides = true
-    p.squadsTheme = true
-  }
-  // 1.3.0 hid Desktop's own profile selector and Bots tab by default: they come back, hiding them is a choice
-  if (from < 3) {
-    p.hideRail = false
-    p.hideBotsTab = false
-  }
+  if (from < 2) p.squadsTheme = true
   // 1.3.0 also hid Desktop's own Kanban row: the official board comes back, with squad-hub's badges on its cards
   if (from < 4) p.hiddenNav = (p.hiddenNav || []).filter(id => id !== 'kanban:nav')
   p.prefsVersion = PREFS_VERSION
   return p
 }
-
-/** The layout group that holds the chat (`workspace`), read from the layout tree Desktop persists. A zone whose tab
- *  strip is off (or that fronts a session tab) has no `workspace` tab in the DOM, so the tree is the only sure way. */
-function workspaceGroup(node) {
-  if (!node || typeof node !== 'object') return null
-  if (node.type === 'group') return (node.panes || []).includes('workspace') ? node.id : null
-  for (const c of node.children || []) {
-    const id = workspaceGroup(c)
-    if (id) return id
-  }
-  return null
-}
-
-/** Whether the chat takes the whole row while the sides float. `widths`: the widths of the row's other columns that
- *  stay in the flow (sides excluded). Only when none shows: beside a preview both keep the split Desktop holds, so a
- *  sash the user drags still decides it (forcing the chat to grow put it back on the default split). */
-const chatAlone = widths => !(widths || []).some(w => w > 0)
 
 /** The cards on a board that wait on you and were not cleared from the bell: what a manager's row counts. */
 const boardWaiting = (board, dismissed) => (board ? bellVisible(bellItems([], [], [board]), dismissed) : [])
@@ -532,9 +525,20 @@ function groupIconFor(section, overrides = {}) {
   const icon = ICON_WORDS.find(([re]) => re.test(section))?.[1] || 'users'
   return icon === 'shopping-bag' ? 'store' : icon
 }
-/** Env files a project keeps beside its code, the ones people edit by hand: `.env`, `.env.local`, `.env.production`…
- *  Never the shared templates (`.env.example`), which the normal file tree already opens. */
-const isEnvFile = name => /^\.env(\.[\w.-]+)?$/.test(name) && !/\.$/.test(name) && !/^\.env\.(example|sample|template|dist)$/.test(name)
+/** Env files people edit by hand: `.env`, `.env.local`, `.env.production`… A name is `.env` plus dot-separated
+ *  words of letters, digits, `-` and `_`, so no path separator and no odd punctuation gets through; the shared
+ *  templates (`.env.example`) are left to the normal file tree, and a suffix an OS could run (`.env.bat`,
+ *  `.env.command`, `.env.sh`…) is refused, so nothing that hands a path to an editor can run a file. */
+const ENV_TEMPLATES = new Set(['example', 'sample', 'template', 'dist'])
+const ENV_EXEC_SUFFIXES = new Set(['bat', 'cmd', 'command', 'exe', 'sh', 'ps1', 'app', 'com', 'scr', 'vbs', 'js', 'msi'])
+function isEnvFile(name) {
+  const m = /^\.env((?:\.[A-Za-z0-9_-]+)*)$/.exec(String(name || ''))
+  if (!m) return false
+  const parts = m[1] ? m[1].slice(1).split('.') : []
+  if (!parts.length) return true
+  if (ENV_TEMPLATES.has(parts[parts.length - 1])) return false
+  return !parts.some(part => ENV_EXEC_SUFFIXES.has(part.toLowerCase()))
+}
 
 /** The chats that need you across every visible bot, loudest first: what the global counter counts and what
  *  "next pending chat" walks. `trees` are buildBotTree results. */
@@ -725,34 +729,6 @@ function bindRuntime(bound, runtime, stored, sure = false) {
   return { changed: true, from: sure && had?.sure && had.stored !== stored ? had.stored : '' }
 }
 
-/** What each zone of the layout Desktop persists (`hermes.desktop.layoutTree.v2`) shows: { zone id: active pane,
- *  suffixed ':min' when the zone is folded }. */
-function zonesOf(node, out = {}) {
-  if (!node) return out
-  if (node.type === 'group') out[node.id] = node.active + (node.minimized ? ':min' : '')
-  else for (const c of node.children || []) zonesOf(c, out)
-  return out
-}
-/** The zones of every layout tree given (a mode's tree can be missing); a later tree wins where they share a zone. */
-function zonesOfAll(trees) {
-  const out = {}
-  for (const tree of trees) zonesOf(tree, out)
-  return out
-}
-/** A layout tree from its stored text: undefined when it is not JSON, null when there is none. */
-function parseLayout(raw) {
-  try {
-    return JSON.parse(raw || 'null')
-  } catch {
-    return undefined
-  }
-}
-const sideSignature = (groups, zones) => groups.map(id => id + '=' + (zones[id] || '')).join('|')
-/** A change on a hidden, unpinned side that leaves it unfolded is a reveal from elsewhere (⌃`, ⌘J, ⌘G, a menu). The
- *  first look (`previous` undefined) is no change. */
-const isReveal = (previous, signature, side) =>
-  previous !== undefined && signature !== previous && !signature.includes(':min') && side.groups.length > 0 && !side.open && !side.pinned
-
 /** The managers whose Desktop-cards setting still has to be written: not done, and not tried within `retryMs` (a bot
  *  without the agent half answers an error every time; asking again at every refresh would wake its backend for nothing). */
 const CARDS_RETRY_MS = 10 * 60 * 1000
@@ -776,31 +752,26 @@ const {
   host, atom, useValue, useQuery, queryClient, usePluginI18n, Codicon, DisclosureCaret, SearchField, Tip, Button, Input,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
-  SessionStatusDot, COMPOSER_AREAS, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleRow, EmptyState,
+  SessionStatusDot, COMPOSER_AREAS, ToggleRow, EmptyState,
   CapabilitiesView, ColorSwatches, PROFILE_SWATCHES, CHAT_EMPTY_AREA, haptic, isSubmitEnter, requestTheme, useTheme, THEMES_AREA, STATUSBAR_AREAS, PALETTE_AREA, KEYBINDS_AREA, SIDEBAR_NAV_PREFS_AREA,
   TRANSCRIPT_DIRECTIVE_AREA, Skeleton, Wordmark, ackStoredSessionId, forgetSessionUnread
 } = sdk
 
-/** Read a chat in Desktop's own unread store, in its own bot's bucket and on the backend. Desktop acks the chat in view
- *  under the window's profile only, so a chat of another bot opened as a tab kept its "unread" mark for good. */
+/** Read a chat in Desktop's unread store, in its own bot's bucket. Desktop acks the chat in view under the window's
+ *  profile only, so a chat of another bot opened as a tab kept its "unread" mark for good; the SDK's own unread
+ *  functions take the owner, and no private localStorage key is read or written here. */
 async function markRead(bot, id) {
   if (!id) return
   try {
     const row = (queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []).find(c => c.id === id && (!bot || c.profile === bot))
     const ids = row ? chatIds(row) : [id]
-    const raw = JSON.parse(localStorage.getItem('hermes.desktop.unreadFinishedSessions') || '{}')
-    for (const x of ids) {
-      // the owner's bucket; other buckets only when the owner is unknown (another bot's same-named chat stays)
-      const buckets = bot ? [bot] : [null, ...Object.keys(raw).filter(p => (raw[p] || []).includes(x))]
-      for (const p of buckets) ackStoredSessionId?.(x, p)
-    }
+    for (const x of ids) ackStoredSessionId?.(x, bot || null)
     // ack clears the stored marker only: the dot also reads core's in-memory unread list, which a chat of another bot
     // (no row loaded in this window) never leaves, so the chat stayed "pending" after it was opened
     if (bot) forgetSessionUnread?.(ids, bot)
     // this list repaints now instead of after the next poll
     queryClient.setQueryData(SNAPSHOT_KEY, snap => (snap ? { ...snap, chats: snap.chats.map(c => (ids.includes(c.id) ? { ...c, unread: false } : c)) } : snap))
   } catch {}
-  if (bot) await patchSession({ name: bot }, id, { unread: false }).catch(() => null)
 }
 
 const ID = 'squad-hub'
@@ -809,7 +780,6 @@ const h = (type, props, ...kids) => {
   const { key, ...rest } = props || {}
   return jsxs(type, { ...rest, children: kids.flat(Infinity).filter(k => k !== null && k !== undefined && k !== false) }, key)
 }
-const git = () => window.hermesDesktop?.git || null
 const stop = e => e.stopPropagation()
 const rpc = (method, params) => host.request(method, params)
 
@@ -831,16 +801,14 @@ const MESSAGES = {
     cancel: 'Cancel', create: 'Create', creating: 'Creating…', save: 'Save', remove: 'Remove', projectIn: 'New project in {0}',
     projectHelp: 'A project groups one or more folders. Each folder can get its own worktrees.', projectName: 'e.g. Website redesign',
     worktreeIn: 'New worktree in {0}', worktreeHelp: 'A separate checkout under .worktrees/ with its own branch, so chats work in parallel.',
-    branch: 'Branch (optional)', startFrom: 'Start from', defaultTag: '(default)', worktreeReady: 'Worktree ready: {0}',
+    branch: 'Branch (optional)', startFrom: 'Start from',
     removeWorktreeAsk: 'Remove worktree?', removeWorktreeBody: 'Git refuses if it has uncommitted changes. The branch is kept.',
-    renameChat: 'Rename chat', setup: 'Workspace', envDoubleClick: 'Open .env files on double-click', envDoubleClickHint: 'In the file tree they open in your system editor; off leaves the tree as Hermes made it.', creditsBy: 'Made by', creditsPart: 'part of', hideBotsTab: 'Hide the Bots tab',
-    hideBotsTabHint: 'Squads replaces it: bots, projects and chats live in one list.', hideRail: 'Hide the profile selector',
-    hideRailHint: 'The bottom strip that switches the whole window between bots. Squads opens each chat under its own bot instead.',
+    renameChat: 'Rename chat', setup: 'Workspace', creditsBy: 'Made by', creditsPart: 'part of', folderPath: 'Folder path', add: 'Add', browse: 'Browse…',
     showOthers: 'Show other bots that have chats', showOthersHint: 'Bots that are not default, the builder or a squad manager.',
     sortRecent: 'Order bots by recent activity', sortRecentHint: 'Off: default, builder, then managers.', navRows: 'Sidebar rows',
     visibleBots: 'Visible bots', allVisible: 'Every bot you can talk to is listed here; squad workers never are.',
     ctxFiles: 'Files', ctxReview: 'Review', ctxTerminal: 'Terminal', botCaps: 'Capabilities of {0}',
-    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side', cmdPinRight: 'Squads: pin or hide the right side', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', alsoPending: 'Also waiting here', floatSides: 'Floating sides', floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar dock them beside the chat.', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.', openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.', envOpenFailed: 'Could not open it. Is an app set to open this file type?', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Click for the cards waiting on you and the board.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
+    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', alsoPending: 'Also waiting here', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer: open the folder in the file manager and use your editor there.', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', worktreeCopied: 'Command copied: {0}', worktreeRemoveCopied: 'Command copied: {0}', noPlus: 'Squads Hub Plus is not installed, so worktrees cannot be removed from here.', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Click for the cards waiting on you and the board.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
   },
   es: {
     chipBoard: 'Abrir el tablero', chipSeen: 'Quitadas de la campana, aún esperan', cmdBoard: 'Squads: abrir el tablero Kanban de este squad', kanbanOff: 'Activa el plugin Kanban para abrir tableros: Capacidades > Plugins > Kanban.', cronFor: 'Crons · {0}', cronNone: 'Este squad no tiene tareas programadas.', cronIn: 'en {0}', cronPaused: 'pausado', cronAgent: 'agente', cronFailed: 'la última corrida falló', cronLast: 'corrió hace {0}', cronSkill: 'Corre la skill {0}', everyMin: 'cada {0} min', everyHour: 'cada hora a los :{0}', everyHours: 'cada {0} h', dailyAt: 'diario {0}', daysAt: 'días {0} a las {1}', cron_board_watch: 'Te avisa de las tarjetas que esperan tu respuesta.', cron_keep_awake: 'Mantiene el computador despierto mientras corren tarjetas.', cron_project_sync: 'Copia los proyectos del manager a cada bot del squad.', cron_start_search: 'Arranca la búsqueda de empleo en las horas planeadas.', cron_followup_gate: 'Revisa el correo de empleo y crea una tarjeta si una postulación avanzó.', cron_jobs_followups: 'Revisa el correo de empleo y crea una tarjeta si una postulación avanzó.', cron_application_notices: 'Publica cada postulación enviada con el CV adjunto.', cron_plan_week: 'Planea el contenido de la semana cada lunes.', cron_report_gate: 'Prepara el informe mensual.', cron_watch_upstream: 'Lee las novedades de Hermes y propone qué aplicar.', cron_auto_update: 'Actualiza el builder y cada squad desde el repo.', cron_shared_browser_sweep: 'Cierra las pestañas del navegador que dejaron bots detenidos.',
@@ -859,16 +827,14 @@ const MESSAGES = {
     cancel: 'Cancelar', create: 'Crear', creating: 'Creando…', save: 'Guardar', remove: 'Quitar', projectIn: 'Nuevo proyecto en {0}',
     projectHelp: 'Un proyecto agrupa una o varias carpetas. Cada carpeta puede tener sus propios worktrees.', projectName: 'p. ej. Rediseño web',
     worktreeIn: 'Nuevo worktree en {0}', worktreeHelp: 'Una copia aparte bajo .worktrees/ con su propia rama, para que los chats trabajen en paralelo.',
-    branch: 'Rama (opcional)', startFrom: 'Partir de', defaultTag: '(por defecto)', worktreeReady: 'Worktree listo: {0}',
+    branch: 'Rama (opcional)', startFrom: 'Partir de',
     removeWorktreeAsk: '¿Quitar el worktree?', removeWorktreeBody: 'Git se niega si tiene cambios sin confirmar. La rama se conserva.',
-    renameChat: 'Renombrar chat', setup: 'Espacio de trabajo', envDoubleClick: 'Abrir los .env con doble clic', envDoubleClickHint: 'En el árbol de archivos se abren en tu editor del sistema; apagado deja el árbol como lo hace Hermes.', creditsBy: 'Hecho por', creditsPart: 'parte de', hideBotsTab: 'Ocultar la pestaña Bots',
-    hideBotsTabHint: 'Squads la reemplaza: bots, proyectos y chats en una sola lista.', hideRail: 'Ocultar el selector de perfiles',
-    hideRailHint: 'La franja de abajo que cambia toda la ventana de bot. Squads abre cada chat bajo su propio bot.',
+    renameChat: 'Renombrar chat', setup: 'Espacio de trabajo', creditsBy: 'Hecho por', creditsPart: 'parte de', folderPath: 'Ruta de la carpeta', add: 'Añadir', browse: 'Elegir…',
     showOthers: 'Mostrar otros bots que tengan chats', showOthersHint: 'Bots que no son default, el builder ni un manager de squad.',
     sortRecent: 'Ordenar bots por actividad reciente', sortRecentHint: 'Apagado: default, builder y luego managers.', navRows: 'Filas de la barra lateral',
     visibleBots: 'Bots visibles', allVisible: 'Aquí está cada bot con el que puedes hablar; los workers de un squad nunca salen.',
     ctxFiles: 'Archivos', ctxReview: 'Revisión', ctxTerminal: 'Terminal', botCaps: 'Capacidades de {0}',
-    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdFloat: 'Squads: costados flotantes sí/no', cmdPinLeft: 'Squads: fijar u ocultar el costado izquierdo', cmdPinRight: 'Squads: fijar u ocultar el costado derecho', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', alsoPending: 'También pendiente aquí', floatSides: 'Costados flotantes', floatSidesHint: 'La lista izquierda y los archivos/terminal de la derecha no ocupan ancho: acerca el puntero a un borde y se deslizan sobre el chat; al salir se ocultan. Los botones laterales de la barra de título los acoplan junto al chat.', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor; cada uno se abre en tu editor para ese archivo.', openInEditor: 'Abrir en el editor', noEnv: 'No hay archivo .env en esta carpeta.', envOpenFailed: 'No se pudo abrir. ¿Hay una app asignada a este tipo de archivo?', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'En todos los bots: inspirado en Catppuccin, de bajo contraste, crema de día y mocha de noche. Apagado, cada bot conserva el tema que le elijas.', themeUse: 'Usarlo', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Clic para ver las tarjetas que te esperan y el tablero.', pr_open: 'abierto', pr_draft: 'borrador', pr_merged: 'fusionado', pr_closed: 'cerrado', changedFiles: '{0} archivos cambiados', toPush: '{0} commits por subir', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
+    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', alsoPending: 'También pendiente aquí', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor: abre la carpeta en el gestor de archivos y usa tu editor ahí.', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'En todos los bots: inspirado en Catppuccin, de bajo contraste, crema de día y mocha de noche. Apagado, cada bot conserva el tema que le elijas.', themeUse: 'Usarlo', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', worktreeCopied: 'Comando copiado: {0}', worktreeRemoveCopied: 'Comando copiado: {0}', noPlus: 'Squads Hub Plus no está instalado, así que desde aquí no se pueden quitar worktrees.', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Clic para ver las tarjetas que te esperan y el tablero.', pr_open: 'abierto', pr_draft: 'borrador', pr_merged: 'fusionado', pr_closed: 'cerrado', changedFiles: '{0} archivos cambiados', toPush: '{0} commits por subir', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
   }
 }
 const fmt = (s, ...a) => String(s).replace(/\{(\d+)\}/g, (_, i) => a[i] ?? '')
@@ -882,11 +848,26 @@ const useT = () => {
   }
   return tr
 }
-const patchSession = (bot, id, body) =>
-  window.hermesDesktop.api({ path: `/api/sessions/${encodeURIComponent(id)}`, method: 'PATCH', profile: bot.name, body: { ...body, profile: bot.name } })
+/** A stored chat's archive flag and title through the gateway, addressed at the bot that owns it: the same two
+ *  mutations Desktop's PATCH performs, on the SDK's profile-scoped door. */
+const archiveSession = (bot, id, archived = true) => host.requestProfile(bot, 'session.archive', { session_id: id, archived, profile: bot })
+const setSessionTitle = (bot, id, title) => host.requestProfile(bot, 'session.title', { session_id: id, title, profile: bot })
+
+/** An action squad-hub cannot finish alone: hand it to squad-hub-plus through a DOM event. A listener calls
+ *  `preventDefault()` synchronously when it takes the action, and squad-hub then skips its SDK fallback; an answer that
+ *  needs a native dialog comes back as its own event (`squad-hub:folders-picked`). */
+const handshake = (action, detail = {}) => {
+  try {
+    const ev = new CustomEvent('squad-hub:' + action, { detail, cancelable: true })
+    window.dispatchEvent(ev)
+    return { taken: ev.defaultPrevented, detail }
+  } catch {
+    return { taken: false, detail }
+  }
+}
 
 // ───────────────────────────── state ─────────────────────────────
-const DEFAULT_PREFS = { notifyAway: true, envDoubleClick: true, floatSides: true, squadsTheme: true, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hideBotsTab: false, hideRail: false, hiddenNav: [], prefsVersion: PREFS_VERSION }
+const DEFAULT_PREFS = { notifyAway: true, squadsTheme: true, hidden: [], pinned: [], order: [], showOthers: true, sortRecent: false, hiddenNav: [], prefsVersion: PREFS_VERSION }
 let storage = null
 let ctxRef = null
 const prefsAtom = atom({ ...DEFAULT_PREFS })
@@ -900,7 +881,6 @@ const savePrefs = patch => {
   prefsAtom.set({ ...prefsAtom.get(), ...patch })
   storage?.set('prefs', prefsAtom.get())
   applyChrome()
-  applyFloat()
 }
 const toggleCollapsed = (key, def = false) => {
   const next = toggledCollapsed(collapsedAtom.get(), key, def)
@@ -919,34 +899,24 @@ const rememberPreviews = next => {
   storage?.set('previews', next)
 }
 
-/** Desktop flags a chat that finished while you were elsewhere in its own persisted marker (the backend learns
- *  about it later, if at all); this reads that same marker so the list agrees with the dots everywhere else. */
+/** A chat that answered while you were elsewhere. The backend's own `unread` flag on the session row is the one
+ *  signal the SDK exposes (plus Desktop's `SessionStatusDot`, which reads its own store), so the list reads that and
+ *  nothing else: a chat untouched for days is not news, its old flag would keep it in every shortcut list. */
 const UNREAD_DAYS = 3
 /** Every id a chat answers to: its own and, after auto-compression, its lineage root (where Desktop keys its marker). */
 const chatIds = c => [...new Set([c.id, c._lineage_root_id, ...(Array.isArray(c._lineage_ids) ? c._lineage_ids : [])].filter(Boolean))]
 function readUnreadMarkers() {
-  try {
-    const raw = JSON.parse(localStorage.getItem('hermes.desktop.unreadFinishedSessions') || '{}')
-    // Desktop paints a chat's dot from its OWN profile's bucket only; a stale copy of the id under another profile
-    // (left there by a window that had that profile up) is not unread, and nothing would ever clear it
-    const chats = queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []
-    const owners = new Map()
-    const old = new Set()
-    const now = Date.now() / 1000
-    for (const c of chats) {
-      // a compressed chat's marker sits under its lineage root
-      for (const id of chatIds(c)) {
-        if (!owners.has(id)) owners.set(id, new Set())
-        owners.get(id).add(c.profile || 'default')
-        // a chat untouched for days is not news: its old marker would keep it in every shortcut list
-        const t = sessionTime(c)
-        if (t > 0 && now - t > UNREAD_DAYS * 86400) old.add(id)
-      }
-    }
-    return [...new Set(Object.entries(raw).flatMap(([p, ids]) => (Array.isArray(ids) ? ids : []).filter(id => typeof id === 'string' && !old.has(id) && (!owners.has(id) || owners.get(id).has(p)))))].sort()
-  } catch {
-    return []
+  const chats = queryClient.getQueryData(SNAPSHOT_KEY)?.chats || []
+  const now = Date.now() / 1000
+  const out = new Set()
+  for (const c of chats) {
+    if (!c.unread) continue
+    const t = sessionTime(c)
+    if (t > 0 && now - t > UNREAD_DAYS * 86400) continue
+    // a compressed chat answers under its lineage root too, so a marker of either id finds it
+    for (const id of chatIds(c)) out.add(id)
   }
+  return [...out].sort()
 }
 /** Stored ids of chats with a running turn: Desktop's own busy flags (runtime ids) joined to stored ids through the
  *  session.info events and the focused pair. A chat this window has not heard from stays unknown; its unread flag
@@ -973,500 +943,18 @@ function syncLive() {
 }
 
 let styleEl = null
-let chromeEl = null
-/** Chrome the plugin can quiet without touching core: the Bots tab and the profile selector are hidden by CSS keyed
- *  on core's own data-slot / data-tree-tab hooks; sidebar rows go through the nav-prefs area (re-registered on change,
- *  the previous registration disposed first). */
+/** Sidebar rows go through the SDK's nav-prefs area (re-registered on change, the previous registration disposed
+ *  first). Hiding Desktop's own rail or Bots tab has no SDK verb, so it lives in squad-hub-plus. */
 let navDispose = null
 let navHidden = ''
 function applyChrome() {
   const p = prefsAtom.get()
-  const rules = []
-  if (p.hideBotsTab) rules.push('[data-tree-tab="hermes-bots:pane"]{display:none!important}')
-  if (p.hideRail) rules.push('[data-slot="profile-rail"],[data-slot="profile-dropdown"]{display:none!important}')
-  if (chromeEl) chromeEl.textContent = rules.join('\n')
   const hide = (p.hiddenNav || []).filter(id => id !== 'capabilities')
   if (!ctxRef || (navDispose && navHidden === hide.join(','))) return
   navDispose?.()
   navHidden = hide.join(',')
   navDispose = ctxRef.register({ id: 'nav-prefs', area: SIDEBAR_NAV_PREFS_AREA, data: { hide } })
 }
-
-// ───────────────────────────── floating sides ─────────────────────────────
-/** Floating sides: the outer columns of the layout leave the flow, so the chat keeps the whole width, and slide in
- *  over it when the pointer touches that screen edge, like an auto-hiding OS dock. They hide again a moment after
- *  the pointer leaves, never while focus is inside (typing in the terminal), a menu is open, or the side is pinned.
- *  Desktop draws each pane in a host anchored to its zone, so a zone that moves takes its pane with it; the hosts
- *  of a floating side are lifted above the chat by their zone id. */
-const cssEscape = v => (window.CSS?.escape ? window.CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'))
-const FLOAT_EDGE = 40
-const FLOAT_HIDE_MS = 160 // pointer just past the panel's edge
-const FLOAT_HIDE_FAR_MS = 40 // pointer clearly back in the chat
-const FLOAT_FAR_PX = 90
-const floatNear = {}
-const FLOAT_SHOW_MS = 70
-const floatState = { left: { open: false, pinned: false, groups: [] }, right: { open: false, pinned: false, groups: [] } }
-let floatTimers = {}
-let floatStyle = null
-let floatOff = null
-
-/** Desktop keeps one layout tree per interface mode (`.simple` suffix in Simple mode): read both. They are parsed again
- *  only when their stored text changed (the reveal poll reads them four times a second). */
-const LAYOUT_KEYS = ['hermes.desktop.layoutTree.v2', 'hermes.desktop.layoutTree.v2.simple']
-let layoutSig
-let layoutRead = { trees: [], zones: {} }
-function readLayouts() {
-  const raws = LAYOUT_KEYS.map(k => localStorage.getItem(k))
-  const sig = raws.join('\u0000')
-  if (sig !== layoutSig) {
-    layoutSig = sig
-    const trees = raws.map(parseLayout).filter(Boolean)
-    layoutRead = { trees, zones: zonesOfAll(trees) }
-  }
-  return layoutRead
-}
-
-function sideWrappers() {
-  // The row the chat sits in, climbed from the workspace: a column-root layout (Terminal deck, Quad) keeps its
-  // bottom rail and never has a top or bottom child mistaken for a side.
-  const fromTree = readLayouts().trees.map(workspaceGroup).filter(Boolean).map(id => document.querySelector(`[data-tree-group="${cssEscape(id)}"]:not([data-pane-host])`)).find(Boolean)
-  const ws = document.querySelector('[data-tree-tab="workspace"]')?.closest('[data-tree-group]') ||
-    fromTree ||
-    document.querySelector(`[data-tree-group="${cssEscape(document.querySelector('[data-pane-host="workspace"]')?.getAttribute('data-tree-group') || '')}"]:not([data-pane-host])`)
-  let root = ws?.closest('[data-tree-split]')
-  while (root && getComputedStyle(root).flexDirection !== 'row') root = root.parentElement?.closest('[data-tree-split]')
-  if (!root) return {}
-  const kids = [...root.children]
-  const mainAt = kids.findIndex(el => el.contains(ws))
-  if (mainAt < 0) return {}
-  return { root, main: kids[mainAt], left: mainAt > 0 ? kids[0] : null, right: mainAt < kids.length - 1 ? kids[kids.length - 1] : null }
-}
-
-/** A floating side leaves the flow, so Desktop's own sash resizes a track the side no longer reads. Each shown side
- *  gets its own grip on its inner edge instead: dragging it sets the side's width (and a docked side's room in the
- *  row), kept across restarts. The grip is placed from the row's edge, never the panel's, so a slide in progress never
- *  misplaces it. */
-const SIDE_MIN = 220
-const clampSide = w => Math.round(Math.min(Math.max(w, SIDE_MIN), Math.min(900, (window.innerWidth || 1200) * 0.85)))
-const grips = {}
-let gripDrag = null
-function placeGrip(side, el, root) {
-  const grip = grips[side]
-  if (!grip) return
-  if (!el || !root) {
-    if (!gripDrag || gripDrag.side !== side) grip.hidden = true
-    return
-  }
-  const r = root.getBoundingClientRect()
-  const w = parseFloat(el.style.getPropertyValue('--sqh-w')) || el.getBoundingClientRect().width
-  grip.hidden = false
-  grip.style.top = r.top + 'px'
-  grip.style.height = (r.bottom - r.top) + 'px'
-  grip.style.left = (side === 'left' ? r.left + w - 3 : r.right - w - 3) + 'px'
-}
-function makeGrip(side) {
-  const grip = document.createElement('div')
-  grip.dataset.sqhGrip = side
-  grip.hidden = true
-  grip.addEventListener('pointerdown', e => {
-    if (e.button) return
-    const el = document.querySelector(`[data-sqh-side="${side}"]`)
-    const root = document.querySelector('[data-sqh-float-root]')
-    if (!el || !root) return
-    e.preventDefault()
-    grip.setPointerCapture?.(e.pointerId)
-    gripDrag = { side, el, root }
-    document.documentElement.dataset.sqhResizing = ''
-  })
-  grip.addEventListener('pointermove', e => {
-    if (gripDrag?.side !== side) return
-    const r = gripDrag.root.getBoundingClientRect()
-    const w = clampSide(side === 'left' ? e.clientX - r.left : r.right - e.clientX)
-    gripDrag.el.style.setProperty('--sqh-w', w + 'px')
-    if (floatState[side].pinned) gripDrag.root.style.setProperty(`--sqh-dock-${side}`, w + 'px')
-    placeGrip(side, gripDrag.el, gripDrag.root)
-  })
-  const end = () => {
-    if (gripDrag?.side !== side) return
-    const w = parseFloat(gripDrag.el.style.getPropertyValue('--sqh-w'))
-    if (w) storage?.set('sideWidths', { ...(storage?.get('sideWidths', {}) || {}), [side]: w })
-    gripDrag = null
-    delete document.documentElement.dataset.sqhResizing
-    paintFloat()
-  }
-  grip.addEventListener('pointerup', end)
-  grip.addEventListener('pointercancel', end)
-  grip.addEventListener('dblclick', () => {
-    // a double-click, like Desktop's sash, goes back to the default width
-    const rest = { ...(storage?.get('sideWidths', {}) || {}) }
-    delete rest[side]
-    storage?.set('sideWidths', rest)
-    const el = document.querySelector(`[data-sqh-side="${side}"]`)
-    if (el) delete el.dataset.sqhSide // re-measured on the next paint
-    paintFloat()
-  })
-  document.body.append(grip)
-  grips[side] = grip
-  return grip
-}
-
-/** Takes the docked widths off a row that no longer floats its sides. */
-function undock(el) {
-  delete el.dataset.sqhDockLeft
-  delete el.dataset.sqhDockRight
-  el.style.removeProperty('--sqh-dock-left')
-  el.style.removeProperty('--sqh-dock-right')
-}
-
-let floatCss = ''
-function paintFloat() {
-  if (!floatOff) return
-  const { root, main, left, right } = sideWrappers()
-  for (const el of document.querySelectorAll('[data-sqh-side], [data-sqh-main], [data-sqh-float-root]')) {
-    const keep = (el === left && el.dataset.sqhSide === 'left') || (el === right && el.dataset.sqhSide === 'right') || (el === main && 'sqhMain' in el.dataset) || (el === root && 'sqhFloatRoot' in el.dataset)
-    if (keep) continue
-    delete el.dataset.sqhSide
-    delete el.dataset.sqhOpen
-    delete el.dataset.sqhMain
-    delete el.dataset.sqhSolo
-    delete el.dataset.sqhFloatRoot
-    undock(el)
-    el.style.removeProperty('--sqh-w')
-  }
-  if (!root) {
-    floatState.left.groups = []
-    floatState.right.groups = []
-    for (const e of document.querySelectorAll('[data-sqh-edge]')) e.hidden = true
-    return
-  }
-  root.dataset.sqhFloatRoot = ''
-  main.dataset.sqhMain = ''
-  // The sides leave the flow, so the chat must take their room. Alone in the row it takes all of it; beside another
-  // column (a preview) both keep the widths Desktop holds for them, so a sash the user drags still decides the split.
-  if (chatAlone([...root.children].filter(k => k !== left && k !== right && k !== main).map(k => k.getBoundingClientRect().width))) main.dataset.sqhSolo = ''
-  else delete main.dataset.sqhSolo
-  const rules = []
-  for (const [side, el] of [['left', left], ['right', right]]) {
-    const st = floatState[side]
-    const groups = el ? [...el.querySelectorAll('[data-tree-group]')].map(g => g.getAttribute('data-tree-group')) : []
-    // a pinned side is docked: the row gives it its width, so it sits beside the chat instead of over it
-    const docked = Boolean(el && groups.length && st.pinned)
-    if (!el || !groups.length) placeGrip(side, null, root)
-    if (!docked) root.style.setProperty(`--sqh-dock-${side}`, '0px')
-    if (docked) root.dataset[side === 'left' ? 'sqhDockLeft' : 'sqhDockRight'] = ''
-    else delete root.dataset[side === 'left' ? 'sqhDockLeft' : 'sqhDockRight']
-    if (!el || !groups.length) {
-      st.groups = []
-      const edge = document.querySelector(`[data-sqh-edge="${side}"]`)
-      if (edge) edge.hidden = true
-      continue
-    }
-    if (el.dataset.sqhSide !== side) {
-      const w = storage?.get('sideWidths', {})?.[side] || Math.round(el.getBoundingClientRect().width)
-      el.style.setProperty('--sqh-w', clampSide(Math.max(SIDE_MIN, w || 0)) + 'px')
-      el.dataset.sqhSide = side
-    }
-    st.groups = groups
-    // the docked room is the side's own width, never a measure taken while it slides
-    if (docked) root.style.setProperty(`--sqh-dock-${side}`, el.style.getPropertyValue('--sqh-w') || Math.round(el.getBoundingClientRect().width) + 'px')
-    const show = st.open || st.pinned
-    if (show) el.dataset.sqhOpen = ''
-    else delete el.dataset.sqhOpen
-    // the edge strip only where this side floats hidden: never a dead band over a side that is shown or absent
-    const edge = document.querySelector(`[data-sqh-edge="${side}"]`)
-    if (edge) edge.hidden = show
-    placeGrip(side, show ? el : null, root)
-    // pane hosts sit outside the split tree: lift them with their side, and hide them with it so a closed side
-    // can neither be focused off-screen nor shift the window
-    for (const id of groups) rules.push(`[data-pane-host][data-tree-group="${cssEscape(id)}"]{z-index:46!important;background:var(--sidebar,var(--ui-bg-chrome,var(--background)));${show ? 'opacity:1;transition:opacity var(--sqh-in) ease!important;' : 'opacity:.35;visibility:hidden!important;transition:opacity var(--sqh-out) ease-in,visibility 0s linear var(--sqh-out)!important;'}}`)
-    // Desktop's terminal is one fixed overlay chasing its slot (z-index 4), outside every pane host: the lifted host
-    // covered it, so the terminal showed but took no keystroke. It rises and hides with the side that holds it.
-    if (terminalIn(groups)) rules.push(`[data-persistent-terminal]{z-index:47!important;${show ? '' : 'visibility:hidden!important;pointer-events:none!important;'}}`)
-  }
-  const css = rules.join('\n')
-  if (floatStyle && css !== floatCss) floatStyle.textContent = floatCss = css
-  document.documentElement.dataset.sqhFloat = ''
-}
-
-/** Whether one of these zones shows Desktop's terminal (its active tab). */
-const terminalIn = groups => groups.some(id => String(readLayouts().zones[id] || '').startsWith('terminal'))
-/** The terminal overlay re-measures its slot on a window resize only; a side that slid in moved the slot without one,
- *  so the overlay stayed where the hidden side had been. */
-let terminalTimer = null
-function remeasureTerminal() {
-  clearTimeout(terminalTimer)
-  const fire = () => typeof Event === 'function' && window.dispatchEvent?.(new Event('resize'))
-  fire()
-  terminalTimer = setTimeout(fire, 320) // after the slide (--sqh-in is .26s)
-}
-
-/** What each side's zones show, from the layout Desktop persists: the active pane and whether the zone is folded. A
- *  change on a hidden side is a reveal from elsewhere (⌃`, ⌘J, ⌘G, a menu) and slides that side in. */
-const sideSig = {}
-/** A poll that does nothing while the window is hidden. */
-const whileVisible = fn => () => {
-  if (!document.hidden) fn()
-}
-function watchReveals() {
-  if (!floatOff) return
-  const zones = readLayouts().zones
-  for (const side of ['left', 'right']) {
-    const st = floatState[side]
-    const sig = sideSignature(st.groups, zones)
-    if (isReveal(sideSig[side], sig, st)) {
-      st.revealed = true
-      setSide(side, true)
-    }
-    sideSig[side] = sig
-  }
-}
-
-/** A reveal from anywhere (⌃`, ⌘J, a menu, focus moving in) shows the side it lands in. */
-function onFloatFocus(e) {
-  for (const side of ['left', 'right']) {
-    const st = floatState[side]
-    if (st.open || st.pinned || !st.groups.length) continue
-    const g = e.target?.closest?.('[data-tree-group]')?.getAttribute('data-tree-group')
-    if (g && st.groups.includes(g)) setSide(side, true)
-  }
-}
-
-const inSide = (side, x, y) => {
-  const el = document.querySelector(`[data-sqh-side="${side}"]`)
-  if (!el) return false
-  const r = el.getBoundingClientRect()
-  return x >= r.left - 8 && x <= r.right + 8 && y >= r.top && y <= r.bottom
-}
-const focusInSide = side => {
-  const a = document.activeElement
-  if (!a || a === document.body) return false
-  const host = a.closest?.('[data-pane-host]')
-  const group = host?.getAttribute('data-tree-group') || a.closest?.('[data-tree-group]')?.getAttribute('data-tree-group')
-  return Boolean(group && floatState[side].groups.includes(group))
-}
-const menuOpen = () => Boolean(document.querySelector('[role="menu"], [role="dialog"], [data-radix-popper-content-wrapper]'))
-
-function setSide(side, open) {
-  clearTimeout(floatTimers[side])
-  floatTimers[side] = null
-  if (floatState[side].open === open) return
-  floatState[side].open = open
-  paintFloat()
-  remeasureTerminal()
-}
-
-function onFloatPointer(e) {
-  const x = e.clientX
-  const y = e.clientY
-  if (gripDrag) return
-  for (const side of ['left', 'right']) {
-    const st = floatState[side]
-    if (!st.groups.length || st.pinned) continue
-    // the band is measured from the layout's own outer edge, so a profile rail or a window inset never pushes it
-    // outward, and a column between the chat and the side (a preview) never pulls it inward
-    const main = document.querySelector('[data-sqh-float-root]')?.getBoundingClientRect()
-    const atEdge = side === 'left' ? x <= (main ? Math.max(0, main.left) : 0) + FLOAT_EDGE : x >= (main ? Math.min(window.innerWidth, main.right) : window.innerWidth) - FLOAT_EDGE
-    if (!st.open) {
-      // armed once on entering the band and kept while the pointer moves inside it: re-arming on every move meant the
-      // side only appeared once the pointer stopped, which in practice was at the window edge
-      if (!atEdge || y <= 36) {
-        clearTimeout(floatTimers[side])
-        floatTimers[side] = null
-      } else if (!floatTimers[side]) floatTimers[side] = setTimeout(() => setSide(side, true), FLOAT_SHOW_MS)
-    } else if (inSide(side, x, y)) {
-      clearTimeout(floatTimers[side])
-      floatTimers[side] = null
-      st.revealed = false
-    } else if (!st.revealed) {
-      // a pointer that brushed past the panel's edge gets a short grace; one clearly back in the chat hides it now
-      const el = document.querySelector(`[data-sqh-side="${side}"]`)?.getBoundingClientRect()
-      const far = el ? (side === 'left' ? x - el.right : el.left - x) > FLOAT_FAR_PX : true
-      if (floatTimers[side] && !(far && floatNear[side])) continue
-      clearTimeout(floatTimers[side])
-      floatNear[side] = !far
-      floatTimers[side] = setTimeout(() => {
-        floatTimers[side] = null
-        if (focusInSide(side) || menuOpen() || gripDrag) return
-        setSide(side, false)
-      }, far ? FLOAT_HIDE_FAR_MS : FLOAT_HIDE_MS)
-    }
-  }
-}
-
-/** While floating, Desktop's own side toggles (the title-bar buttons, ⌘B, ⌘J) would fold the zone to its rail of
- *  vertical tab titles inside the floating panel. They dock or release the side instead (docked, it takes its width
- *  beside the chat); capture phase, so core's handler never runs. A zone already folded is unfolded, so a side always
- *  floats whole. */
-const SIDE_ICON = { 'codicon-layout-sidebar-left': 'left', 'codicon-layout-sidebar-right': 'right' }
-function sideOfToggle(target) {
-  const btn = target?.closest?.('[data-titlebar-cluster] button')
-  if (!btn) return null
-  for (const [cls, side] of Object.entries(SIDE_ICON)) if (btn.querySelector('.' + cls)) return side
-  return null
-}
-function onToggleClick(e) {
-  const side = sideOfToggle(e.target)
-  // a side that does not float keeps Desktop's own toggle: swallowing it would leave the button dead
-  if (!side || !floatState[side].groups.length) return
-  e.stopPropagation()
-  e.preventDefault()
-  // every click toggles, however fast (the OS numbers a burst 1, 2, 3…); the dblclick event itself is only swallowed
-  if (e.type === 'click') togglePin(side)
-}
-function onToggleKey(e) {
-  if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
-  const side = e.key === 'b' || e.key === 'B' ? 'left' : e.key === 'j' || e.key === 'J' ? 'right' : null
-  if (!side || !floatState[side].groups.length) return
-  e.stopPropagation()
-  e.preventDefault()
-  togglePin(side)
-}
-/** A side zone left folded (by a toggle before floating was on) unfolds through Desktop's own toggle once. */
-function unfoldSides() {
-  const folded = readLayouts().zones
-  for (const side of ['left', 'right']) {
-    if (floatState[side].groups.some(id => String(folded[id] || '').endsWith(':min'))) {
-      ctxRef?.runAction?.(side === 'left' ? 'view.toggleSidebar' : 'view.toggleRightSidebar')
-      delete sideSig[side] // an unfold is housekeeping, not a reveal
-    }
-  }
-}
-
-/** The side's own toggle: pin it while sides float, else fold it through Desktop's action. */
-const pinSide = side => (prefsAtom.get().floatSides ? togglePin(side) : ctxRef?.runAction?.(side === 'left' ? 'view.toggleSidebar' : 'view.toggleRightSidebar'))
-
-/** Pin docks a side: shown, and the chat narrows to make room; a second toggle lets it float and hide again. */
-function togglePin(side) {
-  clearTimeout(floatTimers[side]) // a show/hide armed by the pointer must not undo the pin a moment later
-  floatTimers[side] = null
-  floatState[side].revealed = false
-  floatState[side].pinned = !floatState[side].pinned
-  floatState[side].open = floatState[side].pinned
-  storage?.set('pinnedSides', { left: floatState.left.pinned, right: floatState.right.pinned })
-  paintFloat()
-  remeasureTerminal()
-  return floatState[side].pinned
-}
-
-function startFloat() {
-  if (floatOff) return
-  floatStyle = document.createElement('style')
-  floatStyle.dataset.squadHub = 'float'
-  document.head.append(floatStyle)
-  const onKey = e => {
-    if (e.key !== 'Escape' || e.defaultPrevented) return
-    for (const side of ['left', 'right']) if (floatState[side].open && !floatState[side].pinned && !focusInSide(side)) {
-      floatState[side].revealed = false
-      setSide(side, false)
-    }
-  }
-  // A preview (an Electron <webview>) swallows every pointer event over it, so a side whose screen edge it covers
-  // never heard the pointer arrive. A thin strip on each edge, above the page, hears it instead.
-  const catchers = ['left', 'right'].map(side => {
-    const el = document.createElement('div')
-    el.dataset.sqhEdge = side
-    el.hidden = true
-    el.addEventListener('pointerenter', () => {
-      const st = floatState[side]
-      if (st.groups.length && !st.open && !st.pinned && !floatTimers[side]) floatTimers[side] = setTimeout(() => setSide(side, true), FLOAT_SHOW_MS)
-    })
-    el.addEventListener('pointerleave', () => {
-      // a pointer that only brushed the edge leaves before the side shows: nothing opens (a re-enter re-arms it)
-      if (!floatState[side].open) {
-        clearTimeout(floatTimers[side])
-        floatTimers[side] = null
-      }
-    })
-    document.body.append(el)
-    return el
-  })
-  const gripEls = ['left', 'right'].map(makeGrip)
-  const timer = setInterval(whileVisible(paintFloat), 1200)
-  const revealTimer = setInterval(whileVisible(watchReveals), 250)
-  document.addEventListener('pointermove', onFloatPointer, { passive: true })
-  document.addEventListener('keydown', onKey)
-  document.addEventListener('focusin', onFloatFocus)
-  for (const type of ['click', 'dblclick', 'pointerdown', 'mousedown']) document.addEventListener(type, onToggleClick, true)
-  window.addEventListener('keydown', onToggleKey, true)
-  const unfoldTimer = setTimeout(unfoldSides, 400)
-  // a side the user docked stays docked across restarts, until the same button releases it
-  const pinned = storage?.get('pinnedSides', null) || {}
-  for (const side of ['left', 'right']) floatState[side].pinned = floatState[side].open = pinned[side] === true
-  floatOff = () => {
-    clearTimeout(unfoldTimer)
-    for (const el of catchers) el.remove()
-    for (const el of gripEls) el.remove()
-    for (const k of Object.keys(grips)) delete grips[k]
-    gripDrag = null
-    delete document.documentElement.dataset.sqhResizing
-    clearInterval(timer)
-    clearInterval(revealTimer)
-    for (const k of Object.keys(sideSig)) delete sideSig[k]
-    document.removeEventListener('pointermove', onFloatPointer)
-    document.removeEventListener('keydown', onKey)
-    document.removeEventListener('focusin', onFloatFocus)
-    for (const type of ['click', 'dblclick', 'pointerdown', 'mousedown']) document.removeEventListener(type, onToggleClick, true)
-    window.removeEventListener('keydown', onToggleKey, true)
-    for (const side of ['left', 'right']) {
-      clearTimeout(floatTimers[side])
-      floatState[side] = { open: false, pinned: false, groups: [] }
-    }
-    floatTimers = {}
-    clearTimeout(terminalTimer)
-    for (const k of Object.keys(floatNear)) delete floatNear[k]
-    floatCss = ''
-    for (const el of document.querySelectorAll('[data-sqh-main], [data-sqh-float-root]')) {
-      delete el.dataset.sqhSolo
-      delete el.dataset.sqhMain
-      delete el.dataset.sqhFloatRoot
-      undock(el)
-    }
-    for (const el of document.querySelectorAll('[data-sqh-side]')) {
-      delete el.dataset.sqhSide
-      delete el.dataset.sqhOpen
-      el.style.removeProperty('--sqh-w')
-    }
-    delete document.documentElement.dataset.sqhFloat
-    floatStyle?.remove()
-    floatStyle = null
-    floatOff = null
-  }
-  paintFloat()
-}
-
-/** A double-click on an env file in Desktop's file tree hits its sensitive-file block ("Preview unavailable"): open
- *  it in the system editor instead. Capture phase, so core's handler never runs for these rows; every other file
- *  keeps core's preview. */
-function onTreeDoubleClick(e) {
-  if (prefsAtom.get().envDoubleClick === false) return
-  const item = e.target?.closest?.('[role="treeitem"]')
-  if (!item || item.hasAttribute('aria-expanded')) return // a folder named .env (a virtualenv) keeps core's toggle
-  const path = item.querySelector('[title]')?.getAttribute('title') || ''
-  if (!path || !isEnvFile(baseName(path))) return
-  e.stopPropagation()
-  e.preventDefault()
-  ctxRef?.os?.openExternal?.(path).then(ok => {
-    if (ok === false) host.notify({ kind: 'error', message: fmt(lang().envOpenFailed) })
-  })
-}
-
-let lastRoot = ''
-let pickRevealTimer = null
-/** Picking the Squads layout opens files and the terminal once. Desktop's apply left the files zone closed when the
- *  pane had been closed before (seen live), so the pick says what it places. */
-function watchLayoutPick() {
-  const root = document.querySelector('[data-tree-split]')?.getAttribute('data-tree-split') || ''
-  if (root === lastRoot) return
-  const picked = root === SQUADS_LAYOUT.id && lastRoot !== ''
-  lastRoot = root
-  if (!picked) return
-  host.revealPane('files')
-  clearTimeout(pickRevealTimer)
-  pickRevealTimer = setTimeout(() => host.revealPane('terminal'), 250)
-}
-
-const stopFloat = () => floatOff?.()
-const applyFloat = () => (prefsAtom.get().floatSides ? startFloat() : stopFloat())
 
 /** A plugin registers a layout but cannot apply one (only the picker and set_theme do): take the user to the picker. */
 function applySquadsLayout() {
@@ -1517,11 +1005,18 @@ const refreshSoon = () => {
  *  the DB has it (or ten minutes pass), so the tree answers the click at once, in the lane it was started in. */
 const pendingChats = new Map()
 
-async function loadChats() {
-  const r = await window.hermesDesktop.api({
-    path: `/api/profiles/sessions?limit=500&offset=0&min_messages=0&archived=exclude&order=recent&profile=all&sources=${SOURCES}`
-  })
-  const rows = r.sessions || []
+/** Every visible bot's chats, one SDK read per bot: `listPersistedSessions` takes one profile (a null route keeps the
+ *  window's own connection), so the all-profiles list is assembled here instead of through the private REST path. */
+async function loadChats(profiles) {
+  const lists = await Promise.all(
+    (profiles || []).map(p =>
+      host
+        .listPersistedSessions(null, { profile: p, limit: 500 })
+        .then(r => r?.sessions || [])
+        .catch(() => [])
+    )
+  )
+  const rows = lists.flat().filter(s => !s.source || HUMAN_SOURCES.has(s.source))
   const now = Date.now() / 1000
   for (const [id, chat] of pendingChats) {
     if (rows.some(x => x.id === id) || now - chat.started_at > 600) pendingChats.delete(id)
@@ -1532,8 +1027,9 @@ async function loadChats() {
 /** The raw snapshot: every profile, the human chats, and each candidate bot's projects. Which bots show is decided
  *  at render from the prefs (`visibleBots`), so hiding or pinning a bot never waits for a refetch. */
 async function loadSnapshot() {
-  const [profilesRes, chats] = await Promise.all([rpc('profiles.list', {}), loadChats()])
+  const profilesRes = await rpc('profiles.list', {})
   const profiles = (profilesRes.profiles || []).map(p => ({ name: p.name, is_default: p.is_default, display_name: p.display_name, ui_meta: p.ui_meta }))
+  const chats = await loadChats(profiles.map(p => p.name))
   const humanBy = {}
   for (const s of chats) humanBy[s.profile] = (humanBy[s.profile] || 0) + 1
   // Projects for every bot that can show (hidden ones too, so unhiding is instant); a pinned worker needs a refetch.
@@ -1597,28 +1093,40 @@ const folderPathsOf = snap => {
   return [...set].sort()
 }
 
-/** `git worktree list` runs on the local disk through Electron: a slow or blocked folder must never stall
- *  the tree, so the tree paints first and every repo has its own deadline. */
-async function loadWorktrees(paths, ms = 6000) {
-  const g = git()
+/** A folder's lanes (its main checkout and every linked worktree) as the gateway reports them: `projects.project_sessions`
+ *  groups a project into repos and lanes from the same code the sidebar uses, so the plugin never shells out to git
+ *  itself. One call per project of each visible bot, each with its own deadline, so a blocked folder cannot stall the
+ *  tree; the map is keyed by folder path like the `git worktree list` rows it replaces. */
+async function loadLanes(snap, ms = 6000) {
   const out = {}
-  if (!g?.worktreeList) return out
+  const bots = botsOf(snap, prefsAtom.get())
   await Promise.all(
-    paths.map(async path => {
-      try {
-        out[path] = await withTimeout(g.worktreeList(path), ms)
-      } catch {
-        /* not a git folder, or too slow */
-      }
+    bots.map(async bot => {
+      const projects = (snap.projectsBy?.[bot.name] || []).filter(p => !p.archived && (p.folders || []).length)
+      await Promise.all(
+        projects.map(async project => {
+          try {
+            const r = await withTimeout(host.requestProfile(bot.name, 'projects.project_sessions', { profile: bot.name, project_id: project.id, session_limit: 0 }), ms)
+            for (const repo of r?.project?.repos || []) {
+              const path = trimPath(repo.path || '')
+              if (!path) continue
+              out[path] = (repo.groups || []).map(g => ({ path: trimPath(g.path || path), branch: g.label || '', isMain: Boolean(g.isMain), isKanban: Boolean(g.isKanban) }))
+            }
+          } catch {
+            /* not a git project, or too slow */
+          }
+        })
+      )
     })
   )
   return out
 }
 
 // ───────────────────────────── squads at work (data) ─────────────────────────────
-/** Kanban reads go through the app's own REST bridge to the bundled kanban backend (same API the Kanban page uses);
- *  every call is a GET. */
-const kanban = (path, timeoutMs = 8000) => withTimeout(window.hermesDesktop.api({ path: '/api/plugins/kanban' + path }), timeoutMs)
+/** Kanban reads go through this plugin's own backend (`ctx.rest` is scoped to `/api/plugins/<id>`): the same
+ *  `hermes_cli.kanban_db` reads the Kanban page serves, exposed GET-only by dashboard/plugin_api.py. There is no SDK
+ *  door to another plugin's REST, and reaching for its URL directly is what the catalog review refused. */
+const kanban = (path, timeoutMs = 8000) => withTimeout(ctxRef.rest(path), timeoutMs)
 const BOARDS_KEY = ['squad-hub', 'boards']
 
 /** Every board with the bots that take its cards and its digest; one request per board, shared by every surface. */
@@ -1647,10 +1155,10 @@ const kanbanOn = () => {
     return false
   }
 }
-/** The Kanban page keeps the board it shows in its own storage and only offers a menu to change it: the board is
- *  picked through that same menu (the page's own control), and stored for its next start. Never through the server's
- *  current board, which every `hermes kanban` command without --board would then follow. */
-const KANBAN_SLUG_KEY = 'hermes.plugin.kanban.boardSlug'
+/** Open Desktop's own Kanban page. The page keeps the board it shows in its own storage and only offers a menu to
+ *  change it, and that preselection needs the page's markup: squad-hub-plus does it through the handshake, and without
+ *  that plugin the page simply opens (never the server's `current` board, which every `hermes kanban` command without
+ *  --board would then follow). */
 async function openBoard(slug) {
   if (!kanbanOn()) {
     host.navigate('/capabilities?tab=plugins')
@@ -1658,22 +1166,9 @@ async function openBoard(slug) {
     return
   }
   const name = (queryClient.getQueryData(BOARDS_KEY) || []).find(b => b.slug === slug)?.name || slug
-  if (slug) localStorage.setItem(KANBAN_SLUG_KEY, JSON.stringify(slug))
+  const { taken } = handshake('open-board', { slug: slug || '', name })
   host.navigate('/kanban')
-  if (!slug) return
-  for (let i = 0; i < 20; i++) {
-    await new Promise(r => setTimeout(r, 100))
-    const trigger = [...document.querySelectorAll('button[aria-haspopup="menu"]')].find(b => b.querySelector('.codicon-project') && b.querySelector('.codicon-chevron-down'))
-    if (!trigger) continue
-    if (trigger.getAttribute('aria-label')?.endsWith(': ' + name)) return
-    trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' }))
-    for (let j = 0; j < 10; j++) {
-      await new Promise(r => setTimeout(r, 50))
-      const item = [...document.querySelectorAll('[role="menuitem"]')].find(el => el.textContent.trim().startsWith(name))
-      if (item) return void item.click()
-    }
-    return
-  }
+  if (!slug || taken) return
 }
 /** The board of the squad the focused chat belongs to: its bot's board, else its squad manager's. */
 function focusedBoard() {
@@ -1709,31 +1204,17 @@ async function loadActive() {
 }
 const activeQuery = () => ({ queryKey: LIVE_KEY, queryFn: loadActive, staleTime: 4000, refetchInterval: 8000, retry: false })
 
-/** Worktree chips: one `prList` per repo (GitHub, read-only) and one `repoStatus` per lane, refreshed every minute. */
-async function loadLaneStatus(repo, lanes) {
-  const g = git()
-  const out = {}
-  if (!g) return out
-  const branches = [...new Set(lanes.map(l => l.branch).filter(b => b && b !== 'main' && b !== 'master'))]
-  let prs = []
-  try {
-    prs = branches.length && g.review?.prList ? (await g.review.prList(repo, branches)).prs || [] : []
-  } catch {
-    prs = []
-  }
-  await Promise.all(
-    lanes.map(async l => {
-      let st = null
-      try {
-        st = g.repoStatus ? await g.repoStatus(l.path) : null
-      } catch {
-        st = null
-      }
-      out[l.key] = laneStatus(prs.find(p => p.branch === l.branch) || null, st)
-    })
-  )
-  return out
+/** Worktree chips: a lane's PR state and local changes. Reading them takes git and GitHub, which a catalog plugin has
+ *  no door for, so squad-hub asks squad-hub-plus (`squad-hub:lane-chips`) and stores what comes back
+ *  (`squad-hub:lane-status`); without that plugin there are simply no chips. */
+const laneStatusAtom = atom({})
+function requestLaneChips(folder) {
+  const lanes = (folder?.lanes || []).filter(l => !l.main).map(l => ({ key: l.key, path: l.path, branch: l.branch }))
+  if (!folder?.repo || !lanes.length) return false
+  return handshake('lane-chips', { folder: folder.path, lanes }).taken
 }
+const laneStatuses = project =>
+  Object.assign({}, ...(project?.folders || []).map(f => laneStatusAtom.get()[f.path] || {}))
 
 // ───────────────────────────── actions ─────────────────────────────
 /** A plain click opens the chat where you are, like Desktop's own list; ⌘/Ctrl-click opens it in a new tab. Every
@@ -1778,8 +1259,26 @@ async function newChat(bot, cwd) {
   }
 }
 
-const pickFolders = async (title, defaultPath) =>
-  (await window.hermesDesktop?.selectPaths?.({ title, directories: true, multiple: true, defaultPath })) || []
+/** A native folder picker is a window-door the SDK only offers for one file (`ctx.os.pickOpenPath`), so the picker is
+ *  squad-hub-plus's: it is asked with an id and answers `squad-hub:folders-picked` when the user closes the dialog (a
+ *  native dialog cannot answer before the dispatch returns). Without that plugin the dialogs take a typed path. */
+let pickSeq = 0
+const pickWaiters = new Map()
+const PICK_WAIT_MS = 120000
+const pickFolders = async (title, defaultPath) => {
+  const id = 'pick-' + ++pickSeq
+  if (!handshake('pick-folders', { id, title, defaultPath }).taken) return []
+  return await new Promise(resolve => {
+    const timer = setTimeout(() => {
+      pickWaiters.delete(id)
+      resolve([])
+    }, PICK_WAIT_MS)
+    pickWaiters.set(id, paths => {
+      clearTimeout(timer)
+      resolve(paths)
+    })
+  })
+}
 
 /** Open a bot's own page (cron, messaging, kanban). Those pages follow the window's profile, so the profile is
  *  switched first; the switch is the gateway swap only (tens of ms), no pane or list reloads. */
@@ -1962,8 +1461,8 @@ function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query, status }) {
           items: [
             { label: t('reveal'), run: () => ctxRef?.os?.revealPath?.(lane.path) },
             { label: t('copyPath'), run: () => ctxRef?.os?.writeClipboard?.(lane.path) },
-            !lane.main && !isKanbanWorktree(lane.path) && git()?.worktreeRemove ? 'sep' : null,
-            !lane.main && !isKanbanWorktree(lane.path) && git()?.worktreeRemove ? { label: t('removeWorktree'), run: () => ctl.removeWorktree(folder, lane) } : null
+            !lane.main && !isKanbanWorktree(lane.path) ? 'sep' : null,
+            !lane.main && !isKanbanWorktree(lane.path) ? { label: t('removeWorktree'), run: () => ctl.removeWorktree(folder, lane) } : null
           ]
         })
       ),
@@ -2004,14 +1503,11 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
   const stored = useOpen(key, wide)
   const open = query.trim() ? true : stored
   const chats = folder.lanes.reduce((n, l) => n + l.sessions.length, 0)
-  const { data: laneStats } = useQuery({
-    queryKey: ['squad-hub', 'lanes', folder.path, folder.lanes.map(l => l.key + '@' + l.branch).join('|')],
-    queryFn: () => loadLaneStatus(folder.path, folder.lanes),
-    enabled: open && Boolean(folder.repo) && Boolean(git()),
-    staleTime: 60000,
-    refetchInterval: 120000,
-    retry: false
-  })
+  // the chips are squad-hub-plus's answer to `squad-hub:lane-chips`; asked once per open folder, read from the atom
+  const laneStats = useValue(laneStatusAtom)[folder.path]
+  useEffect(() => {
+    if (open) requestLaneChips(folder)
+  }, [open, folder.path, folder.lanes.map(l => l.key + '@' + l.branch).join('|')])
   return h(
     'div',
     {},
@@ -2026,7 +1522,7 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
         'span',
         { className: 'sqh-actions', onClick: stop, onPointerDown: stop },
         jsx(IconBtn, { icon: 'add', label: t('newChatIn', folder.label), onClick: () => newChat(bot.name, folder.path) }),
-        git()?.worktreeAdd ? jsx(IconBtn, { icon: 'git-branch-create', label: t('newWorktree'), onClick: () => ctl.newWorktree(bot, folder) }) : null,
+        jsx(IconBtn, { icon: 'git-branch-create', label: t('newWorktree'), onClick: () => ctl.newWorktree(bot, folder) }),
         jsx(MenuBtn, { items: [{ label: t('envFiles'), run: () => ctl.envFiles(folder) }, { label: t('reveal'), run: () => ctxRef?.os?.revealPath?.(folder.path) }, 'sep', { label: t('removeFolder'), run: () => ctl.removeFolder(bot, project, folder) }] })
       ),
       open || active.length ? null : h('span', { className: 'sqh-age' }, chats ? shortAge(laneTime({ sessions: folder.lanes.flatMap(l => l.sessions) })) : '')
@@ -2082,7 +1578,7 @@ function ProjectBlock({ bot, project, activeId, ctl, query, focused = false }) {
         jsx(MenuBtn, {
           items: [
             { label: t('addFolder'), run: () => ctl.addFolder(bot, project) },
-            git()?.worktreeAdd && !multi && primary ? { label: t('newWorktree'), run: () => ctl.newWorktree(bot, primary) } : null,
+            !multi && primary ? { label: t('newWorktree'), run: () => ctl.newWorktree(bot, primary) } : null,
             { label: t('openBrowser'), run: () => ctxRef?.runAction?.('view.showBrowser') },
             !multi && primary ? { label: t('envFiles'), run: () => ctl.envFiles(primary) } : null,
             'sep',
@@ -2218,12 +1714,23 @@ function FolderChips({ folders, onRemove, t }) {
 function ProjectDialog({ state, close }) {
   const t = useT()
   const [name, setName] = useState('')
+  const [folder, setFolder] = useState('')
   const [folders, setFolders] = useState([])
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     setName('')
+    setFolder('')
     setFolders([])
   }, [state?.bot?.name])
+  const addTyped = () => {
+    const path = folder.trim()
+    if (path) setFolders(prev => [...new Set([...prev, path])])
+    setFolder('')
+  }
+  const browse = async () => {
+    const picked = await pickFolders(t('addFolder'))
+    if (picked.length) setFolders(prev => [...new Set([...prev, ...picked])])
+  }
   if (!state) return null
   const submit = async () => {
     setBusy(true)
@@ -2247,8 +1754,9 @@ function ProjectDialog({ state, close }) {
           'div',
           { className: 'sqh-form' },
           h('label', {}, t('name'), jsx(Input, { value: name, autoFocus: true, onChange: e => setName(e.target.value), placeholder: t('projectName') })),
-          h('label', {}, t('folders'), folders.length ? jsx(FolderChips, { folders, t, onRemove: f => setFolders(folders.filter(x => x !== f)) }) : h('span', { className: 'sqh-hint' }, t('none'))),
-          jsx(Button, { variant: 'outline', onClick: async () => { const picked = await pickFolders(t('addFolder')); setFolders(prev => [...new Set([...prev, ...picked])]) }, children: t('addFolder') })
+          h('label', {}, t('folderPath'), jsx(Input, { value: folder, onChange: e => setFolder(e.target.value), onKeyDown: e => { if (e.key === 'Enter') { e.preventDefault(); addTyped() } }, placeholder: '/Users/you/code/shop' })),
+          h('div', { style: { display: 'flex', gap: 6 } }, jsx(Button, { variant: 'outline', onClick: addTyped, children: t('add') }), jsx(Button, { variant: 'ghost', onClick: browse, children: t('browse') })),
+          h('label', {}, t('folders'), folders.length ? jsx(FolderChips, { folders, t, onRemove: f => setFolders(folders.filter(x => x !== f)) }) : h('span', { className: 'sqh-hint' }, t('none')))
         ),
         jsxs(DialogFooter, { children: [jsx(Button, { variant: 'ghost', onClick: close, children: t('cancel') }), jsx(Button, { disabled: busy || !name.trim() || !folders.length, onClick: submit, children: busy ? t('creating') : t('create') })] })
       ]
@@ -2256,32 +1764,44 @@ function ProjectDialog({ state, close }) {
   })
 }
 
+/** The command Desktop's own worktree button runs, spelled out: `git worktree add -b <branch> .worktrees/<slug>`,
+ *  run in the folder. Copying it is the SDK-only path when squad-hub-plus is not there to run it. */
+const worktreeAddCommand = (folder, slug, branch, base) =>
+  ['git -C ' + JSON.stringify(folder), 'worktree add -b ' + JSON.stringify(branch || 'hermes/' + slug), JSON.stringify(trimPath(folder) + '/.worktrees/' + slug), base ? JSON.stringify(base) : '']
+    .filter(Boolean)
+    .join(' ')
+const worktreeRemoveCommand = (folder, path) => 'git -C ' + JSON.stringify(folder) + ' worktree remove ' + JSON.stringify(path)
+
+/** Hand a worktree action to squad-hub-plus; without it, copy the exact command and say so. A git worktree is a window
+ *  door the plugin SDK has no verb for, so the SDK-only copy never pretends to have created or removed one. */
+async function worktreeAction(action, detail, command, messageKey) {
+  if (handshake(action, detail).taken) return true
+  await ctxRef?.os?.writeClipboard?.(command)
+  host.notify({ kind: 'info', message: fmt(lang()[messageKey], command) })
+  return false
+}
+
 function WorktreeDialog({ state, close }) {
   const t = useT()
   const [name, setName] = useState('')
   const [branch, setBranch] = useState('')
   const [base, setBase] = useState('')
-  const [bases, setBases] = useState([])
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     if (!state) return
     setName('')
     setBranch('')
     setBase('')
-    git()?.baseBranchList?.(state.folder.path).then(list => {
-      setBases(list)
-      setBase((list.find(b => b.isDefault) || list[0])?.name || '')
-    }).catch(() => setBases([]))
   }, [state?.folder?.path])
   if (!state) return null
   const slug = slugify(name)
   const submit = async () => {
     setBusy(true)
     try {
-      const res = await git().worktreeAdd(state.folder.path, { name: slug, branch: branch.trim() || undefined, base: base || undefined })
+      await worktreeAction('worktree-add', { folder: state.folder.path, name: slug, branch: branch.trim(), base: base.trim() },
+        worktreeAddCommand(state.folder.path, slug, branch.trim(), base.trim()), 'worktreeCopied')
       await refresh()
       close()
-      host.notify({ kind: 'success', message: t('worktreeReady', res.branch) })
     } catch (e) {
       host.notifyError(e, 'Could not create the worktree')
     } finally {
@@ -2299,9 +1819,7 @@ function WorktreeDialog({ state, close }) {
           { className: 'sqh-form' },
           h('label', {}, t('name'), jsx(Input, { value: name, autoFocus: true, onChange: e => setName(e.target.value), placeholder: 'checkout-redesign' })),
           h('label', {}, t('branch'), jsx(Input, { value: branch, onChange: e => setBranch(e.target.value), placeholder: slug ? 'hermes/' + slug : 'hermes/<name>' })),
-          bases.length
-            ? h('label', {}, t('startFrom'), jsxs(Select, { value: base, onValueChange: setBase, children: [jsx(SelectTrigger, { children: jsx(SelectValue, {}) }), jsx(SelectContent, { children: bases.map(b => jsx(SelectItem, { value: b.name, children: b.name + (b.isDefault ? ' ' + t('defaultTag') : '') }, b.name)) })] }))
-            : null
+          h('label', {}, t('startFrom'), jsx(Input, { value: base, onChange: e => setBase(e.target.value), placeholder: 'origin/main' }))
         ),
         jsxs(DialogFooter, { children: [jsx(Button, { variant: 'ghost', onClick: close, children: t('cancel') }), jsx(Button, { disabled: busy || !slug, onClick: submit, children: busy ? t('creating') : t('create') })] })
       ]
@@ -2335,7 +1853,7 @@ function TextDialog({ state, close }) {
     children: jsxs(DialogContent, {
       children: [
         jsx(DialogHeader, { children: jsx(DialogTitle, { children: state.title }) }),
-        jsx(Input, { value, autoFocus: true, onChange: e => setValue(e.target.value), onKeyDown: e => { if ((isSubmitEnter ? isSubmitEnter(e) : e.key === 'Enter')) { e.preventDefault(); submit() } } }),
+        jsx(Input, { value, autoFocus: true, placeholder: state.placeholder, onChange: e => setValue(e.target.value), onKeyDown: e => { if ((isSubmitEnter ? isSubmitEnter(e) : e.key === 'Enter')) { e.preventDefault(); submit() } } }),
         jsxs(DialogFooter, { children: [jsx(Button, { variant: 'ghost', onClick: close, children: t('cancel') }), jsx(Button, { disabled: busy || !value.trim(), onClick: submit, children: t('save') })] })
       ]
     })
@@ -2383,39 +1901,24 @@ function LookDialog({ state, close }) {
 }
 
 /** A folder's env files (`.env`, `.env.local`…). Desktop keeps them out of its own viewer on purpose (they hold
- *  secrets), so they open in the system's editor for that file type; the plugin never reads them. */
+ *  secrets), and a plugin that opens one by path hands it to the OS's file association: the dialog only reveals the
+ *  folder in the file manager, and listing/opening them is squad-hub-plus's (`squad-hub:env-files`). */
 function EnvDialog({ state, close }) {
   const t = useT()
-  const [files, setFiles] = useState(null)
-  useEffect(() => {
-    if (!state) return
-    setFiles(null)
-    if (!window.hermesDesktop?.readDir) {
-      setFiles([])
-      return
-    }
-    window.hermesDesktop.readDir(state.folder.path)
-      .then(r => setFiles((r?.entries || []).filter(e => !e.isDirectory && isEnvFile(e.name)).map(e => e.path)))
-      .catch(() => setFiles([]))
-  }, [state?.folder?.path])
   if (!state) return null
-  const open = async path => {
-    const ok = await ctxRef?.os?.openExternal?.(path)
-    if (ok === false) host.notify({ kind: 'error', message: t('envOpenFailed') })
-    else close()
-  }
   return jsx(Dialog, {
     open: true,
     onOpenChange: o => !o && close(),
     children: jsxs(DialogContent, {
       children: [
         jsxs(DialogHeader, { children: [jsx(DialogTitle, { children: t('envIn', state.folder.label) }), jsx(DialogDescription, { children: t('envHelp') })] }),
-        files === null
-          ? h('div', { className: 'sqh-hint' }, t('loading'))
-          : files.length
-            ? h('div', { style: { display: 'grid', gap: 4 } }, files.map(p => h('button', { key: p, type: 'button', className: 'sqh-envrow', onClick: () => open(p) }, jsx(Glyph, { name: 'file-key', size: 14 }), h('span', {}, baseName(p)), h('span', { className: 'sqh-hint' }, t('openInEditor')))))
-            : h('div', { className: 'sqh-hint' }, t('noEnv')),
-        jsxs(DialogFooter, { children: [jsx(Button, { variant: 'ghost', onClick: () => ctxRef?.os?.revealPath?.(state.folder.path), children: t('reveal') }), jsx(Button, { variant: 'ghost', onClick: close, children: t('cancel') })] })
+        h('div', { className: 'sqh-hint' }, state.folder.path),
+        jsxs(DialogFooter, {
+          children: [
+            jsx(Button, { variant: 'ghost', onClick: close, children: t('cancel') }),
+            jsx(Button, { onClick: () => (ctxRef?.os?.revealPath?.(state.folder.path), close()), children: t('reveal') })
+          ]
+        })
       ]
     })
   })
@@ -2468,18 +1971,14 @@ function CleanDialog({ state, close }) {
   const t = useT()
   const [picked, setPicked] = useState(null)
   const [busy, setBusy] = useState(false)
-  const q = useQuery({
-    queryKey: ['squad-hub', 'cleanup', state?.bot?.name, state?.project?.id],
-    enabled: Boolean(state),
-    gcTime: 0,
-    retry: false,
-    queryFn: async () => {
-      const out = {}
-      for (const f of state.project.folders) if (f.repo && git()) Object.assign(out, await loadLaneStatus(f.path, f.lanes))
-      return out
-    }
-  })
-  const plan = useMemo(() => (state && q.data ? cleanupPlan(state.project, q.data, attentionNow(), Date.now() / 1000) : null), [state, q.data])
+  // what each worktree holds (its PR, its uncommitted files) comes from squad-hub-plus, asked per folder; a checkout
+  // nobody could read is left alone by cleanupPlan
+  const statuses = useValue(laneStatusAtom)
+  useEffect(() => {
+    if (!state) return
+    for (const f of state.project.folders) requestLaneChips(f)
+  }, [state?.project?.id])
+  const plan = useMemo(() => (state ? cleanupPlan(state.project, laneStatuses(state.project), attentionNow(), Date.now() / 1000) : null), [state, statuses])
   useEffect(() => {
     if (plan) setPicked(new Set([...plan.worktrees.filter(w => w.pre).map(w => 'wt:' + w.key), ...plan.chats.filter(c => c.pre).map(c => 'chat:' + c.session.id)]))
   }, [plan])
@@ -2494,11 +1993,17 @@ function CleanDialog({ state, close }) {
     const fail = (name, e) => { failed++; why = why || `${name}: ${String(e?.message || e).replace(/^Error:\s*/, '').slice(0, 160)}` }
     for (const c of plan.chats) {
       if (!picked.has('chat:' + c.session.id)) continue
-      try { await patchSession(state.bot, c.session.id, { archived: true }); done++ } catch (e) { fail(c.session.title || c.session.id, e) }
+      try { await archiveSession(state.bot.name, c.session.id); done++ } catch (e) { fail(c.session.title || c.session.id, e) }
     }
     for (const w of plan.worktrees) {
       if (!picked.has('wt:' + w.key)) continue
-      try { await git().worktreeRemove(w.folderPath, w.path); done++ } catch (e) { fail(w.label, e) }
+      try {
+        if (await worktreeAction('worktree-remove', { folder: w.folderPath, path: w.path },
+          worktreeRemoveCommand(w.folderPath, w.path), 'worktreeRemoveCopied')) done++
+        else fail(w.label, new Error(lang().noPlus))
+      } catch (e) {
+        fail(w.label, e)
+      }
     }
     setBusy(false)
     await refresh()
@@ -2553,7 +2058,7 @@ function Hub() {
   const [othersOpen, setOthersOpen] = useState(false)
   const q = useQuery(snapshotQuery())
   const paths = useMemo(() => folderPathsOf(q.data), [q.data])
-  const wt = useQuery({ queryKey: ['squad-hub', 'worktrees', paths.join('|')], queryFn: () => loadWorktrees(paths), enabled: paths.length > 0, staleTime: 30000, refetchInterval: 60000, placeholderData: prev => prev })
+  const wt = useQuery({ queryKey: ['squad-hub', 'worktrees', paths.join('|')], queryFn: () => loadLanes(q.data), enabled: paths.length > 0, staleTime: 30000, refetchInterval: 60000, placeholderData: prev => prev })
 
   useEffect(() => {
     openDialog = setDialog
@@ -2568,12 +2073,20 @@ function Hub() {
       capabilities: bot => setDialog({ kind: 'caps', bot }),
       cleanup: (bot, project) => setDialog({ kind: 'clean', bot, project }),
       appearance: (bot, project) => setDialog({ kind: 'look', bot, project }),
-      envFiles: folder => setDialog({ kind: 'env', folder }),
+      // the folder's env files: plus lists and opens them; without it the folder is revealed in the file manager
+      envFiles: folder => {
+        if (!handshake('env-files', { folder: folder.path, label: folder.label }).taken) setDialog({ kind: 'env', folder })
+      },
       addFolder: async (bot, project) => {
         const picked = await pickFolders(t('addFolder'), project.folders[0]?.path)
+        if (!picked.length) {
+          // no native picker: ask for the path, the same field the project dialog takes
+          setDialog({ kind: 'text', title: t('addFolder'), value: '', placeholder: '/Users/you/code/shop', run: async path => { await rpc('projects.add_folder', { profile: bot.name, id: project.id, path }); await refresh() } })
+          return
+        }
         try {
           for (const path of picked) await rpc('projects.add_folder', { profile: bot.name, id: project.id, path })
-          if (picked.length) await refresh()
+          await refresh()
         } catch (e) {
           host.notifyError(e, 'Could not add the folder')
         }
@@ -2585,12 +2098,21 @@ function Hub() {
       removeProject: (bot, project) =>
         setDialog({ kind: 'confirm', title: t('removeProject'), body: project.name, run: async () => { await rpc('projects.archive', { profile: bot.name, id: project.id }); await refresh() } }),
       removeWorktree: (folder, lane) =>
-        setDialog({ kind: 'confirm', title: t('removeWorktreeAsk'), body: lane.path + ' — ' + t('removeWorktreeBody'), run: async () => { await git().worktreeRemove(folder.path, lane.path); await refresh() } }),
+        setDialog({
+          kind: 'confirm',
+          title: t('removeWorktreeAsk'),
+          body: lane.path + ' — ' + t('removeWorktreeBody'),
+          run: async () => {
+            await worktreeAction('worktree-remove', { folder: folder.path, path: lane.path },
+              worktreeRemoveCommand(folder.path, lane.path), 'worktreeRemoveCopied')
+            await refresh()
+          }
+        }),
       renameChat: (bot, session) =>
-        setDialog({ kind: 'text', title: t('renameChat'), value: session.title || '', run: async title => { await patchSession(bot, session.id, { title }); await refresh() } }),
+        setDialog({ kind: 'text', title: t('renameChat'), value: session.title || '', run: async title => { await setSessionTitle(bot.name, session.id, title); await refresh() } }),
       archiveChat: async (bot, session) => {
         try {
-          await patchSession(bot, session.id, { archived: true })
+          await archiveSession(bot.name, session.id)
           await refresh()
         } catch (e) {
           host.notifyError(e, 'Could not archive the chat')
@@ -2693,7 +2215,7 @@ function useTrees() {
   const prefs = useValue(prefsAtom)
   const q = useQuery(snapshotQuery())
   const paths = useMemo(() => folderPathsOf(q.data), [q.data])
-  const wt = useQuery({ queryKey: ['squad-hub', 'worktrees', paths.join('|')], queryFn: () => loadWorktrees(paths), enabled: paths.length > 0, staleTime: 30000, placeholderData: prev => prev })
+  const wt = useQuery({ queryKey: ['squad-hub', 'worktrees', paths.join('|')], queryFn: () => loadLanes(q.data), enabled: paths.length > 0, staleTime: 30000, placeholderData: prev => prev })
   return useMemo(() => treesOf(q.data, wt.data, prefs), [q.data, wt.data, prefs])
 }
 
@@ -3310,13 +2832,9 @@ function SettingsPage() {
     {},
     jsx(ThemeRow, {}),
     h('div', { className: 'sqh-hint', style: { padding: '14px 0 4px' } }, t('setup')),
-    jsx(ToggleRow, { checked: prefs.floatSides, label: t('floatSides'), description: t('floatSidesHint'), onChange: on => savePrefs({ floatSides: on }) }),
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' } }, h('div', { style: { flex: 1 } }, h('div', { style: { color: 'var(--foreground)', fontWeight: 500 } }, t('layoutName')), h('div', { className: 'sqh-hint' }, t('layoutHint'))), jsx(Button, { variant: 'outline', onClick: applySquadsLayout, children: t('themeUse') })),
     jsx(ToggleRow, { checked: prefs.chatWordmark !== false, label: t('chatWordmark'), description: t('chatWordmarkHint'), onChange: on => savePrefs({ chatWordmark: on }) }),
     jsx(ToggleRow, { checked: prefs.notifyAway !== false, label: t('notifyAway'), description: t('notifyAwayHint'), onChange: on => savePrefs({ notifyAway: on }) }),
-    jsx(ToggleRow, { checked: prefs.envDoubleClick !== false, label: t('envDoubleClick'), description: t('envDoubleClickHint'), onChange: on => savePrefs({ envDoubleClick: on }) }),
-    jsx(ToggleRow, { checked: prefs.hideBotsTab, label: t('hideBotsTab'), description: t('hideBotsTabHint'), onChange: on => savePrefs({ hideBotsTab: on }) }),
-    jsx(ToggleRow, { checked: prefs.hideRail, label: t('hideRail'), description: t('hideRailHint'), onChange: on => savePrefs({ hideRail: on }) }),
     jsx(ToggleRow, { checked: prefs.showOthers, label: t('showOthers'), description: t('showOthersHint'), onChange: on => savePrefs({ showOthers: on }) }),
     jsx(ToggleRow, { checked: prefs.sortRecent, label: t('sortRecent'), description: t('sortRecentHint'), onChange: on => savePrefs({ sortRecent: on }) }),
     h('div', { className: 'sqh-hint', style: { padding: '14px 0 4px' } }, t('navRows')),
@@ -3460,28 +2978,6 @@ const CSS = `
 .sqh-status{display:inline-flex;align-items:center;gap:5px;background:transparent;border:0;color:var(--ui-text-secondary);font-size:.6875rem;cursor:pointer;padding:0 6px;height:100%}
 .sqh-status:hover{color:var(--foreground)}
 .sqh-caps{max-width:min(960px,92vw);height:min(720px,86vh)}
-html[data-sqh-float] [data-sqh-float-root]{position:relative;padding-left:var(--sqh-dock-left,0px);padding-right:var(--sqh-dock-right,0px);transition:padding var(--sqh-in) var(--sqh-ease-in)}
-html[data-sqh-float] [data-sqh-dock-left]>[data-sqh-main]{padding-left:0}
-html[data-sqh-float] [data-sqh-dock-right]>[data-sqh-main]{padding-right:0}
-html[data-sqh-float] [data-sqh-dock-left]>[data-sqh-side=left],html[data-sqh-float] [data-sqh-dock-right]>[data-sqh-side=right]{box-shadow:none}
-html[data-sqh-float] [data-sqh-main]{padding:0 calc(var(--sqh-gutter,40px) - 10px)}
-html[data-sqh-float] [data-sqh-main][data-sqh-solo]{flex:1 1 0%!important}
-html[data-sqh-float] [data-sqh-side]{position:absolute!important;top:0;bottom:0;z-index:45;width:var(--sqh-w)!important;min-width:0!important;max-width:min(var(--sqh-w),85vw)!important;flex:none!important;background:var(--sidebar,var(--ui-bg-chrome,var(--background)));transition:transform var(--sqh-in) var(--sqh-ease-in),opacity var(--sqh-in) ease;will-change:transform,opacity;box-shadow:0 18px 50px -12px color-mix(in srgb,black 45%,transparent)}
-html[data-sqh-float] [data-sqh-side="left"]{left:0;transform:translateX(-100%);border-right:1px solid var(--ui-stroke-secondary,var(--border))}
-html[data-sqh-float] [data-sqh-side="right"]{right:0;transform:translateX(100%);border-left:1px solid var(--ui-stroke-secondary,var(--border))}
-html[data-sqh-float]{--sqh-in:.26s;--sqh-out:.17s;--sqh-ease-in:cubic-bezier(.22,1,.36,1);--sqh-ease-out:cubic-bezier(.4,0,.9,.6)}
-html[data-sqh-float] [data-sqh-side]:not([data-sqh-open]){visibility:hidden;opacity:.35;transition:transform var(--sqh-out) var(--sqh-ease-out),opacity var(--sqh-out) ease-in,visibility 0s linear var(--sqh-out)}
-html[data-sqh-float] [data-sqh-side][data-sqh-open]{transform:none;opacity:1}
-[data-sqh-grip]{position:fixed;width:6px;z-index:47;cursor:col-resize;background:transparent;transition:background .15s}
-[data-sqh-grip]:hover,html[data-sqh-resizing] [data-sqh-grip]{background:color-mix(in srgb,var(--ui-accent,currentColor) 35%,transparent)}
-[data-sqh-grip][hidden]{display:none}
-html[data-sqh-resizing],html[data-sqh-resizing] *{cursor:col-resize!important;user-select:none!important}
-html[data-sqh-resizing] [data-sqh-side],html[data-sqh-resizing] [data-sqh-float-root]{transition:none!important}
-[data-sqh-edge]{position:fixed;top:40px;bottom:28px;width:4px;z-index:44;background:transparent}
-[data-sqh-edge=left]{left:0}
-[data-sqh-edge=right]{right:0}
-[data-sqh-edge][hidden]{display:none}
-@media (prefers-reduced-motion:reduce){html[data-sqh-float]{--sqh-in:.01s;--sqh-out:.01s}}
 .sqh-glyph{flex:none;opacity:.85}
 .sqh-wt{color:var(--midground,var(--ui-accent))}
 .sqh-pmark{flex:none;width:16px;height:16px;border-radius:5px;display:grid;place-items:center}
@@ -3490,9 +2986,6 @@ html[data-sqh-resizing] [data-sqh-side],html[data-sqh-resizing] [data-sqh-float-
 .sqh-glyphgrid{display:grid;grid-template-columns:repeat(9,26px);gap:3px}
 .sqh-glyphgrid .sqh-ib{width:26px;height:26px}
 .sqh-ib[data-on="true"]{background:color-mix(in srgb,currentColor 18%,transparent);color:var(--foreground)}
-.sqh-envrow{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;border:1px solid var(--ui-stroke-secondary,var(--border));background:transparent;color:var(--foreground);cursor:pointer;text-align:left}
-.sqh-envrow span:nth-child(2){flex:1;font-family:var(--font-mono,ui-monospace,monospace);font-size:.75rem}
-.sqh-envrow:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
 .sqh-pending{display:inline-flex;align-items:center;gap:6px;background:transparent;border:0;color:var(--ui-text-secondary);font-size:.6875rem;cursor:pointer;padding:0 6px;height:100%}
 .sqh-pending:hover{color:var(--foreground)}
 .sqh-pending b{font-weight:600;color:var(--foreground)}
@@ -3609,15 +3102,12 @@ html[data-sqh-resizing] [data-sqh-side],html[data-sqh-resizing] [data-sqh-float-
 function resetRun() {
   liveKey = ''
   bellKnown = null
-  lastRoot = ''
   lastPersist = 0
   reopening = 0
   openDialog = null
-  layoutSig = undefined
-  layoutRead = { trees: [], zones: {} }
   treesMemo = null
   cardsTriedAt = {}
-  clearTimeout(pickRevealTimer)
+  laneStatusAtom.set({})
   liveAtom.set([])
   focusAtom.set(null)
   cardDialogAtom.set(null)
@@ -3643,12 +3133,9 @@ export default {
     styleEl = document.createElement('style')
     styleEl.dataset.squadHub = 'ui'
     styleEl.textContent = CSS
-    chromeEl = document.createElement('style')
-    chromeEl.dataset.squadHub = 'chrome'
-    document.head.append(styleEl, chromeEl)
+    document.head.append(styleEl)
     ctx.onDispose(() => {
       styleEl?.remove()
-      chromeEl?.remove()
       navDispose = null
       navHidden = ''
       ctxRef = null
@@ -3690,12 +3177,21 @@ export default {
     const liveSoon = () => liveTimer || (liveTimer = setTimeout(() => ((liveTimer = null), queryClient.invalidateQueries({ queryKey: LIVE_KEY })), 1500))
     for (const type of ['approval.request', 'clarify.request', 'request.cancel', 'message.complete']) ctx.onEvent(type, liveSoon)
     ctx.onDispose(() => clearTimeout(liveTimer))
-    ctx.onDispose(stopFloat)
-    applyFloat()
-    document.addEventListener('dblclick', onTreeDoubleClick, true)
-    ctx.onDispose(() => document.removeEventListener('dblclick', onTreeDoubleClick, true))
-    const pickTimer = setInterval(whileVisible(watchLayoutPick), 1000)
-    ctx.onDispose(() => (clearInterval(pickTimer), clearTimeout(pickRevealTimer)))
+    // what squad-hub-plus sends back: the PR/dirty chips of a folder, and a worktree it added or removed
+    ctx.addEventListener(window, 'squad-hub:lane-status', e => {
+      const { folder, statuses } = e.detail || {}
+      if (!folder || !statuses || typeof statuses !== 'object') return
+      laneStatusAtom.set({ ...laneStatusAtom.get(), [folder]: statuses })
+    })
+    ctx.addEventListener(window, 'squad-hub:lanes-changed', () => refresh())
+    ctx.addEventListener(window, 'squad-hub:folders-picked', e => {
+      const { id, paths } = e.detail || {}
+      const done = pickWaiters.get(id)
+      if (!done) return
+      pickWaiters.delete(id)
+      done(Array.isArray(paths) ? paths : [])
+    })
+    ctx.onDispose(() => pickWaiters.clear())
     ctx.register({ id: 'context', area: STATUSBAR_AREAS.left, order: 30, render: () => jsx(ChatContext, {}) })
     ctx.registerMany([
       { id: 'cmd-new-project', area: PALETTE_AREA, data: { id: 'squad-hub.new-project', label: MESSAGES.en.cmdNewProject, keywords: ['squad', 'project', 'folder'], run: () => { host.revealPane('squad-hub:pane'); const snap = queryClient.getQueryData(SNAPSHOT_KEY); const bot = botsOf(snap, prefsAtom.get())[0]; if (bot) setTimeout(() => openDialog?.({ kind: 'project', bot }), 50) } } },
@@ -3714,11 +3210,6 @@ export default {
       { id: 'cmd-board', area: PALETTE_AREA, data: { id: 'squad-hub.board', label: MESSAGES.en.cmdBoard, keywords: ['kanban', 'board', 'cards', 'squad'], run: () => openBoard(focusedBoard()) } },
       { id: 'cmd-next', area: PALETTE_AREA, data: { id: 'squad-hub.next-pending', label: MESSAGES.en.cmdNext, keywords: ['pending', 'unread', 'working', 'next'], run: goNextPending } },
       { id: 'key-next', area: KEYBINDS_AREA, data: { id: 'squad-hub.next-pending', label: MESSAGES.en.cmdNext, category: 'navigation', defaults: ['mod+shift+u'], run: goNextPending } },
-      { id: 'cmd-float', area: PALETTE_AREA, data: { id: 'squad-hub.float', label: MESSAGES.en.cmdFloat, keywords: ['float', 'auto hide', 'sidebar', 'dock'], run: () => savePrefs({ floatSides: !prefsAtom.get().floatSides }) } },
-      { id: 'key-pin-left', area: KEYBINDS_AREA, data: { id: 'squad-hub.pin-left', label: MESSAGES.en.cmdPinLeft, category: 'view', defaults: [], run: () => pinSide('left') } },
-      { id: 'key-pin-right', area: KEYBINDS_AREA, data: { id: 'squad-hub.pin-right', label: MESSAGES.en.cmdPinRight, category: 'view', defaults: [], run: () => pinSide('right') } },
-      { id: 'cmd-pin-left', area: PALETTE_AREA, data: { id: 'squad-hub.pin-left', label: MESSAGES.en.cmdPinLeft, keywords: ['pin', 'sidebar', 'left', 'float'], run: () => pinSide('left') } },
-      { id: 'cmd-pin-right', area: PALETTE_AREA, data: { id: 'squad-hub.pin-right', label: MESSAGES.en.cmdPinRight, keywords: ['pin', 'files', 'terminal', 'right', 'float'], run: () => pinSide('right') } },
       { id: 'cmd-layout', area: PALETTE_AREA, data: { id: 'squad-hub.layout', label: MESSAGES.en.cmdLayout, keywords: ['layout', 'terminal', 'files'], run: () => host.navigate('/settings?tab=appearance&page=window-layout') } },
       { id: 'key-preview', area: KEYBINDS_AREA, data: { id: 'squad-hub.preview', label: MESSAGES.en.cmdPreview, category: 'view', defaults: [], run: reopenLastPreview } }
     ])
@@ -3794,7 +3285,7 @@ export default {
     })
     ctx.registerSettingsPage?.({ id: 'settings', title: 'Hermes Agent Squads Hub', icon: 'organization', render: () => jsx(SettingsPage, {}) })
 
-    window.__squadHub = { openChat, intentOf, syncCards, treesOf, useOpen, usePreviews, Dialogs, openCard, dismissBell, bellDismissedAtom, openBoard, loadBoards, loadCrons, setSide, newChat, atFolders, savePrefs, floatState, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadWorktrees, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview }
+    window.__squadHub = { openChat, intentOf, syncCards, treesOf, useOpen, usePreviews, Dialogs, openCard, dismissBell, bellDismissedAtom, openBoard, loadBoards, loadCrons, newChat, atFolders, savePrefs, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadLanes, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview, laneStatusAtom, requestLaneChips, handshake, archiveSession, setSessionTitle, isEnvFile, worktreeAddCommand, worktreeRemoveCommand, worktreeAction, pickFolders }
     ctx.onDispose(() => {
       delete window.__squadHub
     })

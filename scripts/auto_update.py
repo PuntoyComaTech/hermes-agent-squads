@@ -95,7 +95,13 @@ def hermes_gap(manifest: str) -> str | None:
             f"then update the squads again")
 
 
-HUB_JS = Path("plugins") / "squad-hub" / "desktop" / "plugin.js"
+# The two Desktop halves squadctl installs: a change in either one needs a Desktop restart to load.
+HUB_JS = (Path("plugins") / "squad-hub" / "desktop" / "plugin.js",
+          Path("plugins") / "squad-hub-plus" / "desktop" / "plugin.js")
+
+
+def hub_shas(h: Path) -> dict[str, str]:
+    return {str(p): sha((h / p).read_bytes()) for p in HUB_JS if (h / p).is_file()}
 
 
 def shipped_files(h: Path) -> dict[str, str]:
@@ -322,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     if gap:
         print(f"Squads update {old or '?'} -> {new} {gap}")
         return 1
-    hub_before = sha((h / HUB_JS).read_bytes()) if (h / HUB_JS).is_file() else None
+    hub_before = hub_shas(h)
     edits = edited_files(h, state)
     backup = save_local_edits(h, edits) if rose else None  # only `hermes profile update` replaces files
     before = squads_in(h)
@@ -374,8 +380,7 @@ def main(argv: list[str] | None = None) -> int:
     lines += [f"- Needs you: {x}" for x in rep.get("pending") or []]
     lines += [f"- {n}" for n in notes]
     lines += [f"- Error: {e}" for e in rep.get("errors") or []]
-    hub_after = sha((h / HUB_JS).read_bytes()) if (h / HUB_JS).is_file() else None
-    if hub_after and hub_after != hub_before:
+    if hub_shas(h) != hub_before:
         lines.append("- Squads Hub changed: restart Hermes Desktop to load it (the first time, turn on "
                      "\"Hermes Agent Squads Hub\" in Capabilities > Plugins)")
     pruned = prune_backups(h)

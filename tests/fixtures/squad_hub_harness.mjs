@@ -64,7 +64,7 @@ function clock() {
   }
 }
 
-export async function boot({ pluginPath, stored = {}, local = {}, hidden = false, kanbanBadges = true } = {}) {
+export async function boot({ pluginPath, secondPluginPath = null, stored = {}, local = {}, hidden = false, kanbanBadges = true } = {}) {
   const time = clock()
   const realNow = Date.now()
   Date.now = () => realNow + time.elapsed()
@@ -115,7 +115,24 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
       const i = docListeners.findIndex(l => l.target === 'window' && l.type === type && l.fn === fn && l.capture === capturing(capture))
       if (i >= 0) docListeners.splice(i, 1)
     },
-    hermesDesktop: { git: null, api: async req => ((globalThis.__SQH_API__ || []).push(req), {}) }
+    hermesDesktop: { git: null, api: async req => ((globalThis.__SQH_API__ || []).push(req), {}) },
+    // A `CustomEvent` dispatched on the window reaches every window listener and answers `defaultPrevented`:
+    // the handshake between squad-hub and squad-hub-plus is exactly that, so the fake window has to speak it.
+    dispatchEvent: ev => {
+      for (const l of [...docListeners]) if (l.target === 'window' && l.type === ev.type) l.fn(ev)
+      return !ev.defaultPrevented
+    }
+  }
+  globalThis.CustomEvent = class CustomEvent {
+    constructor(type, init = {}) {
+      this.type = type
+      this.detail = init.detail
+      this.cancelable = Boolean(init.cancelable)
+      this.defaultPrevented = false
+    }
+    preventDefault() {
+      if (this.cancelable) this.defaultPrevented = true
+    }
   }
   const ls = new Map(Object.entries(local))
   globalThis.document = doc
@@ -188,10 +205,13 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
   globalThis.__SQH_SDK__ = sdk
 
   // ---- plugin context: records what register() takes and hands every disposer back
+  // A second plugin (squad-hub-plus) loads beside the first with its own storage and its own disposers: the two
+  // talk only through window events, exactly as they do in the app.
+  const makeContext = (ownStore) => {
   const disposers = []
   const listeners = new Map()
   const registered = []
-  const store = new Map(Object.entries(stored))
+  const store = ownStore
   const ctx = {
     storage: {
       get: (k, d) => (store.has(k) ? JSON.parse(store.get(k)) : d),
@@ -218,15 +238,63 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
       return dispose
     },
     runAction() {},
-    os: {}
+    // the curated OS door, recorded so a test can read what the plugin asked the system to do
+    os: {
+      openExternal: url => (world.osCalls.push(['openExternal', url]), Promise.resolve(true)),
+      revealPath: path => (world.osCalls.push(['revealPath', path]), Promise.resolve(true)),
+      writeClipboard: text => (world.osCalls.push(['writeClipboard', text]), Promise.resolve(true)),
+      pickOpenPath: () => Promise.resolve(null)
+    },
+    // REST to this plugin's own backend namespace; a test answers through globalThis.__SQH_REST__
+    rest: (path, opts) => {
+      world.restCalls.push([path, opts])
+      const answer = globalThis.__SQH_REST__?.(path, opts)
+      return Promise.resolve(answer === undefined ? {} : answer)
+    },
+    // scoped timers on the virtual clock, cancelled when the plugin disposes
+    setTimeout: (fn, ms) => {
+      const id = time.setTimeout(fn, ms)
+      const off = () => time.clear(id)
+      disposers.push(off)
+      return off
+    },
+    setInterval: (fn, ms) => {
+      const id = time.setInterval(fn, ms)
+      const off = () => time.clear(id)
+      disposers.push(off)
+      return off
+    },
+    // scoped addEventListener: the same table `window.addEventListener` writes to, removed on dispose
+    addEventListener: (target, type, fn, options) => {
+      const entry = { target: target === globalThis.window ? 'window' : target === globalThis.document ? 'document' : 'node', type, fn, capture: capturing(options) }
+      docListeners.push(entry)
+      const off = () => {
+        const i = docListeners.indexOf(entry)
+        if (i >= 0) docListeners.splice(i, 1)
+      }
+      disposers.push(off)
+      return off
+    }
   }
+  return { ctx, disposers, listeners, registered, store }
+  }
+  const main = makeContext(new Map(Object.entries(stored)))
+  const ctx = main.ctx
+  const disposers = main.disposers
+  const listeners = main.listeners
+  const registered = main.registered
+  const store = main.store
 
   const deliver = e => {
     for (const fn of [...(listeners.get(e.type) || [])]) fn(e)
   }
   const mod = await import(pathToFileURL(pluginPath).href)
+  const mod2 = secondPluginPath ? await import(pathToFileURL(secondPluginPath).href) : null
+  const second = mod2 ? makeContext(new Map()) : null
   const world = {
     messages: null, host, ctx, state, dom, queries, revealed, dispatched, calls, notices, store, localStorage: ls, failProfile: new Set(), time,
+    osCalls: [],
+    restCalls: [],
     plugin: mod.default,
     register() {
       mod.default.register(ctx)
@@ -247,6 +315,8 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     contribution: id => registered.find(c => c.id === id),
     /** The resize grips the plugin placed on the page, attached ones only. */
     grips: () => created.filter(el => el.attached && 'sqhGrip' in el.dataset),
+    /** The screen-edge strips that catch a pointer a preview would swallow, attached ones only. */
+    edges: () => created.filter(el => el.attached && 'sqhEdge' in el.dataset),
     /** The <style> tags the plugin has on the page now. */
     styles: () => styles.filter(s => s.attached),
     /** A DOM event as the document hears it, capture listeners first; returns whether a listener stopped it. */
@@ -274,6 +344,19 @@ export async function boot({ pluginPath, stored = {}, local = {}, hidden = false
     /** Render strings in a language of the plugin's own catalogs instead of as keys. */
     translate(lang = 'en') {
       globalThis.__SQH_T__ = k => world.messages?.[lang]?.[k] ?? k
+    }
+  }
+  /** The companion plugin (squad-hub-plus), with its own context: register it to let it take the handshake. */
+  if (mod2) {
+    world.second = {
+      plugin: mod2.default,
+      ctx: second.ctx,
+      store: second.store,
+      register: () => mod2.default.register(second.ctx),
+      dispose: () => {
+        while (second.disposers.length) second.disposers.pop()()
+      },
+      contribution: id => second.registered.find(c => c.id === id)
     }
   }
   return world

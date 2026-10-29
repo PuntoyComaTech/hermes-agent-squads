@@ -1,0 +1,11 @@
+{
+  "name": "squad-hub",
+  "label": "Squads Hub",
+  "description": "Read-only Kanban data for the Squads Hub panes (boards, one board, one card). Adds no tab and no slot.",
+  "icon": "Organization",
+  "version": "2.1.0",
+  "tab": {
+    "hidden": true
+  },
+  "api": "plugin_api.py"
+}

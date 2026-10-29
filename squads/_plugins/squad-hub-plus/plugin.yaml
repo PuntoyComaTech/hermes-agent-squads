@@ -1,0 +1,5 @@
+name: squad-hub-plus
+version: 1.0.0
+description: "Repo-only companion of squad-hub: features the catalog SDK cannot express (floating sides, the hidden profile rail and Bots tab, .env files in the file tree, git worktrees, the native folder picker). Never listed in the Hermes plugin catalog."
+author: PuntoyComaTech
+requires_hermes: ">=0.22.2"

@@ -104,8 +104,17 @@
   Working/unread come from Desktop's live busy flags plus its own finished-while-away marker, because the backend
   unread flag alone misses a chat that ends while another is in view; a project with many folders lists those chats under its
   own row (open or closed) and keeps its folders folded, rather than expanding every folder.
-  Floating sides are the plugin moving Desktop's own outer layout columns out of the flow (CSS on its zone wrappers,
-  pane hosts lifted by zone id), because Desktop's hover-reveal overlay exists only below its narrow breakpoint and has
-  no setting; it is opt-in. Env files open with the OS handler (`ctx.os.openExternal`), never through the plugin or a
-  bypass of Desktop's sensitive-file block.
-
+  Floating sides and the `.env` handling moved to `squad-hub-plus` (C-16).
+- **C-16** (2026-10-29) The catalog copy is SDK-only; `squad-hub-plus` holds the rest. The Hermes plugin catalog lists
+  Desktop plugins that stay inside the plugin SDK (review of NousResearch/hermes-agent#144864), so `squad-hub` reaches
+  the app only through host doors: `host.listPersistedSessions` per bot, `host.requestProfile` for `session.archive` /
+  `session.title` / `projects.project_sessions`, the SDK unread functions instead of the app's private unread key, and
+  `ctx.rest` against its own GET-only backend (`dashboard/plugin_api.py` on `hermes_cli.kanban_db`) for boards and
+  cards, because there is no SDK door to another plugin's REST. No feature is deleted: floating sides, hiding the
+  profile rail and Bots tab, the `.env` double-click and list, git worktrees, the native folder picker, the PR/dirty
+  chips and the Kanban page's board preselection live in the repo-only `squad-hub-plus`, which `squadctl apply` installs
+  and enables beside `squad-hub` on the same managers (same opt-out), never through the catalog. The two talk through
+  `squad-hub:<action>` DOM events: plus takes an action with `preventDefault()` and squad-hub then skips its SDK
+  fallback (a typed folder path, the exact `git worktree …` command on the clipboard, the folder revealed in the file
+  manager, no chips). A feature moves back into the catalog copy as its upstream issue lands: rail/pane hiding
+  NousResearch/hermes-agent#146513, auto-hide zones #146514, a worktree verb #146515.

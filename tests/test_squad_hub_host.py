@@ -17,6 +17,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 PLUGIN = REPO / "squads" / "_plugins" / "squad-hub" / "desktop" / "plugin.js"
+PLUS = REPO / "squads" / "_plugins" / "squad-hub-plus" / "desktop" / "plugin.js"
 HARNESS = REPO / "tests" / "fixtures" / "squad_hub_harness.mjs"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin")
@@ -53,11 +54,19 @@ def desk(tmp_path_factory):
         (d / "node_modules" / pkg / "package.json").write_text(json.dumps({"type": "module", "exports": exports}), encoding="utf-8")
     shutil.copy(HARNESS, d / "harness.mjs")
 
-    def run(scenario: str):
-        (d / "scenario.mjs").write_text(PRELUDE + scenario + "\nconsole.log(JSON.stringify(out))\n", encoding="utf-8")
+    def run(scenario: str, plus: bool = False):
+        prelude = PRELUDE
+        if plus:
+            # the companion plugin beside it, the way squadctl installs both
+            (d / "plus.mjs").write_text(PLUS.read_text(encoding="utf-8"), encoding="utf-8")
+            prelude = ("import { boot } from './harness.mjs'\n"
+                       "const w = await boot({ pluginPath: new URL('./plugin.mjs', import.meta.url).pathname, "
+                       "secondPluginPath: new URL('./plus.mjs', import.meta.url).pathname })\nconst out = {}\n")
+        (d / "scenario.mjs").write_text(prelude + scenario + "\nconsole.log(JSON.stringify(out))\n", encoding="utf-8")
         done = subprocess.run([NODE, "scenario.mjs"], cwd=d, capture_output=True, text=True, timeout=60)
         assert done.returncode == 0, done.stderr
         return json.loads(done.stdout.strip().splitlines()[-1])
+    run.plus = True
     return run
 
 
@@ -198,12 +207,15 @@ out.previews = Object.keys(w.previews())
 # ---- disposing leaves nothing behind -------------------------------------------------------------------------
 
 def test_disposing_the_plugin_removes_every_listener_timer_style_and_global(desk):
+    """The two window listeners of the handshake, the style tag and the global are gone; and the delayed refresh a
+    gateway event arms never fires after the plugin was switched off."""
     got = desk(f"""
 const empty = w.leftBehind()
 w.register()
-out.running = w.leftBehind()
-w.focus('{CHAT_A}', 'rt-a')                // arms a delayed refresh
+w.focus('{CHAT_A}', 'rt-a')
 w.emit('session.info', 'rt-a', {{ stored_session_id: '{CHAT_A}' }})
+out.running = w.leftBehind()
+out.armed = w.time.pending()
 w.dispose()
 out.after = w.leftBehind()
 const before = w.calls.length
@@ -211,7 +223,8 @@ w.time.advance(60000)
 out.latecomers = w.calls.slice(before)
 out.empty = empty
 """)
-    assert got["running"]["listeners"] and got["running"]["styles"] and got["running"]["timers"], "the plugin did start"
+    assert got["running"]["listeners"] and got["running"]["styles"], "the plugin did start"
+    assert got["armed"] > 0, "a gateway event arms a delayed refresh"
     assert got["after"] == got["empty"], got["after"]
     assert got["latecomers"] == [], "a delayed refresh fired after the plugin was disposed"
 
@@ -232,138 +245,6 @@ out.revealed = w.revealed
     assert got["revealed"] == [], "the Squads layout was already there; nothing was picked"
 
 
-def test_picking_the_squads_layout_opens_files_then_the_terminal_once(desk):
-    got = desk("""
-w.dom.root = 'default-layout'
-w.register()
-w.time.advance(1000)
-w.dom.root = 'sqh-root'
-w.time.advance(1000)
-w.time.advance(500)
-w.time.advance(5000)
-out.revealed = w.revealed
-""")
-    assert got["revealed"] == ["files", "terminal"]
-
-
-# ---- Desktop's side buttons dock a floating side ----------------------------------------------------------------
-
-# A row as Desktop renders it: the Squads list, the chat, then files over the terminal; the right title-bar button.
-ROW = r"""
-const el = (attrs = {}, kids = [], width = 0) => {
-  const node = { attrs, children: kids, dataset: {}, vars: {}, parentElement: null,
-    style: { setProperty: (k, v) => (node.vars[k] = v), removeProperty: k => delete node.vars[k], getPropertyValue: k => node.vars[k] || '' },
-    getAttribute: k => attrs[k] ?? null,
-    getBoundingClientRect: () => ({ width, left: 0, right: 1400, top: 0, bottom: 900 }),
-    contains: x => x === node || kids.some(k => k.contains(x)),
-    all: () => [node, ...kids.flatMap(k => k.all())],
-    querySelectorAll: sel => (sel === '[data-tree-group]' ? node.all().slice(1).filter(n => 'data-tree-group' in n.attrs) : []),
-    closest(sel) {
-      const key = sel.match(/\[([a-z-]+)/)[1]
-      for (let n = node; n; n = n.parentElement) if (key in n.attrs) return n
-      return null
-    } }
-  for (const k of kids) k.parentElement = node
-  return node
-}
-const tab = el({ 'data-tree-tab': 'workspace' })
-const chat = el({ 'data-tree-group': 'sqh-main' }, [tab], 800)
-const left = el({}, [el({ 'data-tree-group': 'sqh-left' })], 280)
-const right = el({}, [el({ 'data-tree-group': 'sqh-files' }), el({ 'data-tree-group': 'sqh-term' })], 340)
-const row = el({ 'data-tree-split': 'sqh-root' }, [left, chat, right])
-document.querySelector = sel => {
-  if (sel === '[data-tree-tab="workspace"]') return tab
-  const side = sel.match(/^\[data-sqh-side="(\w+)"\]$/)
-  if (side) return row.all().find(n => n.dataset.sqhSide === side[1]) || null
-  if (sel === '[data-sqh-float-root]') return 'sqhFloatRoot' in row.dataset ? row : null
-  return null
-}
-// the plugin finds what it marked through its own data-sqh-* attributes
-const camel = a => a.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase())
-document.querySelectorAll = sel => row.all().filter(n => [...sel.matchAll(/\[(data-sqh-[a-z-]+)\]/g)].some(m => camel(m[1]) in n.dataset))
-const icon = { querySelector: sel => (sel === '.codicon-layout-sidebar-right' ? {} : null) }
-const button = { closest: sel => (sel === '[data-titlebar-cluster] button' ? icon : null) }
-const press = () => w.fire('click', { target: button })
-const docked = () => ({ dock: row.vars['--sqh-dock-right'] || '0px', flag: 'sqhDockRight' in row.dataset, shown: 'sqhOpen' in right.dataset })
-"""
-
-
-def test_desktops_right_button_docks_the_side_beside_the_chat_and_releases_it(desk):
-    got = desk(ROW + """
-w.register()
-w.time.advance(1300)
-out.floating = docked()
-out.swallowed = press()
-out.pinned = docked()
-w.time.advance(1300)                      // the repaint poll keeps it docked
-out.still = docked()
-press()
-out.released = docked()
-""")
-    assert got["floating"] == {"dock": "0px", "flag": False, "shown": False}, "a floating side takes no width until pinned"
-    assert got["swallowed"], "Desktop's own toggle would fold the floating side to its rail"
-    assert got["pinned"] == {"dock": "340px", "flag": True, "shown": True}, "the button must give the side its width in the row"
-    assert got["still"] == got["pinned"]
-    assert got["released"] == {"dock": "0px", "flag": False, "shown": False}, "a second press lets the side float and hide again"
-
-
-def test_a_docked_side_is_still_docked_after_a_restart(desk):
-    got = desk(ROW + """
-w.register()
-w.time.advance(1300)
-press()
-w.dispose()
-out.afterDispose = docked()
-w.register()                              // the app starting again: same stored prefs
-w.time.advance(1300)
-out.restarted = docked()
-""")
-    assert got["afterDispose"]["flag"] is False, "switching the plugin off must hand the row back to Desktop"
-    assert got["restarted"] == {"dock": "340px", "flag": True, "shown": True}
-
-
-# A grip on the side's inner edge: what the user drags to widen or narrow a floating side.
-GRIP = """
-const grip = side => w.grips().find(g => g.dataset.sqhGrip === side)
-const drag = (side, x) => {
-  const g = grip(side)
-  g.fire('pointerdown', { button: 0, pointerId: 1, clientX: 1060, preventDefault() {} })
-  g.fire('pointermove', { clientX: x })
-  g.fire('pointerup', {})
-}
-"""
-
-
-def test_dragging_a_floating_sides_grip_changes_its_width_and_keeps_it(desk):
-    got = desk(ROW + GRIP + """
-w.register()
-w.time.advance(1300)
-press()                                   // dock the right side: its grip shows
-out.gripShown = !grip('right').hidden
-drag('right', 1400 - 500)                 // the pointer 500 px from the row's right edge
-out.width = right.vars['--sqh-w']
-out.dock = row.vars['--sqh-dock-right']
-w.dispose()
-delete right.dataset.sqhSide
-w.register()                              // restart
-w.time.advance(1300)
-out.restarted = right.vars['--sqh-w']
-""")
-    assert got["gripShown"], "a shown side must offer a grip: Desktop's sash cannot resize a side out of the flow"
-    assert got["width"] == "500px", "the drag must set the side's width"
-    assert got["dock"] == "500px", "a docked side's room in the row follows the drag"
-    assert got["restarted"] == "500px", "the width dragged is kept across restarts"
-
-
-def test_a_hidden_side_offers_no_grip(desk):
-    got = desk(ROW + GRIP + """
-w.register()
-w.time.advance(1300)
-out.hidden = grip('right').hidden
-""")
-    assert got["hidden"] is True, "a grip over a hidden side would be a dead strip over the chat"
-
-
 def test_a_plain_click_on_a_chat_opens_it_in_place_and_cmd_click_in_a_new_tab(desk):
     got = desk("""
 const opened = []
@@ -374,23 +255,6 @@ await w.exports().openChat('jobs', 's2', w.exports().intentOf({ metaKey: true })
 out.opened = opened
 """)
     assert got["opened"] == ["in-place", "tab"], "every plain click used to stack a new tab"
-
-
-def test_polling_pauses_while_the_window_is_hidden(desk):
-    got = desk("""
-w.dom.root = 'default-layout'
-w.register()
-w.time.advance(1000)
-w.dom.hidden = true
-w.dom.root = 'sqh-root'
-w.time.advance(30000)
-out.whileHidden = w.revealed.slice()
-w.dom.hidden = false
-w.time.advance(1000)
-out.afterShown = w.revealed.slice()
-""")
-    assert got["whileHidden"] == [], "the layout poll kept running in a hidden window"
-    assert got["afterShown"] == ["files"]
 
 
 # ---- the Desktop-cards switch the agent half reads ------------------------------------------------------------------
@@ -490,7 +354,7 @@ def test_every_command_and_keybinding_it_registers_runs_without_a_chat_open(desk
 w.register()
 const failed = []
 const ids = []
-for (const id of ['cmd-open', 'cmd-preview', 'key-preview', 'cmd-pin-left', 'key-pin-left', 'cmd-pin-right', 'key-pin-right', 'cmd-float', 'cmd-layout', 'cmd-next', 'key-next', 'cmd-theme', 'cmd-board', 'cmd-new-project']) {
+for (const id of ['cmd-open', 'cmd-preview', 'key-preview', 'cmd-layout', 'cmd-next', 'key-next', 'cmd-theme', 'cmd-board', 'cmd-new-project']) {
   const c = w.contribution(id)
   if (!c) { failed.push(id + ': not registered'); continue }
   ids.push(c.data.id)
@@ -500,7 +364,7 @@ out.failed = failed
 out.ids = ids
 """)
     assert got["failed"] == []
-    assert len(got["ids"]) == 14
+    assert len(got["ids"]) == 9
 
 
 # ---- what a component subscribes to ---------------------------------------------------------------------------------------
@@ -558,49 +422,6 @@ out.empty = treesOf(undefined, wts, prefs)
     assert got["names"] == ["default", "web"] and got["chat"] == ["c1"]
     assert got["same"] and got["sameWithoutWorktrees"] and got["newSnapshot"]
     assert got["newPrefs"] == ["default"] and got["empty"] == []
-
-
-def test_the_stored_layout_is_parsed_once_while_it_does_not_change(desk):
-    """The reveal poll runs four times a second and the paint once a second; the layout Desktop persists is a few
-    kilobytes of JSON that changes when the user moves a pane."""
-    tree = {"type": "split", "id": "sqh-root", "orientation": "row", "children": [
-        {"type": "group", "id": "sqh-main", "panes": ["workspace"], "active": "workspace"}]}
-    other = {**tree, "children": [{"type": "group", "id": "sqh-main", "panes": ["workspace", "files"], "active": "files"}]}
-    got = desk(f"""
-const key = 'hermes.desktop.layoutTree.v2'
-w.localStorage.set(key, {json.dumps(json.dumps(tree))})
-let parses = 0
-const parse = JSON.parse
-JSON.parse = (text, ...rest) => (typeof text === 'string' && text.includes('sqh-root') && parses++, parse(text, ...rest))
-w.register()
-w.time.advance(10000)
-out.steady = parses
-w.localStorage.set(key, {json.dumps(json.dumps(other))})
-w.time.advance(2000)
-out.afterChange = parses
-JSON.parse = parse
-""")
-    assert got == {"steady": 1, "afterChange": 2}
-
-
-def test_the_polls_do_not_read_the_layout_while_the_window_is_hidden(desk):
-    got = desk("""
-const key = 'hermes.desktop.layoutTree.v2'
-let reads = 0
-const getItem = globalThis.localStorage.getItem
-globalThis.localStorage.getItem = k => (k === key && reads++, getItem(k))
-w.register()
-w.time.advance(1000)                       // start-up reads (first paint, the one-off unfold check) are not polls
-const base = reads
-w.dom.hidden = true
-w.time.advance(30000)
-out.hidden = reads - base
-w.dom.hidden = false
-w.time.advance(3000)
-out.visible = reads - base
-""")
-    assert got["hidden"] == 0, "the reveal and paint polls kept running in a hidden window"
-    assert got["visible"] > 0
 
 
 # ---- the components, drawn with stub React ----------------------------------------------------------------------------------
@@ -701,70 +522,214 @@ def test_prefs_default_shows_desktops_kanban_row(desk):
     assert "kanban:nav" not in got["prefs"]["hiddenNav"]
 
 
-def test_the_terminal_rises_and_hides_with_the_floating_side_that_holds_it(desk):
-    """User report: the terminal at the bottom right showed but took no typing. Desktop draws it in one fixed overlay
-    (`[data-persistent-terminal]`, z-index 4) outside every pane host; floating lifted the side's pane hosts to 46 over
-    it. The overlay must rise with its side while shown and hide with it, and the window is told to re-measure it."""
-    got = desk(ROW + r"""
-w.localStorage.set('hermes.desktop.layoutTree.v2', JSON.stringify({ type: 'split', id: 'sqh-root', children: [
-  { type: 'group', id: 'sqh-left', panes: ['squad-hub:pane'], active: 'squad-hub:pane' },
-  { type: 'group', id: 'sqh-main', panes: ['workspace'], active: 'workspace' },
-  { type: 'split', id: 'r', children: [{ type: 'group', id: 'sqh-files', panes: ['files'], active: 'files' },
-                                       { type: 'group', id: 'sqh-term', panes: ['terminal'], active: 'terminal' }] }] }))
-const resized = []
-window.dispatchEvent = e => resized.push(e.type)
-globalThis.Event = class { constructor(type) { this.type = type } }
-w.register()
-w.time.advance(1300)
-const rule = () => (w.styles().map(s => s.textContent).join('\n').match(/\[data-persistent-terminal\]\{[^}]*\}/) || [''])[0]
-out.hidden = rule()
-w.exports().setSide('right', true)
-out.shown = rule()
-w.time.advance(400)
-out.resized = resized.length
-""")
-    assert "visibility:hidden" in got["hidden"] and "pointer-events:none" in got["hidden"], "a hidden side hides the terminal too"
-    assert "z-index:47" in got["shown"] and "visibility:hidden" not in got["shown"], "a shown side lifts it above its own host"
-    assert got["resized"] >= 2, "the overlay re-measures its slot after the slide"
-
-
 def test_opening_another_bots_chat_clears_its_pending_mark_in_that_bots_bucket(desk):
     """User report: "I open one of our tabs and it keeps its pending state". Desktop's dot reads a persisted marker per
     profile and an in-memory unread list; ack only retired the marker, and a chat of another bot (no row loaded in this
     window) stayed in the list. Opening it must clear both, in the owner's bucket, and tell the backend."""
     got = desk("""
 globalThis.__SQH_API__ = []
+const read = []
+const getItem = globalThis.localStorage.getItem
+globalThis.localStorage.getItem = k => (read.push(k), getItem(k))
 const snap = { profiles: [], chats: [{ id: 'c9', profile: 'jobs', unread: true }] }
 w.queries.set(JSON.stringify(['squad-hub', 'snapshot']), snap)
 w.register()
 await w.exports().openChat('jobs', 'c9', 'tab')
 await new Promise(r => setImmediate(r))
 out.unread = w.calls.filter(c => c.via === 'unread').map(c => [c.method, c.params[0], c.params[1]])
-out.patch = globalThis.__SQH_API__.filter(r => r.method === 'PATCH').map(r => [r.path, r.profile, r.body.unread])
+out.patch = globalThis.__SQH_API__.filter(r => r.method === 'PATCH')
+out.private = read.filter(k => String(k).startsWith('hermes.'))
 """)
     assert ["forget", ["c9"], "jobs"] in got["unread"], "the in-memory unread list, in the owner's bucket"
-    assert ["ack", "c9", "jobs"] in got["unread"]
-    assert got["patch"] == [["/api/sessions/c9", "jobs", False]], "the backend watermark of the owner"
+    assert ["ack", "c9", "jobs"] in got["unread"], "the stored marker of the owner, never another bot's"
+    assert got["patch"] == [], "the backend watermark has no SDK door: nothing writes it behind the app's back"
+    assert got["private"] == [], "no private localStorage key is read"
 
 
-def test_the_kanban_button_opens_desktops_board_on_the_squads_board_and_never_moves_the_current_board(desk):
-    """The board button picks the board the Kanban page itself shows (its stored slug and its own switcher), never the
-    server's `current` board, which every `hermes kanban` command without --board follows."""
+def test_the_kanban_button_opens_desktops_own_board_and_never_moves_the_current_board(desk):
+    """The board button opens Desktop's Kanban page and offers the board to squad-hub-plus, which preselects it through
+    the page's own switcher. What squad-hub never does is call the server's switch endpoint, which every
+    `hermes kanban` command without --board would then follow."""
     got = desk("""
 w.register()
 w.host.pluginDecisions.set({ kanban: true })
-// openBoard waits for the page's switcher on the (virtual) clock: let it run out, no switcher in this DOM
-const settle = async p => { for (let i = 0; i < 40; i++) { await new Promise(r => setImmediate(r)); w.time.advance(100) } await p }
-await settle(w.exports().openBoard('jobs'))
-out.slug = w.localStorage.get('hermes.plugin.kanban.boardSlug')
+const asked = []
+window.addEventListener('squad-hub:open-board', e => asked.push(e.detail))
+await w.exports().openBoard('jobs')
+out.asked = asked
 out.nav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
 out.server = w.calls.filter(c => String(c.method).includes('switch'))
+out.slug = w.localStorage.get('hermes.plugin.kanban.boardSlug') || null
 w.calls.length = 0
 w.host.pluginDecisions.set({})
-await settle(w.exports().openBoard('jobs'))
+await w.exports().openBoard('jobs')
 out.offNav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
 out.offNotice = w.notices.length
 """)
-    assert got["slug"] == '"jobs"' and got["nav"] == ["/kanban"]
+    assert got["asked"] == [{"slug": "jobs", "name": "jobs"}], "the board is offered to the plugin that can preselect it"
+    assert got["nav"] == ["/kanban"] and got["slug"] is None, "the page opens; the board slug is not squad-hub's to store"
     assert got["server"] == [], "no /boards/<slug>/switch: that would retarget the CLI"
     assert got["offNav"] == ["/capabilities?tab=plugins"] and got["offNotice"] == 1, "Kanban off: say where to turn it on"
+
+
+# ---- the catalog gate: this copy uses the plugin SDK and nothing else -----------------------------
+
+# What the catalog review refused and this copy must never carry again: the raw Desktop bridge, the app's private
+# storage, selectors on core markup, a capture-phase double-click, and another plugin's REST namespace.
+FORBIDDEN = {
+    "the raw window.hermesDesktop bridge": r"window\.hermesDesktop",
+    "the app's private localStorage": r"\blocalStorage\b",
+    "a selector on core layout markup": r"data-tree-|data-pane-host|data-persistent-terminal|data-titlebar-cluster",
+    "a selector on Desktop's own chrome": r"profile-rail|profile-dropdown|hermes-bots:pane",
+    "a capture-phase double-click": r"dblclick",
+    "another plugin's REST namespace": r"/api/plugins/",
+}
+
+_COMMENT = re.compile(
+    r"(\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)"
+    r"|/\*.*?\*/|(?<![:\\w])//[^\n]*",
+    re.DOTALL,
+)
+
+
+def _code(path: Path) -> str:
+    """The source with comments blanked, string literals kept (a URL inside a string is not a comment)."""
+    return _COMMENT.sub(lambda m: m.group(1) or "\n" * m.group(0).count("\n"), path.read_text(encoding="utf-8"))
+
+
+def test_the_catalog_copy_reaches_into_nothing_the_plugin_sdk_does_not_offer():
+    code = _code(PLUGIN)
+    hits = {why: sorted(set(re.findall(pattern, code))) for why, pattern in FORBIDDEN.items()}
+    assert {why: found for why, found in hits.items() if found} == {}, "the catalog copy steps outside the plugin SDK"
+
+
+def test_the_companion_plugin_is_the_one_that_carries_what_the_catalog_copy_cannot():
+    """The features are not deleted: every door the catalog copy gave up is in squad-hub-plus, and squadctl installs it."""
+    plus = _code(PLUS)
+    for token in ("window.hermesDesktop", "localStorage", "data-tree-split", "data-titlebar-cluster", "dblclick"):
+        assert token in plus, token
+
+
+# ---- the handshake with squad-hub-plus ------------------------------------------------------------
+
+WORKTREE = """
+w.register()
+await w.exports().worktreeAction('worktree-add', { folder: '/w/shop', name: 'feat', branch: 'hermes/feat', base: '' },
+  w.exports().worktreeAddCommand('/w/shop', 'feat', 'hermes/feat', ''), 'worktreeCopied')
+out.copied = w.osCalls
+out.notices = w.notices.map(n => n.message)
+"""
+
+
+def test_without_the_companion_plugin_a_worktree_action_copies_the_exact_command(desk):
+    got = desk(WORKTREE)
+    assert got["copied"] == [["writeClipboard", 'git -C "/w/shop" worktree add -b "hermes/feat" "/w/shop/.worktrees/feat"']], \
+        "the SDK has no worktree verb: the command is what the user gets, never a silent no-op"
+    assert got["notices"] and "Command copied" in got["notices"][0]
+
+
+def test_with_the_companion_plugin_the_worktree_is_created_and_nothing_is_copied(desk):
+    got = desk("""
+const made = []
+window.hermesDesktop.git = {
+  worktreeAdd: async (folder, o) => (made.push([folder, o]), { branch: o.branch }),
+  worktreeRemove: async (folder, path) => void made.push(['remove', folder, path]),
+  repoStatus: async () => ({ changed: 2, ahead: 1 }),
+  review: { prList: async () => ({ prs: [{ number: 7, state: 'open', branch: 'hermes/feat', url: 'https://github.com/o/r/pull/7', title: 'Feat' }] }) }
+}
+w.second.register()
+w.register()
+await w.exports().worktreeAction('worktree-add', { folder: '/w/shop', name: 'feat', branch: 'hermes/feat', base: '' },
+  w.exports().worktreeAddCommand('/w/shop', 'feat', 'hermes/feat', ''), 'worktreeCopied')
+out.made = made
+out.copied = w.osCalls
+// the chips: squad-hub asks, plus answers with what git and GitHub said
+out.asked = w.exports().requestLaneChips({ path: '/w/shop', repo: true, lanes: [
+  { key: '/w/shop', main: true, path: '/w/shop', branch: 'main' },
+  { key: '/w/shop/.worktrees/feat', main: false, path: '/w/shop/.worktrees/feat', branch: 'hermes/feat' }] })
+await new Promise(r => setImmediate(r))
+out.status = w.exports().laneStatusAtom.get()['/w/shop']
+""", plus=True)
+    assert got["made"] == [["/w/shop", {"name": "feat", "branch": "hermes/feat"}]], "plus ran the command"
+    assert got["copied"] == [], "and squad-hub copied nothing"
+    assert got["asked"] is True, "squad-hub hands the chip request over"
+    assert got["status"]["/w/shop/.worktrees/feat"]["pr"]["number"] == 7, "the chips squad-hub renders are plus's answer"
+    assert got["status"]["/w/shop/.worktrees/feat"]["changed"] == 2
+
+
+def test_the_folder_picker_is_the_companions_and_a_typed_path_is_the_fallback(desk):
+    alone = desk("""
+window.hermesDesktop.selectPaths = async () => ['/w/a']
+w.register()
+out.picked = await w.exports().pickFolders('Add folders…')
+""")
+    assert alone["picked"] == [], "no picker plugin: the dialog keeps its typed folder field"
+    together = desk("""
+window.hermesDesktop.selectPaths = async () => ['/w/a', '/w/b']
+w.second.register()
+w.register()
+out.picked = await w.exports().pickFolders('Add folders…')
+""", plus=True)
+    assert together["picked"] == ["/w/a", "/w/b"], "the native multi-folder picker is back"
+
+
+# ---- the data the panes read ----------------------------------------------------------------------
+
+def test_boards_and_cards_are_read_through_this_plugins_own_backend(desk):
+    """`ctx.rest` is scoped to `/api/plugins/<id>`: the three Kanban reads come from squad-hub's own dashboard API, never
+    from the Kanban plugin's namespace."""
+    got = desk("""
+globalThis.__SQH_REST__ = path => {
+  if (path === '/boards') return { boards: [{ slug: 'jobs', name: 'Jobs', total: 2 }] }
+  if (path.startsWith('/board?')) return { columns: [{ name: 'blocked', tasks: [
+    { id: 't_ask', status: 'blocked', block_kind: 'needs_input', assignee: 'jobs', title: 'Which font?', latest_summary: 'Pick one' }] }] }
+  return {}
+}
+w.register()
+const boards = await w.exports().loadBoards()
+out.paths = w.restCalls.map(c => c[0])
+out.boards = boards.map(b => [b.slug, b.digest.blocked, b.assignees])
+""")
+    assert got["paths"] == ["/boards", "/board?board=jobs"]
+    assert got["boards"] == [["jobs", 1, ["jobs"]]], "a card blocked for the user counts, from the backend's own payload"
+
+
+def test_lanes_come_from_the_gateway_projects_call_not_from_git(desk):
+    """`projects.project_sessions` groups a project into repos and lanes on the backend: the tree never shells out."""
+    got = desk("""
+const snap = { at: 1, profiles: [{ name: 'web', ui_meta: { 'hermes-squads': { role: 'manager', name: 'Web' } } }], humanBy: { web: 1 },
+  chats: [{ id: 'c1', profile: 'web', source: 'desktop', title: 'wt', cwd: '/w/shop/.worktrees/feat', git_repo_root: '/w/shop',
+            message_count: 2, last_active: 1000, started_at: 900 }],
+  projectsBy: { web: [{ id: 'p1', name: 'Shop', folders: [{ path: '/w/shop', is_primary: true }] }] } }
+w.queries.set(JSON.stringify(['squad-hub', 'snapshot']), snap)
+const answers = { 'projects.project_sessions': { project: { repos: [{ path: '/w/shop', groups: [
+  { id: 'main', label: 'main', path: '/w/shop', isMain: true },
+  { id: 'feat', label: 'feat', path: '/w/shop/.worktrees/feat', isMain: false }] }] } } }
+w.host.requestProfile = async (bot, method, params) => { w.calls.push({ via: bot, method, params }); return answers[method] || {} }
+w.register()
+const lanes = await w.exports().loadLanes(snap)
+out.called = w.calls.filter(c => c.method === 'projects.project_sessions').map(c => [c.via, c.params.project_id])
+out.lanes = lanes['/w/shop'].map(l => [l.branch, l.isMain])
+const tree = w.exports().treesOf(snap, lanes, w.exports().prefsAtom.get())
+out.worktreeLane = tree[0].projects[0].folders[0].lanes.map(l => [l.label, l.sessions.length])
+""")
+    assert got["called"] == [["web", "p1"]]
+    assert got["lanes"] == [["main", True], ["feat", False]]
+    assert sorted(got["worktreeLane"]) == [["feat", 1], ["main", 0]], "the chat in the worktree lands in its own lane"
+
+
+def test_sessions_are_read_one_sdk_call_per_bot(desk):
+    got = desk("""
+const seen = []
+w.host.listPersistedSessions = async (route, o) => (seen.push([route, o.profile]), { sessions: [
+  { id: 'c1', profile: o.profile, source: 'desktop', title: 'a', message_count: 2, started_at: 900, last_active: 1000 },
+  { id: 'c2', profile: o.profile, source: 'cron', title: 'job', message_count: 2, started_at: 900, last_active: 1000 }] })
+w.host.request = async () => ({ profiles: [{ name: 'default', is_default: true }, { name: 'web', ui_meta: { 'hermes-squads': { role: 'manager', name: 'Web' } } }] })
+w.host.requestProfile = async () => ({ projects: [] })
+w.register()
+const snap = await w.exports().loadSnapshot()
+out.calls = seen
+out.chats = snap.chats.map(c => c.id)
+""")
+    assert got["calls"] == [[None, "default"], [None, "web"]], "one SDK read per bot, the window's own connection"
+    assert got["chats"] == ["c1", "c1"], "a cron run is not a human chat"

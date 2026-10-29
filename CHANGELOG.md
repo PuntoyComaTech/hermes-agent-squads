@@ -3,6 +3,21 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.34.0 - 2026-10-29
+
+### Changed
+
+- Squads Hub 2.1.0 is now **catalog-clean**: the Desktop half uses the plugin SDK only — the gateway's own session,
+  project and Kanban doors instead of the app's private bridge, storage and REST namespaces, no selectors on core
+  markup, no capture-phase double-click. Every feature the SDK cannot express moved, unchanged, to a new repo-only
+  plugin **squad-hub-plus**, which `squadctl apply` installs and enables beside squad-hub on the same managers: the
+  floating sides, hiding the profile rail and the Bots tab, the `.env` double-click and list, creating and removing
+  git worktrees, the native folder picker, the PR/dirty chips and the Kanban page's board preselection. Without it the
+  list still works and a worktree action copies the exact `git worktree …` command.
+- squad-hub reads boards and cards through its own GET-only backend (`dashboard/plugin_api.py`, no tab of its own) on
+  `hermes_cli.kanban_db`, because the SDK has no door to another plugin's REST.
+- `.env` names an OS could run (`.env.bat`, `.env.command`, `.env.sh`) are never taken for env files.
+
 ## 2.33.1 - 2026-10-29
 
 ### Fixed
