@@ -15,7 +15,8 @@ One opening per card. Documents are written in the posting's language. The card 
 ## Procedure
 
 1. Read the card, `analysis.json`, `opening.md` and `profile.md`. Read `achievements.yaml` for every claim. Read
-   `contact.yaml` only for the CV header.
+   `contact.yaml` only for the CV header. Read `<P>/writing-lessons.md` when it exists: each line is a defect the
+   review already corrected more than once; the draft avoids every one.
 2. Write `application/strategy.md`: the stage structure (`candidate.stage`), headline, the keywords you will cover
    (only those an achievement supports), CV language (the opening's language), evidence pieces when
    `evidence.pieces_per_application` is above 0, and every stretch you expect to flag.

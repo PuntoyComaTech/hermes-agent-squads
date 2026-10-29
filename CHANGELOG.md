@@ -3,6 +3,15 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.31.0 - 2026-10-28
+
+### Added
+
+- jobs 4.15.0: the review teaches the writer. A defect the reviewer corrects in a second opening becomes a line in
+  `<P>/writing-lessons.md` (`jobs-contract/scripts/lessons.py add`: one line, de-duplicated by wording, at most 25,
+  no contact data or confidential term), and the writer reads it before every draft. Lessons used to live only in the
+  reviewer's memory, so the writer repeated the same defects and every review corrected them again.
+
 ## 2.30.1 - 2026-10-28
 
 ### Fixed

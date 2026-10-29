@@ -12,6 +12,7 @@ Everything in `<P>` outside `openings/`: the person's material, search state, th
   companies/<slug>.md
   openings/<ID>/...                                       # references/opening-files.md
   tracker.csv
+  writing-lessons.md                                      # jobs-reviewer, lessons.py; read by jobs-writer
   reports/dashboard.html  reports/upskill-YYYY-MM-DD.md
   reports/inbox-YYYY-MM-DD.json  reports/followups/<ID>-<n>.md
   reports/evidence-YYYY-MM-DD.json                        # jobs-scout, Mode: EVIDENCE

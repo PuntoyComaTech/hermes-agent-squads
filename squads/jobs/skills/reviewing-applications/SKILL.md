@@ -77,7 +77,12 @@ second-round rule applies from N = 2: anything not approved is NOT_APPROVED.
      list in order (lens, type, location, mode, and the old/new pair or the instructions), copied verbatim, plus the
      `dropped_claims` list so the writer knows which company claims were removed and why.
    - NOT_APPROVED -> no card; the summary says so.
-7. `kanban_complete` with the verdict on one line.
+7. Teach the writer. For each correction whose defect you already corrected in another opening (your memory, an
+   earlier `review-N.json`), run `python3 "$HERMES_HOME/skills/squad-jobs/jobs-contract/scripts/lessons.py" add
+   --project <P> --source <ID> --text "<the rule the writer follows instead, one line>"`. The writer reads
+   `writing-lessons.md` before every draft; your memory alone never reaches it. A full list: merge two lines in the
+   file, then add again.
+8. `kanban_complete` with the verdict on one line.
 
 A file that names a `profile.md` `confidential_terms` entry comes back as a correction of lens `privacy`, added by the
 script itself: it blocks whatever the lens verdicts say, so the writer always gets it.

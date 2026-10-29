@@ -34,7 +34,7 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
 | `openings/<ID>/opening.md`, `analysis.json` | jobs-scout (`apply_url` also jobs-reviewer, through `apply_link.py`) | all |
 | `openings/<ID>/application/*`, `interview.md`, `profiles/*` | jobs-writer | all |
 | `reports/inbox-*.json`, `reports/followups/*` | jobs-inbox | all |
-| `openings/<ID>/review-N.json` | jobs-reviewer | all |
+| `openings/<ID>/review-N.json`, `writing-lessons.md` (through `lessons.py`) | jobs-reviewer | all |
 | `openings/<ID>/application/submission.json`, `kit.md` | jobs-applier | jobs, jobs-reviewer |
 | `openings/<ID>/status.json` | whoever acts, through `status.py append` only | all |
 
@@ -45,7 +45,7 @@ Shared rules of the jobs squad. File formats are in `references/`; the shared to
    (offline link verdict: verified, official_ats, job_board, new_platform or unverified; only `unverified`, a sign of
    fraud, stops an application; `official_hosts.json` records known platforms, it is never a gate), `apply_link.py`
    (sets `apply_url` in `opening.md` to the employer's own ATS posting found after intake; refuses a portal link),
-   `card_key.py` (the idempotency key of a card), `form_questions.py` (an ATS form's questions from its public API),
+   `card_key.py` (the idempotency key of a card), `lessons.py` (the review's recurring defects, read by the writer), `form_questions.py` (an ATS form's questions from its public API),
    `form_answer.py` (salary and notice-period values from `application-data.yaml`), `upload_copy.py` (prints the `CV_<Name>_<Surname>.pdf` to upload, written from `cv_ats.pdf` when missing or stale), `expand_candidates.py`
    (undeclared skills, projects and certificates, de-duplicated against achievements.yaml), `reset_project.py`
    (recoverable reset: a preview, then `--confirm RESET` moves entries to `.trash`). Never edit
