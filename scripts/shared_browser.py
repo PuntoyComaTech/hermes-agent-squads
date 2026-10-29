@@ -6,15 +6,7 @@ port. Bots reach it through `browser.cdp_url`; each bot run works in its own tab
 The owner signs in once per site in a normal, visible window on the same directory: no debugging port and no
 headless flag there, so sites that refuse automated sign-in (Google) accept it.
 
-The service browser resolves the Google private hosts (mail, drive, docs, the account console, passwords, payments,
-Gemini, Chat, Meet, Voice, Messages, Sites, NotebookLM, AI Studio, ...) and the two wildcard families (per-user
-`*.googleusercontent.com` storage, `*.mail.google.com`) to `~NOTFOUND` through `--host-resolver-rules`, so no tab it
-serves can reach them however its code builds the URL (a manifest `website_blocklist` only filters URL literals).
-What stays reachable on purpose: accounts.google.com (sign-in and the OAuth consent screens), google.com and
-www.google.com. The visible login window deliberately does not get that flag either.
-
-`status` reports `system_proxy` when macOS has an HTTP or HTTPS proxy enabled: a proxy makes Chrome send the request
-by name and skip the local resolver, so the containment could be bypassed there.
+The service browser reaches every site; nothing is blocked at the browser.
 
 Commands:
   status            is the service installed, is the browser listening, how many pages
@@ -33,7 +25,6 @@ import json
 import os
 import platform
 import plistlib
-import re
 import subprocess
 import sys
 import time
@@ -47,36 +38,6 @@ PROFILE_DIR = ROOT / "hermes"
 PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
 LOG = ROOT / "shared-browser.log"
 COMMON = ["--use-mock-keychain", "--password-store=basic", "--no-first-run", "--no-default-browser-check"]
-# Google's private pages stay out of reach of every tab of the service browser. `--host-resolver-rules` maps the
-# names to ~NOTFOUND, so the block holds for a redirect, a click, or a URL built at run time, not only for a URL
-# literal in the bot's code (a manifest website_blocklist only sees literals). accounts.google.com is never
-# blocked: signing in (and an OAuth consent grant) needs it. The visible `login` window gets no such flag.
-#
-# A Chromium `MAP *.host ~NOTFOUND` rule matches subdomains only, never the bare apex (verified against the managed
-# Chromium), so every apex this list means to block is named here and the wildcards only add their families.
-GOOGLE_PRIVATE_HOSTS = (
-    "mail.google.com", "drive.google.com", "docs.google.com", "myaccount.google.com",
-    "pay.google.com", "payments.google.com", "photos.google.com", "calendar.google.com",
-    "contacts.google.com", "inbox.google.com", "keep.google.com", "takeout.google.com",
-    "passwords.google", "passwords.google.com", "myactivity.google.com", "gemini.google.com",
-    "bard.google.com", "script.google.com", "chat.google.com", "meet.google.com", "voice.google.com",
-    "messages.google.com", "sites.google.com", "notebooklm.google.com", "aistudio.google.com")
-# Families, not single pages: per-user content on googleusercontent.com (mail attachments, Drive previews) and the
-# Apps Script / Gmail front doors under mail.google.com.
-GOOGLE_PRIVATE_PATTERNS = ("*.googleusercontent.com", "*.mail.google.com")
-# Reachable on purpose. Never add these to the two tuples above: sign-in, the OAuth consent grant, and the plain
-# search page are what the signed-in profile is for.
-GOOGLE_ALLOWED_HOSTS = ("google.com", "www.google.com", "accounts.google.com")
-
-
-def host_resolver_rules(hosts=GOOGLE_PRIVATE_HOSTS, patterns=GOOGLE_PRIVATE_PATTERNS) -> str:
-    """A Chromium `--host-resolver-rules` value that fails resolution for each host and wildcard pattern."""
-    return ",".join(f"MAP {name} ~NOTFOUND" for name in (*hosts, *patterns))
-
-
-CONTAINMENT_FLAG = f"--host-resolver-rules={host_resolver_rules()}"
-
-
 class ProbeError(RuntimeError):
     """A process probe failed: the answer is unknown, never "no browser holds the profile"."""
 
@@ -98,14 +59,14 @@ def chromium() -> str:
 
 
 def service_argv(exe: str, profile: Path | None = None, port: int | None = None) -> list[str]:
-    """The service browser's command line: headless, its own profile, and the Google private hosts unreachable."""
+    """The service browser's command line: headless, its own profile, a loopback debugging port."""
     return [exe, "--headless=new", f"--remote-debugging-port={port or PORT}",
             "--remote-debugging-address=127.0.0.1", f"--user-data-dir={profile or PROFILE_DIR}", *COMMON,
-            CONTAINMENT_FLAG, "about:blank"]
+            "about:blank"]
 
 
 def login_argv(exe: str, urls: list[str], profile: Path | None = None) -> list[str]:
-    """The visible sign-in window: same profile, no debugging port, and NOT the containment flag."""
+    """The visible sign-in window: same profile, no debugging port."""
     return [exe, f"--user-data-dir={profile or PROFILE_DIR}", *COMMON, *urls]
 
 
@@ -184,48 +145,13 @@ def wait_for(cond, seconds: float) -> bool:
     return cond()
 
 
-def system_proxy() -> dict[str, str]:
-    """host:port of each web proxy macOS reports enabled, keyed HTTP / HTTPS; {} when none or not macOS.
-
-    `--host-resolver-rules` is a resolver rule, and with a proxy Chrome sends the request to the proxy by name, so
-    the local resolver (and the Google refusal) can be skipped. `status` says so instead of implying containment.
-    """
-    if platform.system() != "Darwin":
-        return {}
-    try:
-        done = subprocess.run(["scutil", "--proxy"], capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return {}
-    if done.returncode != 0:
-        return {}
-    values = {key: value for key, value in re.findall(r"^\s*(\w+)\s*:\s*(\S.*?)\s*$", done.stdout, re.MULTILINE)}
-    out = {}
-    for scheme in ("HTTP", "HTTPS"):
-        host = values.get(f"{scheme}Proxy")
-        if values.get(f"{scheme}Enable") == "1" and host:
-            port = values.get(f"{scheme}Port")
-            out[scheme.lower()] = f"{host}:{port}" if port else host
-    return out
-
-
 def cmd_status(_a) -> int:
     wanted = plist_bytes()
-    proxy = system_proxy()
     report = {"cdp_url": cdp_url(), "profile_dir": str(PROFILE_DIR), "service_installed": PLIST.is_file(),
               "service_loaded": platform.system() == "Darwin" and loaded(),
-              # False: the installed job predates a change to the service command line (the Google
-              # containment flag, the Chromium path); `install` rewrites and reloads it.
+              # False: the installed job predates a change to the service command line; `install` rewrites it.
               "plist_current": None if wanted is None else (PLIST.is_file() and PLIST.read_bytes() == wanted),
-              "google_hosts_blocked": list(GOOGLE_PRIVATE_HOSTS),
-              "google_patterns_blocked": list(GOOGLE_PRIVATE_PATTERNS),
-              "google_hosts_allowed": list(GOOGLE_ALLOWED_HOSTS),
-              "listening": listening(),
-              # A system proxy sends the request by name, so the resolver refusal may never be consulted.
-              "system_proxy": {"proxies": proxy,
-                               "warning": "macOS has a web proxy enabled: Chrome may send the request by host name, "
-                                          "skipping the local resolver, so the Google host containment is not "
-                                          "guaranteed. Clear the proxy or verify the browser yourself."}
-              if proxy else None}
+              "listening": listening()}
     print(json.dumps(report))
     return 0
 

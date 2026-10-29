@@ -2143,7 +2143,7 @@ def test_a_manager_whose_toolsets_include_the_browser_may_share_the_browser(env,
 
 def test_shared_browser_apply_reinstalls_a_stale_job(env, capsys, monkeypatch):
     """The service is listening but its installed job differs from the current command line (an older plist: no
-    Google containment flag, a moved Chromium). Apply must reinstall it, not report it as running."""
+    service command line, a moved Chromium). Apply must reinstall it, not report it as running."""
     seen = _service_calls(monkeypatch, listening={"browser": "Chrome/145", "pages": 1}, status_extra={
         "plist_current": False, "service_installed": True})
     env.squad("web", _shared)

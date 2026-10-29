@@ -2,7 +2,7 @@ schema: 2
 key: jobs
 name: Jobs
 description: "Personalised job search: finds, ranks and analyzes openings, writes, reviews, applies and tracks tailored applications"
-version: 4.15.0
+version: 4.16.0
 
 hermes_requires: ">=0.22.0"
 board: {slug: jobs, name: Jobs, icon: "💼", color: "#2B8A3E", description: "Job search: search, rank, analysis, CV, review, apply, follow-up"}
@@ -40,10 +40,7 @@ bots:
               analyzing-jobs, jobs-contract]
       keep: [bundled:blocked-page-recovery]
     plugins: {enable: [disk-cleanup]}
-    # The shared browser is signed in to Google. Its service cannot resolve these hosts at all; this list only
-    # catches URLs written literally in a browser_exec call.
-    website_blocklist: &google_private [mail.google.com, drive.google.com, docs.google.com, myaccount.google.com,
-                                        pay.google.com, photos.google.com, calendar.google.com, contacts.google.com]
+    website_blocklist: []   # empty clears the blocklist an earlier version installed
     requires: {apps: [bun]}
   jobs-writer:
     role: worker
@@ -57,7 +54,7 @@ bots:
       squad: [writing-applications, optimizing-profiles, rendering-cv, preparing-interviews, jobs-contract]
       keep: [bundled:humanizer, bundled:docx, bundled:pdf]
     plugins: {enable: [disk-cleanup]}
-    website_blocklist: *google_private
+    website_blocklist: []
   jobs-reviewer:
     role: worker
     title: Jobs reviewer
@@ -78,7 +75,7 @@ bots:
     shared_browser: true
     skills: {squad: [submitting-applications, jobs-contract]}
     plugins: {enable: [disk-cleanup]}
-    website_blocklist: *google_private
+    website_blocklist: []
   jobs-inbox:
     role: worker
     title: Jobs inbox

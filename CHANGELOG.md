@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.32.0 - 2026-10-28
+
+### Changed
+
+- The shared browser blocks no site. Its service no longer maps Gmail, Drive, Docs, Gemini, AI Studio and other
+  Google apps to `~NOTFOUND`, so a bot can use Gemini there; `status` drops the blocked-host lists and the proxy
+  warning. jobs 4.16.0: scout, writer and applier clear their `website_blocklist`.
+
 ## 2.31.0 - 2026-10-28
 
 ### Added

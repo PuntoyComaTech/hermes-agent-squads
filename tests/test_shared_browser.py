@@ -78,96 +78,13 @@ def test_a_failed_pgrep_is_an_error_never_an_empty_answer(tmp_path, monkeypatch,
     assert "cannot tell whether a browser holds" in capsys.readouterr().err
 
 
-# --- the Google containment flag (#5, NEW 1) ----------------------------------------------------------------------
+# --- no host is blocked: bots use any site, Google apps included -------------------------------------------------
 
-# The pages QA reached on a service-argv Chromium, spelled out here so the module constant cannot quietly lose one.
-QA_GOOGLE_HOSTS = ("passwords.google", "passwords.google.com", "myactivity.google.com", "payments.google.com",
-                   "pay.google.com", "gemini.google.com", "bard.google.com", "script.google.com", "chat.google.com",
-                   "meet.google.com", "voice.google.com", "messages.google.com", "sites.google.com",
-                   "notebooklm.google.com", "aistudio.google.com")
-
-
-def _rule_hosts(flag: str) -> set[str]:
-    """The hosts and patterns a --host-resolver-rules value names, never a substring of one."""
-    assert flag.startswith("--host-resolver-rules=")
-    return {rule.split()[1] for rule in flag.split("=", 1)[1].split(",")}
-
-
-def test_the_service_job_blocks_every_google_private_host_and_the_login_window_does_not(tmp_path):
-    """One constant host list, one flag: the headless service carries it, the visible sign-in window never does."""
-    argv = sb.service_argv("/opt/chrome", profile=tmp_path / "profile", port=9333)
-    flag = next((a for a in argv if a.startswith("--host-resolver-rules=")), "")
-    assert flag, f"the service command line has no --host-resolver-rules: {argv}"
-    rules = _rule_hosts(flag)
-    for host in (*sb.GOOGLE_PRIVATE_HOSTS, *QA_GOOGLE_HOSTS):
-        assert f"MAP {host} ~NOTFOUND" in flag, host
-        assert host in sb.GOOGLE_PRIVATE_HOSTS, host
-    for pattern in ("*.googleusercontent.com", "*.mail.google.com"):
-        assert f"MAP {pattern} ~NOTFOUND" in flag, pattern
-        assert pattern in sb.GOOGLE_PRIVATE_PATTERNS and pattern in rules
-    # Sign-in, its OAuth consent screens and the plain search page stay reachable. Checked per rule, because
-    # "google.com" is a substring of every blocked host.
-    for allowed in ("google.com", "www.google.com", "accounts.google.com"):
-        assert allowed not in rules, f"{allowed} must stay reachable"
-        assert allowed not in sb.GOOGLE_PRIVATE_HOSTS and allowed not in sb.GOOGLE_PRIVATE_PATTERNS
-        assert allowed in sb.GOOGLE_ALLOWED_HOSTS
-    job = sb.service_plist("/opt/chrome")
-    assert flag in job["ProgramArguments"], "the plist must change, so `install` rewrites and reloads it"
-    login = sb.login_argv("/opt/chrome", ["https://accounts.google.com/"])
-    assert not any(a.startswith("--host-resolver-rules") for a in login), "sign-in must not be blocked"
-    assert not any(a.startswith("--remote-debugging") for a in login), "no debugging port on the login window"
-    assert f"--user-data-dir={sb.PROFILE_DIR}" in login
-
-
-# --- `status` tells the owner when a system proxy could bypass that resolution (NEW 1, the proxy doubt) ----------
-
-SCUTIL_PROXY_ON = """<dictionary> {
-  ExceptionsList : <array> {
-    0 : *.local
-    1 : 169.254/16
-  }
-  FTPPassive : 1
-  HTTPEnable : 1
-  HTTPPort : 8080
-  HTTPProxy : proxy.corp.example
-  HTTPSEnable : 1
-  HTTPSPort : 8443
-  HTTPSProxy : proxy.corp.example
-}
-"""
-
-
-def _status_with(monkeypatch, capsys, scutil_out: str) -> dict:
-    monkeypatch.setattr(sb.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(sb, "loaded", lambda: False)  # never call launchctl
-    monkeypatch.setattr(sb, "listening", lambda: None)
-
-    def fake_run(argv, *a, **k):
-        assert argv == ["scutil", "--proxy"], argv
-        return subprocess.CompletedProcess(argv, 0, scutil_out, "")
-
-    monkeypatch.setattr(sb.subprocess, "run", fake_run)
-    assert sb.main(["status"]) == 0
-    return json.loads(capsys.readouterr().out)
-
-
-def test_status_warns_when_macos_has_a_web_proxy(monkeypatch, capsys):
-    """A proxy sends CONNECT by name, so Chrome can skip the local resolver and the containment with it.
-
-    `status` must say that instead of reporting the host list as if it held unconditionally.
-    """
-    report = _status_with(monkeypatch, capsys, SCUTIL_PROXY_ON)
-    assert report["system_proxy"]["proxies"] == {"http": "proxy.corp.example:8080",
-                                                 "https": "proxy.corp.example:8443"}
-    warning = report["system_proxy"]["warning"].lower()
-    assert "proxy" in warning and "containment" in warning
-    assert "mail.google.com" in report["google_hosts_blocked"]
-
-
-def test_status_reports_no_proxy_warning_when_macos_has_none(monkeypatch, capsys):
-    report = _status_with(monkeypatch, capsys, "<dictionary> {\n  FTPPassive : 1\n}\n")
-    assert report["system_proxy"] is None
-    assert "*.googleusercontent.com" in report["google_patterns_blocked"]
+def test_the_service_job_blocks_no_host():
+    """The owner wants the bots free: neither the service nor the sign-in window carries a resolver rule."""
+    for argv in (sb.service_argv("/opt/chrome"), sb.service_plist("/opt/chrome")["ProgramArguments"],
+                 sb.login_argv("/opt/chrome", ["https://accounts.google.com/"])):
+        assert not any(a.startswith("--host-resolver-rules") for a in argv), argv
 
 
 def _page_socket(port: int, match: str = "about:blank") -> tabs.Cdp:
@@ -242,17 +159,14 @@ def local_site():
 
 
 @needs_chromium
-def test_a_service_browser_cannot_reach_the_google_private_hosts(tmp_path, local_site):
-    """Real containment, on its own Chromium, port and temp profile (never the owner's service or profile).
+def test_a_service_browser_reaches_google_apps(tmp_path, local_site):
+    """The service command line, on its own Chromium, port and temp profile, loads Gemini and Gmail hosts.
 
-    The service command line is used verbatim apart from the profile and port, so the flag under test is the one the
-    launchd job carries. Every listed host, and a page under each wildcard family, must fail to resolve with
-    net::ERR_NAME_NOT_RESOLVED (a resolver refusal needs no network), while a local page still loads.
+    Used verbatim apart from the profile and port, so a block re-added to `service_argv` fails here.
     """
     port = _free_port()
-    args = _service_args(tmp_path / "svc", port)
-    assert any(a.startswith("--host-resolver-rules=") for a in args), args
-    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen(_service_args(tmp_path / "svc", port), stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
     try:
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
@@ -263,26 +177,16 @@ def test_a_service_browser_cannot_reach_the_google_private_hosts(tmp_path, local
                 time.sleep(0.2)
         else:
             pytest.fail("the service Chromium did not open its CDP port")
-        cdp = tabs.Cdp(port)
-        assert cdp.pages(), "the service browser opened no page to navigate"
-        cdp.close()
         page = _page_socket(port, match="about:blank")
         try:
-            for host in (*sb.GOOGLE_PRIVATE_HOSTS, *QA_GOOGLE_HOSTS):
-                blocked = page.send("Page.navigate", url=f"https://{host}/")
-                assert blocked.get("errorText") == "net::ERR_NAME_NOT_RESOLVED", f"{host} resolved: {blocked}"
-            # The wildcard families: neither rule names these hosts, only *.googleusercontent.com / *.mail.google.com.
-            for host in ("lh3.googleusercontent.com", "mail-attachment.mail.google.com"):
-                blocked = page.send("Page.navigate", url=f"https://{host}/")
-                assert blocked.get("errorText") == "net::ERR_NAME_NOT_RESOLVED", f"{host} resolved: {blocked}"
             loaded = page.send("Page.navigate", url=local_site)
             assert not loaded.get("errorText"), loaded
             assert _wait_title(page, "shared-browser positive control") == "shared-browser positive control"
-            if _network():
-                assert not page.send("Page.navigate", url="https://www.google.com/").get("errorText"), \
-                    "google.com itself stays reachable"
-                assert not page.send("Page.navigate", url="https://accounts.google.com/").get("errorText"), \
-                    "sign-in stays reachable"
+            if not _network():
+                pytest.skip("no network to reach Google")
+            for host in ("gemini.google.com", "aistudio.google.com", "mail.google.com", "docs.google.com"):
+                reached = page.send("Page.navigate", url=f"https://{host}/")
+                assert not reached.get("errorText"), f"{host} blocked: {reached}"
         finally:
             page.close()
     finally:

@@ -124,9 +124,7 @@ Change the times through the builder; it keeps them in your local overlay.
   applier then reuse that session, each in its own tab, closed when it finishes. Nothing holds your password.
 - **Reading is light and read-only.** The scout opens LinkedIn hiring-post search only, a few searches a day; job
   listings come from the public portal tool. The writer opens only your own profile. A tool refuses every other page.
-- **Your Google data stays out of reach.** The bots' browser cannot resolve Gmail, Drive, Docs, passwords, payments,
-  activity, Gemini and other Google apps (`scripts/shared_browser.py`, `GOOGLE_PRIVATE_HOSTS`). The sign-in page
-  (accounts.google.com) stays reachable, so the bots' skills forbid consent screens and account settings.
+- **No site is blocked.** The bots' browser reaches every site, Gemini and other Google apps included.
 - **Risk:** LinkedIn's terms restrict automated access. A notice, verification or CAPTCHA stops all LinkedIn work for
   the day and tells you; the squad never types a password or solves a check. `linkedin_browse: false` switches it off.
 - **Other platforms:** the platform list comes from research per country. A recommended board the squad cannot search
