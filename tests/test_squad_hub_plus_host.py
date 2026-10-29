@@ -347,6 +347,20 @@ out.prefs = JSON.parse(w.store.get('prefs'))
     assert got["prefs"]["prefsVersion"] == 1, "and it is stamped as this plugin's own version"
 
 
+# ---- its own stylesheet is attached ----------------------------------------------------------------
+
+def test_its_own_stylesheet_is_attached_to_the_page_and_removed_on_dispose(desk):
+    """`CSS` (the settings page and credits styles) was built and never appended, so nothing it styled showed up."""
+    got = desk("""
+w.register()
+out.running = w.styles().filter(s => 'squadHubPlus' in s.dataset).length
+w.dispose()
+out.after = w.styles().filter(s => 'squadHubPlus' in s.dataset).length
+""")
+    assert got["running"] == 1, "the plugin's own <style> must be in the document while it runs"
+    assert got["after"] == 0
+
+
 # ---- disposing leaves nothing behind ---------------------------------------------------------------
 
 def test_disposing_the_plugin_removes_every_listener_timer_and_style(desk):

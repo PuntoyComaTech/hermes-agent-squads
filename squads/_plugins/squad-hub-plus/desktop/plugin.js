@@ -811,6 +811,7 @@ export default {
     const styleEl = document.createElement('style')
     styleEl.dataset.squadHubPlus = 'ui'
     styleEl.textContent = CSS
+    document.head.append(styleEl)
     ctx.onDispose(() => {
       styleEl.remove()
       ctxRef = null
