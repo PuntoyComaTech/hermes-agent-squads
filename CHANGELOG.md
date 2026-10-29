@@ -3,6 +3,15 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.30.1 - 2026-10-28
+
+### Fixed
+
+- jobs 4.14.1: the eligibility gate no longer reads "citizenship", "nationality" or "residency" in an equal-opportunity
+  or anti-discrimination statement as a requirement (`score_analysis.py` `EEO_RE`). A remote LATAM posting whose only
+  such word was its EEO boilerplate asked a Colombian citizen whether he was eligible. A clause that still states a
+  requirement ("and US citizenship is required") keeps its verdict.
+
 ## 2.30.0 - 2026-10-28
 
 ### Added

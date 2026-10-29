@@ -906,3 +906,51 @@ def test_residence_wording_in_a_region_without_the_candidates_country_still_fail
     body = "Remote. Applicants must be based in the European Union."
     _, written = decision_of(tmp_path, body, work_mode="remote_region:eu", profile=colombia_profile())
     assert written["gates"]["eligibility"] == "FAIL", written["gates"]["eligibility_note"]
+
+
+# --- equal-opportunity statements: protected classes are not requirements -------------------------------------------
+
+# A real case (2026-10-28): remote, hiring in seven LATAM countries; "citizenship" appears only in the EEO statement.
+KRAKEN_EEO = ("As an equal opportunity employer, we don't tolerate discrimination or harassment of any kind, whether "
+              "based on race, ethnicity, age, gender identity, citizenship, religion, sexual orientation, disability, "
+              "pregnancy, veteran status, or any other protected characteristic as outlined by federal, state, or "
+              "local laws.")
+EEO_STATEMENT = ("We are an equal opportunity employer; all qualified applicants will receive consideration without "
+                 "regard to race, colour, religion, sex, sexual orientation, gender identity, national origin, "
+                 "disability or veteran status.")
+LATAM_HIRING = ("hiring_countries: [BR, AR, CL, CO, MX, PE, UY]",)
+
+
+@pytest.mark.parametrize("statement", [
+    KRAKEN_EEO,
+    EEO_STATEMENT,
+    "No discriminamos por raza, religión, nacionalidad o ciudadanía.",
+    "Contratamos sin distinción de raza, ciudadanía o residencia.",
+    "Everyone is welcome regardless of race, citizenship, or religion.",
+])
+def test_citizenship_in_an_equal_opportunity_statement_is_not_an_eligibility_requirement(tmp_path, statement):
+    body = "Senior software engineer, remote. Python and Go. " + statement
+    _, written = decision_of(tmp_path, body, work_mode="remote_region:latam", front_extra=LATAM_HIRING,
+                             profile=colombia_profile())
+    assert written["gates"]["eligibility"] == "PASS", written["gates"]["eligibility_note"]
+    assert written["gates"]["eligibility_note"].startswith("eligibility_unverified")
+
+
+def test_a_real_requirement_next_to_an_equal_opportunity_statement_keeps_its_verdict(tmp_path):
+    body = EEO_STATEMENT + " Applicants must have the right to work in the country they are based in."
+    _, written = decision_of(tmp_path, body, work_mode="remote_region:latam", front_extra=LATAM_HIRING,
+                             profile=colombia_profile())
+    assert written["gates"]["eligibility"] == "FLAG"
+    assert "right to work" in written["gates"]["eligibility_note"]
+
+
+@pytest.mark.parametrize("body, work_mode, gate", [
+    ("US citizenship required for this role.", "remote_global", "FLAG"),
+    ("US citizenship required for this role.", "remote_country:US", "FAIL"),
+    ("We are an equal opportunity employer, and US citizenship is required.", "remote_global", "FLAG"),
+    ("We are an equal opportunity employer, and US citizenship is required.", "remote_country:US", "FAIL"),
+    ("Only residents of Brazil may apply.", "remote_global", "FLAG"),
+])
+def test_citizenship_and_residence_requirements_are_never_a_silent_pass(tmp_path, body, work_mode, gate):
+    _, written = decision_of(tmp_path, body, work_mode=work_mode, profile=colombia_profile())
+    assert written["gates"]["eligibility"] == gate, written["gates"]["eligibility_note"]

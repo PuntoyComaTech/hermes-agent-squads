@@ -98,6 +98,23 @@ AUTH_RE = re.compile(
     r"droit de travailler|security clearance|background clearance|clearance required|e ?verify|"
     r"ability to work legally|legally work)\b"
 )
+# An equal-opportunity or anti-discrimination statement. In such a sentence citizenship, nationality or immigration
+# status is an item of a list of protected classes, not a requirement.
+EEO_RE = re.compile(
+    r"\bequal (?:employment )?opportunit\w*|\bdiscriminat\w*|\bno discrimina\w*|\bwithout regard to\b|"
+    r"\bregardless of (?:race|colou?r|religion|sex|gender|age|ethnicity|national\w*|citizenship|disability)\b|"
+    r"\bbased on (?:race|colou?r|religion|sex|gender|age|ethnicity)\b|\bprotected (?:characteristic|class|status)\w*|"
+    r"\bigualdad de oportunidades\b|\bigualdade de oportunidades\b|\bsin distincion de\b|\bsem distincao de\b|"
+    r"\bchancengleichheit\b|\begalite des chances\b"
+)
+PROTECTED_RE = re.compile(
+    r"\b(?:citizenship(?: status)?|nationality|national origin|immigration status|residency(?: status)?|"
+    r"ciudadania|nacionalidad|origen nacional|estatus migratorio|condicion migratoria|residencia|cidadania|"
+    r"nacionalidade|staatsangehorigkeit|nationalite)\b"
+)
+# Requirement wording: a clause of an equal-opportunity sentence that carries it keeps its protected-class words.
+REQUIRE_RE = re.compile(r"\b(?:required|requirement|must|only|need\w*|requiere\w*|requisito|obligatori\w*|solo|"
+                        r"unicamente|erforderlich|exige\w*)\b")
 # H-1B is a US work visa. Without an offer it names a US authorisation, so it counts as authorisation for US.
 H1B_RE = re.compile(r"\bh ?1 ?b\b")
 # Wording about work status that no other pattern classified. For a sponsorship-dependent candidate it is a FLAG.
@@ -376,17 +393,29 @@ def _sentences(body: str):
 
 
 def _clauses(body: str):
-    """(clauses, instructions): each comma-separated clause as (text, addressed), and how many sentences are addressed.
+    """(clauses, instructions): each comma-separated clause as (text, addressed, eeo), and how many sentences are
+    addressed.
 
     A sentence addressed to an AI, a screener or a reviewer is an instruction, not the employer's wording: an offer
     inside it does not count as an offer. Refusals and residence wording still count, which is the safe direction.
+    eeo marks a clause of an equal-opportunity sentence: its protected-class words are dropped before classifying.
     """
     clauses, instructions = [], 0
     for sentence in _sentences(body):
         addressed = pg.addressed_to_model(sentence)
         instructions += 1 if addressed else 0
-        clauses.extend((raw.strip(), addressed) for raw in sentence.split(",") if raw.strip())
+        eeo = bool(EEO_RE.search(ss.fold(sentence)))
+        clauses.extend((raw.strip(), addressed, eeo) for raw in sentence.split(",") if raw.strip())
     return clauses, instructions
+
+
+def _fold_clause(raw: str, eeo: bool) -> str:
+    """The folded clause, without protected-class words when it sits in an equal-opportunity sentence and states no
+    requirement ("citizenship" in a list of protected classes; not "US citizenship required")."""
+    folded = ss.fold(raw)
+    if eeo and not REQUIRE_RE.search(folded):
+        folded = re.sub(r"\s+", " ", PROTECTED_RE.sub(" ", folded)).strip()
+    return folded
 
 
 def _restricted_country(opening_fm: dict):
@@ -498,8 +527,8 @@ def eligibility_wording(profile: dict, opening_fm: dict, body: str):
     raw_clauses, instructions = _clauses(body)
     market = profile_market(profile)
     clauses = []
-    for raw, addressed in raw_clauses:
-        folded = ss.fold(raw)
+    for raw, addressed, eeo in raw_clauses:
+        folded = _fold_clause(raw, eeo)
         countries = _countries_in(folded) | ({"US"} if H1B_RE.search(folded) else set())
         if not countries and market and market in _region_countries(folded):
             # "based in Europe or Latin America": a region that holds the candidate's country names that country.
