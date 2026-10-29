@@ -3,6 +3,16 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.35.1 - 2026-10-29
+
+### Fixed
+
+- squad-hub 2.1.1: Desktop chats show in the Squads list again. Hermes 0.22.5 stores a Desktop chat with source
+  `gui` or `local` and the surface in `created_source`; the list read `source` alone and dropped every new chat, so
+  they appeared only under Sessions. It now reads `created_source` first and accepts `gui`.
+- squad-hub-plus: its stylesheet is attached to the page, so floating sides and the title-bar side buttons work
+  (#25, by @angyearroyave).
+
 ## 2.35.0 - 2026-10-29
 
 ### Added

@@ -34,7 +34,10 @@ import { jsx, jsxs } from 'react/jsx-runtime'
 // ───────────────────────────── MODEL (pure) ─────────────────────────────
 // Everything between the MODEL markers is plain JS with no imports: the repo's
 // tests extract it and run it under node against real payload shapes.
-const HUMAN_SOURCES = new Set(['desktop', 'tui', 'cli'])
+const HUMAN_SOURCES = new Set(['desktop', 'gui', 'tui', 'cli'])
+/** Where a chat was started. Hermes now stores a Desktop chat's live label as `gui` or `local` and keeps the
+ *  surface in `created_source`; older rows have only `source`. */
+const chatSource = s => s.created_source || s.source
 const ROLE_ORDER = { default: 0, builder: 1, manager: 2, other: 3 }
 
 const trimPath = p => String(p || '').replace(/[/\\]+$/, '')
@@ -68,7 +71,7 @@ function botTitle(profile) {
  *  Kanban runs, one-shots, cron and subagents are the squad's own work. */
 function isHumanChat(s, now = Date.now() / 1000) {
   const fresh = now - (s.started_at || 0) < 600 // a chat just started shows at once; an unused one drops off
-  return HUMAN_SOURCES.has(s.source) && !s.hidden && !s.archived && ((s.message_count || 0) > 0 || Boolean(s.title) || fresh)
+  return HUMAN_SOURCES.has(chatSource(s)) && !s.hidden && !s.archived && ((s.message_count || 0) > 0 || Boolean(s.title) || fresh)
 }
 
 /** The Desktop section a profile is filed under (`ui_meta.hermes-bots.sectionName`), '' for none. */
@@ -1012,7 +1015,7 @@ async function loadChats(profiles) {
         .catch(() => [])
     )
   )
-  const rows = lists.flat().filter(s => !s.source || HUMAN_SOURCES.has(s.source))
+  const rows = lists.flat().filter(s => !chatSource(s) || HUMAN_SOURCES.has(chatSource(s)))
   const now = Date.now() / 1000
   for (const [id, chat] of pendingChats) {
     if (rows.some(x => x.id === id) || now - chat.started_at > 600) pendingChats.delete(id)

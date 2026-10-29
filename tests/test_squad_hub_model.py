@@ -316,6 +316,17 @@ def test_machine_made_chats_are_not_human_chats(model, source):
     assert model("isHumanChat", chat("c", "/w", source=source), 5000.0) is False
 
 
+@pytest.mark.parametrize("live", ["gui", "local", "desktop"])
+def test_a_desktop_chat_shows_whatever_live_label_hermes_stores(model, live):
+    """Hermes 0.22.5 stores a Desktop chat as source `gui` or `local` with created_source `desktop`: rows from
+    builder's state.db on 2026-10-29. Filtering on `source` alone dropped every new chat from the Squads list."""
+    assert model("isHumanChat", chat("c", "/w", source=live, created_source="desktop"), 5000.0) is True
+
+
+def test_a_gateway_local_row_made_by_a_machine_is_still_not_a_human_chat(model):
+    assert model("isHumanChat", chat("c", "/w", source="local", created_source="kanban"), 5000.0) is False
+
+
 def test_hidden_archived_and_stale_empty_chats_are_dropped_but_a_fresh_one_shows(model):
     now = 10000.0
     assert model("isHumanChat", chat("a", "/w", hidden=True), now) is False
