@@ -609,3 +609,23 @@ def test_the_machine_sweeps_once_although_every_squad_manager_carries_the_cron(t
     old = time.time() - 3 * 3600
     os.utime(stamp, (old, old))  # three hours later the next fire sweeps again
     assert subprocess.run(sweep, capture_output=True, text=True, env=env).returncode == 1
+
+
+def test_sweep_stops_a_copy_browser_only_when_its_profile_turned_real_profile_off(tmp_path):
+    """A bot's real-profile copy browser outlived the toggle for days and held the owner's Brave app."""
+    import shared_browser_sweep as sweep
+    procs = {}
+    for bot, on in (("off-bot", False), ("on-bot", True)):
+        home = tmp_path / "profiles" / bot
+        home.mkdir(parents=True)
+        (home / "config.yaml").write_text(f"browser:\n  use_real_profile: {'true' if on else 'false'}\n")
+        procs[bot] = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)",
+                                       f"--user-data-dir={home}/browser-profile/brave", "--remote-debugging-port=0"])
+    try:
+        time.sleep(0.3)
+        assert sweep.stop_stale_copy_browsers(tmp_path) == 1
+        assert procs["off-bot"].wait(timeout=5) is not None
+        assert procs["on-bot"].poll() is None
+    finally:
+        for p in procs.values():
+            p.kill()

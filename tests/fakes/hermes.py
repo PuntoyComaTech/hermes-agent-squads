@@ -393,6 +393,9 @@ def main():
             val = answers.pop(0).strip().lower() if answers else ""
             return val in {"y", "yes"} if val else default
 
+        if name_arg in (cfg.get("mcp_servers") or {}) and not ask(False):  # "Server 'x' already exists. Overwrite?"
+            print("Cancelled.")
+            return
         if url and ask(True):
             die("fake: the auth prompt was answered 'yes' (a bearer key would be asked for next)")
         enabled = False
@@ -404,7 +407,9 @@ def main():
         else:
             print("Cancelled.")
             return
-        cfg.setdefault("mcp_servers", {})[name_arg] = {"command": opt("--command"), "url": url, "enabled": enabled}
+        tail = args[args.index("--args") + 1:] if "--args" in args else []
+        cfg.setdefault("mcp_servers", {})[name_arg] = {"command": opt("--command"), "url": url, "enabled": enabled,
+                                                       **({"args": tail} if tail else {})}
         save(HOME / "config.yaml", cfg)
     elif cmd == "plugins":
         need_profile()

@@ -1977,11 +1977,17 @@ class Applier:
         have = cfg.get("mcp_servers") or {}
         acts = []
         for sname, srv in (bot.get("mcp") or {}).items():
-            if sname in have:
-                if not (have.get(sname) or {}).get("enabled", True):
+            cur = have.get(sname) or {}
+            # A changed command or args (a pinned version, --headless) is re-added: keeping the old line leaves the
+            # bot on the launch the manifest retired, a visible browser window included.
+            stale = sname in have and ((cur.get("url") != srv["url"]) if "url" in srv else
+                                       (cur.get("command"), list(cur.get("args") or [])) !=
+                                       (srv["command"], list(srv.get("args") or [])))
+            if sname in have and not stale:
+                if not cur.get("enabled", True):
                     pending.append(f"mcp {sname}: saved disabled, the probe failed; run `hermes -p {name} mcp test {sname}`")
                 continue
-            acts.append(f"mcp add {sname}")
+            acts.append(f"mcp {'update' if stale else 'add'} {sname}")
             if not self.dry:
                 tail = ["--url", srv["url"]] if "url" in srv else ["--command", srv["command"], "--args",
                                                                      *srv.get("args", [])]
@@ -1990,7 +1996,7 @@ class Applier:
                 # --url), then the tool picker's "Enable all N tools?" (_choose_tools); a stdio server only sees
                 # the picker. One lone `y` landed on the auth question, the picker read EOF and printed
                 # "Cancelled." with exit 0 — a server that was never written and never reported.
-                stdin = ("n\n" if "url" in srv else "") + "y\n"
+                stdin = ("y\n" if stale else "") + ("n\n" if "url" in srv else "") + "y\n"  # "Overwrite?" first
                 self.ctx.hermes("mcp", "add", sname, *tail, profile=name, stdin=stdin)
                 live = (read_yaml(self.ctx.home(name) / "config.yaml") or {}).get("mcp_servers") or {}
                 if not (live.get(sname) or {}).get("enabled", True):

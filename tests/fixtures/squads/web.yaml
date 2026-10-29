@@ -56,7 +56,8 @@ bots:
     skills: {squad: [reviewing-sites, site-contract], auto_load: reviewing-sites,
              keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
     plugins: {enable: [disk-cleanup]}
-    mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
+    mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@1.12.0", --headless, --isolated,
+                                                   --no-usage-statistics]}}
   web-deployer:
     role: worker
     title: Web deployer

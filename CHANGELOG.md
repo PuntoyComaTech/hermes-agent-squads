@@ -3,6 +3,18 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.33.1 - 2026-10-29
+
+### Fixed
+
+- Web 3.9.2: web-qa's chrome-devtools MCP runs headless and isolated, pinned to 1.12.0; it no longer opens a visible
+  Chrome on the owner's desktop.
+- `squadctl apply` re-adds an MCP server whose command or args changed in the manifest (`mcp update <name>`); an
+  installed server used to keep its old launch line forever.
+- The shared-browser sweep also stops a real-profile copy browser (`<profile>/browser-profile/<browser>`) whose
+  profile turned `browser.use_real_profile` off: Hermes never stops one it did not launch, and a leftover holds the
+  owner's browser app until a reboot.
+
 ## 2.33.0 - 2026-10-29
 
 ### Changed

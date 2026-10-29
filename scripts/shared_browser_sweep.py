@@ -5,7 +5,9 @@ The shared-browser-tabs plugin closes each run's tab when its turn ends. This sw
 harness daemons whose lease is older than --max-idle-hours or whose Hermes process is gone, then closes every page
 no daemon holds, in two checks --settle seconds apart. One blank page always stays. Every squad manager carries
 the same cron, but the browser is one per machine: a sweep that finds another one ran within --min-gap-minutes
-exits at once, so the machine sweeps once per 3 hours, not once per squad. Silent on success, so the cron
+exits at once, so the machine sweeps once per 3 hours, not once per squad. It also stops a real-profile copy browser
+(`<home>/browser-profile/<browser>`) whose profile has `browser.use_real_profile` off: Hermes never stops a copy
+browser it did not launch in the same process, so one left by a bot holds the owner's browser app until a reboot. Silent on success, so the cron
 delivers nothing; an unreachable browser is reported on stderr with exit 1. --verbose prints the counts.
 
 usage: sweep.py [--cdp-url URL] [--max-idle-hours H] [--settle S] [--verbose]
@@ -16,12 +18,54 @@ import argparse
 import fcntl
 import json
 import os
+import re
+import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import shared_browser_tabs as tabs  # noqa: E402
+
+
+COPY_DIR = re.compile(r"--user-data-dir=(\S+?)/browser-profile/[^/\s]+(?:\s|$)")
+
+
+def stale_copy_browsers(hermes_root: Path) -> list[int]:
+    """PIDs of real-profile copy browsers under `hermes_root` whose profile turned `use_real_profile` off.
+    Only the main process (no `--type=`): its helpers exit with it."""
+    out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+    pids = []
+    for line in out.splitlines():
+        pid, _, cmd = line.strip().partition(" ")
+        m = COPY_DIR.search(cmd)
+        if not m or "--type=" in cmd:
+            continue
+        home = Path(m.group(1))
+        if home != hermes_root and home.parent != hermes_root / "profiles":
+            continue
+        cfg = home / "config.yaml"
+        text = cfg.read_text() if cfg.is_file() else ""
+        if not re.search(r"^\s*use_real_profile:\s*true\s*$", text, re.M):
+            pids.append(int(pid))
+    return pids
+
+
+def stop_stale_copy_browsers(hermes_root: Path) -> int:
+    stopped = 0
+    for pid in stale_copy_browsers(hermes_root):
+        try:
+            os.kill(pid, signal.SIGTERM)
+            stopped += 1
+        except OSError:
+            pass
+    return stopped
+
+
+def default_root() -> Path:
+    home = Path(os.environ.get("HERMES_HOME") or Path.home() / ".hermes")
+    return home.parent.parent if home.parent.name == "profiles" else home
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,8 +78,12 @@ def main(argv: list[str] | None = None) -> int:
                         "time to attach)")
     p.add_argument("--min-gap-minutes", type=float, default=150.0,
                    help="skip when another sweep of this browser ran this recently (default 150)")
+    p.add_argument("--hermes-root", type=Path, default=None, help="Hermes root (default: from HERMES_HOME)")
     p.add_argument("--verbose", action="store_true", help="print the result even when nothing was closed")
     a = p.parse_args(argv)
+    copies = stop_stale_copy_browsers(a.hermes_root or default_root())
+    if copies and a.verbose:
+        print(json.dumps({"stale_copy_browsers": copies}))
     port = tabs.loopback_port(a.cdp_url)
     if port is None:
         print(json.dumps({"error": f"not a loopback CDP URL: {a.cdp_url}"}), file=sys.stderr)

@@ -2213,3 +2213,20 @@ def test_a_hermes_older_than_0_22_5_gets_no_delegation_routes(env, capsys):
     env.run("apply", "web", capsys=capsys)
     assert not [c for c in env.calls() if "advanced-delegation" in c["args"]]
     assert "backends" not in (env.config("web").get("delegation") or {})
+
+
+def test_mcp_with_changed_args_is_re_added_so_the_bot_drops_the_old_launch(env, capsys):
+    """An installed MCP kept its old args forever: web-qa stayed on a visible Chrome after the manifest went headless."""
+    def old(spec):
+        spec["bots"]["web-qa"]["mcp"] = {"chrome-devtools": {"command": "npx", "args": ["-y", "chrome-devtools-mcp@1"]}}
+    env.squad("web", old)
+    env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    assert env.config("web-qa")["mcp_servers"]["chrome-devtools"]["args"] == ["-y", "chrome-devtools-mcp@1"]
+    env.squad("web")
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    (qa,) = out["bots"]
+    assert "mcp update chrome-devtools" in qa["actions"]
+    srv = env.config("web-qa")["mcp_servers"]["chrome-devtools"]
+    assert "--headless" in srv["args"] and "--isolated" in srv["args"] and srv["enabled"] is True
+    _, out = env.run("apply", "web", "--bots", "web-qa", capsys=capsys)
+    assert not any(a.startswith("mcp ") for a in out["bots"][0].get("actions", []))  # unchanged args: no re-add

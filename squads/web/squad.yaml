@@ -1,7 +1,7 @@
 schema: 2
 key: web
 name: Web
-version: 3.9.1
+version: 3.9.2
 description: "Interviews the user, builds, reviews and deploys a website or web app, one site per project"
 hermes_requires: ">=0.22.0"
 board: {slug: web, name: Web, icon: "🌐", color: "#2F6FEB", description: "Web sites: interview, build, preview, QA, deploy"}
@@ -61,7 +61,8 @@ bots:
     skills: {squad: [reviewing-sites, site-contract], auto_load: reviewing-sites,
              keep: [official:dogfood/adversarial-ux-test, bundled:requesting-code-review]}
     plugins: {enable: [disk-cleanup]}
-    mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@latest"]}}
+    mcp: {chrome-devtools: {command: npx, args: [-y, "chrome-devtools-mcp@1.12.0", --headless, --isolated,
+                                                   --no-usage-statistics]}}
     requires: {apps: [brew]}
   web-deployer:
     role: worker
