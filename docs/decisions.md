@@ -110,11 +110,14 @@
   the app only through host doors: `host.listPersistedSessions` per bot, `host.requestProfile` for `session.archive` /
   `session.title` / `projects.project_sessions`, the SDK unread functions instead of the app's private unread key, and
   `ctx.rest` against its own GET-only backend (`dashboard/plugin_api.py` on `hermes_cli.kanban_db`) for boards and
-  cards, because there is no SDK door to another plugin's REST. No feature is deleted: floating sides, hiding the
-  profile rail and Bots tab, the `.env` double-click and list, git worktrees, the native folder picker, the PR/dirty
-  chips and the Kanban page's board preselection live in the repo-only `squad-hub-plus`, which `squadctl apply` installs
+  cards, because there is no SDK door to another plugin's REST. Floating sides, git worktrees, the native folder picker,
+  the worktree status Clean up reads and the Kanban page's board preselection live in the repo-only `squad-hub-plus`, which `squadctl apply` installs
   and enables beside `squad-hub` on the same managers (same opt-out), never through the catalog. The two talk through
   `squad-hub:<action>` DOM events: plus takes an action with `preventDefault()` and squad-hub then skips its SDK
   fallback (a typed folder path, the exact `git worktree …` command on the clipboard, the folder revealed in the file
-  manager, no chips). A feature moves back into the catalog copy as its upstream issue lands: rail/pane hiding
-  NousResearch/hermes-agent#146513, auto-hide zones #146514, a worktree verb #146515.
+  manager). Hiding the Bots tab and the profile selector, the `.env` double-click and the worktree PR chips were
+  retired, not moved: they changed Hermes' own window without adding to the squads view. The crons pane is drawn with
+  the SDK pieces Bot Mode's Cronjobs pane uses (`RowButton`, `Switch`, `relativeTime`, `nextRunOverdueMs`, the app's
+  `cron` strings) so it follows Hermes' look; Bot Mode's `RoutinesPane` itself is not exported and is scoped to one
+  bot. A feature moves back into the catalog copy as its upstream issue lands: auto-hide zones
+  NousResearch/hermes-agent#146514, a worktree verb #146515.

@@ -200,7 +200,14 @@ export async function boot({ pluginPath, secondPluginPath = null, stored = {}, l
     requestTheme: () => {},
     // Desktop's unread store (store/session-unread.ts): what the plugin asked it to clear, per profile bucket
     ackStoredSessionId: (id, profile) => calls.push({ via: 'unread', method: 'ack', params: [id, profile] }),
-    forgetSessionUnread: (ids, profile) => calls.push({ via: 'unread', method: 'forget', params: [ids, profile] })
+    forgetSessionUnread: (ids, profile) => calls.push({ via: 'unread', method: 'forget', params: [ids, profile] }),
+    // the app's own cron pieces (Bot Mode's Cronjobs row is built from these): named so a test can tell them apart
+    Switch: function Switch() {}, RowButton: function RowButton() {}, PanelEmpty: function PanelEmpty() {}, GlyphSpinner: function GlyphSpinner() {},
+    Button: function Button() {}, Tip: function Tip() {}, Codicon: function Codicon() {},
+    cn: (...a) => a.filter(Boolean).join(' '),
+    useI18n: () => ({ t: { common: { delete: 'Delete' }, cron: { title: 'Scheduled jobs', next: 'Next:', overdueSince: 'Overdue since:', states: { paused: 'paused' }, emptyTitleNew: 'No scheduled jobs yet', failedUpdate: 'Could not update' } } }),
+    relativeTime: ms => 'at ' + new Date(ms).toISOString(),
+    nextRunOverdueMs: job => (Date.parse(job.next_run_at) < Date.now() - 15 * 60 * 1000 ? 1 : null)
   }
   globalThis.__SQH_SDK__ = sdk
 

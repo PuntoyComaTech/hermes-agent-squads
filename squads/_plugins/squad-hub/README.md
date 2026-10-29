@@ -9,7 +9,7 @@ replies) runs on every squad manager once `squadctl apply` installs it.
 
 This package is the **catalog copy**: everything it does runs on the Desktop plugin SDK (host doors, `ctx.os`,
 `ctx.storage`, `ctx.rest`, slots and areas, gateway RPC). The features that need more than the SDK offers — floating
-sides, hiding Desktop's profile rail and Bots tab, the `.env` double-click, git worktrees, the native folder picker —
+sides, git worktrees, the native folder picker —
 live in the repo-only companion **`squad-hub-plus`** (`squads/_plugins/squad-hub-plus`), which `squadctl apply`
 installs beside this plugin on the same managers. With it installed nothing is missing; without it the list still
 works, and the actions it cannot perform copy the exact command instead. The two talk through DOM events
@@ -36,8 +36,7 @@ Screenshots use invented projects and boards.
 
 - **One list, no profile switch.** A chat opens as a tab under its own bot, so several bots and projects stay open
   side by side. Opening one never reloads the window.
-- **Desktop's own controls stay.** The profile selector and the Bots tab are still there; `squad-hub-plus` can hide
-  them if Squads is all you use.
+- **Desktop's own controls stay.** The profile selector and the Bots tab are untouched.
 - **Only the bots you talk to.** Default, the builder and squad managers; squad workers never show. A bot filed alone
   in its own Desktop section stands beside the managers; any other bot shows under "Other bots" only while it has chats. Hide or pin any of them in Settings > Plugins > Hermes Agent Squads Hub.
 - **Projects with several folders, each with its own worktrees.** "+" on a project, folder or worktree starts a chat
@@ -69,15 +68,15 @@ Screenshots use invented projects and boards.
   side buttons, ⌘B and ⌘J dock a side (the chat narrows to make room, and it stays docked after a restart) or release
   it to float again. Drag a shown side's inner edge to resize it (double-click resets); the width is kept. The chat keeps a small margin so the edges stay free. The width you drag
   between the chat and a preview is kept. It works over a preview too, and whatever your layout; a side that cannot float keeps Desktop's own button.
-- **Squads layout.** The **Squads** layout (Layout editor in the title bar) puts files over a short terminal on the right,
-  and the squad's crons beside them. The terminal takes typing while its side is shown, floating or docked.
-- **The squad's crons.** A **Crons** pane (right of the files) lists every scheduled job of the squad of the chat in
-  view: its name, the bot that runs it, what it does, its schedule in words, when it runs next and whether its last run
-  failed. Paused jobs go last; a click opens that bot's Scheduled jobs page.
+- **Squads layout.** The **Squads** layout (Layout editor in the title bar) has three columns: the list, the chat, and
+  on the right the squad's crons (a tab beside the files) over a short terminal. It fits Desktop's first-launch window
+  with the chat at about 600 px. The terminal takes typing while its side is shown, floating or docked.
+- **The squad's crons.** A **Crons** pane on the right lists every scheduled job of the squad of the chat in view, one
+  card each built from the same Desktop pieces as Bot Mode's Cronjobs pane (switch, schedule pill, next run in Hermes'
+  own words), plus the bot that runs it and what it does. The switch pauses or resumes the job on its bot; the title
+  opens that bot's Scheduled jobs page. Paused jobs go last.
 - **Env files.** A project's `.env` files hold secrets, so Desktop's viewer refuses them. "Env files…" on a folder or
-  project reveals the folder in the file manager; `squad-hub-plus` lists the files and opens one in your editor (and
-  offers the double-click in the file tree, a switch in its settings). A name an OS could run (`.env.bat`,
-  `.env.command`, `.env.sh`) is never taken for an env file. The plugin never reads a file.
+  project reveals the folder in the file manager, where your editor opens them. The plugin never reads a file.
 - **Everything that needs you, one key away.** The status bar counts chats working or unread across every bot (click
   for the list); `⌘⇧U` jumps to the next one. A new chat shows whose it is and where it works. `@` in the composer
   offers the project's folders and worktrees. A project's menu opens the browser and sets the project's icon and
@@ -98,8 +97,6 @@ Screenshots use invented projects and boards.
   manager, the card named in the draft). Clear one or **Clear all**; a card comes back only if it blocks again. With
   Hermes in the background a system notification (and a line from the pet, if one is out) tells you a new card needs
   you; a switch turns it off.
-- **Pull requests per worktree.** An open folder's main checkout and worktrees show their PR (open, draft, merged) and
-  uncommitted changes; a click opens the PR.
 - **Cards in the chat.** A manager that files or reports a Kanban card shows it as a live card (state, assignee,
   summary, details and its board). The agent half of the plugin adds the card when the reply forgot it, in Desktop
   chats only. With Desktop's Kanban plugin off, a board link opens Capabilities > Plugins to turn it on.
@@ -115,8 +112,8 @@ Screenshots use invented projects and boards.
 - **A quieter window.** Any sidebar row can be hidden in the plugin's settings.
 
 Every change to Desktop's own window that the SDK allows (hidden sidebar rows, the Squads theme, the layout) is a
-switch in **Settings > Plugins > Hermes Agent Squads Hub**; the rest (floating sides, hidden Bots tab and profile
-selector, the `.env` double-click) is in **Settings > Plugins > Squads Hub Plus**.
+switch in **Settings > Plugins > Hermes Agent Squads Hub**; floating sides are in **Settings > Plugins > Squads Hub
+Plus**.
 
 Not changed by the plugin: the Sessions tab, Files, Review, Terminal, artifacts, cron and the Kanban board itself (the
 plugin only reads them, and picks the board the Kanban page shows).

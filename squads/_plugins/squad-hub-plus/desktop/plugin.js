@@ -5,10 +5,8 @@
 // SDK does not have yet, and they are not deleted: they live here, and `squadctl` installs this plugin
 // beside squad-hub on every manager (never through the catalog).
 //
-//   * hiding Desktop's own profile rail and Bots tab          -> NousResearch/hermes-agent#146513
 //   * auto-hiding (floating) layout sides and their grips     -> NousResearch/hermes-agent#146514
 //   * creating/removing git worktrees from a plugin           -> NousResearch/hermes-agent#146515
-//   * opening an .env file in the OS editor (double-click)    -> no SDK verb for a sensitive file
 //   * a native multi-folder picker (ctx.os.pickOpenPath is one file) -> no directory mode
 //   * the Kanban page's own board preselection (its localStorage slug + its menu)
 //
@@ -19,7 +17,6 @@
 //   squad-hub:worktree-add    { folder, name, branch, base }  -> plus runs `git worktree add`
 //   squad-hub:worktree-remove { folder, path }                -> plus runs `git worktree remove`
 //   squad-hub:open-board      { slug, name }                  -> plus preselects the board
-//   squad-hub:env-files       { folder }                      -> plus lists the folder's env files
 //   squad-hub:lane-chips      { folder, lanes }               -> plus answers with `squad-hub:lane-status`
 // This plugin dispatches back:
 //   squad-hub:folders-picked  { id, paths }                   -> the folders the user chose
@@ -95,30 +92,14 @@ const isReveal = (previous, signature, side) =>
   previous !== undefined && signature !== previous && !signature.includes(':min') && side.groups.length > 0 && !side.open && !side.pinned
 
 
-/** Env files people edit by hand: `.env`, `.env.local`, `.env.production`… Never a shared template
- *  (`.env.example`), and never a name an OS could run: `.env.bat` / `.env.command` / `.env.sh` are
- *  refused by their suffix, so no capture handler here can ever hand an executable to the OS. */
-const ENV_TEMPLATES = new Set(['example', 'sample', 'template', 'dist'])
-const ENV_EXEC_SUFFIXES = new Set(['bat', 'cmd', 'command', 'exe', 'sh', 'ps1', 'app', 'com', 'scr', 'vbs', 'js', 'msi'])
-function isEnvFile(name) {
-  const m = /^\.env((?:\.[A-Za-z0-9_-]+)*)$/.exec(String(name || ''))
-  if (!m) return false
-  const parts = m[1] ? m[1].slice(1).split('.') : []
-  if (!parts.length) return true
-  if (ENV_TEMPLATES.has(parts[parts.length - 1])) return false
-  return !parts.some(part => ENV_EXEC_SUFFIXES.has(part.toLowerCase()))
-}
-
 /** This plugin's prefs, brought once to its defaults. A user who had squad-hub before the split keeps the
  *  choices those settings carried: they are read once from squad-hub's own storage key. */
 const PREFS_VERSION = 1
-const DEFAULT_PREFS = { floatSides: true, envDoubleClick: true, hideRail: false, hideBotsTab: false, prefsVersion: PREFS_VERSION }
+const DEFAULT_PREFS = { floatSides: true, prefsVersion: PREFS_VERSION }
 const LEGACY_PREFS_KEY = 'hermes.plugin.squad-hub.prefs'
 function upgradePrefs(stored, defaults, legacy) {
   const base = stored || legacy || null
-  const p = { ...defaults, ...(base || {}) }
-  const from = base ? Number(base.prefsVersion) || 0 : PREFS_VERSION
-  if (from < 2 && base && 'floatSides' in base) p.floatSides = base.floatSides !== false
+  const p = { ...defaults, floatSides: base && 'floatSides' in base ? base.floatSides !== false : defaults.floatSides }
   p.prefsVersion = PREFS_VERSION
   return p
 }
@@ -126,7 +107,7 @@ function upgradePrefs(stored, defaults, legacy) {
 
 // ───────────────────────────── host wiring ─────────────────────────────
 const {
-  host, atom, useValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Button, Codicon
+  host, atom, useValue, Button
 } = sdk
 
 const ID = 'squad-hub-plus'
@@ -137,36 +118,22 @@ const h = (type, props, ...kids) => {
 
 const MESSAGES = {
   en: {
-    setup: 'Workspace', envDoubleClick: 'Open .env files on double-click',
-    envDoubleClickHint: 'In the file tree they open in your system editor; off leaves the tree as Hermes made it.',
-    hideBotsTab: 'Hide the Bots tab', hideBotsTabHint: 'Squads replaces it: bots, projects and chats live in one list.',
-    hideRail: 'Hide the profile selector',
-    hideRailHint: 'The bottom strip that switches the whole window between bots. Squads opens each chat under its own bot instead.',
+    setup: 'Workspace',
     floatSides: 'Floating sides',
     floatSidesHint: 'The left list and the right files/terminal take no width: bring the pointer near a screen edge and they slide over the chat, then hide when you leave. The side buttons in the title bar dock them beside the chat.',
     layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.',
     layoutPick: 'Pick “Squads” under Layout.', creditsBy: 'Made by', creditsPart: 'part of',
     cmdFloat: 'Squads: floating sides on/off', cmdPinLeft: 'Squads: pin or hide the left side',
-    cmdPinRight: 'Squads: pin or hide the right side',
-    envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer; each opens in your editor for that file.',
-    openInEditor: 'Open in editor', noEnv: 'No .env file in this folder.',
-    envOpenFailed: 'Could not open it. Is an app set to open this file type?', close: 'Close'
+    cmdPinRight: 'Squads: pin or hide the right side'
   },
   es: {
-    setup: 'Espacio de trabajo', envDoubleClick: 'Abrir los .env con doble clic',
-    envDoubleClickHint: 'En el árbol de archivos se abren en tu editor del sistema; apagado deja el árbol como lo hace Hermes.',
-    hideBotsTab: 'Ocultar la pestaña Bots', hideBotsTabHint: 'Squads la reemplaza: bots, proyectos y chats en una sola lista.',
-    hideRail: 'Ocultar el selector de perfiles',
-    hideRailHint: 'La franja de abajo que cambia toda la ventana de bot. Squads abre cada chat bajo su propio bot.',
+    setup: 'Espacio de trabajo',
     floatSides: 'Costados flotantes',
     floatSidesHint: 'La lista izquierda y los archivos/terminal de la derecha no ocupan ancho: acerca el puntero a un borde y se deslizan sobre el chat; al salir se ocultan. Los botones laterales de la barra de título los acoplan junto al chat.',
     layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.',
     layoutPick: 'Elige “Squads” en Layout.', creditsBy: 'Hecho por', creditsPart: 'parte de',
     cmdFloat: 'Squads: costados flotantes sí/no', cmdPinLeft: 'Squads: fijar u ocultar el costado izquierdo',
-    cmdPinRight: 'Squads: fijar u ocultar el costado derecho',
-    envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor; cada uno se abre en tu editor para ese archivo.',
-    openInEditor: 'Abrir en el editor', noEnv: 'No hay archivo .env en esta carpeta.',
-    envOpenFailed: 'No se pudo abrir. ¿Hay una app asignada a este tipo de archivo?', close: 'Cerrar'
+    cmdPinRight: 'Squads: fijar u ocultar el costado derecho'
   }
 }
 const fmt = (s, ...a) => String(s).replace(/\{(\d+)\}/g, (_, i) => a[i] ?? '')
@@ -193,7 +160,6 @@ const prefsAtom = atom({ ...DEFAULT_PREFS })
 const savePrefs = patch => {
   prefsAtom.set({ ...prefsAtom.get(), ...patch })
   storage?.set('prefs', prefsAtom.get())
-  applyChrome()
   applyFloat()
 }
 const usePrefs = () => useValue(prefsAtom)
@@ -640,22 +606,6 @@ function startFloat() {
   paintFloat()
 }
 
-/** A double-click on an env file in Desktop's file tree hits its sensitive-file block ("Preview unavailable"): open
- *  it in the system editor instead. Capture phase, so core's handler never runs for these rows; every other file
- *  keeps core's preview. */
-function onTreeDoubleClick(e) {
-  if (prefsAtom.get().envDoubleClick === false) return
-  const item = e.target?.closest?.('[role="treeitem"]')
-  if (!item || item.hasAttribute('aria-expanded')) return // a folder named .env (a virtualenv) keeps core's toggle
-  const path = item.querySelector('[title]')?.getAttribute('title') || ''
-  if (!path || !isEnvFile(baseName(path))) return
-  e.stopPropagation()
-  e.preventDefault()
-  ctxRef?.os?.openExternal?.(path).then(ok => {
-    if (ok === false) host.notify({ kind: 'error', message: fmt(lang().envOpenFailed) })
-  })
-}
-
 /** The id of the layout squad-hub registers (`area: 'layouts'`): the picker applies it, Desktop persists it as the
  *  root split's id, and this watcher opens files and the terminal once when that happens. */
 const SQUADS_LAYOUT = { id: 'sqh-root' }
@@ -677,69 +627,6 @@ function watchLayoutPick() {
 const stopFloat = () => floatOff?.()
 const applyFloat = () => (prefsAtom.get().floatSides ? startFloat() : stopFloat())
 
-
-// ───────────────────────────── chrome: the rail and the Bots tab ─────────────────────────────
-/** Desktop has no SDK verb for hiding its own profile rail or another plugin's pane (issue #146513), so the
- *  chrome is quieted with CSS keyed on the app's own hooks, and removed the moment this plugin is disabled.
- *  squad-hub's sidebar rows go through SIDEBAR_NAV_PREFS_AREA instead; nothing else here touches core markup. */
-let chromeEl = null
-function applyChrome() {
-  const p = prefsAtom.get()
-  const rules = []
-  if (p.hideBotsTab) rules.push('[data-tree-tab="hermes-bots:pane"]{display:none!important}')
-  if (p.hideRail) rules.push('[data-slot="profile-rail"],[data-slot="profile-dropdown"]{display:none!important}')
-  if (chromeEl) chromeEl.textContent = rules.join('\n')
-}
-
-// ───────────────────────────── env files ─────────────────────────────
-/** The folder whose env files the dialog lists, or null. */
-const envDialogAtom = atom(null)
-function openEnvDialog(folder) {
-  envDialogAtom.set(folder ? { path: folder.path, label: folder.label || baseName(folder.path) } : null)
-}
-
-function EnvDialog({ state, close }) {
-  const t = useT()
-  const [files, setFiles] = useState(null)
-  useEffect(() => {
-    if (!state) return
-    setFiles(null)
-    const readDir = window.hermesDesktop?.readDir
-    if (!readDir) {
-      setFiles([])
-      return
-    }
-    readDir(state.path)
-      .then(r => setFiles((r?.entries || []).filter(e => !e.isDirectory && isEnvFile(e.name)).map(e => e.path)))
-      .catch(() => setFiles([]))
-  }, [state?.path])
-  if (!state) return null
-  const open = async path => {
-    const ok = await ctxRef?.os?.openExternal?.(path)
-    if (ok === false) host.notify({ kind: 'error', message: t('envOpenFailed') })
-    else close()
-  }
-  return jsx(Dialog, {
-    open: true,
-    onOpenChange: o => !o && close(),
-    children: jsxs(DialogContent, {
-      children: [
-        jsxs(DialogHeader, { children: [jsx(DialogTitle, { children: t('envIn', state.label) }), jsx(DialogDescription, { children: t('envHelp') })] }),
-        files === null
-          ? h('div', { className: 'sqhp-hint' }, '…')
-          : files.length
-            ? h('div', { style: { display: 'grid', gap: 4 } }, files.map(p => h('button', { key: p, type: 'button', className: 'sqhp-envrow', onClick: () => open(p) }, jsx(Codicon, { name: 'file-key', size: '0.875rem' }), h('span', {}, baseName(p)), h('span', { className: 'sqhp-hint' }, t('openInEditor')))))
-            : h('div', { className: 'sqhp-hint' }, t('noEnv')),
-        jsxs(DialogFooter, { children: [jsx(Button, { variant: 'ghost', onClick: close, children: t('close') })] })
-      ]
-    })
-  })
-}
-/** Rendered from a title-bar slot: a permanent mount point that shows nothing until a folder asks for it. */
-function EnvHost() {
-  const state = useValue(envDialogAtom)
-  return jsx(EnvDialog, { state, close: () => envDialogAtom.set(null) })
-}
 
 // ───────────────────────────── the handshake ─────────────────────────────
 /** Answer a `squad-hub:<action>` event. `can` is decided synchronously (squad-hub reads `defaultPrevented` as soon as
@@ -863,9 +750,6 @@ function SettingsPage() {
     h('div', { className: 'sqhp-hint', style: { padding: '14px 0 4px' } }, t('setup')),
     jsx(sdk.ToggleRow, { checked: prefs.floatSides !== false, label: t('floatSides'), description: t('floatSidesHint'), onChange: on => savePrefs({ floatSides: on }) }),
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' } }, h('div', { style: { flex: 1 } }, h('div', { style: { color: 'var(--foreground)', fontWeight: 500 } }, t('layoutName')), h('div', { className: 'sqhp-hint' }, t('layoutHint'))), jsx(Button, { variant: 'outline', onClick: applySquadsLayout, children: t('layoutPick') })),
-    jsx(sdk.ToggleRow, { checked: prefs.envDoubleClick !== false, label: t('envDoubleClick'), description: t('envDoubleClickHint'), onChange: on => savePrefs({ envDoubleClick: on }) }),
-    jsx(sdk.ToggleRow, { checked: prefs.hideBotsTab === true, label: t('hideBotsTab'), description: t('hideBotsTabHint'), onChange: on => savePrefs({ hideBotsTab: on }) }),
-    jsx(sdk.ToggleRow, { checked: prefs.hideRail === true, label: t('hideRail'), description: t('hideRailHint'), onChange: on => savePrefs({ hideRail: on }) }),
     h('div', { className: 'sqhp-credits' }, h('span', { className: 'sqhp-hint' }, t('creditsBy') + ' PuntoyComaTech · ' + t('creditsPart') + ' Hermes Agent Squads'))
   )
 }
@@ -894,9 +778,6 @@ html[data-sqh-resizing] [data-sqh-side],html[data-sqh-resizing] [data-sqh-float-
 @media (prefers-reduced-motion:reduce){html[data-sqh-float]{--sqh-in:.01s;--sqh-out:.01s}}`
 const CSS = FLOAT_CSS + `
 .sqhp-hint{font-size:.75rem;color:var(--ui-text-tertiary)}
-.sqhp-envrow{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;border:1px solid var(--ui-stroke-secondary,var(--border));background:transparent;color:var(--foreground);cursor:pointer;text-align:left}
-.sqhp-envrow span:nth-child(2){flex:1;font-family:var(--font-mono,ui-monospace,monospace);font-size:.75rem}
-.sqhp-envrow:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
 .sqhp-credits{margin-top:22px;padding-top:12px;border-top:1px solid var(--ui-stroke-tertiary,var(--border));display:grid;gap:6px}
 `
 
@@ -906,13 +787,12 @@ function resetRun() {
   lastRoot = ''
   layoutSig = undefined
   layoutRead = { trees: [], zones: {} }
-  envDialogAtom.set(null)
 }
 
 export default {
   id: ID,
   name: 'Squads Hub Plus',
-  description: 'Repo-only companion of squad-hub: floating sides, hidden rail and Bots tab, env files, worktrees and the folder picker — the features the catalog SDK cannot express.',
+  description: 'Repo-only companion of squad-hub: floating sides, worktrees, the folder picker and the Kanban board preselection — the features the catalog SDK cannot express.',
   defaultEnabled: true,
   register(ctx) {
     resetRun()
@@ -931,29 +811,19 @@ export default {
     const styleEl = document.createElement('style')
     styleEl.dataset.squadHubPlus = 'ui'
     styleEl.textContent = CSS
-    chromeEl = document.createElement('style')
-    chromeEl.dataset.squadHubPlus = 'chrome'
-    document.head.append(styleEl, chromeEl)
     ctx.onDispose(() => {
       styleEl.remove()
-      chromeEl?.remove()
-      chromeEl = null
       ctxRef = null
     })
-    applyChrome()
     ctx.onDispose(stopFloat)
     applyFloat()
 
-    // Desktop's file tree: a double-click on an env file hits its sensitive-file block, so the file opens in the
-    // system editor for that type instead. Capture phase, so core's handler never runs for these rows only.
-    ctx.addEventListener(document, 'dblclick', onTreeDoubleClick, true)
     const pickTimer = ctx.setInterval(whileVisible(watchLayoutPick), 1000)
     ctx.onDispose(() => {
       clearTimeout(pickRevealTimer)
       pickTimer?.()
     })
 
-    ctx.register({ id: 'env-host', area: sdk.TITLEBAR_AREAS?.right || 'titleBar.right', order: 998, render: () => jsx(EnvHost, {}) })
     // the floating-side commands moved here with the feature: same ids, same keys, so a rebind still finds them
     ctx.registerMany([
       { id: 'cmd-float', area: sdk.PALETTE_AREA, data: { id: 'squad-hub.float', label: MESSAGES.en.cmdFloat, keywords: ['float', 'auto hide', 'sidebar', 'dock'], run: () => savePrefs({ floatSides: prefsAtom.get().floatSides === false }) } },
@@ -969,9 +839,5 @@ export default {
     take('worktree-remove', d => hasGit('worktreeRemove') && d.folder && d.path, worktreeRemove)
     take('open-board', d => Boolean(d.slug), openBoard)
     take('lane-chips', d => hasGit('repoStatus') && d.folder && Array.isArray(d.lanes) && d.lanes.length > 0, laneChips)
-    take('env-files', d => Boolean(d.folder), detail => {
-      openEnvDialog({ path: detail.folder, label: detail.label })
-      return true
-    })
   }
 }

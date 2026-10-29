@@ -18,11 +18,10 @@
 //   squad-hub:worktree-add    { folder, name, branch, base }  -> plus runs `git worktree add`
 //   squad-hub:worktree-remove { folder, path }                -> plus runs `git worktree remove`
 //   squad-hub:open-board      { slug, name }                  -> plus preselects the board on Desktop's page
-//   squad-hub:env-files       { folder }                      -> plus lists and opens the folder's env files
-//   squad-hub:lane-chips      { folder, lanes }               -> plus answers with `squad-hub:lane-status`
+//   squad-hub:lane-chips      { folder, lanes }               -> plus answers with `squad-hub:lane-status` (cleanup only)
 // squad-hub listens for what plus sends back:
 //   squad-hub:folders-picked  { id, paths }                   -> the folders the user chose
-//   squad-hub:lane-status     { folder, statuses }            -> the PR/dirty chips this list renders
+//   squad-hub:lane-status     { folder, statuses }            -> PR and local changes, so cleanup never drops work
 //   squad-hub:lanes-changed   {}                              -> refetch the lanes
 //
 // Single file by design: a disk plugin loads uncompiled and only resolves `@hermes/plugin-sdk`, `react` and
@@ -309,7 +308,7 @@ function cronRows(lists, titles) {
   for (const [bot, reply] of Object.entries(lists || {})) {
     for (const j of reply?.jobs || []) {
       const paused = j.enabled === false || j.state === 'paused'
-      rows.push({ id: j.job_id, name: j.name, bot, botTitle: titles?.[bot] || bot, schedule: j.schedule || '', next: paused ? 0 : Date.parse(j.next_run_at || '') / 1000 || 0, last: Date.parse(j.last_run_at || '') / 1000 || 0, status: j.last_status || '', error: j.last_error || j.last_delivery_error || '', paused, agent: !j.no_agent, skill: j.skill || '', prompt: j.prompt_preview || '', key: cronKey(j) })
+      rows.push({ id: j.job_id, name: j.name, bot, nextAt: paused ? '' : j.next_run_at || '', botTitle: titles?.[bot] || bot, schedule: j.schedule || '', next: paused ? 0 : Date.parse(j.next_run_at || '') / 1000 || 0, last: Date.parse(j.last_run_at || '') / 1000 || 0, status: j.last_status || '', error: j.last_error || j.last_delivery_error || '', paused, agent: !j.no_agent, skill: j.skill || '', prompt: j.prompt_preview || '', key: cronKey(j) })
     }
   }
   return rows.sort((a, b) => Number(a.paused) - Number(b.paused) || (a.next || Infinity) - (b.next || Infinity) || a.name.localeCompare(b.name))
@@ -754,7 +753,8 @@ const {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
   SessionStatusDot, COMPOSER_AREAS, ToggleRow, EmptyState,
   CapabilitiesView, ColorSwatches, PROFILE_SWATCHES, CHAT_EMPTY_AREA, haptic, isSubmitEnter, requestTheme, useTheme, THEMES_AREA, STATUSBAR_AREAS, PALETTE_AREA, KEYBINDS_AREA, SIDEBAR_NAV_PREFS_AREA,
-  TRANSCRIPT_DIRECTIVE_AREA, Skeleton, Wordmark, ackStoredSessionId, forgetSessionUnread
+  TRANSCRIPT_DIRECTIVE_AREA, Skeleton, Wordmark, ackStoredSessionId, forgetSessionUnread,
+  Switch, RowButton, PanelEmpty, GlyphSpinner, useI18n, relativeTime, nextRunOverdueMs, cn
 } = sdk
 
 /** Read a chat in Desktop's unread store, in its own bot's bucket. Desktop acks the chat in view under the window's
@@ -808,7 +808,7 @@ const MESSAGES = {
     sortRecent: 'Order bots by recent activity', sortRecentHint: 'Off: default, builder, then managers.', navRows: 'Sidebar rows',
     visibleBots: 'Visible bots', allVisible: 'Every bot you can talk to is listed here; squad workers never are.',
     ctxFiles: 'Files', ctxReview: 'Review', ctxTerminal: 'Terminal', botCaps: 'Capabilities of {0}',
-    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', alsoPending: 'Also waiting here', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer: open the folder in the file manager and use your editor there.', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', worktreeCopied: 'Command copied: {0}', worktreeRemoveCopied: 'Command copied: {0}', noPlus: 'Squads Hub Plus is not installed, so worktrees cannot be removed from here.', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Click for the cards waiting on you and the board.', pr_open: 'open', pr_draft: 'draft', pr_merged: 'merged', pr_closed: 'closed', changedFiles: '{0} files changed', toPush: '{0} commits to push', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
+    cmdOpen: 'Squads: focus the list', cmdNext: 'Squads: next chat that needs you', cmdLayout: 'Squads: choose the Squads layout', nothingPending: 'Nothing is waiting for you', pendingTip: 'Chats working or unread, across every bot', working: 'working', unread: 'unread', alsoPending: 'Also waiting here', layoutName: 'Squads layout', layoutHint: 'Squads left, chat in the middle, files over a short terminal on the right.', layoutPick: 'Pick “Squads” under Layout.', openBrowser: 'Open the browser', envFiles: 'Env files…', appearance: 'Icon and colour…', appearanceOf: 'Look of {0}', appearanceHelp: 'Shown here and in Sessions.', defaultIcon: 'Default', defaultColor: 'Bot colour', envIn: 'Env files in {0}', envHelp: 'They hold secrets, so Hermes keeps them out of its own viewer: open the folder in the file manager and use your editor there.', showMore: 'Show {0} more', cmdTheme: 'Squads: use the Squads theme', themeName: 'Squads theme', themeHint: 'On every bot: Catppuccin-inspired, low contrast, cream by day and mocha by night. Off, each bot keeps the theme you pick for it.', themeUse: 'Use it', cmdNewProject: 'Squads: new project…', cmdPreview: 'Squads: reopen a preview', pane: 'Squads', introNoProject: 'Chat outside a project', chatWordmark: 'Squad name on empty chats', chatWordmarkHint: 'An empty chat shows its squad in large letters and, below, the project, folder and worktree it works in.', bellClear: 'Clear all', bellDismiss: 'Clear from the bell', bellMore: '{0} more', close: 'Close', worktreeCopied: 'Command copied: {0}', worktreeRemoveCopied: 'Command copied: {0}', noPlus: 'Squads Hub Plus is not installed, so worktrees cannot be removed from here.', noManager: 'No manager found for this board', replyDraft: 'About card {0} ("{1}") on the {2} board: ', cardOn: '{0} board · {1}', cardNeedsYou: 'What it asks you', cardLatest: 'Latest note', cardStory: 'History', cardReply: 'Answer in a chat', cardDetail: 'Details', st_queued: 'Queued', st_dep: 'Waiting on another card', st_run: 'In progress', st_block: 'Blocked', st_review: 'In review (QA)', st_done: 'Done', st_fail: 'Failed', st_stop: 'Stopped', sth_queued: 'Waiting for a bot to pick it up.', sth_dep: 'It starts by itself when the card it depends on is done.', sth_run: 'A bot is working on it right now.', sth_block: 'Stopped until someone answers: you, when it asks for input.', sth_review: 'Finished by its bot; a reviewer checks it before it is done.', sth_done: 'Finished and accepted.', sth_fail: 'A run crashed, timed out or gave up; the card retries or waits.', sth_stop: 'A run was taken back or paused (rate limit, manual reclaim).', ev_created: 'Created', ev_promoted: 'Ready to start', ev_dependency_wait: 'Waiting on another card', ev_claimed: 'A bot picked it up', ev_blocked: 'Blocked', ev_unblocked: 'Unblocked', ev_review_requested: 'Sent to review', ev_changes_requested: 'Changes requested', ev_completed: 'Done', ev_crashed: 'Run crashed', ev_timed_out: 'Run timed out', ev_gave_up: 'Gave up after retries', ev_reclaimed: 'Taken back', ev_scheduled: 'Scheduled', ev_archived: 'Archived', boardTip: '{0}: {1} blocked · {2} in review · {3} running. Click for the cards waiting on you and the board.', bell: 'Waiting on you', bellHead: 'Waiting on you', bellNone: 'Nothing is waiting on you', bellCount: '{0} waiting on you', bellChat: '{0} asks you in its chat', notifyCard: '{0}: a card needs your answer', notifyMany: '{0} cards need your answer', cardInvalid: 'Not a valid card reference', cardMissing: 'Card not found', cardFailed: '{0} failed runs', cardBoard: 'Board', notifyAway: 'Notify me when a squad needs me', notifyAwayHint: 'A system notification (and a line from the pet, if one is out) when a card blocks for your answer while Hermes is in the background.'
   },
   es: {
     chipBoard: 'Abrir el tablero', chipSeen: 'Quitadas de la campana, aún esperan', cmdBoard: 'Squads: abrir el tablero Kanban de este squad', kanbanOff: 'Activa el plugin Kanban para abrir tableros: Capacidades > Plugins > Kanban.', cronFor: 'Crons · {0}', cronNone: 'Este squad no tiene tareas programadas.', cronIn: 'en {0}', cronPaused: 'pausado', cronAgent: 'agente', cronFailed: 'la última corrida falló', cronLast: 'corrió hace {0}', cronSkill: 'Corre la skill {0}', everyMin: 'cada {0} min', everyHour: 'cada hora a los :{0}', everyHours: 'cada {0} h', dailyAt: 'diario {0}', daysAt: 'días {0} a las {1}', cron_board_watch: 'Te avisa de las tarjetas que esperan tu respuesta.', cron_keep_awake: 'Mantiene el computador despierto mientras corren tarjetas.', cron_project_sync: 'Copia los proyectos del manager a cada bot del squad.', cron_start_search: 'Arranca la búsqueda de empleo en las horas planeadas.', cron_followup_gate: 'Revisa el correo de empleo y crea una tarjeta si una postulación avanzó.', cron_jobs_followups: 'Revisa el correo de empleo y crea una tarjeta si una postulación avanzó.', cron_application_notices: 'Publica cada postulación enviada con el CV adjunto.', cron_plan_week: 'Planea el contenido de la semana cada lunes.', cron_report_gate: 'Prepara el informe mensual.', cron_watch_upstream: 'Lee las novedades de Hermes y propone qué aplicar.', cron_auto_update: 'Actualiza el builder y cada squad desde el repo.', cron_shared_browser_sweep: 'Cierra las pestañas del navegador que dejaron bots detenidos.',
@@ -834,7 +834,7 @@ const MESSAGES = {
     sortRecent: 'Ordenar bots por actividad reciente', sortRecentHint: 'Apagado: default, builder y luego managers.', navRows: 'Filas de la barra lateral',
     visibleBots: 'Bots visibles', allVisible: 'Aquí está cada bot con el que puedes hablar; los workers de un squad nunca salen.',
     ctxFiles: 'Archivos', ctxReview: 'Revisión', ctxTerminal: 'Terminal', botCaps: 'Capacidades de {0}',
-    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', alsoPending: 'También pendiente aquí', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor: abre la carpeta en el gestor de archivos y usa tu editor ahí.', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'En todos los bots: inspirado en Catppuccin, de bajo contraste, crema de día y mocha de noche. Apagado, cada bot conserva el tema que le elijas.', themeUse: 'Usarlo', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', worktreeCopied: 'Comando copiado: {0}', worktreeRemoveCopied: 'Comando copiado: {0}', noPlus: 'Squads Hub Plus no está instalado, así que desde aquí no se pueden quitar worktrees.', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Clic para ver las tarjetas que te esperan y el tablero.', pr_open: 'abierto', pr_draft: 'borrador', pr_merged: 'fusionado', pr_closed: 'cerrado', changedFiles: '{0} archivos cambiados', toPush: '{0} commits por subir', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
+    cmdOpen: 'Squads: enfocar la lista', cmdNext: 'Squads: siguiente chat pendiente', cmdLayout: 'Squads: elegir el layout Squads', nothingPending: 'Nada te está esperando', pendingTip: 'Chats trabajando o sin leer, de todos los bots', working: 'trabajando', unread: 'sin leer', alsoPending: 'También pendiente aquí', layoutName: 'Layout Squads', layoutHint: 'Squads a la izquierda, el chat al centro, archivos sobre una terminal baja a la derecha.', layoutPick: 'Elige “Squads” en Layout.', openBrowser: 'Abrir el navegador', envFiles: 'Archivos .env…', appearance: 'Icono y color…', appearanceOf: 'Apariencia de {0}', appearanceHelp: 'Se ve aquí y en Sessions.', defaultIcon: 'Por defecto', defaultColor: 'Color del bot', envIn: 'Archivos .env en {0}', envHelp: 'Guardan secretos, así que Hermes no los abre en su visor: abre la carpeta en el gestor de archivos y usa tu editor ahí.', showMore: 'Mostrar {0} más', cmdTheme: 'Squads: usar el tema Squads', themeName: 'Tema Squads', themeHint: 'En todos los bots: inspirado en Catppuccin, de bajo contraste, crema de día y mocha de noche. Apagado, cada bot conserva el tema que le elijas.', themeUse: 'Usarlo', cmdNewProject: 'Squads: nuevo proyecto…', cmdPreview: 'Squads: reabrir una preview', pane: 'Squads', introNoProject: 'Chat fuera de un proyecto', chatWordmark: 'Nombre del squad en chats vacíos', chatWordmarkHint: 'Un chat vacío muestra su squad en letras grandes y, debajo, el proyecto, la carpeta y el worktree donde trabaja.', bellClear: 'Limpiar todo', bellDismiss: 'Quitar de la campana', bellMore: '{0} más', close: 'Cerrar', worktreeCopied: 'Comando copiado: {0}', worktreeRemoveCopied: 'Comando copiado: {0}', noPlus: 'Squads Hub Plus no está instalado, así que desde aquí no se pueden quitar worktrees.', noManager: 'No encontré un manager para este tablero', replyDraft: 'Sobre la tarjeta {0} ("{1}") del tablero {2}: ', cardOn: 'tablero {0} · {1}', cardNeedsYou: 'Lo que te pide', cardLatest: 'Última nota', cardStory: 'Historial', cardReply: 'Responder en un chat', cardDetail: 'Detalle', st_queued: 'En cola', st_dep: 'Espera otra tarjeta', st_run: 'En progreso', st_block: 'Bloqueada', st_review: 'En revisión (QA)', st_done: 'Finalizada', st_fail: 'Falló', st_stop: 'Detenida', sth_queued: 'Espera que un bot la tome.', sth_dep: 'Arranca sola cuando termine la tarjeta de la que depende.', sth_run: 'Un bot está trabajando en ella ahora.', sth_block: 'Parada hasta que alguien responda: tú, cuando pide tu respuesta.', sth_review: 'Su bot la terminó; un revisor la valida antes de darla por finalizada.', sth_done: 'Terminada y aceptada.', sth_fail: 'Una ejecución se cayó, se pasó de tiempo o se rindió; la tarjeta reintenta o espera.', sth_stop: 'Una ejecución se retiró o pausó (límite de uso, reclamo manual).', ev_created: 'Creada', ev_promoted: 'Lista para empezar', ev_dependency_wait: 'Espera otra tarjeta', ev_claimed: 'Un bot la tomó', ev_blocked: 'Bloqueada', ev_unblocked: 'Desbloqueada', ev_review_requested: 'Enviada a revisión', ev_changes_requested: 'Pidieron cambios', ev_completed: 'Finalizada', ev_crashed: 'La ejecución se cayó', ev_timed_out: 'Se pasó de tiempo', ev_gave_up: 'Se rindió tras reintentos', ev_reclaimed: 'Retirada', ev_scheduled: 'Programada', ev_archived: 'Archivada', boardTip: '{0}: {1} bloqueadas · {2} en revisión · {3} en curso. Clic para ver las tarjetas que te esperan y el tablero.', bell: 'Te esperan', bellHead: 'Te esperan', bellNone: 'Nada te está esperando', bellCount: '{0} te esperan', bellChat: '{0} te pregunta en su chat', notifyCard: '{0}: una tarjeta necesita tu respuesta', notifyMany: '{0} tarjetas necesitan tu respuesta', cardInvalid: 'Referencia de tarjeta no válida', cardMissing: 'No se encontró la tarjeta', cardFailed: '{0} ejecuciones fallidas', cardBoard: 'Tablero', notifyAway: 'Avisarme cuando un squad me necesite', notifyAwayHint: 'Una notificación del sistema (y una línea de la mascota, si hay una) cuando una tarjeta se bloquea esperando tu respuesta y Hermes está en segundo plano.'
   }
 }
 const fmt = (s, ...a) => String(s).replace(/\{(\d+)\}/g, (_, i) => a[i] ?? '')
@@ -962,23 +962,19 @@ function applySquadsLayout() {
   host.notify({ kind: 'info', message: fmt(lang().layoutPick) })
 }
 
-/** The "Squads" layout (no Review: that pane follows the chat and each agent opens its own): the squad list left, the chat, then files over a short terminal, and the squad's crons at the far right. */
+/** The "Squads" layout (no Review: that pane follows the chat and each agent opens its own): the squad list left, the
+ *  chat, and one right column of the squad's crons (a tab beside the files) over a short terminal. Three columns only,
+ *  so the chat keeps ~600px at Desktop's first-launch window (1280px at 110% zoom). */
 const SQUADS_LAYOUT = {
   type: 'split', id: 'sqh-root', orientation: 'row', weights: [1, 3.6, 1.3],
   children: [
     { type: 'group', id: 'sqh-left', panes: ['squad-hub:pane', 'sessions'], active: 'squad-hub:pane' },
     { type: 'group', id: 'sqh-main', panes: ['workspace'], active: 'workspace' },
     {
-      type: 'split', id: 'sqh-right', orientation: 'row', weights: [1.3, 1],
+      type: 'split', id: 'sqh-right', orientation: 'column', weights: [3.4, 1],
       children: [
-        {
-          type: 'split', id: 'sqh-right-files', orientation: 'column', weights: [3.4, 1],
-          children: [
-            { type: 'group', id: 'sqh-files', panes: ['files'], active: 'files' },
-            { type: 'group', id: 'sqh-term', panes: ['terminal'], active: 'terminal' }
-          ]
-        },
-        { type: 'group', id: 'sqh-crons', panes: ['squad-hub:crons'], active: 'squad-hub:crons' }
+        { type: 'group', id: 'sqh-files', panes: ['squad-hub:crons', 'files'], active: 'squad-hub:crons' },
+        { type: 'group', id: 'sqh-term', panes: ['terminal'], active: 'terminal' }
       ]
     }
   ]
@@ -1439,7 +1435,7 @@ function ChatRow({ bot, session, depth, activeId, ctl, hint }) {
   )
 }
 
-function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query, status }) {
+function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query }) {
   const t = useT()
   const key = `lane:${bot.name}:${lane.key}`
   const stored = useOpen(key, true)
@@ -1466,7 +1462,6 @@ function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query, status }) {
           ]
         })
       ),
-      status ? jsx(LaneChip, { status }) : null,
       h('span', { className: 'sqh-age' }, shortAge(laneTime(lane)))
     ),
     open ? lane.sessions.map(s => h(ChatRow, { key: s.id, bot, session: s, depth: depth + 1, activeId, ctl })) : null,
@@ -1503,11 +1498,6 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
   const stored = useOpen(key, wide)
   const open = query.trim() ? true : stored
   const chats = folder.lanes.reduce((n, l) => n + l.sessions.length, 0)
-  // the chips are squad-hub-plus's answer to `squad-hub:lane-chips`; asked once per open folder, read from the atom
-  const laneStats = useValue(laneStatusAtom)[folder.path]
-  useEffect(() => {
-    if (open) requestLaneChips(folder)
-  }, [open, folder.path, folder.lanes.map(l => l.key + '@' + l.branch).join('|')])
   return h(
     'div',
     {},
@@ -1527,7 +1517,7 @@ function FolderBlock({ bot, project, folder, activeId, ctl, query, attention }) 
       ),
       open || active.length ? null : h('span', { className: 'sqh-age' }, chats ? shortAge(laneTime({ sessions: folder.lanes.flatMap(l => l.sessions) })) : '')
     ),
-    open ? folder.lanes.map(l => h(LaneBlock, { key: l.key, bot, folder, lane: l, depth: 3, activeId, ctl, query, status: laneStats?.[l.key] })) : null
+    open ? folder.lanes.map(l => h(LaneBlock, { key: l.key, bot, folder, lane: l, depth: 3, activeId, ctl, query })) : null
   )
 }
 
@@ -1902,7 +1892,7 @@ function LookDialog({ state, close }) {
 
 /** A folder's env files (`.env`, `.env.local`…). Desktop keeps them out of its own viewer on purpose (they hold
  *  secrets), and a plugin that opens one by path hands it to the OS's file association: the dialog only reveals the
- *  folder in the file manager, and listing/opening them is squad-hub-plus's (`squad-hub:env-files`). */
+ *  folder in the file manager, where the user's editor opens them. */
 function EnvDialog({ state, close }) {
   const t = useT()
   if (!state) return null
@@ -2075,7 +2065,7 @@ function Hub() {
       appearance: (bot, project) => setDialog({ kind: 'look', bot, project }),
       // the folder's env files: plus lists and opens them; without it the folder is revealed in the file manager
       envFiles: folder => {
-        if (!handshake('env-files', { folder: folder.path, label: folder.label }).taken) setDialog({ kind: 'env', folder })
+        setDialog({ kind: 'env', folder })
       },
       addFolder: async (bot, project) => {
         const picked = await pickFolders(t('addFolder'), project.folders[0]?.path)
@@ -2293,23 +2283,6 @@ function PendingCount() {
 }
 
 // ───────────────────────────── squads at work (UI) ─────────────────────────────
-const PR_ICON = { draft: 'git-pull-request-draft', open: 'git-pull-request', merged: 'git-merge', closed: 'git-pull-request' }
-
-/** A worktree's PR and local changes, quiet: nothing when there is nothing to say. */
-function LaneChip({ status }) {
-  const t = useT()
-  const { pr, changed, ahead } = status
-  if (!pr && !changed && !ahead) return null
-  return h(
-    'span',
-    { className: 'sqh-lanechip', onClick: stop, onPointerDown: stop },
-    pr
-      ? h('button', { type: 'button', className: 'sqh-pr', 'data-state': pr.state, title: `#${pr.number} ${pr.title} · ${t.or('pr_' + pr.state, pr.state)}`, onClick: () => pr.url && ctxRef?.os?.openExternal?.(pr.url) }, jsx(Glyph, { name: PR_ICON[pr.state] || 'git-pull-request', size: 11 }), '#', pr.number)
-      : null,
-    changed ? h('span', { className: 'sqh-dirty', title: t('changedFiles', changed) }, '±', changed) : null,
-    ahead ? h('span', { className: 'sqh-dirty', title: t('toPush', ahead) }, '↑', ahead) : null
-  )
-}
 
 /** A squad's board on its manager's row, in words: the cards waiting on your answer ("8 waiting on you"), else
  *  what is running. A click lists those cards; each opens with the question it asks and a button to answer. */
@@ -2684,34 +2657,86 @@ async function loadCrons(names) {
   }))
   return lists
 }
+/** One job of the squad, drawn with the same SDK pieces and classes as Bot Mode's own Cronjobs row (hermes-bots
+ *  RoutineRow), so the card follows Hermes' look; it adds the bot that runs it and what it does. */
+function CronCard({ r, what }) {
+  const { t: core } = useI18n()
+  const c = core.cron
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState(null)
+  const active = pending === null ? !r.paused : pending
+  if (pending !== null && pending === !r.paused) setPending(null)
+  const act = async action => {
+    if (busy) return
+    setBusy(true)
+    if (action !== 'remove') setPending(action === 'resume')
+    try {
+      await rpc('cron.manage', { action, name: r.id, profile: r.bot })
+      await queryClient.invalidateQueries({ queryKey: CRONS_KEY })
+    } catch (e) {
+      setPending(null)
+      host.notifyError(e, c.failedUpdate || 'Could not update the job')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const overdue = active && r.nextAt ? nextRunOverdueMs?.({ enabled: true, state: 'scheduled', next_run_at: r.nextAt }) : null
+  const when = active && r.nextAt ? `${overdue ? c.overdueSince : c.next} ${relativeTime(Date.parse(r.nextAt))}` : c.states?.paused || t('cronPaused')
+  const failed = r.status === 'error' || r.error
+  return h(
+    'div',
+    { className: cn('group grid min-w-0 gap-1.5 rounded-lg border border-(--ui-stroke-secondary) p-2.5 transition-colors', 'hover:border-(--ui-stroke-primary, var(--ui-stroke-secondary))'), 'data-state': r.paused ? 'paused' : failed ? 'error' : 'ok', title: [r.name, r.schedule, r.error].filter(Boolean).join('\n') },
+    h(
+      'div',
+      { className: 'flex min-w-0 items-center gap-2' },
+      jsx(RowButton, {
+        className: 'flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-foreground',
+        onClick: () => openBotPage(r.bot, '/cron'),
+        children: [
+          h('span', { key: 'dot', 'aria-hidden': true, className: cn('size-1.5 shrink-0 rounded-full', failed ? 'bg-destructive' : active ? 'bg-(--ui-success)' : 'bg-(--ui-text-quaternary)') }),
+          h('span', { key: 'name', className: cn('min-w-0 flex-1 truncate text-xs font-medium', !active && 'text-(--ui-text-tertiary)') }, r.name)
+        ]
+      }),
+      jsx(Switch, { checked: active, disabled: busy, onCheckedChange: on => act(on ? 'resume' : 'pause') }),
+      jsx(Tip, { label: core.common?.delete || 'Delete', children: jsx(Button, { 'aria-label': core.common?.delete || 'Delete', className: 'opacity-0 transition-opacity group-hover:opacity-100', disabled: busy, onClick: () => act('remove'), size: 'icon-xs', variant: 'ghost', children: jsx(Codicon, { name: 'trash' }) }) })
+    ),
+    what ? h('div', { className: 'min-w-0 pl-3.5 text-[0.6875rem] leading-4 text-(--ui-text-tertiary) line-clamp-2' }, what) : null,
+    h(
+      'div',
+      { className: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pl-3.5' },
+      h('span', { className: 'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-(--ui-stroke-secondary) px-1.5 py-0.5 text-[0.65rem] text-(--ui-text-tertiary)' }, jsx(Codicon, { className: 'text-[0.7rem]', name: 'calendar' }), cronEvery(r.schedule, t)),
+      h('span', { className: 'shrink-0 truncate whitespace-nowrap text-[0.65rem] text-(--ui-text-tertiary)' }, r.botTitle),
+      h('span', { className: cn('ml-auto shrink-0 whitespace-nowrap text-[0.65rem]', failed ? 'text-destructive' : 'text-(--ui-text-quaternary)') }, failed ? t('cronFailed') : when)
+    )
+  )
+}
+
 function CronPane() {
   const t = useT()
+  const { t: core } = useI18n()
   useValue(host.state.focusedStoredSessionId)
   const { data: snap } = useQuery(snapshotQuery())
   const squad = squadOfFocus(snap)
   const q = useQuery({ queryKey: [...CRONS_KEY, squad.names.join(',')], queryFn: () => loadCrons(squad.names), staleTime: 20000, refetchInterval: 60000, retry: false })
   const rows = useMemo(() => cronRows(q.data, squad.titles), [q.data, squad.names.join(',')])
-  const now = Date.now() / 1000
   const what = r => t.or(r.key, '') || (r.prompt ? r.prompt : r.skill ? t('cronSkill', r.skill) : '')
   return h(
     'div',
-    { className: 'sqh sqh-crons' },
-    h('div', { className: 'sqh-cronhead' }, jsx(Codicon, { name: 'watch', size: '0.8125rem' }), h('span', { className: 'sqh-label' }, t('cronFor', squad.title)), jsx(IconBtn, { icon: 'refresh', label: t('refresh'), onClick: () => q.refetch() })),
+    { className: 'sqh-crons flex h-full flex-col' },
     h(
       'div',
-      { className: 'sqh-scroll' },
-      q.isLoading && !q.data ? h('div', { className: 'sqh-empty' }, t('loading')) : null,
-      q.data && !rows.length ? h('div', { className: 'sqh-empty' }, t('cronNone')) : null,
-      rows.map(r =>
-        h(
-          'button',
-          { key: r.bot + ':' + r.id, type: 'button', className: 'sqh-cron', 'data-state': r.paused ? 'paused' : r.status === 'error' || r.error ? 'error' : 'ok', title: [r.name, r.schedule, r.error].filter(Boolean).join('\n'), onClick: () => openBotPage(r.bot, '/cron') },
-          h('span', { className: 'sqh-cron-top' }, h('i', {}), h('span', { className: 'sqh-cron-name' }, r.name), h('span', { className: 'sqh-cron-when' }, r.paused ? t('cronPaused') : r.next ? t('cronIn', untilAge(r.next, now)) : '')),
-          what(r) ? h('span', { className: 'sqh-cron-what' }, what(r)) : null,
-          h('span', { className: 'sqh-cron-meta' }, h('span', { className: 'sqh-where' }, r.botTitle), h('span', {}, cronEvery(r.schedule, t)), r.agent ? h('span', { className: 'sqh-cron-agent' }, t('cronAgent')) : null, r.error ? h('span', { className: 'sqh-cron-err' }, t('cronFailed')) : r.last ? h('span', {}, t('cronLast', shortAge(r.last, now))) : null)
-        )
-      )
-    )
+      { className: 'flex items-center gap-2 px-3 pt-3 pb-2' },
+      jsx(Codicon, { name: 'watch' }),
+      h('div', { className: 'min-w-0 flex-1' }, h('div', { className: 'truncate text-xs font-semibold' }, squad.title), h('div', { className: 'text-[0.65rem] uppercase tracking-wider text-(--ui-text-quaternary)' }, core.cron?.title || 'Crons')),
+      jsx(Tip, { label: t('refresh'), children: jsx(Button, { 'aria-label': t('refresh'), onClick: () => q.refetch(), size: 'icon-xs', variant: 'ghost', children: jsx(Codicon, { name: 'refresh' }) }) })
+    ),
+    h('div', { className: 'mx-3 border-t border-(--ui-stroke-secondary)' }),
+    q.isLoading && !q.data
+      ? h('div', { className: 'flex flex-1 items-center justify-center' }, jsx(GlyphSpinner, { className: 'text-(--ui-text-tertiary)', spinner: 'breathe' }))
+      : q.data && !rows.length
+        ? jsx(PanelEmpty, { icon: 'watch', title: core.cron?.emptyTitleNew || t('cronNone'), description: t('cronNone') })
+        : h('div', { className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain' }, h('div', { className: 'grid gap-1.5 px-2.5 py-2' }, rows.map(r => jsx(CronCard, { r, what: what(r) }, r.bot + ':' + r.id))))
   )
 }
 
@@ -3009,14 +3034,7 @@ const CSS = `
 .sqh-bc-running i{background:var(--ui-accent,var(--primary))}
 .sqh-boardchip[data-tone=blocked]{color:var(--foreground);font-weight:500}
 .sqh-bc-seen i{background:var(--muted-foreground);opacity:.6}
-.sqh-lanechip{display:inline-flex;gap:6px;align-items:center;margin-left:auto;font-size:10.5px;color:var(--muted-foreground)}
-.sqh-lane:hover .sqh-lanechip{display:none}
-.sqh-pr{display:inline-flex;align-items:center;gap:2px;background:none;border:0;padding:0;color:inherit;cursor:pointer;font:inherit}
-.sqh-pr[data-state=open]{color:var(--color-emerald-500)}
-.sqh-pr[data-state=merged]{color:var(--color-violet-500)}
-.sqh-pr[data-state=closed]{color:var(--dt-destructive)}
-.sqh-dirty{opacity:.8}
-.sqh-bell{position:relative;display:inline-flex;align-items:center;gap:4px;height:100%;padding:0 6px;background:none;border:0;color:var(--ui-text-secondary,var(--muted-foreground));cursor:pointer}
+.sqh-lane:hover .sqh-bell{position:relative;display:inline-flex;align-items:center;gap:4px;height:100%;padding:0 6px;background:none;border:0;color:var(--ui-text-secondary,var(--muted-foreground));cursor:pointer}
 .sqh-bell[data-on=true]{color:var(--foreground)}
 .sqh-bell-n{font-size:10px;font-weight:600;min-width:14px;height:14px;padding:0 3px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--foreground) 14%,transparent)}
 .sqh-bell-n[data-fresh=true]{background:color-mix(in srgb,var(--color-amber-500) 70%,transparent);color:var(--background)}
@@ -3072,21 +3090,6 @@ const CSS = `
 .sqh-cleanrow:hover{background:color-mix(in srgb,var(--foreground) 5%,transparent)}
 .sqh-cleanmain{display:grid;min-width:0;flex:1}
 .sqh-squadpick{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.sqh-crons{display:flex;flex-direction:column;height:100%}
-.sqh-cronhead{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--ui-stroke-tertiary,var(--border));color:var(--foreground);font-weight:600;font-size:.75rem}
-.sqh-cron{display:grid;gap:2px;width:100%;text-align:left;padding:7px 10px;border:0;border-bottom:1px solid var(--ui-stroke-tertiary,var(--border));background:none;color:var(--muted-foreground);cursor:pointer;font:inherit}
-.sqh-cron:hover{background:color-mix(in srgb,var(--foreground) 5%,transparent)}
-.sqh-cron-top{display:flex;align-items:center;gap:6px;min-width:0}
-.sqh-cron-top i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--color-emerald-500)}
-.sqh-cron[data-state=error] .sqh-cron-top i{background:var(--dt-destructive)}
-.sqh-cron[data-state=paused] .sqh-cron-top i{background:var(--muted-foreground);opacity:.5}
-.sqh-cron-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--foreground);font-size:.78rem;font-weight:500}
-.sqh-cron-when{flex:none;font-size:.6875rem;color:var(--ui-text-tertiary)}
-.sqh-cron-what{font-size:.72rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.sqh-cron-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:.6875rem;color:var(--ui-text-tertiary)}
-.sqh-cron-meta .sqh-where{max-width:none}
-.sqh-cron-agent{color:var(--color-violet-500)}
-.sqh-cron-err{color:var(--dt-destructive)}
 .sqh-cd{max-width:560px}
 .sqh-cd-meta{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12px}
 .sqh-cd-help{font-size:12px;color:var(--muted-foreground)}
@@ -3146,14 +3149,14 @@ export default {
       id: 'pane',
       area: 'panes',
       title: 'Squads',
-      data: { placement: 'left', width: '280px', collapsible: true, hideOnly: true, dock: { pane: 'sessions', pos: 'center', enforce: true } },
+      data: { placement: 'left', width: '260px', collapsible: true, hideOnly: true, dock: { pane: 'sessions', pos: 'center', enforce: true } },
       render: () => jsx(Hub, {})
     })
     ctx.register({
       id: 'crons',
       area: 'panes',
       title: 'Crons',
-      data: { placement: 'right', width: '260px', collapsible: true, hideOnly: true, dock: { pane: 'files', pos: 'right' } },
+      data: { placement: 'right', width: '280px', minWidth: '240px', collapsible: true, hideOnly: true, dock: { pane: 'files', pos: 'center' } },
       render: () => jsx(CronPane, {})
     })
     if (THEMES_AREA) ctx.register({ id: 'theme', area: THEMES_AREA, data: SQUADS_THEME })

@@ -28,7 +28,7 @@ const w = await boot({ pluginPath: new URL('./plugin.mjs', import.meta.url).path
 const out = {}
 """
 
-MODEL_EXPORTS = ("trimPath baseName slugify isEnvFile upgradePrefs workspaceGroup chatAlone zonesOf zonesOfAll "
+MODEL_EXPORTS = ("trimPath baseName slugify upgradePrefs workspaceGroup chatAlone zonesOf zonesOfAll "
                  "parseLayout sideSignature isReveal DEFAULT_PREFS").split()
 
 
@@ -336,66 +336,15 @@ out.float = JSON.parse(w.store.get('prefs')).floatSides
     assert got["float"] is False, "the palette switch turns floating sides off"
 
 
-# ---- chrome: the rail and the Bots tab ------------------------------------------------------------
-
-def test_hiding_the_rail_and_the_bots_tab_is_css_removed_when_the_plugin_is_switched_off(desk):
-    got = desk("""
-w.store.set('prefs', JSON.stringify({ hideRail: true, hideBotsTab: true, floatSides: false, prefsVersion: 1 }))
-w.register()
-const css = () => w.styles().map(s => s.textContent).join('\\n')
-out.rail = css().includes('[data-slot="profile-rail"]') && css().includes('[data-slot="profile-dropdown"]')
-out.bots = css().includes('[data-tree-tab="hermes-bots:pane"]')
-w.dispose()
-out.after = css().includes('profile-rail') || css().includes('hermes-bots:pane')
-""")
-    assert got["rail"] and got["bots"], "both switches hide Desktop's own chrome"
-    assert got["after"] is False, "switching the plugin off puts Desktop's chrome back"
-
-
 def test_the_old_squad_hub_prefs_are_read_once_so_a_choice_survives_the_split(desk):
     got = desk("""
-w.localStorage.set('hermes.plugin.squad-hub.prefs', JSON.stringify({ floatSides: false, hideRail: true, prefsVersion: 4 }))
+w.localStorage.set('hermes.plugin.squad-hub.prefs', JSON.stringify({ floatSides: false, hideRail: true, hideBotsTab: true, envDoubleClick: true, prefsVersion: 4 }))
 w.register()
 out.prefs = JSON.parse(w.store.get('prefs'))
 """)
-    assert got["prefs"]["floatSides"] is False and got["prefs"]["hideRail"] is True, "the pre-split choice carries over"
+    assert got["prefs"]["floatSides"] is False, "the pre-split choice carries over"
+    assert set(got["prefs"]) == {"floatSides", "prefsVersion"}, "the retired switches (Bots tab, rail, .env double-click) are not kept"
     assert got["prefs"]["prefsVersion"] == 1, "and it is stamped as this plugin's own version"
-
-
-# ---- env files: the double-click and the dialog ---------------------------------------------------
-
-def test_a_double_click_on_an_env_file_opens_it_and_nothing_executable_is_ever_taken(desk):
-    """The capture listener takes `.env`, `.env.local`… and never a name an OS could run."""
-    got = desk("""
-const item = path => ({ hasAttribute: () => false, querySelector: () => ({ getAttribute: () => path }) })
-const fire = path => w.fire('dblclick', { target: { closest: () => item(path) } })
-w.register()
-out.env = fire('/w/shop/.env')
-out.local = fire('/w/shop/.env.local')
-out.bat = fire('/w/shop/.env.bat')
-out.command = fire('/w/shop/.env.command')
-out.sh = fire('/w/shop/.env.sh')
-out.opened = w.osCalls
-""")
-    assert got["env"] and got["local"], "a hand-edited env file opens in the editor for its type"
-    assert not got["bat"] and not got["command"] and not got["sh"], "an executable suffix is never handed to the OS"
-    assert got["opened"] == [["openExternal", "/w/shop/.env"], ["openExternal", "/w/shop/.env.local"]]
-
-
-def test_it_takes_the_env_files_action_only_when_there_is_a_folder(desk):
-    """squad-hub asks; plus takes the event (preventDefault, read synchronously) and opens its own dialog."""
-    got = desk("""
-w.register()
-const ask = detail => {
-  const ev = new CustomEvent('squad-hub:env-files', { detail, cancelable: true })
-  window.dispatchEvent(ev)
-  return ev.defaultPrevented
-}
-out.folder = ask({ folder: '/w/shop', label: 'shop' })
-out.nothing = ask({})
-""")
-    assert got["folder"] is True, "a folder is taken: plus lists its env files"
-    assert got["nothing"] is False, "no folder, no takeover: squad-hub keeps its own fallback"
 
 
 # ---- disposing leaves nothing behind ---------------------------------------------------------------

@@ -327,8 +327,10 @@ def test_the_plugin_is_opt_in_and_named_like_its_package(desk):
     assert (PLUGIN.parents[1] / "__init__.py").is_file()
 
 
-def test_the_squads_layout_it_registers_places_files_over_the_terminal_and_never_review(desk):
-    """Review follows the chat (each agent opens its own); a global Review zone in the layout would show the wrong one."""
+def test_the_squads_layout_it_registers_fits_three_columns_with_the_crons_on_the_right(desk):
+    """Review follows the chat (each agent opens its own); a global Review zone in the layout would show the wrong one.
+    Three columns only, crons in front of the files over the terminal: a fourth column left the chat a sliver at the
+    1280px first-launch window, and the crons pane rendered cramped."""
     got = desk("""
 w.register()
 const panes = []
@@ -336,16 +338,24 @@ const walk = n => n.type === 'group' ? panes.push(...n.panes) : n.children.forEa
 const layout = w.contribution('layout')
 walk(layout.data)
 out.panes = panes; out.area = layout.area
-const right = w.contribution('layout').data.children[2]
-out.rightColumn = right.children[0].children.map(g => g.panes[0])
-out.farRight = right.children[1].panes
+const root = layout.data
+out.columns = root.children.length
+const right = root.children[2]
+out.rightOrientation = right.orientation
+out.rightGroups = right.children.map(g => [g.panes, g.active])
 out.cronPane = w.contribution('crons')?.data
+out.hubWidth = w.contribution('pane')?.data.width
 """)
     assert got["area"] == "layouts"
-    assert {"squad-hub:pane", "workspace", "files", "terminal"} <= set(got["panes"]) and "review" not in got["panes"]
-    assert got["rightColumn"] == ["files", "terminal"], "files over the terminal"
-    assert got["farRight"] == ["squad-hub:crons"], "the squad's crons sit right of the files"
-    assert got["cronPane"]["dock"] == {"pane": "files", "pos": "right"}, "outside the Squads layout too, beside the files"
+    assert {"squad-hub:pane", "workspace", "files", "terminal", "squad-hub:crons"} <= set(got["panes"]) and "review" not in got["panes"]
+    assert got["columns"] == 3, "list, chat, one right column"
+    assert got["rightOrientation"] == "column"
+    assert got["rightGroups"] == [[["squad-hub:crons", "files"], "squad-hub:crons"], [["terminal"], "terminal"]], \
+        "the crons in front, the files one tab away, the terminal under them"
+    assert got["cronPane"]["placement"] == "right" and got["cronPane"]["dock"] == {"pane": "files", "pos": "center"}, \
+        "outside the Squads layout too, a tab beside the files on the right"
+    side = int(got["cronPane"]["width"].rstrip("px")) + int(got["hubWidth"].rstrip("px"))
+    assert 1280 / 1.1 - side >= 600, "the chat keeps 600px at the default window and zoom"
 
 
 def test_every_command_and_keybinding_it_registers_runs_without_a_chat_open(desk):
@@ -451,7 +461,9 @@ out.kinds = ['project', 'worktree', 'text', 'confirm', 'caps', 'clean', 'look', 
 
 def test_the_cron_pane_lists_the_squads_jobs_with_their_bot_and_what_they_do(desk):
     """Payloads shaped like `cron.manage list` (tools/cronjob_job_args.py _format_job): one list per bot of the squad
-    of the chat in view, each row naming the job, the bot that runs it and what it does, next run first."""
+    of the chat in view, each card naming the job, the bot that runs it and what it does, next run first. The card is
+    built from the app's own pieces (Bot Mode's Cronjobs row: RowButton, Switch), and its switch pauses the job on the
+    bot that owns it."""
     jobs = {
         "jobs": {"jobs": [{"job_id": "a1", "name": "jobs-watch", "script": "board_watch.py", "no_agent": True, "enabled": True,
                            "state": "scheduled", "schedule": "*/30 * * * *", "next_run_at": "2099-01-01T10:30:00+00:00"}]},
@@ -478,27 +490,37 @@ globalThis.__SQH_QUERIES__ = options => {{
   return {{}}
 }}
 const pane = w.contribution('crons')
-const rows = []
+const cards = []
 walk(pane.render(), n => {{
-  if (typeof n.type === 'function') walk(n.type(n.props), v => v.props?.className === 'sqh-cron' && rows.push(v))
-  if (n.props?.className === 'sqh-cron') rows.push(n)
+  if (typeof n.type === 'function' && n.type.name === 'CronPane') walk(n.type(n.props), v => v.type?.name === 'CronCard' && cards.push(v))
 }})
-const text = n => {{ const out = []; walk(n, v => typeof v.props?.children === 'string' && out.push(v.props.children)); walk(n.props.children, v => {{}}); return out }}
-const flat = n => JSON.stringify(n.props.children)
+const strings = node => {{ const s = []; walk(node, v => {{ for (const k of [].concat(v.props?.children ?? [])) if (typeof k === 'string') s.push(k) }}); return s.join(' | ') }}
 out.asked = asked
-out.rows = rows.map(r => [r.props['data-state'], flat(r)])
+out.cards = cards.map(c => {{
+  const drawn = c.type(c.props)
+  const kinds = []
+  walk(drawn, v => typeof v.type === 'function' && kinds.push(v.type.name))
+  const sw = []
+  walk(drawn, v => v.type?.name === 'Switch' && sw.push(v.props))
+  return {{ state: drawn.props['data-state'], text: strings(drawn), kinds, checked: sw[0]?.checked, toggle: sw[0]?.onCheckedChange }}
+}})
+await out.cards[0].toggle(false)
+out.paused = w.calls.filter(c => c.method === 'cron.manage')
+out.cards = out.cards.map(({{ toggle, ...c }}) => c)
 """)
     assert got["asked"] == ["jobs,jobs-scout,jobs-writer"], "the squad of the chat in view, manager first, never another squad"
-    names = [next(n for n in ("jobs-watch", "scout-digest", "old-one") if n in row) for _, row in got["rows"]]
+    names = [next(n for n in ("jobs-watch", "scout-digest", "old-one") if n in c["text"]) for c in got["cards"]]
     assert names == ["scout-digest", "jobs-watch", "old-one"], "next run first, paused last"
-    by = {n: row for n, (_, row) in zip(names, got["rows"])}
-    assert "Jobs manager" in by["jobs-watch"] and "cards that wait on your answer" in by["jobs-watch"], "the bot and what the job does"
-    assert "Jobs scout" in by["scout-digest"] and "Runs the finding-jobs skill" in by["scout-digest"], "an agent job says which skill it runs"
-    assert "every 30 min" in by["jobs-watch"] and "daily 09:00" in by["scout-digest"], "the schedule in words"
-    assert [s for s, _ in got["rows"]] == ["ok", "ok", "paused"]
-
-
-# ---- Desktop's own Kanban board ---------------------------------------------------------------------------------------
+    by = dict(zip(names, got["cards"]))
+    assert "Jobs manager" in by["jobs-watch"]["text"] and "cards that wait on your answer" in by["jobs-watch"]["text"], "the bot and what the job does"
+    assert "Jobs scout" in by["scout-digest"]["text"] and "Runs the finding-jobs skill" in by["scout-digest"]["text"], "an agent job says which skill it runs"
+    assert "every 30 min" in by["jobs-watch"]["text"] and "daily 09:00" in by["scout-digest"]["text"], "the schedule in words"
+    assert "Next:" in by["scout-digest"]["text"] and "paused" in by["old-one"]["text"], "Hermes' own words for next run and paused"
+    assert [c["state"] for c in got["cards"]] == ["ok", "ok", "paused"]
+    assert [c["checked"] for c in got["cards"]] == [True, True, False]
+    assert all({"RowButton", "Switch"} <= set(c["kinds"]) for c in got["cards"]), "Bot Mode's own row pieces"
+    assert [(c["params"]["action"], c["params"]["name"], c["params"]["profile"]) for c in got["paused"]] == [("pause", "b1", "jobs-scout")], \
+        "the switch pauses the job on the bot that owns it"
 
 def test_a_card_blocked_for_the_user_wears_a_badge_on_desktops_kanban_board(desk):
     """The official board stays Hermes's (its fixes arrive with Hermes updates); squad-hub only paints a badge on the

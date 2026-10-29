@@ -11,12 +11,18 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
   project and Kanban doors instead of the app's private bridge, storage and REST namespaces, no selectors on core
   markup, no capture-phase double-click. Every feature the SDK cannot express moved, unchanged, to a new repo-only
   plugin **squad-hub-plus**, which `squadctl apply` installs and enables beside squad-hub on the same managers: the
-  floating sides, hiding the profile rail and the Bots tab, the `.env` double-click and list, creating and removing
-  git worktrees, the native folder picker, the PR/dirty chips and the Kanban page's board preselection. Without it the
-  list still works and a worktree action copies the exact `git worktree …` command.
+  floating sides, creating and removing git worktrees, the native folder picker and the Kanban page's board
+  preselection. Without it the list still works and a worktree action copies the exact `git worktree …` command.
+- The crons pane looks like Bot Mode's Cronjobs pane (same Desktop pieces and Hermes' own words) and its switch
+  pauses or resumes a job on its bot. The Squads layout has three columns: the crons are a tab beside the files over
+  the terminal, so the chat keeps about 600 px at Desktop's first-launch window.
+
+### Removed
+
+- Hiding the Bots tab and the profile selector, the `.env` double-click and the worktree PR chips: they changed
+  Hermes' own window without adding to the squads view. "Env files…" reveals the folder.
 - squad-hub reads boards and cards through its own GET-only backend (`dashboard/plugin_api.py`, no tab of its own) on
   `hermes_cli.kanban_db`, because the SDK has no door to another plugin's REST.
-- `.env` names an OS could run (`.env.bat`, `.env.command`, `.env.sh`) are never taken for env files.
 
 ## 2.33.1 - 2026-10-29
 
