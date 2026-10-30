@@ -347,6 +347,31 @@ out.prefs = JSON.parse(w.store.get('prefs'))
     assert got["prefs"]["prefsVersion"] == 1, "and it is stamped as this plugin's own version"
 
 
+def test_a_managers_window_keeps_desktops_kanban_plugin_on_and_other_choices_as_they_are(desk):
+    """Closing the Kanban tab switches the plugin off; the next start turns it back on, other plugins untouched."""
+    got = desk("""
+const key = 'hermes.desktop.pluginDecisions.v2'
+w.localStorage.set(key, JSON.stringify({ kanban: false, 'squad-hub': true, other: false }))
+w.register()
+out.after = JSON.parse(w.localStorage.get(key))
+w.localStorage.delete(key)
+w.register()
+out.fresh = JSON.parse(w.localStorage.get(key))
+w.localStorage.set(key, 'not json')
+w.register()
+out.broken = JSON.parse(w.localStorage.get(key))
+// Desktop switches it off when its tab closes: atom first, then its own write of the stored choices
+w.host.pluginDecisions.set({ kanban: false })
+w.localStorage.set(key, JSON.stringify({ kanban: false }))
+w.time.advance(10)
+out.closed = JSON.parse(w.localStorage.get(key))
+""")
+    assert got["after"] == {"kanban": True, "squad-hub": True, "other": False}
+    assert got["fresh"] == {"kanban": True}, "a window with no choices yet gets the board too"
+    assert got["broken"] == {"kanban": True}, "an unreadable value is replaced, never a crash"
+    assert got["closed"] == {"kanban": True}, "closing the Kanban tab does not keep it off for the next start"
+
+
 # ---- its own stylesheet is attached ----------------------------------------------------------------
 
 def test_its_own_stylesheet_is_attached_to_the_page_and_removed_on_dispose(desk):

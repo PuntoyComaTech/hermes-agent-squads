@@ -9,6 +9,7 @@
 //   * creating/removing git worktrees from a plugin           -> NousResearch/hermes-agent#146515
 //   * a native multi-folder picker (ctx.os.pickOpenPath is one file) -> no directory mode
 //   * the Kanban page's own board preselection (its localStorage slug + its menu)
+//   * Desktop's Kanban plugin kept on for a manager's window (the SDK's pluginDecisions is read-only)
 //
 // Handshake with squad-hub: plain DOM events, no shared module, no shared storage.
 // squad-hub dispatches `squad-hub:<action>` with a mutable `detail` and `cancelable: true`. This plugin
@@ -671,6 +672,26 @@ async function worktreeRemove(detail) {
  *  through that same menu (the page's own control) and store it for its next start. Never the server's current
  *  board, which every `hermes kanban` command without --board would then follow. */
 const KANBAN_SLUG_KEY = 'hermes.plugin.kanban.boardSlug'
+/** A manager works its squad on Desktop's Kanban page, a bundled plugin that ships off and that closing its tab
+ *  switches off. Desktop reads this choice at launch: storing `kanban: true` makes the page there from the next start,
+ *  every start, so nobody hunts for a switch. Other plugins' choices are kept as they are. */
+const DECISIONS_KEY = 'hermes.desktop.pluginDecisions.v2'
+function keepKanbanOn() {
+  let d = {}
+  try {
+    d = JSON.parse(localStorage.getItem(DECISIONS_KEY) || '{}')
+  } catch {
+    d = {} // unreadable: Desktop itself would start from no choices
+  }
+  if (!d || typeof d !== 'object' || Array.isArray(d)) d = {}
+  if (d.kanban === true) return false
+  try {
+    localStorage.setItem(DECISIONS_KEY, JSON.stringify({ ...d, kanban: true }))
+  } catch {
+    return false
+  }
+  return true
+}
 async function openBoard(detail) {
   const slug = String(detail.slug || '')
   const name = String(detail.name || slug)
@@ -792,7 +813,7 @@ function resetRun() {
 export default {
   id: ID,
   name: 'Squads Hub Plus',
-  description: 'Repo-only companion of squad-hub: floating sides, worktrees, the folder picker and the Kanban board preselection — the features the catalog SDK cannot express.',
+  description: 'Repo-only companion of squad-hub: floating sides, worktrees, the folder picker, the Kanban board preselection and Kanban kept on — the features the catalog SDK cannot express.',
   defaultEnabled: true,
   register(ctx) {
     resetRun()
@@ -805,6 +826,16 @@ export default {
     } catch {
       legacy = null
     }
+    keepKanbanOn()
+    // closing the Kanban tab stores `kanban: false` mid-session; store it back once Desktop has written (it sets the
+    // atom first, then localStorage), so the next start has the board again
+    let kanbanTimer = null
+    const offKanban = host?.pluginDecisions?.listen?.(d => {
+      if (d?.kanban === true) return
+      clearTimeout(kanbanTimer)
+      kanbanTimer = setTimeout(keepKanbanOn, 0)
+    })
+    ctx.onDispose(() => (clearTimeout(kanbanTimer), offKanban?.()))
     prefsAtom.set(upgradePrefs(ctx.storage.get('prefs', null), DEFAULT_PREFS, legacy))
     ctx.storage.set('prefs', prefsAtom.get())
 

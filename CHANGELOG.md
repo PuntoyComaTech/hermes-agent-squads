@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.35.4 - 2026-10-29
+
+### Fixed
+
+- squad-hub-plus 1.0.1: Desktop's Kanban plugin stays on in a manager's window. It ships off and closing its tab
+  switches it off, so "Kanban board" led to Plugins instead of the board. squad-hub-plus now stores it on at every
+  start and after a tab close; other plugins' choices are untouched.
+
 ## 2.35.3 - 2026-10-29
 
 ### Fixed

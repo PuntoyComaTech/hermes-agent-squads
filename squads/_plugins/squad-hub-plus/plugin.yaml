@@ -1,5 +1,5 @@
 name: squad-hub-plus
-version: 1.0.0
+version: 1.0.1
 description: "Repo-only companion of squad-hub: features the catalog SDK cannot express (floating sides, git worktrees, the native folder picker, the Kanban board preselection). Never listed in the Hermes plugin catalog."
 author: PuntoyComaTech
 requires_hermes: ">=0.22.2"

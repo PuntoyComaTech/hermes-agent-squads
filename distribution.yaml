@@ -1,5 +1,5 @@
 name: builder
-version: "2.35.3"
+version: "2.35.4"
 
 description: "Creates, edits and maintains local Hermes squads"
 hermes_requires: ">=0.22.2"
