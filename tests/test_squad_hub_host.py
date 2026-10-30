@@ -599,7 +599,7 @@ w.host.pluginDecisions.set({ kanban: true })
 const asked = []
 window.addEventListener('squad-hub:open-board', e => asked.push(e.detail))
 await w.exports().openBoard('jobs')
-out.asked = asked
+out.asked = [...asked]
 out.nav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
 out.server = w.calls.filter(c => String(c.method).includes('switch'))
 out.slug = w.localStorage.get('hermes.plugin.kanban.boardSlug') || null
@@ -608,11 +608,23 @@ w.host.pluginDecisions.set({})
 await w.exports().openBoard('jobs')
 out.offNav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
 out.offNotice = w.notices.length
+w.calls.length = 0
+w.host.pluginDecisions.set({ kanban: true })
+await null
+out.onNav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
+out.onAsked = asked.length
+w.calls.length = 0
+w.host.pluginDecisions.set({ kanban: false })
+w.host.pluginDecisions.set({ kanban: true })
+await null
+out.againNav = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
 """)
     assert got["asked"] == [{"slug": "jobs", "name": "jobs"}], "the board is offered to the plugin that can preselect it"
     assert got["nav"] == ["/kanban"] and got["slug"] is None, "the page opens; the board slug is not squad-hub's to store"
     assert got["server"] == [], "no /boards/<slug>/switch: that would retarget the CLI"
-    assert got["offNav"] == ["/capabilities?tab=plugins"] and got["offNotice"] == 1, "Kanban off: say where to turn it on"
+    assert got["offNav"] == ["/capabilities?tab=plugins&plugin=kanban"] and got["offNotice"] == 1, "Kanban off: open its own row"
+    assert got["onNav"] == ["/kanban"] and got["onAsked"] == 2, "switching Kanban on opens the board that was asked for"
+    assert got["againNav"] == [], "only once: a later toggle does not pull the user to the board"
 
 
 # ---- the catalog gate: this copy uses the plugin SDK and nothing else -----------------------------

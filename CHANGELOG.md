@@ -3,6 +3,13 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.35.3 - 2026-10-29
+
+### Fixed
+
+- squad-hub 2.1.3: "Kanban board" with Desktop's Kanban plugin off opened the bare Plugins list, so it looked like a
+  wrong link. It now opens the Kanban row itself and, once that is switched on, the board that was asked for.
+
 ## 2.35.2 - 2026-10-29
 
 ### Fixed
