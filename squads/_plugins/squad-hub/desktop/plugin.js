@@ -747,6 +747,30 @@ function withTimeout(promise, ms, message = 'timeout') {
   })
   return Promise.race([promise, limit]).finally(() => clearTimeout(timer))
 }
+
+/** The gateway's answer when the request's profile does not load this plugin's backend (Desktop's `default` profile
+ *  usually does not), as opposed to a 404 from the backend itself (a card that is gone). */
+const isMissingPlugin = e => /Plugin not found/.test(String(e?.message || e))
+/** Profiles to read this plugin's backend through when the window's own lacks it: the chat in view's bot, then
+ *  squad bots, then the rest; `default` never, it is the window's own. */
+function backendCandidates(focused, profiles) {
+  const rows = (profiles || []).filter(p => p?.name && !p.is_default && p.name !== 'default')
+  const squad = rows.filter(p => p.ui_meta?.['hermes-bots']).map(p => p.name)
+  return [...new Set([focused, ...squad, ...rows.map(p => p.name)].filter(n => n && n !== 'default'))]
+}
+/** `rest(path)` through `remembered` (or the window's profile), else through the first candidate that loads the
+ *  backend; resolves `{ data, profile }` so the caller keeps the profile that worked. */
+async function restAcrossProfiles(rest, path, remembered, candidates) {
+  const via = p => rest(p ? `${path}${path.includes('?') ? '&' : '?'}profile=${encodeURIComponent(p)}` : path)
+  for (const p of [...new Set([remembered || '', ...(candidates || [])])]) {
+    try {
+      return { data: await via(p), profile: p }
+    } catch (e) {
+      if (!isMissingPlugin(e)) throw e
+    }
+  }
+  throw new Error('Plugin not found in any profile')
+}
 // ─────────────────────────── END MODEL (pure) ───────────────────────────
 
 // ───────────────────────────── host wiring ─────────────────────────────
@@ -1124,8 +1148,16 @@ async function loadLanes(snap, ms = 6000) {
 // ───────────────────────────── squads at work (data) ─────────────────────────────
 /** Kanban reads go through this plugin's own backend (`ctx.rest` is scoped to `/api/plugins/<id>`): the same
  *  `hermes_cli.kanban_db` reads the Kanban page serves, exposed GET-only by dashboard/plugin_api.py. There is no SDK
- *  door to another plugin's REST, and reaching for its URL directly is what the catalog review refused. */
-const kanban = (path, timeoutMs = 8000) => withTimeout(ctxRef.rest(path), timeoutMs)
+ *  door to another plugin's REST, and reaching for its URL directly is what the catalog review refused. A window on a
+ *  profile without the backend gets 404 "Plugin not found": the read goes through a squad bot's profile instead. */
+let backendProfile = ''
+async function kanban(path, timeoutMs = 8000) {
+  const profiles = queryClient.getQueryData(SNAPSHOT_KEY)?.profiles
+  const focused = host.state.focusedSessionProfile?.get?.() || ''
+  const r = await restAcrossProfiles(p => withTimeout(ctxRef.rest(p), timeoutMs), path, backendProfile, backendCandidates(focused, profiles))
+  backendProfile = r.profile
+  return r.data
+}
 const BOARDS_KEY = ['squad-hub', 'boards']
 
 /** Every board with the bots that take its cards and its digest; one request per board, shared by every surface. */

@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.35.5 - 2026-10-30
+
+### Fixed
+
+- squad-hub 2.1.4: card lines in a chat read "Card not found" in a Desktop window on the `default` profile. That
+  profile does not load squad-hub's backend, so the gateway answered 404 "Plugin not found" for every card. Kanban
+  reads now go through a squad bot's profile that loads it, and keep using that one.
+
 ## 2.35.4 - 2026-10-29
 
 ### Fixed

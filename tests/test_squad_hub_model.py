@@ -21,7 +21,7 @@ NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is needed to run the plugin model")
 
 EXPORTS = ("baseName HUMAN_SOURCES isKanbanWorktree chatState activeIn projectOpensWide projectDigest folderOpensByDefault needsYou botDigest whereOf isEnvFile pendingAcross nextPending folderIcon iconFor groupIconFor sectionOf botRole botTitle isHumanChat visibleBots folderOf laneOf buildBotTree filterTree "
-           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed cardsToSwitch withTimeout boardWaiting boardChipView botCleanupProject cronRows cronEvery cronKey untilAge").split()
+           "shortAge slugify rememberPreview previewsFor rekeyPreviews sessionTime projectOpensInFocus looseSplit bellGroups upgradePrefs squadMembers cleanupPlan boardDigest boardForBot taskAssignees bellItems newSince bellFresh dismissKey bellVisible cardState cardNeeds historyOf boardManager cardRef boardRef laneStatus mergeActive keepLastBoards boardOfTask introName staleChatDismissals STATES HISTORY_KINDS bindRuntime NO_PREVIEWS openState toggledCollapsed cardsToSwitch withTimeout boardWaiting boardChipView botCleanupProject cronRows cronEvery cronKey untilAge backendCandidates restAcrossProfiles").split()
 
 
 def _model_source() -> str:
@@ -734,6 +734,34 @@ def test_a_pr_link_opens_only_over_https(model):
     pr = {"branch": "x", "draft": False, "number": 3, "state": "open", "title": "x", "url": "javascript:alert(1)"}
     assert model("laneStatus", pr, None)["pr"]["url"] == ""
     assert model("laneStatus", {**pr, "url": "https://github.com/o/r/pull/3"}, None)["pr"]["url"].startswith("https://")
+
+
+def test_a_card_in_a_default_window_is_read_through_a_squad_bot_that_loads_the_backend(model):
+    """Desktop's window runs on `default`, which does not load squad-hub's backend: the gateway answers 404 "Plugin
+    not found" and every card read "Card not found". The read must go through a squad bot's profile, remember it,
+    and still report a card the backend itself does not have."""
+    got = model.js("""
+      const profiles = [{ name: 'default', is_default: true }, { name: 'builder', ui_meta: {} },
+                        { name: 'web', ui_meta: { 'hermes-bots': { squadName: 'Web' } } }]
+      const calls = []
+      const rest = async p => {
+        calls.push(p)
+        if (!/profile=(web|builder)/.test(p)) throw new Error("404: {\\"detail\\":\\"Plugin not found\\"}")
+        if (p.includes('t_gone')) throw new Error("404: {\\"detail\\":\\"task t_gone not found\\"}")
+        return { task: { id: 't_021bb82c' } }
+      }
+      const cands = m.backendCandidates('', profiles)
+      const first = await m.restAcrossProfiles(rest, '/tasks/t_021bb82c?board=web', '', cands)
+      const again = await m.restAcrossProfiles(rest, '/tasks/t_021bb82c?board=web', first.profile, cands)
+      let gone = ''
+      try { await m.restAcrossProfiles(rest, '/tasks/t_gone?board=web', first.profile, cands) } catch (e) { gone = e.message }
+      return { cands, first, again: again.profile, calls, gone }
+    """)
+    assert got["cands"] == ["web", "builder"]
+    assert got["first"] == {"data": {"task": {"id": "t_021bb82c"}}, "profile": "web"}
+    assert got["calls"][:2] == ["/tasks/t_021bb82c?board=web", "/tasks/t_021bb82c?board=web&profile=web"]
+    assert got["calls"][2] == "/tasks/t_021bb82c?board=web&profile=web"  # remembered: no second 404 round
+    assert "task t_gone not found" in got["gone"]
 
 
 def test_a_card_line_without_a_board_finds_the_board_that_holds_the_id(model):
