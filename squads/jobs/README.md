@@ -94,7 +94,10 @@ the bot with no web and no browser; it reads and drafts, and never sends. `jobs-
   it the writer ships the PDF and ATS text and says `docx_skipped`. Text-layer checks: pypdf or
   poppler (`pdftotext`, `pdfinfo`). Without them the writer says what is missing; nothing is installed for you.
 - The shared browser: `squadctl apply` installs it as a background service; you sign in once in the window the
-  builder opens on request (`scripts/hpy shared_browser.py login <url>`).
+  builder opens on request (`scripts/hpy shared_browser.py login <url>`). On Linux it needs a running systemd user
+  manager and session bus (no sudo); Wayland and X11 visible windows need a graphical session. Use
+  `install --visible` for a visible service or `install --headless` to return to headless; plain `install` keeps the
+  choice. This is a separate managed profile: no personal browser cookies are imported.
 - Mail (optional, `jobs-inbox`): macOS and a Google app password (2-step verification on). Tell the manager "connect my
   mail": a dialog asks for your address, Google's App passwords page opens, and a hidden dialog takes the password,
   which is checked and stored in the Keychain. Nous Portal's connector catalog has no Gmail.

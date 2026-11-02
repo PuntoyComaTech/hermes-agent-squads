@@ -12,14 +12,14 @@ The service browser reaches every site; nothing is blocked at the browser.
 Commands:
   status            is the service installed, is the browser listening, how many pages
   install [--visible | --headless]
-                    write and load the login service (macOS launchd; restarts the browser if it exits).
+                    write and load the login service (macOS launchd or Linux systemd --user).
                     --visible runs the service as a normal window (same profile, same loopback port) for sites
                     whose bot check refuses a headless browser; --headless goes back. Without either flag the
                     current mode is kept. Headless is the default: a visible service puts a window on the desktop.
   uninstall         unload and remove the service
   start | stop      start or stop the service (stop frees the profile directory)
   login [URL ...]   stop the service, open a visible window on the profile (default: accounts.google.com),
-                    wait until the owner quits it (Cmd+Q), then start the service again
+                    wait until the owner quits it, then restore a previously running service
 
 Run under the Hermes runtime: scripts/hpy shared_browser.py <command>.
 """
@@ -30,6 +30,7 @@ import json
 import os
 import platform
 import plistlib
+import re
 import subprocess
 import sys
 import time
@@ -126,12 +127,12 @@ def profile_in_use(profile: Path | None = None) -> bool:
     an error and the caller would take the empty output for "no browser holds the profile". A probe failure (any
     exit code above 1, or no pgrep at all) raises ProbeError instead of answering.
     """
-    pattern = f"--user-data-dir={profile or PROFILE_DIR}"
+    pattern = "--user-data-dir=" + re.sub(r"([.\\^$*+?{}|()\[\]])", r"\\\1", str(profile or PROFILE_DIR)) + r"($|[[:space:]])"
     try:
         done = subprocess.run(["pgrep", "-f", "--", pattern], capture_output=True, text=True)
     except OSError as exc:
         raise ProbeError(f"cannot run pgrep: {exc}") from None
-    if done.returncode > 1:
+    if done.returncode not in (0, 1):
         raise ProbeError(f"pgrep -f {pattern!r} failed (exit {done.returncode}): "
                          f"{(done.stderr or done.stdout).strip()[:200]}")
     return done.returncode == 0
@@ -154,6 +155,196 @@ def require_macos() -> None:
         raise SystemExit("the service is implemented for macOS launchd only; on Linux run the browser with "
                          "`" + " ".join(service_argv("<chromium>")) + "` under your own supervisor")
 
+
+
+UNIT_NAME = f"{LABEL}.service"
+GRAPHICAL_ENV = ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS")
+
+
+def unit_path() -> Path:
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    if not config.is_absolute():
+        config = Path.home() / ".config"
+    return config / "systemd" / "user" / UNIT_NAME
+
+
+def systemctl(*args: str, allowed: tuple[int, ...] = (0,)) -> subprocess.CompletedProcess:
+    try:
+        result = subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        raise SystemExit("systemctl --user timed out; check the systemd user manager and session bus") from None
+    except OSError as exc:
+        raise SystemExit(f"cannot run systemctl --user: {exc}; install systemd and use a user session") from None
+    if result.returncode not in allowed:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise SystemExit(f"systemctl --user {' '.join(args)} failed: {detail}; "
+                         "ensure the systemd user manager and session bus are available")
+    return result
+
+
+def check_user_manager() -> None:
+    systemctl("show-environment")
+
+
+def systemd_state() -> str:
+    result = systemctl("is-active", UNIT_NAME, allowed=(0, 3, 4))
+    state = result.stdout.strip()
+    valid = {0: {"active", "reloading", "refreshing"},
+             3: {"inactive", "failed", "activating", "deactivating", "maintenance"},
+             4: {"unknown", "inactive"}}
+    if result.stderr.strip() or state not in valid[result.returncode]:
+        detail = (result.stderr or result.stdout or "empty response").strip()
+        raise SystemExit(f"systemctl --user is-active returned an unexpected state: {detail}")
+    return state
+
+
+def systemd_active() -> bool:
+    return systemd_state() in {"active", "reloading", "refreshing"}
+
+
+SUPERVISED = {"active", "reloading", "refreshing", "activating", "deactivating"}
+RESTORE = SUPERVISED - {"deactivating"}
+
+
+def import_graphical_environment() -> None:
+    names = [name for name in GRAPHICAL_ENV if os.environ.get(name)]
+    if names:
+        systemctl("import-environment", *names)
+
+
+def systemd_quote(arg: str, *, executable: bool = False) -> str:
+    # Specifiers expand in all words; environment substitution skips the executable path.
+    if not executable:
+        arg = arg.replace("$", "$$")
+    escaped = (arg.replace("%", "%%").replace("\\", "\\\\")
+               .replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t"))
+    return f'"{escaped}"'
+
+
+def service_unit(exe: str | None = None) -> bytes:
+    command = " ".join(systemd_quote(arg, executable=(i == 0))
+                       for i, arg in enumerate(service_argv(exe or chromium())))
+    return ("[Unit]\nDescription=Hermes shared browser\n\n[Service]\n"
+            f"ExecStart={command}\nRestart=always\nRestartSec=30\n\n"
+            "[Install]\nWantedBy=default.target\n").encode()
+
+
+def linux_status() -> int:
+    check_user_manager()
+    unit = unit_path()
+    try:
+        wanted = service_unit()
+    except SystemExit:
+        wanted = None
+    report = {"cdp_url": cdp_url(), "profile_dir": str(PROFILE_DIR), "service_installed": unit.is_file(),
+              "service_loaded": systemd_active(),
+              # squadctl consumes this historical, platform-neutral currency field.
+              "plist_current": None if wanted is None else (unit.is_file() and unit.read_bytes() == wanted),
+              "visible": visible(), "listening": listening()}
+    print(json.dumps(report))
+    return 0
+
+
+def linux_install(a) -> int:
+    check_user_manager()
+    exe = chromium()
+    ROOT.mkdir(parents=True, exist_ok=True)
+    os.chmod(ROOT, 0o700)
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(PROFILE_DIR, 0o700)
+    if getattr(a, "visible", False):
+        visible_flag().touch()
+    elif getattr(a, "headless", False):
+        visible_flag().unlink(missing_ok=True)
+    unit = unit_path()
+    data = service_unit(exe)
+    changed = not unit.is_file() or unit.read_bytes() != data
+    state = systemd_state()
+    active = state in {"active", "reloading", "refreshing"}
+    if state in SUPERVISED and (changed or not active):
+        systemctl("stop", UNIT_NAME)
+        active = False
+    if not active and profile_in_use():
+        raise SystemExit(f"another browser holds {PROFILE_DIR}: quit it and run install again")
+    if changed:
+        unit.parent.mkdir(parents=True, exist_ok=True)
+        unit.write_bytes(data)
+        systemctl("daemon-reload")
+    systemctl("enable", UNIT_NAME)
+    if visible():
+        import_graphical_environment()
+    if not active:
+        systemctl("start", UNIT_NAME)
+    ok = wait_for(lambda: listening() is not None, 20)
+    print(json.dumps({"installed": str(unit), "visible": visible(), "listening": listening() if ok else None}))
+    return 0 if ok else 1
+
+
+def linux_start() -> int:
+    check_user_manager()
+    if not unit_path().is_file():
+        raise SystemExit("service not installed: run `scripts/hpy shared_browser.py install`")
+    state = systemd_state()
+    if state not in {"active", "reloading", "refreshing"}:
+        if state in SUPERVISED:
+            systemctl("stop", UNIT_NAME)
+        if profile_in_use():
+            raise SystemExit(f"another browser holds {PROFILE_DIR}: quit it and retry")
+        if visible():
+            import_graphical_environment()
+        systemctl("start", UNIT_NAME)
+    ok = wait_for(lambda: listening() is not None, 20)
+    print(json.dumps({"listening": listening() if ok else None}))
+    return 0 if ok else 1
+
+
+def linux_stop() -> int:
+    check_user_manager()
+    if systemd_state() in SUPERVISED:
+        systemctl("stop", UNIT_NAME)
+    ok = wait_for(lambda: not profile_in_use(), 15)
+    print(json.dumps({"stopped": ok}))
+    return 0 if ok else 1
+
+
+def linux_uninstall() -> int:
+    check_user_manager()
+    if systemd_state() in SUPERVISED:
+        systemctl("stop", UNIT_NAME)
+    if unit_path().is_file():
+        systemctl("disable", UNIT_NAME)
+        unit_path().unlink()
+        systemctl("daemon-reload")
+    print(json.dumps({"uninstalled": True}))
+    return 0
+
+
+def linux_login(a) -> int:
+    check_user_manager()
+    state = systemd_state()
+    was_active = state in RESTORE
+    try:
+        if state in SUPERVISED:
+            systemctl("stop", UNIT_NAME)
+        if not wait_for(lambda: not profile_in_use(), 15):
+            raise SystemExit(f"another browser still holds {PROFILE_DIR}: quit it and retry")
+        ROOT.mkdir(parents=True, exist_ok=True)
+        os.chmod(ROOT, 0o700)
+        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        os.chmod(PROFILE_DIR, 0o700)
+        import_graphical_environment()
+        urls = a.url or ["https://accounts.google.com/"]
+        print(json.dumps({"login_window": urls, "quit_with": "close the browser when every sign-in is done"}), flush=True)
+        result = subprocess.run(login_argv(chromium(), urls), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode:
+            raise SystemExit(f"login browser exited with status {result.returncode}; check the graphical session")
+    finally:
+        if was_active:
+            systemctl("start", UNIT_NAME)
+            if not wait_for(lambda: listening() is not None, 20):
+                raise SystemExit("restored shared browser service did not become ready; check systemd user service logs")
+    print(json.dumps({"login_window": "closed", "listening": listening()}))
+    return 0
 
 def wait_for(cond, seconds: float) -> bool:
     deadline = time.monotonic() + seconds
@@ -274,6 +465,12 @@ def main(argv: list[str] | None = None) -> int:
     handler = {"status": cmd_status, "install": cmd_install, "uninstall": cmd_uninstall, "start": cmd_start,
                "stop": cmd_stop, "login": cmd_login}[a.cmd]
     try:
+        system = platform.system()
+        if system == "Linux":
+            return {"status": linux_status, "install": lambda: linux_install(a), "uninstall": linux_uninstall,
+                    "start": linux_start, "stop": linux_stop, "login": lambda: linux_login(a)}[a.cmd]()
+        if system != "Darwin":
+            raise SystemExit(f"unsupported operating system: {system}; use macOS or Linux with systemd --user")
         return handler(a)
     except ProbeError as exc:
         print(json.dumps({"error": f"cannot tell whether a browser holds {PROFILE_DIR}: {exc}"}), file=sys.stderr)

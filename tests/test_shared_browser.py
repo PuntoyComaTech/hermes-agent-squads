@@ -70,6 +70,8 @@ def test_profile_in_use_sees_a_process_that_holds_the_profile_dir(tmp_path, monk
 
 def test_a_failed_pgrep_is_an_error_never_an_empty_answer(tmp_path, monkeypatch, capsys):
     """An emulated exit 2 (what the old command line produced) must not read as "no browser holds the profile"."""
+    monkeypatch.setattr(sb.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(sb, "loaded", lambda: False)  # never query the host service manager
     monkeypatch.setattr(sb.subprocess, "run",
                         lambda *a, **k: subprocess.CompletedProcess(a, 2, "", "pgrep: illegal option -- -"))
     with pytest.raises(RuntimeError):
