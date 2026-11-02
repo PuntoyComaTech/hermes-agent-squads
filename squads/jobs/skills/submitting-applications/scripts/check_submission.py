@@ -88,6 +88,7 @@ from pathlib import Path
 SKILLS = Path(__file__).resolve().parents[2]
 LINK_CHECK = SKILLS / "jobs-contract" / "scripts" / "link_check.py"
 JOBS_COMMON = SKILLS / "jobs-contract" / "scripts" / "jobs_common.py"
+JOB_KEY = SKILLS / "jobs-contract" / "scripts" / "job_key.py"
 SEEN_STATE = SKILLS / "jobs-contract" / "scripts" / "seen_state.py"
 APPLY_STATE = Path(__file__).resolve().parent / "apply_state.py"
 
@@ -472,6 +473,7 @@ class Checker:
         with AS.locked(project):
             self.check_authority(screenshot=before_submit, at_gate=True)
             self.check_apply_url(self.apply_url)
+            self.check_same_posting(opening)
             if not self.errors:
                 mode = self.settings_of()[1]
                 # The stamp is the proof the record needs to soften a rule that moved after the click: every mode
@@ -793,6 +795,17 @@ class Checker:
         elif self.ats and result.get("ats") != self.ats:
             self.error("method", f"--method {self.ats} names an ATS the apply link is not on "
                                  f"({result.get('ats') or result.get('host')}): open the form on apply_url")
+
+    def check_same_posting(self, opening: Path) -> None:
+        """One employer posting is applied to once: an earlier opening or a tracker.csv row with the same canonical
+        employer URL (another portal title of one mass posting) closes the gate."""
+        url = self.apply_url or str(jc.read_front_matter(opening / "opening.md").get("apply_url") or "")
+        jk = helper("job_key", JOB_KEY)
+        owners = jk.posting_owners(opening.parent.parent, url, exclude=opening.name, earlier_only=True)
+        if owners:
+            owner = owners[0]
+            self.error("apply_url", f"same employer posting as {owner['opening_id']} "
+                                    f"({owner['status'] or owner['via']}): never applied to twice")
 
     def check_not_possible(self, data) -> None:
         if not isinstance(data["reason"], str) or not data["reason"].strip():

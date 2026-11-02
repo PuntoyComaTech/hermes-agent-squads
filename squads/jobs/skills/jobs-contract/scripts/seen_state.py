@@ -5,11 +5,17 @@ Subcommands print JSON on stdout. Errors go to stderr with exit 1.
   candidates  entries to fetch and score this run (status new or unreachable; tracker pairs excluded)
   apply       write scoring results back; print the ranking, retries, expiries and errors
   sweep       deadline pass over stored entries: a passed deadline expires, a close one is listed
-  add         register entries from a search (an existing entry keeps its status)
-  audit       check the state file for malformed entries and repeated company+title pairs
+  add         register entries from a search (an existing entry keeps its status). An entry whose employer_url
+              (the employer's own ATS posting) another entry already holds becomes an alias of that entry: one entry
+              per employer posting, the owner keeps its status, and its opening gets a status history line
+  audit       check the state file for malformed entries, repeated company+title pairs and one employer posting
+              under several entries
   stats       counts by status and band, plus stale and closing-soon counts
 
 State file: {"schema": 1, "seen": {"<job key>": {...}}}. Writes are atomic (jobs_common.write_json).
+An entry's employer posting is its employer_url, else its opening's apply_url. `candidates` never selects a second
+entry of one employer posting, nor one whose posting a tracker.csv row already holds, nor one whose own or alias
+title matches a tracker.csv company+role pair.
 
 Scoring (also used by analyzing-jobs/scripts/score_analysis.py): the overall score is the weighted mean of the
 four dimensions with profile.md scoring.weights (defaults 30/25/15/30), rounded half up. The band comes from
@@ -39,6 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import jobs_common as jc  # noqa: E402
+import job_key as jk  # noqa: E402
 
 SCHEMA = 1
 STATUSES = ("new", "ranked", "skipped", "expired", "unreachable")
@@ -354,14 +361,104 @@ def sort_key(item):
     return (deadline is None, deadline or date.max, key)
 
 
+# --- one entry per employer posting ------------------------------------------------------------------------------
+
+ALIAS_MAX = 50
+
+
+def alias_keys(seen: dict) -> dict:
+    """Portal key of an alias -> the key of the entry that holds it."""
+    index = {}
+    for key, entry in seen.items():
+        if isinstance(entry, dict):
+            for alias in entry.get("aliases") or []:
+                if isinstance(alias, dict) and alias.get("key"):
+                    index.setdefault(alias["key"], key)
+    return index
+
+
+def entry_employer_url(entry: dict, openings: dict) -> str:
+    """The canonical employer posting of an entry: its own employer_url, else its opening's apply_url."""
+    return jk.employer_url(entry.get("employer_url")) or openings.get(entry.get("opening_id") or "", "")
+
+
+def posting_groups(seen: dict, openings: dict) -> dict:
+    """Canonical employer URL -> the seen keys that hold it, owner first: the first seen, then the oldest opening id.
+
+    An entry holds a posting through its employer_url or its opening's apply_url. The owner is the one entry a
+    posting keeps; every other key of the group is a re-listing.
+    """
+    groups: dict = {}
+    for key, entry in seen.items():
+        if isinstance(entry, dict):
+            canon = entry_employer_url(entry, openings)
+            if canon:
+                groups.setdefault(canon, []).append(
+                    (str(entry.get("first_seen") or "9999"), entry.get("opening_id") or "~", key))
+    return {canon: [row[2] for row in sorted(rows)] for canon, rows in groups.items()}
+
+
+def note_relisting(project: Path, opening_id, text: str) -> bool:
+    """One status.json history line on the opening that owns the posting; its status does not change."""
+    if not opening_id or not jc.valid_opening_id(opening_id):
+        return False
+    folder = project / "openings" / opening_id
+    try:
+        current = json.loads((folder / "status.json").read_text(encoding="utf-8")).get("status")
+    except (OSError, ValueError, AttributeError):
+        return False
+    if not current:
+        return False
+    import status as st  # noqa: E402 - only a re-listing writes a history line
+    st.append(folder, current, "jobs-scout", text)
+    return True
+
+
+def absorb(project: Path, seen: dict, owner: str, key: str, item: dict, today: date) -> dict:
+    """Record listing `key` as an alias of entry `owner` (one entry per employer posting) and drop `key` as an entry.
+
+    The owner keeps its status, so a re-listing never resurrects a skipped, expired or applied opening. The owner's
+    opening gets a history line naming the second listing. Returns the report row.
+    """
+    entry = seen[owner]
+    old = seen.pop(key, None) if key != owner else None
+    source = old if isinstance(old, dict) else item
+    alias = {"key": key, "title": clip(source.get("title"), 200), "url": clip(source.get("url"), 500) or None,
+             "portal": clip(source.get("portal"), 80) or None, "first_seen": source.get("first_seen") or today.isoformat()}
+    if source.get("opening_id"):
+        alias["opening_id"] = source["opening_id"]
+    aliases = [a for a in entry.get("aliases") or [] if isinstance(a, dict) and a.get("key") != key]
+    entry["aliases"] = (aliases + [{k: v for k, v in alias.items() if v}])[-ALIAS_MAX:]
+    for nested in (old or {}).get("aliases") or []:
+        if isinstance(nested, dict) and nested.get("key") not in {a.get("key") for a in entry["aliases"]}:
+            entry["aliases"].append(nested)
+    where = f"{alias.get('portal') or 'listing'} {alias.get('url') or key}"
+    noted = note_relisting(project, entry.get("opening_id"),
+                           f"re-listed as '{alias['title']}' ({where}); same employer posting, not a new opening")
+    return {"key": key, "alias_of": owner, "opening_id": entry.get("opening_id"), "status": entry.get("status"),
+            "history_noted": noted}
+
+
 # --- commands ---------------------------------------------------------------------------------------------------
+
+def known_titles(entry: dict) -> list:
+    """The entry's own title and every alias title: the role names one employer posting was listed under."""
+    return [entry.get("title")] + [a.get("title") for a in entry.get("aliases") or [] if isinstance(a, dict)]
+
 
 def cmd_candidates(args) -> dict:
     seen = load_state(args.state)["seen"]
     excluded = tracker_pairs(args.tracker)
-    chosen, skipped_tracker = [], 0
+    openings = jk.opening_employer_urls(args.project)
+    applied = jk.tracker_employer_urls(args.project)
+    relistings = {key: keys[0] for keys in posting_groups(seen, openings).values() for key in keys[1:]}
+    chosen, skipped_tracker, skipped_relisting = [], 0, []
     for key, entry in seen.items():
         if not isinstance(entry, dict):
+            continue
+        if key in relistings:
+            # A second listing of an employer posting another entry owns: never a candidate of its own.
+            skipped_relisting.append({"key": key, "alias_of": relistings[key]})
             continue
         status = entry.get("status")
         if args.all:
@@ -373,7 +470,10 @@ def cmd_candidates(args) -> dict:
             continue  # triage scores saved openings only; an entry without opening.md is not yet triageable
         if not args.all and entry.get("analysis_decision"):
             continue  # already deep-analysed (analyzing-jobs wrote the decision here); --all re-triages it
-        if (norm(entry.get("company")), norm(entry.get("title"))) in excluded:
+        company = norm(entry.get("company"))
+        canon = entry_employer_url(entry, openings)
+        if (canon and applied.get(canon, entry.get("opening_id")) != entry.get("opening_id")) \
+                or any((company, norm(title)) in excluded for title in known_titles(entry)):
             skipped_tracker += 1
             continue
         if args.focus:
@@ -405,6 +505,7 @@ def cmd_candidates(args) -> dict:
         "selected": selected,
         "deferred": eligible - len(shown),
         "excluded_by_tracker": skipped_tracker,
+        "excluded_as_relisting": skipped_relisting,
         "total_entries": len(seen),
     }
 
@@ -609,7 +710,8 @@ def cmd_sweep(args) -> dict:
 def cmd_add(args) -> dict:
     doc = load_state(args.state)
     seen = doc["seen"]
-    added, updated, errors = [], [], []
+    added, updated, errors, relisted = [], [], [], []
+    openings = jk.opening_employer_urls(args.project)
     for item in read_items(args.file):
         if not isinstance(item, dict):
             errors.append({"key": None, "error": "entry is not an object"})
@@ -638,6 +740,26 @@ def cmd_add(args) -> dict:
         if values["opening_id"] and not jc.valid_opening_id(values["opening_id"]):
             errors.append({"key": key, "error": "opening_id must be JOB-YYYYMMDD-<slug>: no slash, no dot"})
             continue
+        canon = jk.employer_url(item.get("employer_url"))
+        if item.get("employer_url") and not canon:
+            errors.append({"key": key, "error": "employer_url is not an employer posting (link_check.py: an ATS or "
+                                                "employer site); leave it out for a portal link"})
+            continue
+        aliased = alias_keys(seen).get(key)
+        if aliased and aliased in seen:
+            relisted.append(absorb(args.project, seen, aliased, key, item, args.today))
+            continue  # a listing already recorded as an alias: the owner entry stands for it
+        if canon:
+            mine = seen.get(key) if isinstance(seen.get(key), dict) else {}
+            item = {**item, "first_seen": mine.get("first_seen") or args.today.isoformat()}
+            probe = dict(seen)
+            probe[key] = {**mine, "employer_url": canon, "first_seen": item["first_seen"],
+                          "opening_id": mine.get("opening_id") or values["opening_id"]}
+            owner = posting_groups(probe, openings)[canon][0]
+            if owner != key:
+                relisted.append(absorb(args.project, seen, owner, key, item, args.today))
+                continue
+            values["employer_url"] = canon
         if key in seen and isinstance(seen[key], dict):
             entry = seen[key]
             filled = []
@@ -659,9 +781,11 @@ def cmd_add(args) -> dict:
             entry["skip_reason"] = clip(item.get("skip_reason"), 200)
         seen[key] = entry
         added.append(key)
-    if added or updated:
+    written = bool(added or updated or relisted)
+    if written:
         save_state(args.state, doc)
-    return {"added": added, "updated": updated, "errors": errors, "written": bool(added or updated), "_exit": 1 if errors else 0}
+    return {"added": added, "updated": updated, "relisted": relisted, "errors": errors, "written": written,
+            "_exit": 1 if errors else 0}
 
 
 def cmd_audit(args) -> dict:
@@ -704,11 +828,17 @@ def cmd_audit(args) -> dict:
         {"company": seen[keys[0]].get("company"), "title": seen[keys[0]].get("title"), "keys": keys}
         for keys in pairs.values() if len(keys) > 1
     ]
+    # One employer posting under several entries: the next `add` of a re-listing merges it into the first.
+    same_posting = [
+        {"employer_url": canon, "keys": keys}
+        for canon, keys in posting_groups(seen, jk.opening_employer_urls(args.project)).items() if len(keys) > 1
+    ]
     return {
         "entries": len(seen),
         "ok": not problems,
         "problems": problems,
         "possible_duplicates": duplicates,
+        "same_employer_posting": same_posting,
         "_exit": 1 if (args.strict and problems) else 0,
     }
 

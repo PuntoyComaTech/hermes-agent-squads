@@ -30,6 +30,7 @@ import jobs_common as jc  # noqa: E402
 import salary_lookup as sl  # noqa: E402
 import posting_guard as pg  # noqa: E402
 import seen_state as ss  # noqa: E402
+import job_key as jk  # noqa: E402
 
 GATE_NAMES = jc.GATE_NAMES
 REQUIRED_LISTS = ("must_have", "nice_to_have", "responsibilities", "tools", "keywords", "disqualifiers", "priorities")
@@ -1069,6 +1070,9 @@ def build(folder: Path, project: Path, today=None):
         raise AnalysisError(f"{path} must hold a JSON object")
 
     opening_fm, body = read_opening(folder)
+    for owner in jk.posting_owners(project, opening_fm.get("apply_url"), exclude=folder.name, earlier_only=True)[:1]:
+        problems.append(f"same employer posting as {owner['opening_id']} ({owner['status'] or owner['via']}): this "
+                        f"opening is a re-listing; run apply_link.py on it to discard it, never analyse it")
     profile = read_profile(project)
     policy = profile.get("languages_policy") if isinstance(profile.get("languages_policy"), dict) else None
     cfg = ss.scoring_config(profile)  # raises ValueError on bad weights or bands

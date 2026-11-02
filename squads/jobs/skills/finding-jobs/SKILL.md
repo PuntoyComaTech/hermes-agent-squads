@@ -31,7 +31,9 @@ Your card body says `Mode: SEARCH` (scheduled or on demand), `Mode: URL` (a link
    default 15). One search card finishes in one pass: no retry loop, no detail on a dropped row.
 3. **Dedupe.** Compute each candidate's key and canonical URL with `job_key.py` and check `searches/seen.json`
    (`references/intake-safety.md`, Dedupe and seen state). A known key or URL is not new. A company and role with a
-   folder under `openings/` in the last 30 days is the same opening too.
+   folder under `openings/` in the last 30 days is the same opening too. When the employer's own posting is known
+   (the candidate URL is an ATS or employer page, or the scout found it), `job_key.py --employer-url <url> --project
+   <P>` lists the openings and tracker rows that already hold it: any owner means not new, whatever the title or city.
 4. **Link check, fetch and save.** Before any fetch, run `link_check.py <url> --company <company> --json` on each
    candidate's URL and map its verdict as `references/intake-safety.md` (Link check) says: `unverified` gets label
    `unverified_link` and FLAG, and its URL is never fetched. Then walk the escalation order in that file. Save the
@@ -51,8 +53,11 @@ Your card body says `Mode: SEARCH` (scheduled or on demand), `Mode: URL` (a link
    `mass_posting`. It never changes the verdict.
 8. **Register.** Every candidate looked at goes into `searches/seen.json` in one call:
    `seen_state.py add --project <P> --file <json>` with `key`, `company`, `title`, `url`, `portal`, `posted_at`,
-   `deadline` and, for a saved opening, `opening_id`; a DISCARD row carries `"status": "skipped"`. Without
-   `opening_id` the opening never reaches ranking-openings.
+   `deadline`, `employer_url` when the employer's posting is known, and, for a saved opening, `opening_id`; a DISCARD
+   row carries `"status": "skipped"`. Without `opening_id` the opening never reaches ranking-openings. A row whose
+   `employer_url` an entry already holds comes back under `relisted`: it is an alias of that entry, never a new one.
+   When the employer posting is found after saving, `apply_link.py` sets it; a `duplicate_of` in its output means the
+   opening is discarded as a re-listing: no analyze card.
 9. **Write the search file.** `searches/YYYY-MM-DD-HH.md`: one row per candidate, PASS first, then FLAG, then DISCARD
    grouped by reason. Add the referral links from `references/intake-safety.md` as plain lines, only for
    PASS and FLAG rows.

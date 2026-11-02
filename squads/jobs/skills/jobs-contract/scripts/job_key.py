@@ -23,6 +23,11 @@ Usage:
   python3 job_key.py --company "Acme" --title "Data analyst" --opening-id --date 2026-10-20 [--project DIR] [--url URL]
   python3 job_key.py --url-canonical "https://jobs.example.com/view/42/?utm_source=x#apply"
   python3 job_key.py --audit searches/seen.json
+  python3 job_key.py --employer-url "https://jobs.ashbyhq.com/acme/<id>?utm_source=x" [--project DIR]
+
+The employer URL is the second identity of a posting: one employer ATS posting listed under several portal titles
+(a mass posting across cities) is one opening. --employer-url prints its canonical form, null for a portal, job board
+or unverified link, and with --project the openings (opening.md apply_url) and tracker.csv rows that already hold it.
 
 Exit 0 when a key, id or URL is printed, or when an audit finds nothing wrong. Exit 1 when an audit finds malformed
 keys or one URL under two keys. Exit 2 on usage errors or an unreadable state file.
@@ -31,13 +36,15 @@ keys or one URL under two keys. Exit 2 on usage errors or an unreadable state fi
 from __future__ import annotations
 
 import argparse
+import csv
+import functools
 import hashlib
 import json
 import re
 import sys
 import unicodedata
 from pathlib import Path
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jobs_common import ascii_fold, read_front_matter  # noqa: E402  - one fold table for every key and slug
@@ -135,6 +142,108 @@ def canonical_url(url) -> str:
     ]
     path = parts.path.rstrip("/") if len(parts.path) > 1 else parts.path
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, urlencode(query), ""))
+
+
+# Referral and source tags employer ATS links carry; the posting is the same whichever portal sent the visitor.
+EMPLOYER_TRACKING = TRACKING_PARAMS + ("source", "src", "ref", "gh_src", "lever-source", "lever-origin", "trk",
+                                       "refid", "trackingid")
+_APPLY_TAIL = re.compile(r"/(?:application|apply)$")
+
+
+@functools.lru_cache(maxsize=1)
+def _link_data():
+    import link_check  # noqa: E402 - loaded only when an employer URL is asked for
+    return link_check, link_check.load_data(link_check.DATA_FILE)
+
+
+def employer_url(url) -> str:
+    """The canonical employer posting URL, or "" when the link is not the employer's own posting.
+
+    An employer posting is what link_check.py calls an ATS (`verified` or `official_ats`, kind `ats`) or an employer
+    site (`new_platform`). A portal listing, a job board or an unverified link is not one: its key stays the portal
+    key. The canonical form drops tracking and referral parameters, the fragment, a trailing /application or /apply,
+    `www.`, and folds the case of the path on an ATS host (board slugs and posting ids are case-blind there).
+    """
+    return _employer_url(url.strip().replace(" ", "%20")) if isinstance(url, str) else ""
+
+
+@functools.lru_cache(maxsize=4096)
+def _employer_url(text: str) -> str:
+    if not text.lower().startswith(("http://", "https://")):
+        return ""
+    try:
+        lc, data = _link_data()
+        result = lc.classify(text, data)
+    except Exception:  # noqa: BLE001 - an unreadable host list means no employer key, never a crash
+        return ""
+    ats = result.get("kind") == "ats" and result.get("verdict") in ("verified", "official_ats")
+    if not (ats or result.get("verdict") == "new_platform"):
+        return ""
+    parts = urlsplit(canonical_url(text))
+    host = parts.netloc[4:] if parts.netloc.startswith("www.") else parts.netloc
+    path = unquote(parts.path)
+    path = path.lower() if ats else path
+    path = _APPLY_TAIL.sub("", path.rstrip("/")) or "/"
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k.lower() not in EMPLOYER_TRACKING]
+    return urlunsplit(("https", host, quote(path, safe="/-._~"), urlencode(query), ""))
+
+
+def _opening_status(folder: Path) -> str:
+    try:
+        return str(json.loads((folder / "status.json").read_text(encoding="utf-8")).get("status") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def opening_employer_urls(project: Path) -> dict:
+    """Opening id -> canonical employer URL, for every opening whose opening.md apply_url is an employer posting."""
+    found = {}
+    folders = Path(project) / "openings"
+    if folders.is_dir():
+        for folder in sorted(p for p in folders.iterdir() if p.is_dir()):
+            canon = employer_url(read_front_matter(folder / "opening.md").get("apply_url"))
+            if canon:
+                found[folder.name] = canon
+    return found
+
+
+def tracker_employer_urls(project: Path) -> dict:
+    """Canonical employer URL -> tracker.csv row id, for every row whose apply_url is an employer posting."""
+    found = {}
+    tracker = Path(project) / "tracker.csv"
+    if tracker.is_file():
+        with tracker.open(encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                canon = employer_url(row.get("apply_url"))
+                if canon:
+                    found.setdefault(canon, row.get("id") or "")
+    return found
+
+
+def posting_owners(project: Path, url, exclude: str = "", earlier_only: bool = False) -> list:
+    """The openings and tracker.csv rows that already hold this employer posting; [] when the URL is not one.
+
+    Each row: {"via": "opening"|"tracker", "opening_id", "status"}, openings first, oldest id first. `exclude` is the
+    caller's own opening id. With `earlier_only`, an opening counts only when its id sorts before `exclude` (ids
+    start with the day found), so the first opening of a posting is never a duplicate of a later re-listing; a
+    tracker row always counts.
+    """
+    canon = employer_url(url)
+    if not canon:
+        return []
+    project = Path(project)
+    rows = [
+        {"via": "opening", "opening_id": opening, "status": _opening_status(project / "openings" / opening)}
+        for opening, value in opening_employer_urls(project).items()
+        if value == canon and opening != exclude and not (earlier_only and exclude and opening > exclude)
+    ]
+    tracker = Path(project) / "tracker.csv"
+    if tracker.is_file():
+        with tracker.open(encoding="utf-8-sig", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if row.get("id") != exclude and employer_url(row.get("apply_url")) == canon:
+                    rows.append({"via": "tracker", "opening_id": row.get("id"), "status": row.get("status")})
+    return rows
 
 
 def _company_identity(company, url: str = "") -> str:
@@ -344,6 +453,9 @@ def main(argv=None) -> int:
     parser.add_argument("--url", default="")
     parser.add_argument("--url-canonical", metavar="URL", help="print the canonical form of one URL and exit")
     parser.add_argument("--audit", metavar="STATE_JSON", help="audit a seen-state file and exit")
+    parser.add_argument("--employer-url", metavar="URL",
+                        help="print the canonical employer posting URL (null for a portal or board link) and, with "
+                             "--project, the openings and tracker rows that already hold it, as JSON")
     parser.add_argument("--opening-id", action="store_true", help="print the opening folder id instead of the key")
     parser.add_argument("--date", help="with --opening-id: the day first found, YYYY-MM-DD")
     parser.add_argument("--project", type=Path, metavar="DIR",
@@ -355,10 +467,15 @@ def main(argv=None) -> int:
     if args.url_canonical is not None:
         print(canonical_url(args.url_canonical))
         return 0
+    if args.employer_url is not None:
+        canon = employer_url(args.employer_url)
+        owners = posting_owners(args.project, args.employer_url) if args.project is not None and canon else []
+        print(json.dumps({"employer_url": canon or None, "owners": owners}, ensure_ascii=False))
+        return 0
     if args.company is None or args.title is None:
         parser.error("give --company and --title, --url-canonical, or --audit")
     if args.project is not None and not args.opening_id:
-        parser.error("--project is used with --opening-id")
+        parser.error("--project is used with --opening-id or --employer-url")
     if args.opening_id:
         if not args.date:
             parser.error("--opening-id needs --date YYYY-MM-DD")

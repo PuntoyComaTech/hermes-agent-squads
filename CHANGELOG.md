@@ -3,6 +3,18 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.36.0 - 2026-11-02
+
+### Fixed
+
+- jobs 4.18.0: one employer posting is one opening. Blacksmith Agency lists one Ashby posting under about six LinkedIn
+  city titles; each title got its own key, so a second title of an already applied posting passed every gate and
+  reached review. The canonical employer URL (`job_key.py --employer-url`, from the `apply_url` link_check calls an
+  ATS or employer site) is now a dedupe key: `seen_state.py add` turns a second listing into an alias of the first
+  entry (status kept, a history line on its opening), `candidates` never selects a re-listing or a posting a
+  tracker row holds, `apply_link.py` discards a re-listing as soon as its employer posting is set, and
+  `score_analysis.py check` and the submit gate refuse it. A link with no resolved employer URL keeps its portal key.
+
 ## 2.35.5 - 2026-10-30
 
 ### Fixed
