@@ -319,6 +319,16 @@ def test_skills_copied_with_sha_marker_and_soul(web):
     assert not (home / "skills" / "squad-web" / "leading-web").exists()
 
 
+def test_running_a_skill_script_is_not_drift(web, capsys):
+    # Running a skill's script leaves __pycache__ beside it, in the bot's copy and in the source; neither is an edit.
+    for root in (web.root / "profiles" / "web-frontend" / "skills" / "squad-web" / "building-frontend",
+                 web.src / "squads" / "web" / "skills" / "building-frontend"):
+        (root / "__pycache__").mkdir(exist_ok=True)
+        (root / "__pycache__" / "x.cpython-314.pyc").write_bytes(b"\x00bytecode")
+    _, st = web.run("status", "web", capsys=capsys)
+    assert all(b["state"] == "ok" for b in st["squads"][0]["bots"]), st
+
+
 def test_plugins_mcp_cron_board_installed(web):
     assert web.config("web-frontend")["plugins"]["enabled"] == ["disk-cleanup", "security-guidance", "squad-kanban"]
     assert "context7" in web.config("web-frontend")["mcp_servers"]

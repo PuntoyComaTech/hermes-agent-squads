@@ -10,6 +10,8 @@ All notable changes to hermes-agent-squads. The builder's update watcher reads t
 - squadctl: a plain `apply <squad>` now updates an optional bot that is already installed. It skipped it unless
   `--with` named it again, so after every squad update the bot drifted (`status` showed jobs-inbox drift 1).
   `--with` is still the only way to install one.
+- squadctl: running a skill's script no longer counts as drift. The skill hash included `__pycache__`, so a gate
+  script run in a bot's copy (or in the repo) showed that bot as drifted until the next apply.
 
 ## 2.36.1 - 2026-11-03
 

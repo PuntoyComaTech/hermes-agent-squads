@@ -746,7 +746,8 @@ def model_for(models: dict, lane: str, bot: str | None = None) -> dict | None:
 
 def tree_sha(path: Path) -> str:
     h = hashlib.sha256()
-    for f in sorted(p for p in path.rglob("*") if p.is_file() and p.name != SHA_MARK):
+    # Bytecode and Finder files are not content: running a skill's script must not turn its copy into an "edit".
+    for f in sorted(p for p in path.rglob("*") if p.is_file() and not merge3.SKIP & set(p.relative_to(path).parts)):
         h.update(str(f.relative_to(path)).encode())
         h.update(f.read_bytes())
     return h.hexdigest()
