@@ -888,6 +888,8 @@ def test_optional_bot_installs_only_with_the_with_flag(env, capsys):
     assert installed["squads"]["web"]["bots"] == WEB_BOTS
     _, st = env.run("status", "web", capsys=capsys)
     assert "web-frontend-pro" not in [b["bot"] for b in st["squads"][0]["bots"]]  # live-state hides a missing optional
+    _, out = env.run("apply", "web", "--bots", "web-frontend-pro", expect=1, capsys=capsys)
+    assert "optional bots install only with --with" in out["error"]
     _, out = env.run("apply", "web", "--with", "web-frontend-pro", capsys=capsys)
     assert out["summary"] == {"created": 1, "unchanged": 5} and "optional_skipped" not in out
     assert (env.root / "profiles" / "web-frontend-pro" / "config.yaml").is_file()
@@ -895,8 +897,17 @@ def test_optional_bot_installs_only_with_the_with_flag(env, capsys):
     assert installed["squads"]["web"]["bots"] == [*WEB_BOTS, "web-frontend-pro"]
     _, st = env.run("status", "web", capsys=capsys)
     assert "web-frontend-pro" in [b["bot"] for b in st["squads"][0]["bots"]]
-    _, out = env.run("apply", "web", "--bots", "web-frontend-pro", expect=1, capsys=capsys)
-    assert "optional bots install only with --with" in out["error"]
+    # Once installed, a plain apply keeps the optional bot up to date: a squad update must not leave it drifting.
+    def retitle(spec):
+        add_pro(spec)
+        spec["bots"]["web-frontend-pro"]["description"] = "3D, WebGL and complex motion"
+    env.squad("web", retitle)
+    _, st = env.run("status", "web", capsys=capsys)
+    assert {b["bot"]: b["state"] for b in st["squads"][0]["bots"]}["web-frontend-pro"] == "drift"
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert "optional_skipped" not in out
+    _, st = env.run("status", "web", capsys=capsys)
+    assert all(b["state"] == "ok" for b in st["squads"][0]["bots"]), st
     _, out = env.run("apply", "web", "--with", "web", expect=1, capsys=capsys)
     assert "names only optional bots" in out["error"]
 

@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.36.2 - 2026-11-03
+
+### Fixed
+
+- squadctl: a plain `apply <squad>` now updates an optional bot that is already installed. It skipped it unless
+  `--with` named it again, so after every squad update the bot drifted (`status` showed jobs-inbox drift 1).
+  `--with` is still the only way to install one.
+
 ## 2.36.1 - 2026-11-03
 
 ### Fixed

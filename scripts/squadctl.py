@@ -2168,7 +2168,8 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool, models: dict | None = 
         raise Fail(f"not in {key}: {sorted(unknown)}")
     if with_bots - set(optional):
         raise Fail(f"--with names only optional bots: {sorted(with_bots - set(optional))}")
-    selected = [b for b in names if b not in optional or b in with_bots]
+    # An optional bot installs only with --with; once its profile exists, every apply keeps it up to date.
+    selected = [b for b in names if b not in optional or b in with_bots or ctx.home(b).is_dir()]
     if a.bots:
         wanted = [b for b in a.bots.split(",") if b]
         missing = set(wanted) - set(selected)
