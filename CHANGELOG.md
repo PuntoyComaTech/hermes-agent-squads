@@ -3,6 +3,16 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.36.1 - 2026-11-03
+
+### Fixed
+
+- jobs 4.18.1: a region in `hiring_countries` resolves. `hiring_countries: [LATAM]` on a LATAM-wide posting was read
+  as "not ISO country codes" and FLAGged location and eligibility for a candidate in Colombia, so every such posting
+  asked the owner; the same scope as `remote_region:latam` alone passed. Each entry is now an assigned ISO code or a
+  region name of the region table (folded: `latam`, `Latin America`, `latinoamérica`), a mixed list is the union,
+  and anything else (`XYZ`, `Remote`, a state, `XX`) stays FLAG.
+
 ## 2.36.0 - 2026-11-02
 
 ### Fixed

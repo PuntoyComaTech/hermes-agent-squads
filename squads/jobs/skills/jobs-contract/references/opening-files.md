@@ -40,7 +40,7 @@ guard_counts: {hidden: 0, instructions: 0, hidden_urls: 0, invisible: 0, mixed_s
 ```
 
 `hiring_countries` holds every country a remote posting says it hires in, including those named only in the body
-("we hire in Ukraine, Poland, Spain..." gives `[UA, PL, ES]`), as ISO codes, never country names. When it is present
+("we hire in Ukraine, Poland, Spain..." gives `[UA, PL, ES]`), as ISO codes, never country names; a posting that names only a region gets the region (`[LATAM]`). When it is present
 it wins over the country or region in `work_mode`; `work_mode` still says the kind (`remote_region:eu`). The
 location and eligibility gates FAIL a scope that holds none of the user's workable countries, and FLAG a region
 they cannot map (`analyzing-jobs` `references/fit-rules.md`, location).

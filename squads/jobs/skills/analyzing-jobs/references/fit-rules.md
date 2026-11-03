@@ -63,7 +63,9 @@ Each dimension is `{"score": 0-100, "note": "one line"}`. Read the scale with `s
   - A scope with no workable country: FAIL, `remote only in <list>, not in your countries (<yours>)`. The
     eligibility gate FAILs the same opening, so silence in the posting never makes it `eligibility_unverified` PASS.
   - A scope whose countries need sponsorship for the candidate: FAIL (FLAG with `plans_to_relocate: true`).
-  - A region name the table does not hold, or a `hiring_countries` entry that is not an ISO code: FLAG on both gates.
+  - A `hiring_countries` entry is an ISO code or a region of the table (`LATAM`, `Latin America`); a list mixing
+    both is their union. A region name the table does not hold, or an entry that is neither (`XYZ`, a state, a
+    city, `Remote`): FLAG on both gates.
 - **seniority** — see "Years of experience" below. Shortfall above `seniority_margin`: FAIL. Otherwise PASS, with a
   soft note when the shortfall is within the margin. A years number in the posting is never reported as "no years
   requirement".
