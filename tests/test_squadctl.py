@@ -1106,6 +1106,23 @@ def test_missing_bundled_keep_is_an_error(env, capsys):
     assert "bundled skill not found" in out["error"]
 
 
+def test_bundled_keep_found_after_hermes_moves_or_renames_it(env, capsys):
+    """Hermes 0.22.6 moved design-md to optional-skills and folded docx into microsoft-office: apply still finds
+    them and points the bot's external skill dir at the new place."""
+    env.squad("web")
+    moved = env.hsrc / "optional-skills" / "creative" / "design-md"
+    moved.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(env.hsrc / "skills" / "cat" / "design-md", moved)
+    _, out = env.run("apply", "web", capsys=capsys)
+    dirs = env.config("web-frontend")["skills"]["external_dirs"]
+    assert str(moved) in dirs
+    ctx = type("Ctx", (), {"runtime": lambda self: (None, str(env.hsrc))})()
+    office = env.hsrc / "skills" / "productivity" / "microsoft-office"
+    office.mkdir(parents=True)
+    (office / "SKILL.md").write_text("x")
+    assert squadctl.resolve_keep(ctx, "bundled:docx") == ("dir", str(office))
+
+
 def test_skip_skills_leaves_skills_alone(env, capsys):
     env.squad("web")
     _, out = env.run("apply", "web", "--skip-skills", capsys=capsys)

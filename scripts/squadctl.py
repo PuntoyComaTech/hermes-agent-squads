@@ -823,14 +823,20 @@ def hermes_version(ctx: Ctx) -> str | None:
 
 # --- one bot ----------------------------------------------------------------------------------------------------------
 
+BUNDLED_RENAMED = {"docx": ("microsoft-office",)}  # a bundled skill's later name
+
+
 def resolve_keep(ctx: Ctx, entry: str) -> tuple[str, str]:
     """(kind, value): dir = an external skills dir, hub = an install identifier, local = a name in the profile."""
     kind, _, name = entry.partition(":")
     hroot = Path(ctx.runtime()[1])
     if kind == "bundled":
-        hits = sorted((hroot / "skills").glob(f"*/{name}/SKILL.md"))
+        # Hermes moves bundled skills between releases: 0.22.6 moved niche ones to optional-skills and folded docx
+        # into microsoft-office. Either place, under either name, is the same skill on that Hermes.
+        names = (name, *BUNDLED_RENAMED.get(name, ()))
+        hits = [h for n in names for d in ("skills", "optional-skills") for h in sorted((hroot / d).glob(f"*/{n}/SKILL.md"))]
         if not hits:
-            raise Fail(f"bundled skill not found in {hroot}/skills: {name}")
+            raise Fail(f"bundled skill not found in {hroot}/skills or optional-skills: {name}")
         return "dir", str(hits[0].parent)
     if kind == "official":
         if not (hroot / "optional-skills" / name / "SKILL.md").is_file():
