@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.37.4 - 2026-11-03
+
+### Fixed
+
+- squad-hub 2.1.6: "Remove worktree" takes the lane out of the Squads pane. It archives the worktree's chats (a chat
+  whose folder is gone kept the lane listed), and a worktree git no longer knows ("is not a working tree") counts as
+  removed instead of failing on every click. Git's refusal for local changes still keeps the worktree and its chats.
+
 ## 2.37.3 - 2026-11-03
 
 ### Fixed

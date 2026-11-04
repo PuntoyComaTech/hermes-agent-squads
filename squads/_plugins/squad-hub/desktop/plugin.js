@@ -829,7 +829,7 @@ const MESSAGES = {
     projectHelp: 'A project groups one or more folders. Each folder can get its own worktrees.', projectName: 'e.g. Website redesign',
     worktreeIn: 'New worktree in {0}', worktreeHelp: 'A separate checkout under .worktrees/ with its own branch, so chats work in parallel.',
     branch: 'Branch (optional)', startFrom: 'Start from',
-    removeWorktreeAsk: 'Remove worktree?', removeWorktreeBody: 'Git refuses if it has uncommitted changes. The branch is kept.',
+    removeWorktreeAsk: 'Remove worktree?', removeWorktreeBody: 'Git refuses if it has uncommitted changes. The branch is kept; its chats are archived.',
     renameChat: 'Rename chat', setup: 'Workspace', creditsBy: 'Made by', creditsPart: 'part of', folderPath: 'Folder path', add: 'Add', browse: 'Browse…',
     showOthers: 'Show other bots that have chats', showOthersHint: 'Bots that are not default, the builder or a squad manager.',
     sortRecent: 'Order bots by recent activity', sortRecentHint: 'Off: default, builder, then managers.', navRows: 'Sidebar rows',
@@ -855,7 +855,7 @@ const MESSAGES = {
     projectHelp: 'Un proyecto agrupa una o varias carpetas. Cada carpeta puede tener sus propios worktrees.', projectName: 'p. ej. Rediseño web',
     worktreeIn: 'Nuevo worktree en {0}', worktreeHelp: 'Una copia aparte bajo .worktrees/ con su propia rama, para que los chats trabajen en paralelo.',
     branch: 'Rama (opcional)', startFrom: 'Partir de',
-    removeWorktreeAsk: '¿Quitar el worktree?', removeWorktreeBody: 'Git se niega si tiene cambios sin confirmar. La rama se conserva.',
+    removeWorktreeAsk: '¿Quitar el worktree?', removeWorktreeBody: 'Git se niega si tiene cambios sin confirmar. La rama se conserva y sus chats se archivan.',
     renameChat: 'Renombrar chat', setup: 'Espacio de trabajo', creditsBy: 'Hecho por', creditsPart: 'parte de', folderPath: 'Ruta de la carpeta', add: 'Añadir', browse: 'Elegir…',
     showOthers: 'Mostrar otros bots que tengan chats', showOthersHint: 'Bots que no son default, el builder ni un manager de squad.',
     sortRecent: 'Ordenar bots por actividad reciente', sortRecentHint: 'Apagado: default, builder y luego managers.', navRows: 'Filas de la barra lateral',
@@ -1500,7 +1500,7 @@ function LaneBlock({ bot, folder, lane, depth, activeId, ctl, query }) {
             { label: t('reveal'), run: () => ctxRef?.os?.revealPath?.(lane.path) },
             { label: t('copyPath'), run: () => ctxRef?.os?.writeClipboard?.(lane.path) },
             !lane.main && !isKanbanWorktree(lane.path) ? 'sep' : null,
-            !lane.main && !isKanbanWorktree(lane.path) ? { label: t('removeWorktree'), run: () => ctl.removeWorktree(folder, lane) } : null
+            !lane.main && !isKanbanWorktree(lane.path) ? { label: t('removeWorktree'), run: () => ctl.removeWorktree(bot, folder, lane) } : null
           ]
         })
       ),
@@ -1831,6 +1831,23 @@ async function submitWorktree(state, slug, branch, base, close) {
   }
 }
 
+/** git's answer for a path that is no longer a worktree (removed by hand, by the agent or by an earlier click). */
+const goneWorktree = e => /is not a working tree|No such file or directory/i.test(String(e?.message || e))
+
+/** Remove a worktree lane: git removes the checkout (an already-gone one counts as removed) and the lane's chats are
+ *  archived, since a chat whose folder is gone keeps the lane in the list and cannot run anyway. Git's refusal (local
+ *  changes) keeps everything. */
+async function removeLane(bot, folder, lane) {
+  try {
+    if (!(await worktreeAction('worktree-remove', { folder: folder.path, path: lane.path }, worktreeRemoveCommand(folder.path, lane.path)))) return false
+  } catch (e) {
+    if (!goneWorktree(e)) throw e
+  }
+  for (const s of lane.sessions || []) await archiveSession(bot.name, s.id)
+  await refresh()
+  return true
+}
+
 function WorktreeDialog({ state, close }) {
   const t = useT()
   const [name, setName] = useState('')
@@ -2142,16 +2159,12 @@ function Hub() {
         setDialog({ kind: 'text', title: t('renameProject'), value: project.name, run: async name => { await rpc('projects.update', { profile: bot.name, id: project.id, name }); await refresh() } }),
       removeProject: (bot, project) =>
         setDialog({ kind: 'confirm', title: t('removeProject'), body: project.name, run: async () => { await rpc('projects.archive', { profile: bot.name, id: project.id }); await refresh() } }),
-      removeWorktree: (folder, lane) =>
+      removeWorktree: (bot, folder, lane) =>
         setDialog({
           kind: 'confirm',
           title: t('removeWorktreeAsk'),
           body: lane.path + ' — ' + t('removeWorktreeBody'),
-          run: async () => {
-            await worktreeAction('worktree-remove', { folder: folder.path, path: lane.path },
-              worktreeRemoveCommand(folder.path, lane.path))
-            await refresh()
-          }
+          run: () => removeLane(bot, folder, lane)
         }),
       renameChat: (bot, session) =>
         setDialog({ kind: 'text', title: t('renameChat'), value: session.title || '', run: async title => { await setSessionTitle(bot.name, session.id, title); await refresh() } }),
@@ -3350,7 +3363,7 @@ export default {
     })
     ctx.registerSettingsPage?.({ id: 'settings', title: 'Hermes Agent Squads Hub', icon: 'organization', render: () => jsx(SettingsPage, {}) })
 
-    window.__squadHub = { openChat, intentOf, syncCards, treesOf, useOpen, usePreviews, Dialogs, openCard, dismissBell, bellDismissedAtom, openBoard, loadBoards, loadCrons, newChat, atFolders, savePrefs, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadLanes, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview, laneStatusAtom, requestLaneChips, handshake, archiveSession, setSessionTitle, isEnvFile, worktreeAddCommand, worktreeRemoveCommand, worktreeAction, submitWorktree, pickFolders }
+    window.__squadHub = { openChat, intentOf, syncCards, treesOf, useOpen, usePreviews, Dialogs, openCard, dismissBell, bellDismissedAtom, openBoard, loadBoards, loadCrons, newChat, atFolders, savePrefs, goNextPending, applyTheme: () => requestTheme?.('squads'), host, queryClient, refresh, refreshSoon, loadSnapshot, loadLanes, buildBotTree, visibleBots, prefsAtom, previewsAtom, reopenPreview, laneStatusAtom, requestLaneChips, handshake, archiveSession, setSessionTitle, isEnvFile, worktreeAddCommand, worktreeRemoveCommand, worktreeAction, submitWorktree, removeLane, pickFolders }
     ctx.onDispose(() => {
       delete window.__squadHub
     })

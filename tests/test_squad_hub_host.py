@@ -750,6 +750,38 @@ out.copied = w.osCalls
     assert got["created"] == [] and got["copied"] == []
 
 
+REMOVE_LANE = """
+const removed = []
+window.hermesDesktop.git = {
+  worktreeAdd: async () => ({}),
+  worktreeRemove: async (folder, path) => { removed.push(path); if (globalThis.__GIT_ERR__) throw new Error(globalThis.__GIT_ERR__) }
+}
+w.second.register()
+w.register()
+const lane = { path: '/w/shop/.worktrees/77', sessions: [{ id: 's1' }, { id: 's2' }] }
+try { out.ok = await w.exports().removeLane({ name: 'web' }, { path: '/w/shop' }, lane) } catch (e) { out.error = String(e.message || e) }
+out.removed = removed
+out.archived = w.calls.filter(c => c.method === 'session.archive').map(c => [c.via, c.params.session_id, c.params.archived])
+"""
+
+
+def test_removing_a_worktree_archives_its_chats_so_the_lane_leaves_the_list(desk):
+    got = desk(REMOVE_LANE, plus=True)
+    assert got["removed"] == ["/w/shop/.worktrees/77"]
+    assert got["archived"] == [["web", "s1", True], ["web", "s2", True]], "a lane with chats left would stay in the list"
+
+
+def test_removing_a_worktree_git_already_lost_still_clears_the_lane(desk):
+    got = desk("globalThis.__GIT_ERR__ = \"fatal: '/w/shop/.worktrees/77' is not a working tree\"\n" + REMOVE_LANE, plus=True)
+    assert "error" not in got and got["ok"] is True
+    assert [a[1] for a in got["archived"]] == ["s1", "s2"]
+
+
+def test_a_worktree_git_refuses_to_remove_keeps_its_chats(desk):
+    got = desk("globalThis.__GIT_ERR__ = \"fatal: '/w/shop/.worktrees/77' contains modified or untracked files\"\n" + REMOVE_LANE, plus=True)
+    assert "modified or untracked" in got["error"] and got["archived"] == []
+
+
 def test_the_folder_picker_is_the_companions_and_a_typed_path_is_the_fallback(desk):
     alone = desk("""
 window.hermesDesktop.selectPaths = async () => ['/w/a']
