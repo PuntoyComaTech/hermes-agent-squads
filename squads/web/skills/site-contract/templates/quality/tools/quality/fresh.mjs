@@ -84,7 +84,7 @@ function directDependencies() {
 function releaseLine(version) {
   const parts = LINE_PATTERN.exec(String(version));
   if (!parts) {
-    return null;
+    return;
   }
   return parts.groups.major === "0" ? `0.${parts.groups.minor}` : parts.groups.major;
 }
@@ -100,8 +100,8 @@ function newestMatureLine(name, ageMs) {
     .filter(([version, stamp]) => STABLE.test(version) && Date.parse(stamp) <= cutoff)
     .map(([version]) => releaseLine(version));
   return lines.reduce(
-    (best, next) => (best === null || lineValue(next) > lineValue(best) ? next : best),
-    null,
+    (best, next) => (best === undefined || lineValue(next) > lineValue(best) ? next : best),
+    undefined,
   );
 }
 
@@ -127,12 +127,12 @@ function findSyncAndRange(declared, locked, allow) {
 
 function behindFinding([name, row], allow, ageMs) {
   const current = releaseLine(row.current ?? row.wanted);
-  if (current === null || name in allow || releaseLine(row.latest) === current) {
-    return null;
+  if (current === undefined || name in allow || releaseLine(row.latest) === current) {
+    return;
   }
   const mature = newestMatureLine(name, ageMs);
-  if (mature === null || lineValue(mature) <= lineValue(current)) {
-    return null;
+  if (mature === undefined || lineValue(mature) <= lineValue(current)) {
+    return;
   }
   return {
     current,
@@ -147,7 +147,7 @@ function findBehind(allow, ageMs) {
   const outdated = pnpmJson(["outdated", "--format", "json"]) ?? {};
   return Object.entries(outdated)
     .map((entry) => behindFinding(entry, allow, ageMs))
-    .filter((finding) => finding !== null);
+    .filter((finding) => finding !== undefined);
 }
 
 function readAllow() {

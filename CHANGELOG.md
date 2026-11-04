@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.37.1 - 2026-11-03
+
+### Fixed
+
+- web 3.9.3: the versions gate (`tools/quality/fresh.mjs`) passes Biome 2.6, whose new `noNull` rule failed every
+  new Next.js and TanStack base on the squad's own file. Astro bases still stop at `astro add tailwind` while the
+  newest Tailwind is younger than the 3-day release age (`astro add` asks for it regardless).
+
 ## 2.37.0 - 2026-11-03
 
 ### Added
