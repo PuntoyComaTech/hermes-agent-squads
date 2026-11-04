@@ -669,33 +669,42 @@ def test_the_companion_plugin_is_the_one_that_carries_what_the_catalog_copy_cann
 
 WORKTREE = """
 w.register()
-await w.exports().worktreeAction('worktree-add', { folder: '/w/shop', name: 'feat', branch: 'hermes/feat', base: '' },
-  w.exports().worktreeAddCommand('/w/shop', 'feat', 'hermes/feat', ''), 'worktreeCopied')
+out.made = await w.exports().worktreeAction('worktree-add', { folder: '/w/shop', name: 'feat', branch: 'hermes/feat', base: '' },
+  w.exports().worktreeAddCommand('/w/shop', 'feat', 'hermes/feat', ''))
 out.copied = w.osCalls
-out.notices = w.notices.map(n => n.message)
+out.notices = w.notices.map(n => ({ kind: n.kind, message: n.message, detail: n.detail, action: n.action?.label }))
+w.notices[0]?.action?.onClick()
+out.went = w.calls.filter(c => c.via === 'navigate').map(c => c.method)
 """
 
 
-def test_without_the_companion_plugin_a_worktree_action_copies_the_exact_command(desk):
+def test_without_the_companion_plugin_a_worktree_action_says_why_and_never_touches_the_clipboard(desk):
     got = desk(WORKTREE)
-    assert got["copied"] == [["writeClipboard", 'git -C "/w/shop" worktree add -b "hermes/feat" "/w/shop/.worktrees/feat"']], \
-        "the SDK has no worktree verb: the command is what the user gets, never a silent no-op"
-    assert got["notices"] and "Command copied" in got["notices"][0]
+    assert got["copied"] == [], "the clipboard holds what the user copied; a fallback must not overwrite it"
+    assert got["made"] is None, "nothing was created, so the dialog must not report success"
+    [notice] = got["notices"]
+    assert notice["kind"] == "error" and notice["message"].startswith("Squads Hub Plus is off")
+    assert notice["detail"] == 'git -C "/w/shop" worktree add -b "hermes/feat" "/w/shop/.worktrees/feat"'
+    assert got["went"] == ["/capabilities?tab=plugins&plugin=squad-hub-plus"], "the notice opens plus's own switch"
 
 
-def test_with_the_companion_plugin_the_worktree_is_created_and_nothing_is_copied(desk):
-    got = desk("""
+PLUS_GIT = """
 const made = []
 window.hermesDesktop.git = {
-  worktreeAdd: async (folder, o) => (made.push([folder, o]), { branch: o.branch }),
+  worktreeAdd: async (folder, o) => (made.push([folder, o]), { path: folder + '/.worktrees/' + o.name, branch: o.branch }),
   worktreeRemove: async (folder, path) => void made.push(['remove', folder, path]),
   repoStatus: async () => ({ changed: 2, ahead: 1 }),
   review: { prList: async () => ({ prs: [{ number: 7, state: 'open', branch: 'hermes/feat', url: 'https://github.com/o/r/pull/7', title: 'Feat' }] }) }
 }
 w.second.register()
 w.register()
-await w.exports().worktreeAction('worktree-add', { folder: '/w/shop', name: 'feat', branch: 'hermes/feat', base: '' },
-  w.exports().worktreeAddCommand('/w/shop', 'feat', 'hermes/feat', ''), 'worktreeCopied')
+"""
+
+
+def test_with_the_companion_plugin_the_worktree_is_created_and_nothing_is_copied(desk):
+    got = desk(PLUS_GIT + """
+out.result = await w.exports().worktreeAction('worktree-add', { folder: '/w/shop', name: 'feat', branch: 'hermes/feat', base: '' },
+  w.exports().worktreeAddCommand('/w/shop', 'feat', 'hermes/feat', ''))
 out.made = made
 out.copied = w.osCalls
 // the chips: squad-hub asks, plus answers with what git and GitHub said
@@ -706,10 +715,39 @@ await new Promise(r => setImmediate(r))
 out.status = w.exports().laneStatusAtom.get()['/w/shop']
 """, plus=True)
     assert got["made"] == [["/w/shop", {"name": "feat", "branch": "hermes/feat"}]], "plus ran the command"
+    assert got["result"] == {"path": "/w/shop/.worktrees/feat", "branch": "hermes/feat"}, "squad-hub gets where it lives"
     assert got["copied"] == [], "and squad-hub copied nothing"
     assert got["asked"] is True, "squad-hub hands the chip request over"
     assert got["status"]["/w/shop/.worktrees/feat"]["pr"]["number"] == 7, "the chips squad-hub renders are plus's answer"
     assert got["status"]["/w/shop/.worktrees/feat"]["changed"] == 2
+
+
+def test_the_new_worktree_dialog_opens_a_chat_in_the_new_worktree(desk):
+    """The user's flow: "New worktree…" on a folder, Create -> the worktree exists and a chat starts inside it."""
+    got = desk(PLUS_GIT + """
+const close = () => { out.closed = true }
+const bot = { name: 'web' }, folder = { path: '/w/shop', label: 'shop' }
+out.ok = await w.exports().submitWorktree({ bot, folder }, 'feat', '', '', close)
+await new Promise(r => setImmediate(r))
+out.made = made
+out.created = w.calls.filter(c => c.method === 'session.create').map(c => [c.via, c.params.cwd, c.params.cwd_explicit])
+out.copied = w.osCalls
+""", plus=True)
+    assert got["ok"] is True and got["made"] == [["/w/shop", {"name": "feat"}]]
+    assert got["created"] == [["web", "/w/shop/.worktrees/feat", True]], "the new chat runs in the worktree"
+    assert got["closed"] is True and got["copied"] == []
+
+
+def test_the_new_worktree_dialog_stays_open_and_starts_no_chat_without_the_companion(desk):
+    got = desk("""
+w.register()
+const close = () => { out.closed = true }
+out.ok = await w.exports().submitWorktree({ bot: { name: 'web' }, folder: { path: '/w/shop', label: 'shop' } }, 'feat', '', '', close)
+out.created = w.calls.filter(c => c.method === 'session.create')
+out.copied = w.osCalls
+""")
+    assert not got.get("closed"), "the dialog keeps what the user typed"
+    assert got["created"] == [] and got["copied"] == []
 
 
 def test_the_folder_picker_is_the_companions_and_a_typed_path_is_the_fallback(desk):

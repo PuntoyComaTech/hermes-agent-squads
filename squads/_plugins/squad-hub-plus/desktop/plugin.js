@@ -638,9 +638,10 @@ function take(action, can, fn) {
     const detail = e.detail || {}
     if (!can(detail)) return
     e.preventDefault()
-    Promise.resolve()
-      .then(() => fn(detail))
-      .catch(err => host.notify({ kind: 'error', message: String(err?.message || err) }))
+    const run = Promise.resolve().then(() => fn(detail))
+    // a caller that awaits (`awaits: true`) gets the answer and reports a failure itself; else plus reports it
+    if (detail.awaits) detail.result = run
+    else run.catch(err => host.notify({ kind: 'error', message: String(err?.message || err) }))
   })
 }
 const hasGit = door => Boolean(window.hermesDesktop?.git?.[door])
@@ -659,7 +660,7 @@ async function worktreeAdd(detail) {
   const res = await window.hermesDesktop.git.worktreeAdd(detail.folder, { name: slug, branch: String(detail.branch || '').trim() || undefined, base: detail.base || undefined })
   announce('lanes-changed')
   host.notify({ kind: 'success', message: 'Worktree ready: ' + (res?.branch || slug) })
-  return true
+  return { path: res?.path || '', branch: res?.branch || slug }
 }
 
 async function worktreeRemove(detail) {

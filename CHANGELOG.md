@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.37.2 - 2026-11-03
+
+### Fixed
+
+- squad-hub 2.1.5, squad-hub-plus 1.0.2: "New worktree…" in the Squads pane creates the worktree and opens its first
+  chat in it, like Desktop's own button. With Squads Hub Plus off, nothing is created: an error says so and opens its
+  switch, with the `git worktree add` command as detail. The clipboard is no longer overwritten with that command.
+
 ## 2.37.1 - 2026-11-03
 
 ### Fixed
