@@ -3,6 +3,15 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.37.3 - 2026-11-03
+
+### Fixed
+
+- squad-hub-plus 1.0.3 is on by default in every window: `squadctl apply` writes its desktop half straight to
+  `desktop-plugins/squad-hub-plus/`, unstamped, and keeps none in a bot's `plugins/`. Desktop stamped the copy it made
+  as a package half, which loads off until a switch is flipped, so the Squads pane's worktrees, folder picker and
+  floating sides did nothing on a fresh install. An explicit off in Capabilities > Plugins stays off.
+
 ## 2.37.2 - 2026-11-03
 
 ### Fixed

@@ -1234,7 +1234,8 @@ def test_every_manager_carries_squad_hub_and_its_companion_and_runs_the_agent_ha
     home = env.root / "profiles" / "builder"
     for plugin in ("squad-hub", "squad-hub-plus"):
         pkg = REPO / "squads" / "_plugins" / plugin
-        files = sorted(f for f in pkg.rglob("*") if f.is_file() and f.suffix in (".py", ".yaml", ".js", ".json"))
+        files = sorted(f for f in pkg.rglob("*") if f.is_file() and f.suffix in (".py", ".yaml", ".js", ".json")
+                       and not (plugin == "squad-hub-plus" and f.parent.name == "desktop"))
         assert files, plugin
         for f in files:
             assert (home / "plugins" / plugin / f.relative_to(pkg)).read_text() == f.read_text(), (plugin, f.name)
@@ -1244,7 +1245,7 @@ def test_every_manager_carries_squad_hub_and_its_companion_and_runs_the_agent_ha
     env.squad("web")
     env.run("apply", "web", capsys=capsys)
     assert (env.root / "profiles" / "web" / "plugins" / "squad-hub" / "__init__.py").is_file()
-    assert (env.root / "profiles" / "web" / "plugins" / "squad-hub-plus" / "desktop" / "plugin.js").is_file()
+    assert (env.root / "desktop-plugins" / "squad-hub-plus" / "plugin.js").is_file()
     assert _hub_enables(env, "web") and _plus_enables(env, "web")
     for worker in ("web-qa", "web-frontend"):
         assert not (env.root / "profiles" / worker / "plugins" / "squad-hub").exists(), worker
@@ -1273,7 +1274,7 @@ def test_a_stale_unstamped_desktop_copy_of_either_plugin_is_removed_so_desktop_r
     package (it reads as a hand install), so the window ran an old squad-hub (or squad-hub-plus) forever. apply removes
     our own stale copy of either; a stamped copy, a current one and somebody else's plugin of the same name stay."""
     env.squad("web")
-    for plugin, marker in (("squad-hub", "Hermes Agent Squads Hub"), ("squad-hub-plus", "Squads Hub Plus")):
+    for plugin, marker in (("squad-hub", "Hermes Agent Squads Hub"),):
         app = env.root / "desktop-plugins" / plugin
         app.mkdir(parents=True)
         (app / "plugin.js").write_text(f"// {marker} (key `{plugin}`) old build\n")
@@ -1290,6 +1291,31 @@ def test_a_stale_unstamped_desktop_copy_of_either_plugin_is_removed_so_desktop_r
             env.run("apply", "web", capsys=capsys)
             assert (app / "plugin.js").read_text() == files["plugin.js"], (plugin, label)
             shutil.rmtree(app)
+
+
+def test_squad_hub_plus_lands_on_by_default_in_the_desktop_root_for_every_window(env, capsys):
+    """Desktop loads a stamped (`.hermes-package.json`) desktop half OFF until a switch is flipped, so the Squads pane's
+    worktree, folder picker and floating sides did nothing. apply puts plus's half in `desktop-plugins/` itself,
+    unstamped (its own `defaultEnabled: true` holds), and keeps no copy in a bot's `plugins/` for Desktop to re-stamp."""
+    web = env.root / "profiles" / "web" / "plugins" / "squad-hub-plus"
+    (web / "desktop").mkdir(parents=True)
+    (web / "desktop" / "plugin.js").write_text("// Squads Hub Plus old half\n")
+    app = env.root / "desktop-plugins" / "squad-hub-plus"
+    app.mkdir(parents=True)
+    (app / "plugin.js").write_text("// Squads Hub Plus old half\n")
+    (app / ".hermes-package.json").write_text('{"package": "squad-hub-plus"}')
+    env.squad("web")
+    env.run("apply", "web", capsys=capsys)
+    src = (REPO / "squads" / "_plugins" / "squad-hub-plus" / "desktop" / "plugin.js").read_text()
+    assert (app / "plugin.js").read_text() == src and "defaultEnabled: true" in src
+    assert not (app / ".hermes-package.json").exists(), "a stamped half is opt-in: off in the window"
+    assert not (web / "desktop").exists(), "Desktop would copy it back over the root and stamp it"
+    assert (web / "plugin.yaml").is_file() and _plus_enables(env, "web"), "the agent package stays"
+    _, again = env.run("apply", "web", capsys=capsys)
+    assert list(again["summary"]) == ["unchanged"], "a second apply changes nothing"
+    (app / "plugin.js").write_text("// another plugin named squad-hub-plus\n")
+    env.run("apply", "web", capsys=capsys)
+    assert (app / "plugin.js").read_text() == "// another plugin named squad-hub-plus\n", "somebody else's is left"
 
 
 def test_a_manager_that_opts_out_of_squad_hub_stays_off(env, capsys):
