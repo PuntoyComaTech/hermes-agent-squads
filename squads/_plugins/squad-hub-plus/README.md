@@ -4,8 +4,9 @@ Repo-only companion of [`squad-hub`](../squad-hub). **Not in the Hermes plugin c
 Desktop plugins that stay inside the plugin SDK, and every feature here needs a door the SDK does not have yet.
 
 `squadctl apply` installs it exactly where it installs `squad-hub` — every squad manager and the builder, same opt-out
-(`plugins: {disable: [squad-hub-plus]}`) — and enables it. Desktop copies `desktop/plugin.js` to its own plugins folder
-like any other package.
+(`plugins: {disable: [squad-hub-plus]}`) — and enables it. The desktop half goes straight to
+`<HERMES_HOME>/desktop-plugins/squad-hub-plus/`, unstamped, so it is on in every window with no switch to flip; a copy
+Desktop makes from a bot's `plugins/` is stamped as a package half and loads off.
 
 ## What it carries, and why it cannot be in the catalog copy
 

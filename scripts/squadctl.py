@@ -1733,6 +1733,8 @@ class Applier:
             # the manager-wide opt-out is squad-hub; a bot may also turn off only the companion
             if plugin not in disabled:
                 acts += self.install_repo_plugin(name, bot, plugin, enabled)
+        if SQUAD_HUB_PLUS_PLUGIN not in disabled:
+            acts += self.plus_desktop_root()
         acts += self.stale_desktop_half()
         return acts
 
@@ -1746,13 +1748,13 @@ class Applier:
         if not src.is_dir():
             return []
         files = sorted(f for f in src.rglob("*") if f.is_file() and "__pycache__" not in f.parts
-                       and f.suffix in (".py", ".yaml", ".js", ".json"))
+                       and f.suffix in (".py", ".yaml", ".js", ".json") and not _plus_desktop(plugin, f.relative_to(src)))
         dest = home / "plugins" / plugin
         fresh = {str(f.relative_to(src)): _read(f) for f in files}
         stale = [rel_path for rel_path, text in fresh.items() if text and _read(dest / rel_path) != text]
         acts: list[str] = []
         if stale:
-            label = "agent half on, desktop half opt-in" if plugin == SQUAD_HUB_PLUGIN else "desktop half, repo only"
+            label = "agent half on, desktop half opt-in" if plugin == SQUAD_HUB_PLUGIN else "agent half, empty"
             acts.append(f"plugin {'~' if dest.is_dir() else '+'} {plugin} ({label})")
             if not self.dry:
                 for rel_path in stale:
@@ -1763,13 +1765,41 @@ class Applier:
                 self.ctx.hermes("plugins", "enable", plugin, "--no-allow-tool-override", profile=name)
         return acts
 
+    def plus_desktop_root(self) -> list[str]:
+        """squad-hub-plus's desktop half goes straight to `<root>/desktop-plugins/squad-hub-plus/`, unstamped, and never
+        into a bot's `plugins/` folder. Desktop copies a bot's desktop half itself and stamps it `.hermes-package.json`,
+        and a stamped half loads OFF until someone flips its switch in Capabilities > Plugins, so the Squads pane could
+        not create a worktree. An unstamped copy is a plain app plugin: its own `defaultEnabled: true` holds, in every
+        window, with nothing to switch. An explicit off stays off (Desktop keeps that choice by plugin id)."""
+        acts: list[str] = []
+        for home in sorted(p for p in self.ctx.profiles.iterdir() if p.is_dir()) if self.ctx.profiles.is_dir() else []:
+            half = home / "plugins" / SQUAD_HUB_PLUS_PLUGIN / "desktop"
+            if half.is_dir():  # first: a half left here is re-copied and re-stamped by Desktop
+                acts.append(f"{home.name}: {SQUAD_HUB_PLUS_PLUGIN}/desktop moved to desktop-plugins/")
+                if not self.dry:
+                    shutil.rmtree(half)
+        src = next((d / "squads" / "_plugins" / SQUAD_HUB_PLUS_PLUGIN / "desktop" / "plugin.js" for d in (self.ctx.src, SRC)
+                    if (d / "squads" / "_plugins" / SQUAD_HUB_PLUS_PLUGIN / "desktop" / "plugin.js").is_file()), None)
+        if src is None:
+            return acts
+        app = self.ctx.root / "desktop-plugins" / SQUAD_HUB_PLUS_PLUGIN
+        entry, marker = app / "plugin.js", app / ".hermes-package.json"
+        if entry.is_file() and not marker.exists() and "Squads Hub Plus" not in _read(entry):
+            return acts  # somebody else's plugin under that name
+        if _read(entry) != _read(src) or marker.exists():
+            acts.append(f"desktop-plugins/{SQUAD_HUB_PLUS_PLUGIN} (on by default)")
+            if not self.dry:
+                marker.unlink(missing_ok=True)
+                write_text(entry, _read(src))
+        return acts
+
     def stale_desktop_half(self) -> list[str]:
         """Desktop copies each desktop half to `<root>/desktop-plugins/<plugin>/` and stamps it `.hermes-package.json`.
         A copy with no stamp and a different `plugin.js` reads to Desktop as a plugin the user installed by hand, so it
         is never refreshed again and the window keeps running an old version. Such a copy of one of our own plugins
         (its source names it) is removed; Desktop copies the current half, stamped, on the next start or Rescan."""
         acts: list[str] = []
-        for plugin, marker in ((SQUAD_HUB_PLUGIN, "Hermes Agent Squads Hub"), (SQUAD_HUB_PLUS_PLUGIN, "Squads Hub Plus")):
+        for plugin, marker in ((SQUAD_HUB_PLUGIN, "Hermes Agent Squads Hub"),):  # plus: plus_desktop_root
             app = self.ctx.root / "desktop-plugins" / plugin
             entry = app / "plugin.js"
             if (app / ".hermes-package.json").exists() or not entry.is_file():
@@ -2099,6 +2129,11 @@ class Applier:
         return ok
 
 
+def _plus_desktop(plugin: str, rel: Path) -> bool:
+    """squad-hub-plus's desktop half lives in `<root>/desktop-plugins/`, never in a bot's package (plus_desktop_root)."""
+    return plugin == SQUAD_HUB_PLUS_PLUGIN and rel.parts[:1] == ("desktop",)
+
+
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore") if path.is_file() else ""
 
@@ -2377,7 +2412,7 @@ def refresh_foreign_plugins(ctx: Ctx, managed: set[str], dry: bool) -> list[str]
             if not dest.is_dir() or not src.is_dir():
                 continue
             files = [f for f in sorted(src.rglob("*")) if f.is_file() and "__pycache__" not in f.parts
-                     and f.suffix in (".py", ".yaml", ".js", ".json")]
+                     and f.suffix in (".py", ".yaml", ".js", ".json") and not _plus_desktop(plugin, f.relative_to(src))]
             stale = [f for f in files if _read(dest / f.relative_to(src)) != _read(f)]
             if not stale:
                 continue
