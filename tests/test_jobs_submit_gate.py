@@ -38,8 +38,12 @@ AUTO_PROFILE = ("---\nname: Example\nauto_apply: auto\nauto_apply_since: 2026-10
                 "daily_apply_cap: 10\ndaily_easy_apply_cap: 5\nreview_before_submit: false\n---\nFictional project.\n")
 
 
-def make_opening(root, opening_id=OPENING_ID, apply_url=ATS):
-    """An approved opening of a project on standing consent: ready for the gate, nothing submitted yet."""
+def make_opening(root, opening_id=OPENING_ID, apply_url=None):
+    """An approved opening of a project on standing consent: ready for the gate, nothing submitted yet.
+
+    Each opening gets its own Lever posting: one posting under two openings is a re-listing the gate refuses."""
+    if apply_url is None:
+        apply_url = ATS if opening_id == OPENING_ID else ATS.replace("1a2b3c4d5e6f", opening_id[-12:].replace("-", "0"))
     app = root / "openings" / opening_id / "application"
     app.mkdir(parents=True)
     (app.parent / "opening.md").write_text(

@@ -746,7 +746,8 @@ def model_for(models: dict, lane: str, bot: str | None = None) -> dict | None:
 
 def tree_sha(path: Path) -> str:
     h = hashlib.sha256()
-    for f in sorted(p for p in path.rglob("*") if p.is_file() and p.name != SHA_MARK):
+    # Bytecode and Finder files are not content: running a skill's script must not turn its copy into an "edit".
+    for f in sorted(p for p in path.rglob("*") if p.is_file() and not merge3.SKIP & set(p.relative_to(path).parts)):
         h.update(str(f.relative_to(path)).encode())
         h.update(f.read_bytes())
     return h.hexdigest()
@@ -2168,7 +2169,8 @@ def run_apply(ctx: Ctx, a: argparse.Namespace, dry: bool, models: dict | None = 
         raise Fail(f"not in {key}: {sorted(unknown)}")
     if with_bots - set(optional):
         raise Fail(f"--with names only optional bots: {sorted(with_bots - set(optional))}")
-    selected = [b for b in names if b not in optional or b in with_bots]
+    # An optional bot installs only with --with; once its profile exists, every apply keeps it up to date.
+    selected = [b for b in names if b not in optional or b in with_bots or ctx.home(b).is_dir()]
     if a.bots:
         wanted = [b for b in a.bots.split(",") if b]
         missing = set(wanted) - set(selected)

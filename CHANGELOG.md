@@ -3,6 +3,38 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.36.2 - 2026-11-03
+
+### Fixed
+
+- squadctl: a plain `apply <squad>` now updates an optional bot that is already installed. It skipped it unless
+  `--with` named it again, so after every squad update the bot drifted (`status` showed jobs-inbox drift 1).
+  `--with` is still the only way to install one.
+- squadctl: running a skill's script no longer counts as drift. The skill hash included `__pycache__`, so a gate
+  script run in a bot's copy (or in the repo) showed that bot as drifted until the next apply.
+
+## 2.36.1 - 2026-11-03
+
+### Fixed
+
+- jobs 4.18.1: a region in `hiring_countries` resolves. `hiring_countries: [LATAM]` on a LATAM-wide posting was read
+  as "not ISO country codes" and FLAGged location and eligibility for a candidate in Colombia, so every such posting
+  asked the owner; the same scope as `remote_region:latam` alone passed. Each entry is now an assigned ISO code or a
+  region name of the region table (folded: `latam`, `Latin America`, `latinoamérica`), a mixed list is the union,
+  and anything else (`XYZ`, `Remote`, a state, `XX`) stays FLAG.
+
+## 2.36.0 - 2026-11-02
+
+### Fixed
+
+- jobs 4.18.0: one employer posting is one opening. Blacksmith Agency lists one Ashby posting under about six LinkedIn
+  city titles; each title got its own key, so a second title of an already applied posting passed every gate and
+  reached review. The canonical employer URL (`job_key.py --employer-url`, from the `apply_url` link_check calls an
+  ATS or employer site) is now a dedupe key: `seen_state.py add` turns a second listing into an alias of the first
+  entry (status kept, a history line on its opening), `candidates` never selects a re-listing or a posting a
+  tracker row holds, `apply_link.py` discards a re-listing as soon as its employer posting is set, and
+  `score_analysis.py check` and the submit gate refuse it. A link with no resolved employer URL keeps its portal key.
+
 ## 2.35.5 - 2026-10-30
 
 ### Fixed

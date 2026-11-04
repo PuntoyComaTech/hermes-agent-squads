@@ -45,6 +45,8 @@ file: the table is the record.
   "strengths": [], "gaps": [], "guard": "clean"}}}
 ```
 
+Optional: `employer_url` (the canonical employer ATS posting) and `aliases` (`[{key, title, url, portal, first_seen,
+opening_id}]`, the other portal listings of the same employer posting). One entry per employer posting.
 Statuses: new, ranked, skipped, expired, unreachable. `seen_state.py add` registers, `apply` writes ranking results,
 `sweep` expires passed deadlines, `audit` checks the file. A null deadline means none stated; it is never guessed.
 

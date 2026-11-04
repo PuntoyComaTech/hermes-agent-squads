@@ -138,6 +138,12 @@ Two checks run before anything is saved.
    expired or unreachable. Ask the seen-state helper which candidates are new (its `candidates` command; run its
    `--help` for the input shape). A candidate whose key or canonical URL is already in the file is not new. Also skip
    a company-and-role pair that already has a folder under `openings/` within 30 days.
+3. **Employer posting.** One employer ATS posting is one opening: companies list one posting under several portal
+   titles and cities. `job_key.py --employer-url <url>` prints the canonical employer URL (null for a portal, job
+   board or unverified link); with `--project <P>` it lists the openings (`apply_url`) and tracker rows that already
+   hold it. An owner means the candidate is not new. `seen.json` keeps one entry per employer posting: `add` with
+   `employer_url` turns a second listing into an alias of the first entry (its status kept, a history line on its
+   opening). A candidate with no resolved employer URL keeps its portal key.
 
 Audit the state file when a run looks wrong: `job_key.py --audit <seen.json>` exits 1 on malformed keys or one URL
 under two keys. It reports and never rewrites a key.

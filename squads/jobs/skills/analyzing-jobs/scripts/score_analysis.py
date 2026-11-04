@@ -30,6 +30,7 @@ import jobs_common as jc  # noqa: E402
 import salary_lookup as sl  # noqa: E402
 import posting_guard as pg  # noqa: E402
 import seen_state as ss  # noqa: E402
+import job_key as jk  # noqa: E402
 
 GATE_NAMES = jc.GATE_NAMES
 REQUIRED_LISTS = ("must_have", "nice_to_have", "responsibilities", "tools", "keywords", "disqualifiers", "priorities")
@@ -288,7 +289,19 @@ REGION_ALIASES = {
     "apac": "apac", "asia pacific": "apac",
 }
 WORLDWIDE = {"global", "worldwide", "anywhere", "world", "international", "mundo", "cualquier lugar"}
-ISO2_RE = re.compile(r"^[A-Z]{2}$")
+# Assigned ISO-3166 alpha-2 codes, plus XK (Kosovo, user-assigned and in common use). Two letters alone are not a
+# country: XX or a typo stays unresolved.
+ISO2_CODES = set("""
+AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC
+CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE
+GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM
+KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ
+NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH
+SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG
+VI VN VU WF WS YE YT ZA ZM ZW XK""".split())
+CODE_ALIASES = {"UK": "GB"}  # postings write UK for the United Kingdom
+# REGION_ALIASES keyed without spaces or underscores: "Latin_America", "latin-america" and "LatinAmerica" match.
+REGION_KEYS = {re.sub(r"[\s_]+", "", alias): region for alias, region in REGION_ALIASES.items()}
 REGION_NAME_RE = re.compile(r"\b(" + "|".join(sorted((re.escape(k).replace(r"\ ", r"\s+") for k in REGION_ALIASES
                                                       if "_" not in k), key=len, reverse=True)) + r")\b")
 
@@ -305,7 +318,7 @@ def hiring_scope(opening_fm: dict):
     """(kind, countries, label) of a remote opening; None when the role is not remote (onsite, hybrid, unknown).
 
     kind: "global" (no restriction), "countries" (countries is a set of ISO codes), "unresolved" (a region name
-    REGIONS does not hold, or a hiring_countries entry that is not an ISO code). label names the scope in a reason.
+    REGIONS does not hold, or a hiring_countries entry that is neither an ISO code nor a region of REGIONS). label names the scope in a reason.
     An explicit `hiring_countries` list wins over the country or region in work_mode.
     """
     mode = str(opening_fm.get("work_mode") or "").strip()
@@ -317,23 +330,42 @@ def hiring_scope(opening_fm: dict):
     if isinstance(listed, str):
         listed = [part for part in re.split(r"[,\s]+", listed) if part]
     if isinstance(listed, list) and listed:
-        codes = list(dict.fromkeys(str(code).strip().upper() for code in listed))
-        bad = [code for code in codes if not ISO2_RE.match(code)]
+        entries = list(dict.fromkeys(str(entry).strip() for entry in listed if str(entry).strip()))
+        countries, labels, bad = set(), [], []
+        for entry in entries:
+            scope = _place_scope(entry)
+            if scope is None:
+                bad.append(entry)
+            elif scope[0] == "global":
+                return scope
+            else:
+                countries |= scope[1]
+                labels.append(scope[2])
         if bad:
-            return "unresolved", None, f"hiring_countries {', '.join(bad)} (not ISO country codes)"
-        return "countries", set(codes), ", ".join(codes)
+            return "unresolved", None, f"hiring_countries {', '.join(bad)} (not a country code or a known region)"
+        return "countries", countries, ", ".join(labels)
     if base == "remote_global":
         return "global", None, "anywhere"
     if base == "remote_country":
-        code = arg.upper()
-        return ("countries", {code}, code) if ISO2_RE.match(code) else ("unresolved", None, f"remote_country:{arg}")
-    key = re.sub(r"[^a-z0-9_]+", " ", ss.fold(arg)).strip()
+        code = CODE_ALIASES.get(arg.upper(), arg.upper())
+        return ("countries", {code}, code) if code in ISO2_CODES else ("unresolved", None, f"remote_country:{arg}")
+    return _place_scope(arg) or ("unresolved", None, arg or "an unnamed region")
+
+
+def _place_scope(name: str):
+    """(kind, countries, label) of one place name: a worldwide name, a region of REGIONS, an ISO code; else None.
+
+    A region name is folded (case, accents, spaces, underscores, hyphens), so "LATAM", "Latin_America" and
+    "latinoamérica" are one region. A region comes before the code check: "EU" is a region, not a country.
+    """
+    key = ss.fold(name)
     if key in WORLDWIDE:
         return "global", None, "anywhere"
-    region = REGION_ALIASES.get(key)
-    if not region:
-        return "unresolved", None, arg or "an unnamed region"
-    return "countries", set(REGIONS[region]), region.replace("_", " ").upper()
+    region = REGION_KEYS.get(key.replace(" ", ""))
+    if region:
+        return "countries", set(REGIONS[region]), region.replace("_", " ").upper()
+    code = CODE_ALIASES.get(name.strip().upper(), name.strip().upper())
+    return ("countries", {code}, code) if code in ISO2_CODES else None
 
 
 def scope_check(profile: dict, opening_fm: dict):
@@ -1069,6 +1101,9 @@ def build(folder: Path, project: Path, today=None):
         raise AnalysisError(f"{path} must hold a JSON object")
 
     opening_fm, body = read_opening(folder)
+    for owner in jk.posting_owners(project, opening_fm.get("apply_url"), exclude=folder.name, earlier_only=True)[:1]:
+        problems.append(f"same employer posting as {owner['opening_id']} ({owner['status'] or owner['via']}): this "
+                        f"opening is a re-listing; run apply_link.py on it to discard it, never analyse it")
     profile = read_profile(project)
     policy = profile.get("languages_policy") if isinstance(profile.get("languages_policy"), dict) else None
     cfg = ss.scoring_config(profile)  # raises ValueError on bad weights or bands

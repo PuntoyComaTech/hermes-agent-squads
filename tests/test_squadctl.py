@@ -319,6 +319,16 @@ def test_skills_copied_with_sha_marker_and_soul(web):
     assert not (home / "skills" / "squad-web" / "leading-web").exists()
 
 
+def test_running_a_skill_script_is_not_drift(web, capsys):
+    # Running a skill's script leaves __pycache__ beside it, in the bot's copy and in the source; neither is an edit.
+    for root in (web.root / "profiles" / "web-frontend" / "skills" / "squad-web" / "building-frontend",
+                 web.src / "squads" / "web" / "skills" / "building-frontend"):
+        (root / "__pycache__").mkdir(exist_ok=True)
+        (root / "__pycache__" / "x.cpython-314.pyc").write_bytes(b"\x00bytecode")
+    _, st = web.run("status", "web", capsys=capsys)
+    assert all(b["state"] == "ok" for b in st["squads"][0]["bots"]), st
+
+
 def test_plugins_mcp_cron_board_installed(web):
     assert web.config("web-frontend")["plugins"]["enabled"] == ["disk-cleanup", "security-guidance", "squad-kanban"]
     assert "context7" in web.config("web-frontend")["mcp_servers"]
@@ -888,6 +898,8 @@ def test_optional_bot_installs_only_with_the_with_flag(env, capsys):
     assert installed["squads"]["web"]["bots"] == WEB_BOTS
     _, st = env.run("status", "web", capsys=capsys)
     assert "web-frontend-pro" not in [b["bot"] for b in st["squads"][0]["bots"]]  # live-state hides a missing optional
+    _, out = env.run("apply", "web", "--bots", "web-frontend-pro", expect=1, capsys=capsys)
+    assert "optional bots install only with --with" in out["error"]
     _, out = env.run("apply", "web", "--with", "web-frontend-pro", capsys=capsys)
     assert out["summary"] == {"created": 1, "unchanged": 5} and "optional_skipped" not in out
     assert (env.root / "profiles" / "web-frontend-pro" / "config.yaml").is_file()
@@ -895,8 +907,17 @@ def test_optional_bot_installs_only_with_the_with_flag(env, capsys):
     assert installed["squads"]["web"]["bots"] == [*WEB_BOTS, "web-frontend-pro"]
     _, st = env.run("status", "web", capsys=capsys)
     assert "web-frontend-pro" in [b["bot"] for b in st["squads"][0]["bots"]]
-    _, out = env.run("apply", "web", "--bots", "web-frontend-pro", expect=1, capsys=capsys)
-    assert "optional bots install only with --with" in out["error"]
+    # Once installed, a plain apply keeps the optional bot up to date: a squad update must not leave it drifting.
+    def retitle(spec):
+        add_pro(spec)
+        spec["bots"]["web-frontend-pro"]["description"] = "3D, WebGL and complex motion"
+    env.squad("web", retitle)
+    _, st = env.run("status", "web", capsys=capsys)
+    assert {b["bot"]: b["state"] for b in st["squads"][0]["bots"]}["web-frontend-pro"] == "drift"
+    _, out = env.run("apply", "web", capsys=capsys)
+    assert "optional_skipped" not in out
+    _, st = env.run("status", "web", capsys=capsys)
+    assert all(b["state"] == "ok" for b in st["squads"][0]["bots"]), st
     _, out = env.run("apply", "web", "--with", "web", expect=1, capsys=capsys)
     assert "names only optional bots" in out["error"]
 

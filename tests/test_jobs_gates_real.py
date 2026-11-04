@@ -838,6 +838,13 @@ def test_the_eu_region_alone_rejects_a_candidate_in_colombia_without_a_country_l
     ("remote_region:Latin America", ()),
     ("remote_region:worldwide", ()),
     ("remote_region:eu", ("hiring_countries: [ES, PT, CO]",)),  # the list wins over the region and names CO
+    # A real case (2026-11-03): a LATAM-wide posting recorded the region itself as its list.
+    ("remote_region:latam", ("hiring_countries: [LATAM]",)),
+    ("remote_region:latam", ("hiring_countries: [latam]",)),
+    ("remote_region:latam", ("hiring_countries: [Latin America]",)),
+    ("remote_region:latam", ("hiring_countries: [latinoamérica]",)),
+    ("remote_region:latam", ("hiring_countries: [CO, LATAM]",)),
+    ("remote_region:eu", ("hiring_countries: [DE, LATAM]",)),  # a mixed list is the union
 ])
 def test_a_scope_that_covers_colombia_or_the_world_passes(tmp_path, work_mode, front_extra):
     _, written = decision_of(tmp_path, "Remote role for a senior developer.", work_mode=work_mode,
@@ -849,6 +856,10 @@ def test_a_scope_that_covers_colombia_or_the_world_passes(tmp_path, work_mode, f
 @pytest.mark.parametrize("work_mode, front_extra", [
     ("remote_region:nordics-plus", ()),
     ("remote_region:eu", ("hiring_countries: [Romania, PL]",)),  # a name, not an ISO code: ambiguous list
+    ("remote_region:latam", ("hiring_countries: [XYZ]",)),  # an invented region
+    ("remote_region:latam", ("hiring_countries: [Remote]",)),
+    ("remote_region:latam", ("hiring_countries: [CO, California]",)),  # one unmapped entry flags the list
+    ("remote_country:XX", ()),  # two letters that are no country
 ])
 def test_a_scope_the_gate_cannot_map_is_a_flag_never_a_pass(tmp_path, work_mode, front_extra):
     decision, written = decision_of(tmp_path, "Remote role for a senior developer.", work_mode=work_mode,
@@ -864,6 +875,15 @@ def test_a_remote_country_list_of_sponsorship_countries_still_fails_location(tmp
     assert written["gates"]["location"] == "FAIL"
     assert "where you need sponsorship" in written["gates"]["location_note"]
     assert written["gates"]["eligibility"] == "FLAG", written["gates"]["eligibility_note"]
+
+
+@pytest.mark.parametrize("front_extra", [("hiring_countries: [EU]",), ("hiring_countries: [AT, DE]",)])
+def test_a_region_list_without_the_candidates_country_still_fails(tmp_path, front_extra):
+    _, written = decision_of(tmp_path, "Remote role for a senior developer.", work_mode="remote_region:eu",
+                             profile=colombia_profile(), front_extra=front_extra)
+    assert written["gates"]["location"] == "FAIL", written["gates"]["location_note"]
+    assert "not in your countries (CO)" in written["gates"]["location_note"]
+    assert written["gates"]["eligibility"] == "FAIL", written["gates"]["eligibility_note"]
 
 
 def test_triage_reads_the_same_scope_as_finalize(tmp_path):
