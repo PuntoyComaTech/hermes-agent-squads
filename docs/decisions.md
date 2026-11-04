@@ -121,3 +121,5 @@
   `cron` strings) so it follows Hermes' look; Bot Mode's `RoutinesPane` itself is not exported and is scoped to one
   bot. A feature moves back into the catalog copy as its upstream issue lands: auto-hide zones
   NousResearch/hermes-agent#146514, a worktree verb #146515.
+
+- **C-17** (2026-11-02) The shared browser uses a systemd user service on Linux and launchd on macOS, retaining one separate managed profile and loopback-only CDP; user-scoped services avoid privilege escalation and preserve the selected visible/headless mode.

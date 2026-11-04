@@ -45,4 +45,5 @@
   sweep cron on the manager (two checks 30 s apart). Service and login: `scripts/hpy
   shared_browser.py status|install|login <url>`. `install --visible` runs the service as a normal window (same
   profile and port) for a site whose bot check refuses headless; `install --headless` goes back. A plain `install`
-  keeps the mode.
+  keeps the mode. macOS runs it under launchd; Linux under a `systemctl --user` service in
+  `~/.config/systemd/user` (no sudo; a visible service or `login` needs a Wayland or X11 session).
