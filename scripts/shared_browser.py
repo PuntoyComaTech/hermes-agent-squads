@@ -150,11 +150,11 @@ def loaded() -> bool:
     return launchctl("print", f"{domain()}/{LABEL}").returncode == 0
 
 
-def require_macos() -> None:
-    if platform.system() != "Darwin":
-        raise SystemExit("the service is implemented for macOS launchd only; on Linux run the browser with "
-                         "`" + " ".join(service_argv("<chromium>")) + "` under your own supervisor")
-
+def private_dirs() -> None:
+    """The state and profile directories, readable by the owner alone (they hold the signed-in session)."""
+    for d in (ROOT, PROFILE_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+        os.chmod(d, 0o700)
 
 
 UNIT_NAME = f"{LABEL}.service"
@@ -248,10 +248,7 @@ def linux_status() -> int:
 def linux_install(a) -> int:
     check_user_manager()
     exe = chromium()
-    ROOT.mkdir(parents=True, exist_ok=True)
-    os.chmod(ROOT, 0o700)
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    os.chmod(PROFILE_DIR, 0o700)
+    private_dirs()
     if getattr(a, "visible", False):
         visible_flag().touch()
     elif getattr(a, "headless", False):
@@ -328,10 +325,7 @@ def linux_login(a) -> int:
             systemctl("stop", UNIT_NAME)
         if not wait_for(lambda: not profile_in_use(), 15):
             raise SystemExit(f"another browser still holds {PROFILE_DIR}: quit it and retry")
-        ROOT.mkdir(parents=True, exist_ok=True)
-        os.chmod(ROOT, 0o700)
-        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-        os.chmod(PROFILE_DIR, 0o700)
+        private_dirs()
         import_graphical_environment()
         urls = a.url or ["https://accounts.google.com/"]
         print(json.dumps({"login_window": urls, "quit_with": "close the browser when every sign-in is done"}), flush=True)
@@ -345,6 +339,7 @@ def linux_login(a) -> int:
                 raise SystemExit("restored shared browser service did not become ready; check systemd user service logs")
     print(json.dumps({"login_window": "closed", "listening": listening()}))
     return 0
+
 
 def wait_for(cond, seconds: float) -> bool:
     deadline = time.monotonic() + seconds
@@ -367,16 +362,12 @@ def cmd_status(_a) -> int:
 
 
 def cmd_install(a) -> int:
-    require_macos()
     exe = chromium()
-    ROOT.mkdir(parents=True, exist_ok=True)
-    os.chmod(ROOT, 0o700)
+    private_dirs()
     if getattr(a, "visible", False):
         visible_flag().touch()
     elif getattr(a, "headless", False):
         visible_flag().unlink(missing_ok=True)
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    os.chmod(PROFILE_DIR, 0o700)
     PLIST.parent.mkdir(parents=True, exist_ok=True)
     data = plistlib.dumps(service_plist(exe))
     if not PLIST.is_file() or PLIST.read_bytes() != data:
@@ -396,7 +387,6 @@ def cmd_install(a) -> int:
 
 
 def cmd_uninstall(_a) -> int:
-    require_macos()
     if loaded():
         launchctl("bootout", f"{domain()}/{LABEL}")
     PLIST.unlink(missing_ok=True)
@@ -405,7 +395,6 @@ def cmd_uninstall(_a) -> int:
 
 
 def cmd_start(_a) -> int:
-    require_macos()
     if not PLIST.is_file():
         raise SystemExit("service not installed: run `scripts/hpy shared_browser.py install`")
     if not loaded():
@@ -416,7 +405,6 @@ def cmd_start(_a) -> int:
 
 
 def cmd_stop(_a) -> int:
-    require_macos()
     if loaded():
         launchctl("bootout", f"{domain()}/{LABEL}")
     ok = wait_for(lambda: not profile_in_use(), 15)
@@ -462,16 +450,16 @@ def main(argv: list[str] | None = None) -> int:
     lp = sub.add_parser("login")
     lp.add_argument("url", nargs="*", help="pages to open (default: accounts.google.com)")
     a = p.parse_args(argv)
-    handler = {"status": cmd_status, "install": cmd_install, "uninstall": cmd_uninstall, "start": cmd_start,
-               "stop": cmd_stop, "login": cmd_login}[a.cmd]
+    handlers = {"Darwin": {"status": cmd_status, "install": cmd_install, "uninstall": cmd_uninstall,
+                           "start": cmd_start, "stop": cmd_stop, "login": cmd_login},
+                "Linux": {"status": lambda _a: linux_status(), "install": linux_install,
+                          "uninstall": lambda _a: linux_uninstall(), "start": lambda _a: linux_start(),
+                          "stop": lambda _a: linux_stop(), "login": linux_login}}.get(platform.system())
     try:
-        system = platform.system()
-        if system == "Linux":
-            return {"status": linux_status, "install": lambda: linux_install(a), "uninstall": linux_uninstall,
-                    "start": linux_start, "stop": linux_stop, "login": lambda: linux_login(a)}[a.cmd]()
-        if system != "Darwin":
-            raise SystemExit(f"unsupported operating system: {system}; use macOS or Linux with systemd --user")
-        return handler(a)
+        if handlers is None:
+            raise SystemExit(f"unsupported operating system: {platform.system()}; "
+                             "use macOS or Linux with systemd --user")
+        return handlers[a.cmd](a)
     except ProbeError as exc:
         print(json.dumps({"error": f"cannot tell whether a browser holds {PROFILE_DIR}: {exc}"}), file=sys.stderr)
         return 1

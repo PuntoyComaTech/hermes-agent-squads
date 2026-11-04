@@ -3,6 +3,15 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.37.0 - 2026-11-03
+
+### Added
+
+- shared browser on Linux: `scripts/hpy shared_browser.py install|start|stop|uninstall|login` runs the browser as a
+  `systemctl --user` service (no sudo), keeps the visible/headless choice and imports only the display variables a
+  visible window needs; macOS keeps launchd. The profile probe now matches the profile path literally. Contributed
+  by @oliveralerubio (#26).
+
 ## 2.36.2 - 2026-11-03
 
 ### Fixed

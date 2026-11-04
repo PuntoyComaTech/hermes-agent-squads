@@ -45,9 +45,5 @@
   sweep cron on the manager (two checks 30 s apart). Service and login: `scripts/hpy
   shared_browser.py status|install|login <url>`. `install --visible` runs the service as a normal window (same
   profile and port) for a site whose bot check refuses headless; `install --headless` goes back. A plain `install`
-  keeps the mode. macOS uses launchd; Linux uses a systemd user service under `$XDG_CONFIG_HOME/systemd/user` (or
-  `~/.config/systemd/user`). It requires a working `systemctl --user` manager and session bus, not sudo. Visible
-  service and login need a graphical Wayland or X11 session; selected display/session variables are imported when
-  present. `start`, `stop`, and `uninstall` manage the service. CDP binds only to loopback. The profile is separate
-  from the owner's browser; it does not import personal cookies. The executable defaults to Hermes's managed
-  Chromium; `HERMES_SHARED_BROWSER_EXE` explicitly overrides it.
+  keeps the mode. macOS runs it under launchd; Linux under a `systemctl --user` service in
+  `~/.config/systemd/user` (no sudo; a visible service or `login` needs a Wayland or X11 session).
