@@ -3,6 +3,14 @@
 All notable changes to hermes-agent-squads. The builder's update watcher reads this file
 (`scripts/watch_upstream.py`); keep entries short and dated.
 
+## 2.36.3 - 2026-11-03
+
+### Fixed
+
+- squadctl: a `bundled:` keep is found after Hermes 0.22.6 moved it to `optional-skills` (design-md,
+  hermes-agent-skill-authoring) or folded it into another skill (docx into microsoft-office). `plan --self` and
+  `plan web|jobs` failed with "bundled skill not found" on that Hermes.
+
 ## 2.36.2 - 2026-11-03
 
 ### Fixed
